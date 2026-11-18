@@ -5,24 +5,37 @@ namespace Database\Seeders;
 use App\Modules\Billing\Database\Seeders\DemoSeeder as BillingDemoSeeder;
 use App\Modules\Catalog\Database\Seeders\DemoSeeder as CatalogDemoSeeder;
 use App\Modules\Dian\Database\Seeders\DemoSeeder as DianDemoSeeder;
+use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Support\Storage\DocumentStorage;
+use Illuminate\Contracts\Queue\ClearableQueue;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 class DatabaseSeeder extends Seeder
 {
     /**
      * Synthetic demo data for local development only. DIAN settings and test certificates come
-     * before the invoices: issuing needs them, and every issued demo invoice gets its CUFE and
-     * signed XML from the real services.
+     * before the invoices: issuing needs them, and every issued demo invoice goes through the real
+     * electronic document chain against the local DIAN simulator.
      */
-    public function run(DocumentStorage $storage): void
+    public function run(DocumentStorage $storage, DianSimulator $simulator): void
     {
-        // make seed has just recreated the database, so every stored XML is an orphan. The guard
+        // make seed has just recreated the database, so every stored file is an orphan. The guard
         // keeps the files of a database that still has documents.
         if (DB::table('documents')->doesntExist()) {
             $storage->purge();
+
+            // A fresh world: the simulator forgets the taxpayers, documents and modes of the previous
+            // database, and jobs queued for it are dropped.
+            $simulator->reset();
+
+            $queue = Queue::connection();
+
+            if ($queue instanceof ClearableQueue) {
+                $queue->clear((string) config('queue.connections.'.config('queue.default').'.queue', 'default'));
+            }
         }
 
         $this->call([

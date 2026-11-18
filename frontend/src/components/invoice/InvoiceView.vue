@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import FormSection from '@/components/FormSection.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
 import ElectronicDocumentCard from '@/components/invoice/ElectronicDocumentCard.vue'
+import ElectronicProgress from '@/components/invoice/ElectronicProgress.vue'
 import TotalsPanel from '@/components/invoice/TotalsPanel.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import {
@@ -94,31 +95,121 @@ const numbering = computed(() => {
   })
 })
 
+/** Why a call to the local simulator failed, in a few words. */
+function attemptReason(payload: Record<string, unknown>): string {
+  const outcome = String(payload.outcome ?? 'no_response')
+  const key = `invoices.view.events.reasons.${outcome}`
+
+  return t(key, { status: String(payload.http_status ?? '') })
+}
+
+function attemptLabel(payload: Record<string, unknown>): string {
+  const attempt = Number(payload.attempt ?? 1)
+
+  switch (payload.outcome) {
+    case 'responded':
+      return t('invoices.view.events.sent', { attempt })
+    case 'found':
+      return t('invoices.view.events.found', { attempt })
+    case 'not_found':
+      return t('invoices.view.events.notFound', { attempt })
+    case 'abandoned':
+      return t('invoices.view.events.interrupted', { attempt })
+    default:
+      return typeof payload.retry_in === 'number'
+        ? t('invoices.view.events.attemptFailed', { attempt, reason: attemptReason(payload), seconds: payload.retry_in })
+        : t('invoices.view.events.attemptFailedLast', { attempt, reason: attemptReason(payload) })
+  }
+}
+
+function rulesOf(payload: Record<string, unknown> | null): string {
+  return Array.isArray(payload?.rules) ? payload.rules.join(', ') : ''
+}
+
 function eventLabel(event: DocumentEvent): string {
+  const payload = event.payload ?? {}
+
   switch (event.type) {
     case 'issued':
-      return t('invoices.view.events.issued', { number: String(event.payload?.full_number ?? '') })
+      return t('invoices.view.events.issued', { number: String(payload.full_number ?? '') })
     case 'xml_generated':
       return t('invoices.view.events.xmlGenerated')
     case 'xml_signed':
       return t('invoices.view.events.xmlSigned')
     case 'xml_failed':
       return t('invoices.view.events.xmlFailed')
+    case 'transmission_attempt':
+      return attemptLabel(payload)
+    case 'accepted':
+      return t('invoices.view.events.accepted')
+    case 'rejected':
+      return t('invoices.view.events.rejected')
+    case 'transmission_failed':
+      return t('invoices.view.events.transmissionFailed', { attempts: Number(payload.attempts ?? 0) })
+    case 'retry_requested':
+      return t('invoices.view.events.retryRequested')
+    case 'resend_requested':
+      return t('invoices.view.events.resendRequested')
     default:
       return t('invoices.view.events.created')
   }
 }
 
-/** Shown under a timeline entry: the certificate that signed, or why the XML failed. */
+/** Shown under a timeline entry: the certificate that signed, the call, the rules, or a reason. */
 function eventDetail(event: DocumentEvent): string | null {
-  const reason = event.payload?.reason
-  const serial = event.payload?.certificate_serial
+  const payload = event.payload ?? {}
+  const reason = payload.reason
 
-  if (event.type === 'xml_signed' && typeof serial === 'string') {
-    return t(event.payload?.test_certificate === true ? 'invoices.view.events.signedWithTest' : 'invoices.view.events.signedWith', { serial })
+  switch (event.type) {
+    case 'xml_signed':
+      return typeof payload.certificate_serial === 'string'
+        ? t(payload.test_certificate === true ? 'invoices.view.events.signedWithTest' : 'invoices.view.events.signedWith', { serial: payload.certificate_serial })
+        : null
+    case 'transmission_attempt':
+      return payload.status_code
+        ? t('invoices.view.events.callDetailStatus', { operation: String(payload.operation ?? ''), ms: Number(payload.duration_ms ?? 0), code: String(payload.status_code) })
+        : t('invoices.view.events.callDetail', { operation: String(payload.operation ?? ''), ms: Number(payload.duration_ms ?? 0) })
+    case 'accepted':
+      return Number(payload.notifications ?? 0) > 0
+        ? t('invoices.view.events.acceptedNotifications', { count: Number(payload.notifications), rules: rulesOf(payload) })
+        : null
+    case 'rejected':
+      return rulesOf(payload) ? t('invoices.view.events.rejectedRules', { rules: rulesOf(payload) }) : null
+    case 'retry_requested':
+      return payload.waiting === true
+        ? t('invoices.view.events.retryWaiting')
+        : t('invoices.view.events.retryFrom', { step: t(`invoices.view.events.steps.${String(payload.step ?? 'transmit')}`) })
+    case 'resend_requested':
+      return payload.cufe_changed === true ? t('invoices.view.events.cufeChanged') : null
+    case 'xml_failed':
+    case 'transmission_failed':
+      return typeof reason === 'string' ? reason : null
+    default:
+      return null
   }
+}
 
-  return event.type === 'xml_failed' && typeof reason === 'string' ? reason : null
+/** Color of the dot of a timeline entry. */
+function eventTone(event: DocumentEvent): 'error' | 'warning' | 'success' | 'default' {
+  switch (event.type) {
+    case 'xml_failed':
+    case 'rejected':
+    case 'transmission_failed':
+      return 'error'
+    case 'accepted':
+      return 'success'
+    case 'transmission_attempt':
+      return ['responded', 'found', 'not_found'].includes(String(event.payload?.outcome)) ? 'default' : 'warning'
+    default:
+      return 'default'
+  }
+}
+
+const toneClass = {
+  error: 'bg-destructive',
+  warning: 'bg-amber-500',
+  success: 'bg-emerald-600',
+  default: 'bg-primary',
 }
 </script>
 
@@ -129,6 +220,8 @@ function eventDetail(event: DocumentEvent): string | null {
         <DocumentStatusBadge :status="invoice.status" />
       </template>
     </PageHeader>
+
+    <ElectronicProgress v-if="invoice.electronic" :electronic="invoice.electronic" />
 
     <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div class="grid min-w-0 gap-6">
@@ -218,15 +311,15 @@ function eventDetail(event: DocumentEvent): string | null {
             <li v-for="event in invoice.events ?? []" :key="event.id" class="flex gap-3">
               <span
                 class="mt-1.5 size-2 shrink-0 rounded-full"
-                :class="event.type === 'xml_failed' ? 'bg-destructive' : 'bg-primary'"
+                :class="toneClass[eventTone(event)]"
                 aria-hidden="true"
               />
-              <div class="grid gap-0.5">
+              <div class="grid min-w-0 gap-0.5">
                 <p class="font-medium">{{ eventLabel(event) }}</p>
                 <p
                   v-if="eventDetail(event)"
                   class="text-xs break-words"
-                  :class="event.type === 'xml_failed' ? 'font-mono text-destructive' : 'text-muted-foreground'"
+                  :class="event.type === 'xml_failed' || event.type === 'transmission_failed' ? 'font-mono text-destructive' : 'text-muted-foreground'"
                 >
                   {{ eventDetail(event) }}
                 </p>

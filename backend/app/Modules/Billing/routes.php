@@ -9,17 +9,19 @@ Route::middleware(['auth:sanctum', 'company'])->group(function (): void {
     Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::get('invoices/{invoice}/xml', [InvoiceController::class, 'xml'])->name('invoices.xml');
+    Route::get('invoices/{invoice}/dian-response', [InvoiceController::class, 'dianResponse'])->name('invoices.dian-response');
     Route::get('number-templates', [NumberTemplateController::class, 'index'])->name('number-templates.index');
     Route::get('number-templates/{numberTemplate}', [NumberTemplateController::class, 'show'])->name('number-templates.show');
 
-    // Members, admins and owners write drafts and issue them.
+    // Members, admins and owners write drafts, issue them and act on their electronic document chain.
     Route::middleware('permission:manage-documents')->group(function (): void {
         Route::post('invoices/preview', [InvoiceController::class, 'preview'])->name('invoices.preview');
         Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
         Route::patch('invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
         Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
         Route::post('invoices/{invoice}/issue', [InvoiceController::class, 'issue'])->name('invoices.issue');
-        Route::post('invoices/{invoice}/xml/regenerate', [InvoiceController::class, 'regenerateXml'])->name('invoices.xml.regenerate');
+        Route::post('invoices/{invoice}/retry', [InvoiceController::class, 'retry'])->name('invoices.retry');
+        Route::post('invoices/{invoice}/resend', [InvoiceController::class, 'resend'])->name('invoices.resend');
     });
 
     // Only admins and owners manage numbering.

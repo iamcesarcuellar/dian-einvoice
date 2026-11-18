@@ -56,18 +56,31 @@ export const invoicesApi = {
     return (await request<DataEnvelope<Calculation>>('POST', '/invoices/preview', input)).data
   },
 
-  /** Assigns the next number and the CUFE, makes the invoice final and generates its XML. */
+  /**
+   * Assigns the next number and the CUFE and makes the invoice final; its electronic document chain
+   * (XML, signature, transmission to the local DIAN simulator) then runs in the background.
+   */
   async issue(id: string): Promise<Invoice> {
     return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/issue`)).data
   },
 
-  /** The unsigned UBL 2.1 XML of an issued invoice. */
+  /** The signed UBL 2.1 XML of an issued invoice. */
   xml(id: string): Promise<string> {
     return requestText(`/invoices/${id}/xml`)
   },
 
-  /** Generates the XML again, such as after a failure. */
-  async regenerateXml(id: string): Promise<Invoice> {
-    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/xml/regenerate`)).data
+  /** The ApplicationResponse of the last answer of the local DIAN simulator. */
+  dianResponse(id: string): Promise<string> {
+    return requestText(`/invoices/${id}/dian-response`)
+  },
+
+  /** The next transmission attempt now, or a new run from the step that failed. */
+  async retry(id: string): Promise<Invoice> {
+    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/retry`)).data
+  },
+
+  /** After a rejection: the chain runs again from the generation of the XML. */
+  async resend(id: string): Promise<Invoice> {
+    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/resend`)).data
   },
 }

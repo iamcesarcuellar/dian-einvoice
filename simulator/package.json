@@ -1,0 +1,21 @@
+{
+  "name": "dian-einvoice-simulator",
+  "private": true,
+  "description": "Local simulator of the DIAN web service (SendBillSync, GetStatus) for development. It is not the DIAN.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.8",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^6.0.3"
+  }
+}

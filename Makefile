@@ -9,21 +9,26 @@ COMPOSE := docker compose
 INVOICES ?= 60
 CONCURRENCY ?= 20
 
-.PHONY: up down logs ps seed demo stress dian-check clean nuke sh-api sh-web screenshots
+# Size of make chaos.
+CHAOS_INVOICES ?= 40
 
-# Build images if needed, start the stack, wait for the database, install missing dependencies, generate the key and migrate.
+.PHONY: up down logs ps seed demo stress chaos dian-check clean nuke sh-api sh-web screenshots
+
+# Build images if needed, start the stack, wait for the database and Redis, install missing dependencies,
+# generate the key, migrate, and start the queue workers and the outbox relay with the current code.
 up:
 	$(COMPOSE) build
-	$(COMPOSE) up -d --wait db
+	$(COMPOSE) up -d --wait db redis
 	test -f backend/.env || cp backend/.env.example backend/.env
 	test -d backend/vendor || $(COMPOSE) run --rm --no-deps api composer install --no-interaction
 	grep -Eq '^APP_KEY=.+' backend/.env || $(COMPOSE) run --rm --no-deps api php artisan key:generate --no-interaction
 	test -d frontend/node_modules || $(COMPOSE) run --rm --no-deps web pnpm install --frozen-lockfile
-	$(COMPOSE) up -d api web
+	$(COMPOSE) up -d api web simulator
 	$(COMPOSE) exec api php artisan migrate --force --no-interaction
-	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health"
+	$(COMPOSE) up -d --force-recreate worker relay
+	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  DIAN simulator: http://localhost:8602/health"
 
-# Stop and remove this project's containers; the database volume is kept.
+# Stop and remove this project's containers; the database, Redis and simulator volumes are kept.
 down:
 	$(COMPOSE) down
 
@@ -35,23 +40,32 @@ logs:
 ps:
 	$(COMPOSE) ps
 
-# Rebuild the database from scratch and load the synthetic demo data; local data is lost.
+# Rebuild the database from scratch and load the synthetic demo data; local data is lost. The workers and
+# the relay are stopped meanwhile: the demo runs its invoices through the chain itself, in line.
 seed:
-	$(COMPOSE) exec api php artisan migrate:fresh --seed --force --no-interaction
+	$(COMPOSE) stop worker relay
+	$(COMPOSE) exec api php artisan migrate:fresh --seed --force --no-interaction || { $(COMPOSE) up -d worker relay; exit 1; }
+	$(COMPOSE) up -d worker relay
 
 # Start the stack and load the synthetic demo data.
 demo: up
 	@$(MAKE) --no-print-directory seed
 
-# Issue INVOICES invoices from CONCURRENCY parallel processes on a temporary company and check the numbers have no gaps or repeats.
+# On a temporary company, issue INVOICES invoices from CONCURRENCY parallel processes, check the numbers have
+# no gaps or repeats, and time the whole chain from issue to acceptance by the DIAN simulator.
 stress:
 	$(COMPOSE) exec api php artisan billing:stress --invoices=$(INVOICES) --concurrency=$(CONCURRENCY)
+
+# On a temporary company, issue CHAOS_INVOICES invoices, kill both workers and the relay while the chain runs,
+# start them again, restart the DIAN simulator, and check every invoice ends accepted once, without gaps.
+chaos:
+	@sh scripts/chaos.sh $(CHAOS_INVOICES)
 
 # Check the CUFE against the DIAN annex example, validate an issued demo invoice XML against the official XSD, sign it and verify the signature with xmlsec1 (and that a tampered copy fails).
 dian-check:
 	$(COMPOSE) exec api php artisan dian:check
 
-# Remove this project's containers and volumes, which deletes the database.
+# Remove this project's containers and volumes, which deletes the database, the queue and the simulator state.
 clean:
 	$(COMPOSE) down --volumes --remove-orphans
 

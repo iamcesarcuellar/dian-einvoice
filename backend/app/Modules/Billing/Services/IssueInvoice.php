@@ -5,8 +5,8 @@ namespace App\Modules\Billing\Services;
 use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Enums\NumberingStatus;
-use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\DocumentEvent;
 use App\Modules\Billing\Models\NumberTemplate;
@@ -14,8 +14,8 @@ use App\Modules\Catalog\Models\Tax;
 use App\Modules\Catalog\Models\Withholding;
 use App\Modules\Dian\Models\DianSetting;
 use App\Modules\Dian\Models\SigningCertificate;
+use App\Modules\Dian\Pipeline\ChainEvents;
 use App\Modules\Dian\Services\InvoiceStamp;
-use App\Modules\Dian\Services\InvoiceXmlGenerator;
 use App\Modules\Dian\Services\IssueRequirements;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Tenancy\CurrentCompany;
@@ -31,8 +31,10 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
  * Issues a draft invoice in one database transaction. It locks the document row, then the
  * numbering row (always in that order, so concurrent issues queue instead of deadlocking), takes
  * the next number, freezes the copies and stamps the CUFE. Any failure rolls everything back, so a
- * number is never skipped or repeated. Deadlocks are retried. Once committed, the UBL XML is
- * generated and signed; a failure there leaves the invoice issued and marked.
+ * number is never skipped or repeated. Deadlocks are retried. The same transaction records the
+ * invoice.issued event, which starts the electronic document chain: generating and signing the
+ * XML, sending it to the DIAN (the local simulator) and recording the answer all run in the queue,
+ * never inside this request.
  */
 final class IssueInvoice
 {
@@ -46,12 +48,11 @@ final class IssueInvoice
         private readonly Outbox $outbox,
         private readonly IssueRequirements $requirements,
         private readonly InvoiceStamp $stamp,
-        private readonly InvoiceXmlGenerator $xml,
     ) {}
 
     public function __invoke(string $documentId, ?User $actor = null): Document
     {
-        $document = DB::transaction(function () use ($documentId, $actor): Document {
+        return DB::transaction(function () use ($documentId, $actor): Document {
             // 1. The document. A second click waits here, then finds it issued.
             $document = Document::query()->whereKey($documentId)->lockForUpdate()->firstOrFail();
 
@@ -102,7 +103,11 @@ final class IssueInvoice
                 'company_snapshot' => $this->snapshots->company($company),
                 'customer_snapshot' => $this->snapshots->customer($document->contact),
                 'numbering_snapshot' => $this->snapshots->numbering($template),
-                'xml_status' => XmlStatus::Pending,
+                // The chain starts: first run, no attempt yet.
+                'electronic_status' => ElectronicStatus::Pending,
+                'electronic_status_at' => $now,
+                'electronic_run' => 1,
+                'electronic_attempt' => 0,
             ]);
 
             // 3. CUFE, software security code, QR URL and environment, from what was just frozen.
@@ -116,8 +121,9 @@ final class IssueInvoice
                 'actor_id' => $actor?->getKey(),
             ]);
 
-            $this->outbox->record($document->company_id, 'document', $document->getKey(), 'invoice.issued', [
+            $this->outbox->record($document->company_id, 'document', $document->getKey(), ChainEvents::ISSUED, [
                 'document_id' => $document->getKey(),
+                'run' => 1,
                 'full_number' => $document->full_number,
                 'cufe' => $document->cufe,
                 'issue_date' => $today,
@@ -129,9 +135,6 @@ final class IssueInvoice
 
             return $document;
         }, self::ATTEMPTS);
-
-        // 4. After the commit: the signed XML. It never throws; a failure is recorded on the invoice.
-        return $this->xml->generate($document);
     }
 
     /**

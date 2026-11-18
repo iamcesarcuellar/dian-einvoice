@@ -1,5 +1,14 @@
 import { request } from './client'
-import type { DataEnvelope, DianSettings, DianSettingsInput, SigningCertificate } from './types'
+import type {
+  DataEnvelope,
+  DianSettings,
+  DianSettingsInput,
+  SigningCertificate,
+  SimulatorMode,
+  SimulatorModeInput,
+  SimulatorRequest,
+  SimulatorSettings,
+} from './types'
 
 /** DIAN settings of the current company (X-Company-Id). Owners and admins only. */
 export const dianSettingsApi = {
@@ -36,5 +45,23 @@ export const signingCertificateApi = {
 
   remove(): Promise<void> {
     return request<void>('DELETE', '/dian-settings/certificate')
+  },
+}
+
+/**
+ * The local DIAN simulator, a development tool, for the requests of the current company. The API
+ * talks to the simulator; the browser never does. Owners and admins only.
+ */
+export const simulatorApi = {
+  async settings(): Promise<SimulatorSettings> {
+    return (await request<DataEnvelope<SimulatorSettings>>('GET', '/dian-simulator/mode')).data
+  },
+
+  async setMode(input: SimulatorModeInput): Promise<SimulatorMode> {
+    return (await request<DataEnvelope<{ mode: SimulatorMode }>>('PUT', '/dian-simulator/mode', input)).data.mode
+  },
+
+  async requests(limit = 30): Promise<SimulatorRequest[]> {
+    return (await request<DataEnvelope<SimulatorRequest[]>>('GET', '/dian-simulator/requests', undefined, { limit })).data
   },
 }

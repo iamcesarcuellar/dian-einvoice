@@ -47,21 +47,41 @@ return new class extends Migration
             $table->string('qr_url')->nullable()->comment('DIAN verification URL, drawn as the QR code');
             $table->unsignedTinyInteger('dian_environment')->nullable()->comment('2: habilitación (test)');
             $table->json('dian_snapshot')->nullable()->comment('Software data the XML uses, frozen on issue');
-            // UBL 2.1 XML, generated and signed (XAdES-EPES) after the issue is committed. Only the
-            // signed XML is stored.
-            $table->string('xml_status', 20)->nullable()->comment('pending, generated, signed or failed; null for drafts');
-            $table->string('xml_path')->nullable()->comment('Path in the private document storage');
+            // Electronic document chain, run by queued steps after the issue is committed: generate
+            // the XML, sign it, send it to the DIAN (the local simulator) and record the answer.
+            $table->string('electronic_status', 20)->nullable()->comment('pending, generated, signed, sending, accepted, rejected or failed; null for drafts');
+            $table->timestamp('electronic_status_at')->nullable()->comment('When the electronic status last changed');
+            $table->unsignedSmallInteger('electronic_run')->default(0)->comment('Pass of the chain: 1 on issue, one more on each Resend, or Retry after a failure');
+            $table->unsignedTinyInteger('electronic_attempt')->default(0)->comment('Last transmission attempt started in this run');
+            $table->timestamp('electronic_next_attempt_at')->nullable()->comment('Set while a transmission waits for its next attempt');
+            $table->string('electronic_failed_step', 20)->nullable()->comment('generate, sign or transmit, while failed');
+            // UBL 2.1 XML, generated and then signed (XAdES-EPES) by the chain. Only the signed XML is kept.
+            $table->string('xml_path')->nullable()->comment('Path of the signed XML in the private document storage');
             $table->char('xml_sha256', 64)->nullable()->comment('Of the stored (signed) XML');
             $table->unsignedInteger('xml_size')->nullable()->comment('Bytes of the stored (signed) XML');
             $table->timestamp('xml_generated_at')->nullable();
             $table->timestamp('xml_signed_at')->nullable()->comment('xades:SigningTime');
             $table->string('signing_certificate_serial', 100)->nullable()->comment('Decimal serial number of the certificate that signed');
+            // Transmission: file names of annex 1.9 (6.5.7 and 6.5.8), set on the first attempt of a
+            // run, and the last answer of the DIAN web service, which here is always the local simulator.
+            $table->string('dian_zip_file_name', 40)->nullable()->comment('z + NIT + 000 + year + hexadecimal consecutive, .zip');
+            $table->string('dian_xml_file_name', 40)->nullable()->comment('fv + NIT + 000 + year + hexadecimal consecutive, .xml');
+            $table->string('dian_gateway', 20)->nullable()->comment('Who answered: simulator');
+            $table->string('dian_status_code', 4)->nullable()->comment('StatusCode: 00 processed, 99 with errors');
+            $table->string('dian_status_description', 500)->nullable();
+            $table->string('dian_status_message', 1000)->nullable();
+            $table->json('dian_messages')->nullable()->comment('Rules failed or noted: rule, kind (rejection or notification) and message');
+            $table->string('dian_response_path')->nullable()->comment('ApplicationResponse in the private document storage');
+            $table->timestamp('dian_responded_at')->nullable();
             $table->foreignUlid('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             // Drafts have no prefix or number, so they never collide.
             $table->unique(['company_id', 'type', 'prefix', 'number'], 'documents_number_unique');
             $table->index(['company_id', 'type', 'status']);
+            $table->index(['company_id', 'type', 'electronic_status']);
+            // The relay looks across companies for chains that stopped moving.
+            $table->index(['electronic_status', 'updated_at']);
         });
 
         Schema::create('document_lines', function (Blueprint $table) {

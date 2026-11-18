@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { dianSettingsApi } from '@/api/dian'
 import { orNull } from '@/components/company/companyForm'
 import SigningCertificateCard from '@/components/dian/SigningCertificateCard.vue'
+import SimulatorCard from '@/components/dian/SimulatorCard.vue'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import FormSection from '@/components/FormSection.vue'
@@ -21,7 +22,8 @@ import { useSessionStore } from '@/stores/session'
 
 /**
  * DIAN settings of the current company, for owners and admins: the environment (always test),
- * the software ID, the write-only PIN, the optional test set ID and the signing certificate.
+ * the software ID, the write-only PIN, the optional test set ID, the signing certificate, and the
+ * local DIAN simulator that stands in for the DIAN.
  */
 const { t } = useI18n()
 const queryClient = useQueryClient()
@@ -170,5 +172,7 @@ onBeforeUnmount(() => clearTimeout(savedTimer))
     </form>
 
     <SigningCertificateCard v-if="canManage && settings" />
+
+    <SimulatorCard v-if="canManage && settings" />
   </div>
 </template>

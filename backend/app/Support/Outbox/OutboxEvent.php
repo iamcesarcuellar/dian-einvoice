@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * An event waiting to be published. Not scoped to the current company: a relay reads them all.
+ * An event waiting to be published. Not scoped to the current company: the relay reads them all.
  */
 class OutboxEvent extends Model
 {
@@ -15,7 +15,7 @@ class OutboxEvent extends Model
     public const UPDATED_AT = null;
 
     /** @var list<string> */
-    protected $fillable = ['company_id', 'aggregate_type', 'aggregate_id', 'type', 'payload', 'published_at'];
+    protected $fillable = ['company_id', 'aggregate_type', 'aggregate_id', 'type', 'payload', 'available_at', 'published_at'];
 
     /**
      * @return array<string, string>
@@ -24,6 +24,7 @@ class OutboxEvent extends Model
     {
         return [
             'payload' => 'array',
+            'available_at' => 'datetime',
             'published_at' => 'datetime',
         ];
     }

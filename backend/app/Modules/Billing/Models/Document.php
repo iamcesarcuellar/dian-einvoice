@@ -4,9 +4,9 @@ namespace App\Modules\Billing\Models;
 
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
-use App\Modules\Billing\Enums\XmlStatus;
+use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Catalog\Models\Contact;
-use App\Modules\Identity\Models\User;
+use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Identity\Tenancy\BelongsToCompany;
 use App\Modules\Reference\Enums\PaymentForm;
 use App\Modules\Reference\Enums\PaymentMeans;
@@ -18,7 +18,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * An invoice now; credit and debit notes from stage 8. A draft is editable and has no number;
  * once issued it is numbered, its copies of the company, customer and numbering are frozen, it
- * gets its CUFE and it can no longer change. Its UBL XML is built from those copies only.
+ * gets its CUFE and it can no longer change. Its UBL XML is built from those copies only, by the
+ * electronic document chain (see ElectronicStatus), which also sends it to the DIAN: in this
+ * project, always the local simulator.
  */
 class Document extends Model
 {
@@ -37,6 +39,17 @@ class Document extends Model
         'payable_amount',
         'withholding_total',
         'amount_due',
+    ];
+
+    /** The last answer of the DIAN web service (the local simulator), cleared on Resend. */
+    public const array DIAN_RESULT = [
+        'dian_gateway',
+        'dian_status_code',
+        'dian_status_description',
+        'dian_status_message',
+        'dian_messages',
+        'dian_response_path',
+        'dian_responded_at',
     ];
 
     /** @var list<string> */
@@ -65,13 +78,21 @@ class Document extends Model
         'qr_url',
         'dian_environment',
         'dian_snapshot',
-        'xml_status',
+        'electronic_status',
+        'electronic_status_at',
+        'electronic_run',
+        'electronic_attempt',
+        'electronic_next_attempt_at',
+        'electronic_failed_step',
         'xml_path',
         'xml_sha256',
         'xml_size',
         'xml_generated_at',
         'xml_signed_at',
         'signing_certificate_serial',
+        'dian_zip_file_name',
+        'dian_xml_file_name',
+        ...self::DIAN_RESULT,
         'created_by',
     ];
 
@@ -101,10 +122,16 @@ class Document extends Model
             'numbering_snapshot' => 'array',
             'dian_environment' => 'integer',
             'dian_snapshot' => 'array',
-            'xml_status' => XmlStatus::class,
+            'electronic_status' => ElectronicStatus::class,
+            'electronic_status_at' => 'datetime',
+            'electronic_run' => 'integer',
+            'electronic_attempt' => 'integer',
+            'electronic_next_attempt_at' => 'datetime',
             'xml_size' => 'integer',
             'xml_generated_at' => 'datetime',
             'xml_signed_at' => 'datetime',
+            'dian_messages' => 'array',
+            'dian_responded_at' => 'datetime',
         ];
     }
 
@@ -144,6 +171,16 @@ class Document extends Model
     {
         // Entries of the same second keep the order they were written in (ULIDs grow with time).
         return $this->hasMany(DocumentEvent::class)->orderBy('occurred_at')->orderBy('id');
+    }
+
+    /**
+     * Calls to the DIAN web service (the local simulator), oldest first.
+     *
+     * @return HasMany<DianTransmission, $this>
+     */
+    public function transmissions(): HasMany
+    {
+        return $this->hasMany(DianTransmission::class)->orderBy('started_at')->orderBy('id');
     }
 
     /**

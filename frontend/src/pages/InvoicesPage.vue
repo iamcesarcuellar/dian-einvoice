@@ -10,6 +10,7 @@ import { invoicesApi } from '@/api/resources'
 import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
+import ElectronicStatusBadge from '@/components/invoice/ElectronicStatusBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SelectInput from '@/components/SelectInput.vue'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ const { can } = useSession()
 const canManage = computed(() => can('manage-documents'))
 
 const status = ref<string | null>(ALL)
+const electronic = ref<string | null>(ALL)
 
 const statusOptions = computed<Option[]>(() => [
   { value: ALL, label: t('invoices.filters.all') },
@@ -33,8 +35,20 @@ const statusOptions = computed<Option[]>(() => [
   { value: 'issued', label: t('invoices.status.issued') },
 ])
 
+// Processing groups pending, generated, signed and sending; the API filters by it too.
+const electronicOptions = computed<Option[]>(() => [
+  { value: ALL, label: t('invoices.filters.allElectronic') },
+  ...['processing', 'accepted', 'rejected', 'failed'].map((value) => ({ value, label: t(`invoices.electronic.${value}`) })),
+])
+
+function filterValue(value: string | null): string | undefined {
+  return value === ALL || value === null ? undefined : value
+}
+
 const { page, search, rows, meta, isLoading } = useListQuery('invoices', invoicesApi.list, {
-  filters: () => ({ status: status.value === ALL || status.value === null ? undefined : status.value }),
+  filters: () => ({ status: filterValue(status.value), electronic_status: filterValue(electronic.value) }),
+  // While an invoice on screen is still processing, the list refreshes every 3 seconds.
+  refetchInterval: (items: Invoice[]) => (items.some((item) => item.electronic && !item.electronic.final) ? 3000 : false),
 })
 
 const columns = computed<DataTableColumn[]>(() => [
@@ -44,6 +58,7 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: 'due_date', label: t('invoices.columns.dueDate') },
   { key: 'total', label: t('invoices.columns.total'), align: 'right' },
   { key: 'status', label: t('invoices.columns.status') },
+  { key: 'electronic', label: t('invoices.columns.electronic') },
 ])
 
 function actions(invoice: Invoice): RowAction[] {
@@ -79,8 +94,13 @@ function actions(invoice: Invoice): RowAction[] {
       actions
     >
       <template #toolbar>
-        <div class="w-44">
-          <SelectInput v-model="status" :options="statusOptions" :placeholder="t('invoices.filters.status')" />
+        <div class="flex flex-wrap gap-2">
+          <div class="w-44">
+            <SelectInput v-model="status" :options="statusOptions" :placeholder="t('invoices.filters.status')" />
+          </div>
+          <div class="w-52">
+            <SelectInput v-model="electronic" :options="electronicOptions" :placeholder="t('invoices.filters.electronic')" />
+          </div>
         </div>
       </template>
       <template #cell-number="{ row }">
@@ -102,6 +122,10 @@ function actions(invoice: Invoice): RowAction[] {
       </template>
       <template #cell-status="{ row }">
         <DocumentStatusBadge :status="row.status" />
+      </template>
+      <template #cell-electronic="{ row }">
+        <ElectronicStatusBadge v-if="row.electronic" :status="row.electronic.status" />
+        <span v-else class="text-muted-foreground">—</span>
       </template>
       <template #actions="{ row }">
         <RowActions :actions="actions(row)" />

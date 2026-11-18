@@ -3,46 +3,36 @@
 namespace App\Modules\Billing\Console;
 
 use App\Modules\Billing\Enums\DocumentStatus;
-use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Billing\Services\InvoiceDrafts;
 use App\Modules\Billing\Services\IssueInvoice;
-use App\Modules\Catalog\Models\Contact;
-use App\Modules\Catalog\Models\Tax;
-use App\Modules\Dian\Models\DianSetting;
-use App\Modules\Dian\Services\SigningCertificates;
-use App\Modules\Identity\Actions\CreateCompany;
-use App\Modules\Identity\Enums\Role;
-use App\Modules\Identity\Models\Company;
-use App\Modules\Identity\Models\Membership;
+use App\Modules\Billing\Tools\TemporaryCompany;
+use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Identity\Models\User;
-use App\Modules\Identity\Tenancy\CurrentCompany;
-use App\Modules\Reference\Enums\FiscalResponsibility;
-use App\Modules\Reference\Enums\OrganizationType;
-use App\Modules\Reference\Enums\TaxScheme;
-use App\Support\Storage\DocumentStorage;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
 /**
  * Development tool. On a temporary company of its own, it creates drafts, issues them from
- * parallel worker processes and checks the numbers are consecutive, with no gaps or repeats.
- * The company and everything in it is deleted at the end.
+ * parallel processes and checks the numbers are consecutive, with no gaps or repeats. Then it
+ * waits for the whole electronic document chain (XML, signature, transmission to the local DIAN
+ * simulator and its answer, run by the queue workers) and reports the time from the first issue
+ * to the last acceptance and the invoices per second. The company is deleted at the end.
  */
 final class StressNumberingCommand extends Command
 {
     protected $signature = 'billing:stress
         {--invoices=60 : Invoices to issue}
-        {--concurrency=20 : Worker processes issuing at the same time}';
+        {--concurrency=20 : Processes issuing at the same time}
+        {--timeout= : Seconds to wait for the chain; 120 plus 2 per invoice by default}';
 
-    protected $description = 'Issue invoices from parallel processes on a temporary company and check the numbering has no gaps or repeats';
+    protected $description = 'Issue invoices from parallel processes on a temporary company, check the numbering, and time the chain until the DIAN simulator accepts them';
 
-    public function handle(CreateCompany $createCompany, InvoiceDrafts $drafts, IssueInvoice $issue, CurrentCompany $currentCompany, SigningCertificates $certificates): int
+    public function handle(InvoiceDrafts $drafts, IssueInvoice $issue): int
     {
         if (! function_exists('pcntl_fork')) {
             $this->error('The pcntl extension is missing; rebuild the api image with make up.');
@@ -52,43 +42,14 @@ final class StressNumberingCommand extends Command
 
         $count = max(1, (int) $this->option('invoices'));
         $workers = max(1, min($count, (int) $this->option('concurrency')));
+        $timeout = (int) ($this->option('timeout') ?: 120 + 2 * $count);
 
-        $user = User::create([
-            'name' => 'Stress Test',
-            'email' => 'stress-'.Str::lower((string) Str::ulid()).'@example.com',
-            'password' => Str::random(40),
-        ]);
-
-        $company = null;
+        $temporary = TemporaryCompany::create('Stress Test', 'ST');
 
         try {
-            // A complete tax profile, synthetic DIAN software and a test certificate: issuing requires them.
-            $company = $createCompany($user, [
-                'name' => 'Stress Test '.Carbon::now()->format('His'),
-                'identification_number' => $this->freeNit(),
-                'organization_type' => OrganizationType::LegalEntity->value,
-                'tax_scheme' => TaxScheme::Iva->value,
-                'fiscal_responsibilities' => [FiscalResponsibility::NotApplicable->value],
-                'email' => 'stress@example.com',
-                'address' => 'Carrera 1 # 1-01',
-                'municipality_code' => '05001',
-            ]);
-
-            $membership = Membership::query()
-                ->with('company')
-                ->where('company_id', $company->getKey())
-                ->where('role', Role::Owner)
-                ->firstOrFail();
-
-            $currentCompany->set($membership);
-
-            DianSetting::create(['software_id' => (string) Str::uuid(), 'software_pin' => Str::random(8)]);
-            $certificates->generateTest($company);
-
-            $template = $this->createNumbering();
-            $customer = Contact::query()->where('is_system', true)->firstOrFail();
-            $taxId = Tax::query()->where('name', 'IVA 19%')->value('id');
-
+            $template = $temporary->numbering();
+            $customer = $temporary->customer();
+            $taxId = $temporary->iva();
             $ids = [];
 
             for ($index = 1; $index <= $count; $index++) {
@@ -99,28 +60,27 @@ final class StressNumberingCommand extends Command
                         ['description' => 'Stress test product', 'quantity' => '2', 'unit_price' => '15000', 'tax_id' => $taxId],
                         ['description' => 'Stress test service', 'quantity' => '1', 'unit_price' => (string) (1000 * $index), 'tax_id' => null],
                     ],
-                ], $user)->getKey();
+                ], $temporary->user)->getKey();
             }
 
-            $this->line("Temporary company {$company->name}: {$count} drafts created.");
+            $this->line("Temporary company {$temporary->company->name}: {$count} drafts created.");
 
             $started = hrtime(true);
-            $failures = $this->issueInParallel($ids, $workers, $issue, $user);
-            $seconds = (hrtime(true) - $started) / 1e9;
+            $failures = $this->issueInParallel($ids, $workers, $issue, $temporary->user);
+            $issuedIn = (hrtime(true) - $started) / 1e9;
 
-            return $this->report($template->refresh(), $count, $workers, $failures, $seconds);
+            $numbering = $this->reportNumbering($template->refresh(), $count, $workers, $failures, $issuedIn);
+            $chain = $this->reportChain($count, $started, $timeout);
+
+            return $numbering && $chain ? self::SUCCESS : self::FAILURE;
         } finally {
-            if ($company !== null) {
-                $this->deleteCompany($company->getKey());
-            }
-
-            $user->delete();
+            $temporary->delete();
             $this->line('Temporary company deleted.');
         }
     }
 
     /**
-     * Forks the workers; each one issues its share of the drafts with its own database connection.
+     * Forks the processes; each one issues its share of the drafts with its own database connection.
      *
      * @param  list<string>  $ids
      * @return int Issues that failed.
@@ -136,7 +96,7 @@ final class StressNumberingCommand extends Command
             $pid = pcntl_fork();
 
             if ($pid === -1) {
-                throw new RuntimeException('Could not start a worker process.');
+                throw new RuntimeException('Could not start a process.');
             }
 
             if ($pid === 0) {
@@ -151,7 +111,7 @@ final class StressNumberingCommand extends Command
                         $issue($id, $user);
                     } catch (Throwable $exception) {
                         $failed++;
-                        fwrite(STDERR, sprintf("Worker %d, draft %s: %s\n", $worker + 1, $id, $exception->getMessage()));
+                        fwrite(STDERR, sprintf("Process %d, draft %s: %s\n", $worker + 1, $id, $exception->getMessage()));
                     }
                 }
 
@@ -173,7 +133,7 @@ final class StressNumberingCommand extends Command
         return $failed;
     }
 
-    private function report(NumberTemplate $template, int $count, int $workers, int $failures, float $seconds): int
+    private function reportNumbering(NumberTemplate $template, int $count, int $workers, int $failures, float $seconds): bool
     {
         $numbers = Document::query()
             ->where('status', DocumentStatus::Issued)
@@ -188,7 +148,7 @@ final class StressNumberingCommand extends Command
         $repeated = array_values(array_unique(array_diff_assoc($numbers, array_unique($numbers))));
         $missing = $numbers === [] ? [] : array_values(array_diff(range($first, $last), $numbers));
 
-        $this->line(sprintf('Issued %d of %d invoices with %d parallel workers in %.2f s (%d failed).', $issued, $count, $workers, $seconds, $failures));
+        $this->line(sprintf('Issued %d of %d invoices from %d parallel processes in %.2f s (%d failed).', $issued, $count, $workers, $seconds, $failures));
 
         $ok = $failures === 0
             && $issued === $count
@@ -198,12 +158,9 @@ final class StressNumberingCommand extends Command
             && $template->next_number === $template->from_number + $count;
 
         if ($ok) {
-            $this->info(sprintf(
-                'Numbers %s%d to %s%d: %d consecutive numbers, no gaps and no repeats.',
-                $template->prefix, $first, $template->prefix, $last, $issued,
-            ));
+            $this->info(sprintf('Numbers %s%d to %s%d: %d consecutive numbers, no gaps and no repeats.', $template->prefix, $first, $template->prefix, $last, $issued));
 
-            return self::SUCCESS;
+            return true;
         }
 
         $this->error(sprintf(
@@ -211,49 +168,65 @@ final class StressNumberingCommand extends Command
             $first, $last, $template->next_number, implode(', ', $repeated), implode(', ', array_slice($missing, 0, 20)),
         ));
 
-        return self::FAILURE;
+        return false;
     }
 
-    private function createNumbering(): NumberTemplate
+    /** Waits until every issued invoice reaches a final state, or the timeout, and reports. */
+    private function reportChain(int $count, int $started, int $timeout): bool
     {
-        $today = Carbon::now(NumberTemplate::TIMEZONE);
+        $this->line('Waiting for the chain: XML, signature, transmission to the local DIAN simulator and its answer...');
 
-        return NumberTemplate::create([
-            'document_type' => DocumentType::Invoice,
-            'prefix' => 'ST',
-            'from_number' => 1,
-            'to_number' => 999999,
-            'next_number' => 1,
-            'resolution_number' => 'STRESS-TEST',
-            'valid_from' => $today->copy()->subDay()->toDateString(),
-            'valid_to' => $today->copy()->addYear()->toDateString(),
-            'technical_key' => Str::random(40),
-            'is_default' => true,
-        ]);
-    }
+        $deadline = $started + $timeout * 1_000_000_000;
 
-    /** A synthetic NIT no company uses yet. */
-    private function freeNit(): string
-    {
         do {
-            $nit = '98'.str_pad((string) random_int(0, 9_999_999), 7, '0', STR_PAD_LEFT);
-        } while (Company::query()->where('identification_number', $nit)->exists());
+            $states = $this->states();
+            $final = ($states[ElectronicStatus::Accepted->value] ?? 0) + ($states[ElectronicStatus::Rejected->value] ?? 0) + ($states[ElectronicStatus::Failed->value] ?? 0);
 
-        return $nit;
+            if ($final >= $count) {
+                break;
+            }
+
+            usleep(250_000);
+        } while (hrtime(true) < $deadline);
+
+        $seconds = (hrtime(true) - $started) / 1e9;
+        $accepted = $states[ElectronicStatus::Accepted->value] ?? 0;
+        $calls = DianTransmission::query()->toBase()->selectRaw('operation, count(*) as total')->groupBy('operation')->pluck('total', 'operation');
+
+        $this->line(sprintf(
+            'Chain: %d of %d accepted by the local DIAN simulator, %d rejected, %d failed, %d still processing, in %.2f s from the first issue: %.2f invoices per second.',
+            $accepted, $count, $states[ElectronicStatus::Rejected->value] ?? 0, $states[ElectronicStatus::Failed->value] ?? 0, $count - $final, $seconds, $accepted / max($seconds, 0.001),
+        ));
+        $this->line(sprintf('Calls to the simulator: %d SendBillSync, %d GetStatus.', $calls['SendBillSync'] ?? 0, $calls['GetStatus'] ?? 0));
+
+        if ($accepted === $count) {
+            $this->info("Every invoice went from issue to acceptance in {$this->seconds($seconds)}.");
+
+            return true;
+        }
+
+        $this->error('Not every invoice was accepted within '.$timeout.' s.');
+
+        return false;
     }
 
     /**
-     * Deletes the temporary company and the XML files of its invoices. Documents go first: they
-     * hold restrictive keys on contacts, items, taxes, withholdings and numbering.
+     * @return array<string, int> Issued invoices by electronic status.
      */
-    private function deleteCompany(string $companyId): void
+    private function states(): array
     {
-        foreach (['outbox_events', 'documents', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'dian_settings', 'signing_certificates', 'key_store_entries', 'memberships'] as $table) {
-            DB::table($table)->where('company_id', $companyId)->delete();
-        }
+        return Document::query()
+            ->where('status', DocumentStatus::Issued)
+            ->toBase()
+            ->selectRaw('electronic_status, count(*) as total')
+            ->groupBy('electronic_status')
+            ->pluck('total', 'electronic_status')
+            ->map(fn ($total): int => (int) $total)
+            ->all();
+    }
 
-        DB::table('companies')->where('id', $companyId)->delete();
-
-        app(DocumentStorage::class)->deletePrefix($companyId);
+    private function seconds(float $seconds): string
+    {
+        return sprintf('%.2f s', $seconds);
     }
 }

@@ -1,6 +1,7 @@
 # Dependencies, installed inside the containers
 /backend/vendor/
 /frontend/node_modules/
+/simulator/node_modules/
 
 # Environment files
 .env

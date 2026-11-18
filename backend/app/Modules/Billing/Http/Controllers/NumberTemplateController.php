@@ -7,7 +7,10 @@ use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Http\Requests\NumberTemplateRequest;
 use App\Modules\Billing\Http\Resources\NumberTemplateResource;
 use App\Modules\Billing\Models\NumberTemplate;
+use App\Modules\Dian\Pipeline\ChainEvents;
+use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Support\Deletion;
+use App\Support\Outbox\Outbox;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -15,10 +18,16 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Numbering ranges of the current company. Consecutive numbers are not assigned yet (stage 3).
+ * Numbering ranges of the current company. Every change registers the company again with the local
+ * DIAN simulator (event dian.taxpayer_changed), so it knows the ranges and their technical keys.
  */
 final class NumberTemplateController
 {
+    public function __construct(
+        private readonly Outbox $outbox,
+        private readonly CurrentCompany $currentCompany,
+    ) {}
+
     /**
      * Ranges by document type, the default first; ?search= matches the prefix and the resolution.
      */
@@ -46,6 +55,7 @@ final class NumberTemplateController
             }
 
             $template->save();
+            $this->taxpayerChanged();
 
             return $template;
         });
@@ -68,6 +78,7 @@ final class NumberTemplateController
             }
 
             $numberTemplate->save();
+            $this->taxpayerChanged();
         });
 
         return NumberTemplateResource::make($numberTemplate->refresh());
@@ -78,9 +89,17 @@ final class NumberTemplateController
      */
     public function destroy(NumberTemplate $numberTemplate): Response
     {
-        Deletion::deleteOrConflict($numberTemplate, 'This numbering is used by documents. Deactivate it instead.');
+        DB::transaction(function () use ($numberTemplate): void {
+            Deletion::deleteOrConflict($numberTemplate, 'This numbering is used by documents. Deactivate it instead.');
+            $this->taxpayerChanged();
+        });
 
         return response()->noContent();
+    }
+
+    private function taxpayerChanged(): void
+    {
+        $this->outbox->record($this->currentCompany->id(), 'company', $this->currentCompany->id(), ChainEvents::TAXPAYER_CHANGED);
     }
 
     private function clearDefault(DocumentType $type, ?NumberTemplate $except = null): void

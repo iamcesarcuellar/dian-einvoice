@@ -2,8 +2,12 @@
 
 namespace App\Modules\Billing\Http\Resources;
 
+use App\Modules\Billing\Enums\ElectronicStatus;
+use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Catalog\Http\Resources\ContactResource;
+use App\Modules\Dian\Http\Resources\DianTransmissionResource;
+use App\Modules\Dian\Pipeline\ElectronicDocumentPipeline;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,6 +21,8 @@ final class DocumentResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $xmlStatus = XmlStatus::of($this->resource);
+
         return [
             'id' => $this->id,
             'type' => $this->type,
@@ -54,10 +60,11 @@ final class DocumentResource extends JsonResource
             'cufe' => $this->cufe,
             'qr_url' => $this->qr_url,
             'dian_environment' => $this->dian_environment,
-            // UBL 2.1 XML: status pending, generated, signed or failed; null for drafts. Size and
-            // SHA-256 are those of the stored, signed XML.
+            // UBL 2.1 XML: pending, generated (not signed yet), signed or failed; null for drafts.
+            // Size and SHA-256 are those of the stored, signed XML.
             'xml' => [
-                'status' => $this->xml_status,
+                'status' => $xmlStatus,
+                'available' => $xmlStatus?->available() === true,
                 'file_name' => $this->full_number === null ? null : $this->full_number.'.xml',
                 'size' => $this->xml_size,
                 'sha256' => $this->xml_sha256,
@@ -65,8 +72,64 @@ final class DocumentResource extends JsonResource
                 'signed_at' => $this->xml_signed_at,
                 'certificate_serial' => $this->signing_certificate_serial,
             ],
+            'electronic' => $this->electronic(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+        ];
+    }
+
+    /**
+     * The electronic document chain; null for drafts. Every result comes from the local DIAN
+     * simulator (validated_by): no document of this project is registered with the DIAN.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function electronic(): ?array
+    {
+        $status = $this->electronic_status;
+
+        if ($status === null) {
+            return null;
+        }
+
+        $pipeline = app(ElectronicDocumentPipeline::class);
+        $waiting = $status === ElectronicStatus::Sending && $this->electronic_next_attempt_at !== null;
+        $messages = $this->dian_messages ?? [];
+
+        return [
+            // pending, generated, signed, sending, accepted, rejected or failed.
+            'status' => $status,
+            'final' => $status->isFinal(),
+            'status_changed_at' => $this->electronic_status_at,
+            // Pass of the chain: 1 on issue, one more on each Resend or Retry after a failure.
+            'run' => $this->electronic_run,
+            // Transmission attempt of this run: the current one, or the last that failed while waiting.
+            'attempt' => $this->electronic_attempt,
+            'max_attempts' => $pipeline->maxAttempts(),
+            // Set while waiting to retry after a transient failure.
+            'retrying' => $waiting,
+            'next_attempt_at' => $this->electronic_next_attempt_at,
+            'failed_step' => $this->electronic_failed_step,
+            'can_retry' => $waiting || $status === ElectronicStatus::Failed,
+            'can_resend' => $status === ElectronicStatus::Rejected,
+            'zip_file_name' => $this->dian_zip_file_name,
+            'xml_file_name' => $this->dian_xml_file_name,
+            // Who validates: always the local simulator, never the DIAN.
+            'validated_by' => 'local_simulator',
+            // The last answer of the local simulator; null until it answers.
+            'result' => $this->dian_status_code === null ? null : [
+                'gateway' => $this->dian_gateway,
+                'accepted' => $status === ElectronicStatus::Accepted,
+                'status_code' => $this->dian_status_code,
+                'status_description' => $this->dian_status_description,
+                'status_message' => $this->dian_status_message,
+                'rules' => array_values(array_filter($messages, fn (array $message): bool => ($message['kind'] ?? null) === 'rejection')),
+                'notifications' => array_values(array_filter($messages, fn (array $message): bool => ($message['kind'] ?? null) === 'notification')),
+                'responded_at' => $this->dian_responded_at,
+                'response_available' => $this->dian_response_path !== null,
+                'response_file_name' => $this->full_number === null ? null : $this->full_number.'-simulator-response.xml',
+            ],
+            'transmissions' => DianTransmissionResource::collection($this->whenLoaded('transmissions')),
         ];
     }
 }

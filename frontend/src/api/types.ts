@@ -318,22 +318,53 @@ export interface DocumentLine {
   tax_amount: string
 }
 
-export type DocumentEventType = 'created' | 'issued' | 'xml_generated' | 'xml_signed' | 'xml_failed'
+export type DocumentEventType =
+  | 'created'
+  | 'issued'
+  | 'xml_generated'
+  | 'xml_signed'
+  | 'xml_failed'
+  | 'transmission_attempt'
+  | 'accepted'
+  | 'rejected'
+  | 'transmission_failed'
+  | 'retry_requested'
+  | 'resend_requested'
 
 export interface DocumentEvent {
   id: string
   type: DocumentEventType
-  /** xml_failed carries { reason }; xml_signed carries { certificate_serial, test_certificate, sha256, size }. */
+  /**
+   * xml_failed: { step, reason }; xml_signed: { certificate_serial, test_certificate, sha256, size };
+   * transmission_attempt: TransmissionAttemptPayload; accepted and rejected: { status_code, rules,
+   * notifications }; transmission_failed: { attempts, reason }; retry_requested: { step, waiting };
+   * resend_requested: { cufe_changed }.
+   */
   payload: Record<string, unknown> | null
   occurred_at: string
   actor: { id: string, name: string } | null
 }
+
+/** How one call to the local DIAN simulator ended. */
+export type TransmissionOutcome =
+  | 'responded'
+  | 'found'
+  | 'not_found'
+  | 'timeout'
+  | 'no_response'
+  | 'refused'
+  | 'server_error'
+  | 'invalid_response'
+  | 'client_error'
+  | 'abandoned'
 
 /** UBL 2.1 XML of an issued document, signed with XAdES-EPES; null for drafts. */
 export type XmlStatus = 'pending' | 'generated' | 'signed' | 'failed'
 
 export interface DocumentXml {
   status: XmlStatus | null
+  /** The signed XML can be viewed and downloaded. */
+  available: boolean
   file_name: string | null
   /** Bytes and SHA-256 of the stored, signed XML. */
   size: number | null
@@ -405,8 +436,123 @@ export interface Invoice {
   /** Always 2, the habilitación (test) environment. */
   dian_environment: number | null
   xml: DocumentXml
+  /** The electronic document chain; null for drafts. */
+  electronic: ElectronicDocument | null
   created_at: string
   updated_at: string
+}
+
+/** State of the electronic document chain of an issued invoice. */
+export type ElectronicStatus = 'pending' | 'generated' | 'signed' | 'sending' | 'accepted' | 'rejected' | 'failed'
+
+/** A rule the local DIAN simulator reported, with its code and its message in Spanish (DIAN data). */
+export interface DianRuleMessage {
+  rule: string | null
+  kind: 'rejection' | 'notification'
+  message: string
+}
+
+/** One call to the local DIAN simulator. */
+export interface DianTransmission {
+  id: string
+  run: number
+  attempt: number
+  operation: 'SendBillSync' | 'GetStatus'
+  gateway: string
+  zip_file_name: string | null
+  started_at: string
+  finished_at: string | null
+  duration_ms: number | null
+  outcome: TransmissionOutcome | null
+  http_status: number | null
+  status_code: string | null
+  status_description: string | null
+  is_valid: boolean | null
+  error: string | null
+}
+
+export interface ElectronicDocument {
+  status: ElectronicStatus
+  /** Accepted, rejected or failed: the chain has ended. */
+  final: boolean
+  status_changed_at: string | null
+  /** Pass of the chain: 1 on issue, one more on each Resend or Retry after a failure. */
+  run: number
+  attempt: number
+  max_attempts: number
+  /** Waiting for the next attempt after a transient failure. */
+  retrying: boolean
+  next_attempt_at: string | null
+  failed_step: 'generate' | 'sign' | 'transmit' | null
+  can_retry: boolean
+  can_resend: boolean
+  zip_file_name: string | null
+  xml_file_name: string | null
+  /** Always the local simulator: no document of this project is registered with the DIAN. */
+  validated_by: 'local_simulator'
+  result: {
+    gateway: string | null
+    accepted: boolean
+    status_code: string
+    status_description: string | null
+    status_message: string | null
+    rules: DianRuleMessage[]
+    notifications: DianRuleMessage[]
+    responded_at: string | null
+    response_available: boolean
+    response_file_name: string | null
+  } | null
+  transmissions?: DianTransmission[]
+}
+
+/** Failure modes of the local DIAN simulator. */
+export type SimulatorModeName = 'normal' | 'reject' | 'no_response' | 'error_500' | 'slow' | 'intermittent'
+
+export interface SimulatorMode {
+  nit: string
+  mode: SimulatorModeName
+  rule: string | null
+  delay_ms: number | null
+  failure_rate: number | null
+  /** Requests it still applies to; null until it is changed. */
+  remaining: number | null
+  updated_at: string
+  /** company: set for this company; all: set for every company; default: never set. */
+  scope: 'company' | 'all' | 'default'
+}
+
+export interface SimulatorRule {
+  code: string
+  kind: 'rejection' | 'notification'
+  message: string
+  check: string
+}
+
+export interface SimulatorSettings {
+  mode: SimulatorMode
+  modes: SimulatorModeName[]
+  rules: SimulatorRule[]
+}
+
+export interface SimulatorModeInput {
+  mode: SimulatorModeName
+  rule?: string | null
+  delay_ms?: number | null
+  failure_rate?: number | null
+  count?: number | null
+}
+
+/** A request the local DIAN simulator received from the company. */
+export interface SimulatorRequest {
+  at: string
+  operation: string
+  nit: string | null
+  document: string | null
+  result: string
+  status_code: string | null
+  duration_ms: number
+  mode: string | null
+  rules: string[]
 }
 
 /** DIAN settings of the company, for owners and admins. */

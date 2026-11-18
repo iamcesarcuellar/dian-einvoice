@@ -34,6 +34,13 @@ final class LocalDocumentStorage implements DocumentStorage
         return $this->disk()->exists($path);
     }
 
+    public function delete(string $path): void
+    {
+        if ($this->disk()->exists($path)) {
+            $this->disk()->delete($path);
+        }
+    }
+
     public function deletePrefix(string $prefix): void
     {
         $this->disk()->deleteDirectory($prefix);

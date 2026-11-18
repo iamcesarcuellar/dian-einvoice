@@ -1,22 +1,49 @@
 name: dian-einvoice
 
 # Local development stack. Ports are published on 127.0.0.1 only, in the 8600-8699 range.
-# api and web run with the host user (HOST_UID/HOST_GID, exported by the Makefile) so files in the repo stay yours.
+# api, worker, relay and web run with the host user (HOST_UID/HOST_GID, exported by the Makefile) so
+# files in the repo stay yours.
+
+# The backend image and its settings, shared by api, worker and relay: one Dockerfile, one image.
+x-backend: &backend
+  build:
+    context: ./backend
+  user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+  restart: "no"
+  volumes:
+    - ./backend:/app
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
 
 services:
   api:
-    build:
-      context: ./backend
-    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
-    restart: "no"
+    <<: *backend
     mem_limit: 512m
-    volumes:
-      - ./backend:/app
     ports:
       - "127.0.0.1:8600:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+
+  # Queue workers: they run every step of the electronic document chain.
+  worker:
+    <<: *backend
+    mem_limit: 256m
+    init: true
+    deploy:
+      replicas: 2
+    command: ["sh", "docker/supervise.sh", "php", "artisan", "queue:work", "redis", "--sleep=0.5", "--timeout=35", "--tries=10", "--memory=192"]
+    healthcheck:
+      disable: true
+
+  # Outbox relay: publishes committed outbox events to the queue, in order.
+  relay:
+    <<: *backend
+    mem_limit: 192m
+    init: true
+    command: ["sh", "docker/supervise.sh", "php", "artisan", "outbox:relay"]
+    healthcheck:
+      disable: true
 
   web:
     build:
@@ -33,6 +60,25 @@ services:
       - "127.0.0.1:8601:5173"
     depends_on:
       - api
+
+  # The DIAN of this project: a local simulator of its SOAP web service. Nothing reaches the DIAN.
+  simulator:
+    build:
+      context: ./simulator
+    restart: "no"
+    mem_limit: 384m
+    init: true
+    environment:
+      SIMULATOR_ADMIN_TOKEN: local-simulator-token
+    volumes:
+      - simulator-data:/data
+    ports:
+      - "127.0.0.1:8602:8602"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8602/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   db:
     image: mysql:8.4
@@ -53,5 +99,21 @@ services:
       retries: 30
       start_period: 20s
 
+  # Queue, cache and sessions. Append-only file, so queued jobs survive a restart.
+  redis:
+    image: redis:7-alpine
+    restart: "no"
+    mem_limit: 128m
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "100mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   db-data:
+  redis-data:
+  simulator-data:

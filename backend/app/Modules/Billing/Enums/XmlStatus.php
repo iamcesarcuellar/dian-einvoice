@@ -2,26 +2,47 @@
 
 namespace App\Modules\Billing\Enums;
 
+use App\Modules\Billing\Models\Document;
+
 /**
- * State of the electronic document (the UBL XML) of an issued document. Drafts have none.
+ * State of the UBL XML file of an issued document, derived from its electronic status: the API
+ * shows it next to the chain so clients know whether the signed XML can be downloaded. Drafts
+ * have none.
  */
 enum XmlStatus: string
 {
-    /** Issued; the XML is generated and signed right after the issue is committed. */
+    /** The chain has not built the XML yet. */
     case Pending = 'pending';
 
-    /** Generated but not signed yet. Generation and signing run together for now, so it is transient. */
+    /** Built but not signed yet; not available for download. */
     case Generated = 'generated';
 
-    /** Signed with the company certificate and stored, with its path, SHA-256, size and signing data. */
+    /** Signed with the company certificate and stored. */
     case Signed = 'signed';
 
-    /** Generation or signing failed; the reason is in the timeline and it can be regenerated. */
+    /** Generation or signing failed; the reason is in the timeline. */
     case Failed = 'failed';
 
-    /** Whether a stored XML can be downloaded. */
+    public static function of(Document $document): ?self
+    {
+        if ($document->electronic_status === null) {
+            return null;
+        }
+
+        if ($document->xml_path !== null && $document->electronic_status !== ElectronicStatus::Pending && $document->electronic_status !== ElectronicStatus::Generated) {
+            return self::Signed;
+        }
+
+        return match ($document->electronic_status) {
+            ElectronicStatus::Generated => self::Generated,
+            ElectronicStatus::Failed => self::Failed,
+            default => self::Pending,
+        };
+    }
+
+    /** Whether the signed XML can be downloaded. */
     public function available(): bool
     {
-        return $this === self::Signed || $this === self::Generated;
+        return $this === self::Signed;
     }
 }

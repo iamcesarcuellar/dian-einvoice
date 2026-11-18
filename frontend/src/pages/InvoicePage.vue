@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Invoice } from '@/api/types'
 import { InfoIcon } from '@lucide/vue'
 import { useQuery } from '@tanstack/vue-query'
 import { computed, watch } from 'vue'
@@ -9,12 +10,13 @@ import InvoiceEditor from '@/components/invoice/InvoiceEditor.vue'
 import InvoiceView from '@/components/invoice/InvoiceView.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSession } from '@/composables/useSession'
-import { tenantKey } from '@/lib/query'
+import { invalidateTenant, tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
 /**
  * /invoices/new and /invoices/:id. Drafts open in the editor for roles that can change them;
- * issued invoices, and drafts for viewers, open read-only.
+ * issued invoices, and drafts for viewers, open read-only. While the electronic document chain of
+ * an issued invoice runs, the page asks for it every 2 seconds, and stops once it ends.
  */
 const { t } = useI18n()
 const route = useRoute()
@@ -25,10 +27,24 @@ const { can } = useSession()
 const canManage = computed(() => can('manage-documents'))
 const invoiceId = computed(() => (typeof route.params.id === 'string' ? route.params.id : null))
 
+const POLL_MS = 2000
+
+function running(value: Invoice | undefined): boolean {
+  return value?.electronic !== null && value?.electronic !== undefined && !value.electronic.final
+}
+
 const { data: invoice } = useQuery({
   queryKey: computed(() => tenantKey(session.currentCompanyId, 'invoices', 'detail', invoiceId.value)),
   queryFn: () => invoicesApi.get(invoiceId.value as string),
   enabled: computed(() => invoiceId.value !== null),
+  refetchInterval: (query) => (running(query.state.data) ? POLL_MS : false),
+})
+
+// When the chain ends, lists that show this invoice refresh too.
+watch(() => invoice.value?.electronic?.final, (final, before) => {
+  if (final === true && before === false) {
+    void invalidateTenant('invoices')
+  }
 })
 
 // Another company has other invoices: go back to the list.

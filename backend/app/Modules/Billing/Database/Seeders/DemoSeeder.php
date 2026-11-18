@@ -9,6 +9,9 @@ use App\Modules\Billing\Services\IssueInvoice;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\Withholding;
+use App\Modules\Dian\Pipeline\ElectronicDocumentPipeline;
+use App\Modules\Dian\Pipeline\InlineChain;
+use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\User;
@@ -22,6 +25,12 @@ use Illuminate\Support\Carbon;
  * The SYNTHETIC invoices are issued with the real issue service, so their numbers are consecutive
  * and their copies coherent. To spread them over the last 30 days the clock is moved to each
  * moment of issue (Carbon test time) and restored at the end.
+ *
+ * Each issued invoice then runs the real electronic document chain in line (InlineChain): XML,
+ * signature, transmission to the local DIAN simulator and its answer, with retries moving the
+ * clock instead of waiting. Two SIMULATED outcomes use the failure modes of the simulator: one
+ * invoice of Demo Comercial is rejected by a rule, and another gets HTTP 500 on every attempt,
+ * so it fails once the attempts run out. The simulator is left in normal mode.
  */
 final class DemoSeeder extends Seeder
 {
@@ -53,6 +62,23 @@ final class DemoSeeder extends Seeder
         ],
     ];
 
+    /**
+     * SIMULATED outcomes by set and position in its plan: the simulator mode set right before that
+     * invoice is issued. count 0 means one request per transmission attempt.
+     */
+    private const array OUTCOMES = [
+        'commerce' => [
+            6 => ['mode' => 'reject', 'rule' => 'FAB27b', 'count' => 1],
+            7 => ['mode' => 'error_500', 'count' => 0],
+        ],
+    ];
+
+    public function __construct(
+        private readonly InlineChain $chain,
+        private readonly DianSimulator $simulator,
+        private readonly ElectronicDocumentPipeline $pipeline,
+    ) {}
+
     public function run(InvoiceDrafts $drafts, IssueInvoice $issue): void
     {
         $user = User::query()->where('email', 'demo@example.com')->firstOrFail();
@@ -61,7 +87,12 @@ final class DemoSeeder extends Seeder
             $this->createNumbering();
 
             $set = $company->identification_number === IdentityDemoSeeder::NITS[0] ? 'commerce' : 'services';
-            $this->createInvoices(self::INVOICES[$set], $drafts, $issue, $user);
+
+            try {
+                $this->createInvoices(self::INVOICES[$set], self::OUTCOMES[$set] ?? [], $company, $drafts, $issue, $user);
+            } finally {
+                $this->simulator->setMode($company->identification_number, ['mode' => 'normal']);
+            }
         });
     }
 
@@ -94,15 +125,16 @@ final class DemoSeeder extends Seeder
 
     /**
      * @param  list<array<int, mixed>>  $plan
+     * @param  array<int, array<string, mixed>>  $outcomes
      */
-    private function createInvoices(array $plan, InvoiceDrafts $drafts, IssueInvoice $issue, User $user): void
+    private function createInvoices(array $plan, array $outcomes, Company $company, InvoiceDrafts $drafts, IssueInvoice $issue, User $user): void
     {
         $contacts = Contact::query()->pluck('id', 'identification_number');
         $items = Item::query()->pluck('id', 'code');
         $withholdings = Withholding::query()->pluck('id', 'name');
         $today = Carbon::now(NumberTemplate::TIMEZONE)->startOfDay();
 
-        foreach ($plan as [$daysAgo, $time, $customer, $creditDays, $means, $lines, $withholdingNames]) {
+        foreach ($plan as $position => [$daysAgo, $time, $customer, $creditDays, $means, $lines, $withholdingNames]) {
             $issuedAt = $daysAgo === null
                 ? null
                 : $today->copy()->subDays($daysAgo)->setTimeFromTimeString($time)->utc();
@@ -124,8 +156,17 @@ final class DemoSeeder extends Seeder
             ], $user);
 
             if ($issuedAt !== null) {
+                if (isset($outcomes[$position])) {
+                    $outcome = $outcomes[$position];
+                    $this->simulator->setMode($company->identification_number, [
+                        ...$outcome,
+                        'count' => $outcome['count'] ?: $this->pipeline->maxAttempts(),
+                    ]);
+                }
+
                 Carbon::setTestNow($issuedAt);
                 $issue($document->getKey(), $user);
+                $this->chain->run($document->getKey());
             }
         }
 
