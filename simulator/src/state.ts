@@ -25,7 +25,12 @@ export interface Taxpayer {
 }
 
 export interface DocumentRecord {
+  /** The CUFE of an invoice or the CUDE of a note: the key of the record. */
   cufe: string
+  /** Missing in records written before notes existed: those are invoices. */
+  kind?: 'invoice' | 'credit_note' | 'debit_note'
+  /** A note: the CUFE of the invoice it corrects. */
+  references?: string | null
   nit: string
   number: string
   issue_date: string | null

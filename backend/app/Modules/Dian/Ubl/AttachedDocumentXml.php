@@ -49,8 +49,10 @@ final class AttachedDocumentXml
 
     private const string ENCODING_CODE = 'UTF-8';
 
-    /** AE43: the CUFE of an invoice. */
+    /** AE43: CUFE-SHA384 for an invoice, CUDE-SHA384 for a credit or debit note. */
     private const string CUFE_SCHEME = 'CUFE-SHA384';
+
+    private const string CUDE_SCHEME = 'CUDE-SHA384';
 
     private const string TIMEZONE = 'America/Bogota';
 
@@ -59,7 +61,7 @@ final class AttachedDocumentXml
     public function build(Document $document, AttachedDocumentInput $input): string
     {
         if ($document->isDraft() || $document->cufe === null || $document->full_number === null) {
-            throw new LogicException('Only issued invoices with a CUFE have an AttachedDocument.');
+            throw new LogicException('Only issued documents with a CUFE or CUDE have an AttachedDocument.');
         }
 
         $this->dom = new DOMDocument('1.0', 'UTF-8');
@@ -70,12 +72,12 @@ final class AttachedDocumentXml
         $this->dom->appendChild($root);
 
         // The declarations of the annex example; ds and xades are used by the signature.
-        foreach (['ds' => InvoiceXml::NS_DS, 'cac' => InvoiceXml::NS_CAC, 'cbc' => InvoiceXml::NS_CBC, 'ccts' => self::NS_CCTS, 'ext' => InvoiceXml::NS_EXT, 'xades' => InvoiceXml::NS_XADES, 'xades141' => InvoiceXml::NS_XADES141] as $prefix => $namespace) {
+        foreach (['ds' => UblDocumentXml::NS_DS, 'cac' => UblDocumentXml::NS_CAC, 'cbc' => UblDocumentXml::NS_CBC, 'ccts' => self::NS_CCTS, 'ext' => UblDocumentXml::NS_EXT, 'xades' => UblDocumentXml::NS_XADES, 'xades141' => UblDocumentXml::NS_XADES141] as $prefix => $namespace) {
             $root->setAttributeNS('http://www.w3.org/2000/xmlns/', "xmlns:{$prefix}", $namespace);
         }
 
         // FAC01 to FAC03: the extension the XAdES signer fills with ds:Signature.
-        $this->element($this->element($this->element($root, InvoiceXml::NS_EXT, 'ext:UBLExtensions'), InvoiceXml::NS_EXT, 'ext:UBLExtension'), InvoiceXml::NS_EXT, 'ext:ExtensionContent');
+        $this->element($this->element($this->element($root, UblDocumentXml::NS_EXT, 'ext:UBLExtensions'), UblDocumentXml::NS_EXT, 'ext:UBLExtension'), UblDocumentXml::NS_EXT, 'ext:ExtensionContent');
 
         $issuedAt = DateTimeImmutable::createFromInterface($input->issuedAt)->setTimezone(new DateTimeZone(self::TIMEZONE));
 
@@ -101,7 +103,7 @@ final class AttachedDocumentXml
         $this->cbc($line, 'LineID', '1');
         $reference = $this->cac($line, 'DocumentReference');
         $this->cbc($reference, 'ID', $document->full_number);
-        $this->cbc($reference, 'UUID', $document->cufe, ['schemeName' => self::CUFE_SCHEME]);
+        $this->cbc($reference, 'UUID', $document->cufe, ['schemeName' => $document->isNote() ? self::CUDE_SCHEME : self::CUFE_SCHEME]);
         $this->cbc($reference, 'IssueDate', $input->response->issueDate);
         $this->cbc($reference, 'DocumentType', self::RESPONSE_TYPE);
         $this->attachment($reference, $input->responseXml);
@@ -126,7 +128,7 @@ final class AttachedDocumentXml
         $scheme = $this->cac($this->cac($root, $element), 'PartyTaxScheme');
         $this->cbc($scheme, 'RegistrationName', (string) $party['legal_name']);
 
-        $attributes = ['schemeAgencyID' => InvoiceXml::DIAN_AGENCY_ID];
+        $attributes = ['schemeAgencyID' => UblDocumentXml::DIAN_AGENCY_ID];
 
         if ($party['identification_type'] === IdentificationType::Nit->value && $party['check_digit'] !== null) {
             $attributes['schemeID'] = (string) $party['check_digit'];
@@ -141,7 +143,7 @@ final class AttachedDocumentXml
         $code = (string) ($party['tax_scheme'] ?? 'ZZ');
         $taxScheme = $this->cac($scheme, 'TaxScheme');
         $this->cbc($taxScheme, 'ID', $code);
-        $this->cbc($taxScheme, 'Name', InvoiceXml::PARTY_TAX_SCHEMES[$code] ?? throw new LogicException("Unknown party tax scheme {$code}."));
+        $this->cbc($taxScheme, 'Name', UblDocumentXml::PARTY_TAX_SCHEMES[$code] ?? throw new LogicException("Unknown party tax scheme {$code}."));
     }
 
     /** cac:Attachment with an XML document as CDATA, untouched. */
@@ -167,12 +169,12 @@ final class AttachedDocumentXml
      */
     private function cbc(DOMElement $parent, string $name, ?string $value = null, array $attributes = []): DOMElement
     {
-        return $this->element($parent, InvoiceXml::NS_CBC, "cbc:{$name}", $value, $attributes);
+        return $this->element($parent, UblDocumentXml::NS_CBC, "cbc:{$name}", $value, $attributes);
     }
 
     private function cac(DOMElement $parent, string $name): DOMElement
     {
-        return $this->element($parent, InvoiceXml::NS_CAC, "cac:{$name}");
+        return $this->element($parent, UblDocumentXml::NS_CAC, "cac:{$name}");
     }
 
     /**

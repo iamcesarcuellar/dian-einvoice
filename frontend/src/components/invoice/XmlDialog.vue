@@ -4,7 +4,7 @@ import { DownloadIcon } from '@lucide/vue'
 import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { invoicesApi } from '@/api/resources'
+import { documentsApi } from '@/api/resources'
 import FormError from '@/components/FormError.vue'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DOCUMENT_RESOURCES } from '@/lib/documents'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -33,8 +34,8 @@ const { t } = useI18n()
 const session = useSessionStore()
 
 const { data: xml, error, isLoading } = useQuery({
-  queryKey: computed(() => tenantKey(session.currentCompanyId, 'invoices', 'xml', props.invoice.id, props.invoice.xml.sha256)),
-  queryFn: () => invoicesApi.xml(props.invoice.id),
+  queryKey: computed(() => tenantKey(session.currentCompanyId, DOCUMENT_RESOURCES[props.invoice.type], 'xml', props.invoice.id, props.invoice.xml.sha256)),
+  queryFn: () => documentsApi(props.invoice.type).xml(props.invoice.id),
   enabled: open,
   staleTime: Number.POSITIVE_INFINITY,
 })

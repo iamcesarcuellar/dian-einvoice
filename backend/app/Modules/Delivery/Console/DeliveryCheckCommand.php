@@ -12,7 +12,7 @@ use App\Modules\Delivery\LocalMailbox\LocalMailboxUnavailable;
 use App\Modules\Delivery\Mail\DeliverySubject;
 use App\Modules\Delivery\Services\DocumentFiles;
 use App\Modules\Dian\Ubl\AttachedDocumentXml;
-use App\Modules\Dian\Ubl\InvoiceXml;
+use App\Modules\Dian\Ubl\UblDocumentXml;
 use App\Modules\Dian\Ubl\XsdValidator;
 use App\Modules\Identity\Enums\Role;
 use App\Modules\Identity\Models\Membership;
@@ -157,10 +157,10 @@ final class DeliveryCheckCommand extends Command
         $dom->loadXML($xml, LIBXML_NONET);
         $xpath = new DOMXPath($dom);
         $xpath->registerNamespace('a', AttachedDocumentXml::NS_ATTACHED);
-        $xpath->registerNamespace('cbc', InvoiceXml::NS_CBC);
-        $xpath->registerNamespace('cac', InvoiceXml::NS_CAC);
-        $xpath->registerNamespace('ds', InvoiceXml::NS_DS);
-        $xpath->registerNamespace('ext', InvoiceXml::NS_EXT);
+        $xpath->registerNamespace('cbc', UblDocumentXml::NS_CBC);
+        $xpath->registerNamespace('cac', UblDocumentXml::NS_CAC);
+        $xpath->registerNamespace('ds', UblDocumentXml::NS_DS);
+        $xpath->registerNamespace('ext', UblDocumentXml::NS_EXT);
 
         $invoice = (string) $xpath->evaluate('string(/a:AttachedDocument/cac:Attachment/cac:ExternalReference/cbc:Description)');
         $response = (string) $xpath->evaluate('string(/a:AttachedDocument/cac:ParentDocumentLineReference/cac:DocumentReference/cac:Attachment/cac:ExternalReference/cbc:Description)');
@@ -197,8 +197,8 @@ final class DeliveryCheckCommand extends Command
         }
 
         $xpath = new DOMXPath($dom);
-        $xpath->registerNamespace('cbc', InvoiceXml::NS_CBC);
-        $xpath->registerNamespace('cac', InvoiceXml::NS_CAC);
+        $xpath->registerNamespace('cbc', UblDocumentXml::NS_CBC);
+        $xpath->registerNamespace('cac', UblDocumentXml::NS_CAC);
 
         $key = $root === 'Invoice'
             ? (string) $xpath->evaluate('string(/*/cbc:UUID)')

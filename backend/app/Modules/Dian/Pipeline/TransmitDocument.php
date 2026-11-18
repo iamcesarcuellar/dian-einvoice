@@ -85,7 +85,7 @@ final class TransmitDocument extends ChainStep
                 return null;
             }
 
-            $names = $package->nextNames($document->company_id, $document->company_snapshot['identification_number'], (int) Carbon::now(NumberTemplate::TIMEZONE)->format('Y'));
+            $names = $package->nextNames($document->company_id, $document->company_snapshot['identification_number'], (int) Carbon::now(NumberTemplate::TIMEZONE)->format('Y'), $document->type->filePrefix());
 
             $pipeline->move($document, ElectronicStatus::Sending, [
                 'dian_zip_file_name' => $names['zip'],

@@ -61,6 +61,23 @@
         </tr>
     </table>
 
+    @if ($r->reference !== null)
+        <div class="reference">
+            <div class="label">{{ $r->reference['title'] }}</div>
+            <table>
+                <tr>
+                    <td class="reference-main" style="width: 50%;"><b>{{ $r->reference['invoice'] }}</b></td>
+                    <td class="reference-concept" style="width: 50%;">{{ $r->reference['concept'] }}</td>
+                </tr>
+            </table>
+            <div class="reference-label">{{ $r->reference['cufe_label'] }}</div>
+            <div class="cufe">{{ $r->reference['cufe'] }}</div>
+            @if ($r->reference['description'] !== '')
+                <div class="reference-text">{{ $r->reference['description'] }}</div>
+            @endif
+        </div>
+    @endif
+
     <table>
         <thead>
             <tr>

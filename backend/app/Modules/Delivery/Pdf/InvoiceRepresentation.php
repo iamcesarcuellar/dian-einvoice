@@ -3,7 +3,8 @@
 namespace App\Modules\Delivery\Pdf;
 
 /**
- * Everything the graphic representation of an invoice shows, already formatted for reading: built
+ * Everything the graphic representation of an invoice, credit note or debit note shows, already
+ * formatted for reading: built
  * by InvoiceRepresentationBuilder from the frozen copies of the document only, and drawn by a
  * DocumentRenderer. Labels come from the translation keys of delivery::pdf; the renderer writes the
  * page number with the key delivery::pdf.page.
@@ -16,8 +17,9 @@ final readonly class InvoiceRepresentation
      * @param  list<array{label: string, value: string}>  $details
      * @param  list<array{position: string, code: string, description: string, quantity: string, unit: string, unit_price: string, discount: string, tax: string, total: string}>  $lines
      * @param  list<array{label: string, detail: ?string, value: string, kind: string}>  $totals  kind: amount, deduction, total or net.
-     * @param  array{authorization: string, cufe: string, representation: string, software: string, validation: string}  $footer
+     * @param  array{authorization: string, key_label: string, cufe: string, representation: string, software: string, validation: string}  $footer
      * @param  array{title: string, author: string, subject: string, keywords: string}  $metadata
+     * @param  array{title: string, invoice: string, cufe_label: string, cufe: string, concept: string, description: string}|null  $reference  A note: the invoice it corrects.
      */
     public function __construct(
         public string $title,
@@ -35,5 +37,6 @@ final readonly class InvoiceRepresentation
         public array $footer,
         public string $qrText,
         public array $metadata,
+        public ?array $reference = null,
     ) {}
 }

@@ -7,6 +7,8 @@ export const NS = {
   wcf: 'http://wcf.dian.colombia',
   wsa: 'http://www.w3.org/2005/08/addressing',
   invoice: 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2',
+  creditNote: 'urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2',
+  debitNote: 'urn:oasis:names:specification:ubl:schema:xsd:DebitNote-2',
   cac: 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2',
   cbc: 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2',
   ext: 'urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2',

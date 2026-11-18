@@ -14,9 +14,9 @@ use RuntimeException;
  */
 final readonly class ApplicationResponseSummary
 {
-    private const string NS_CBC = InvoiceXml::NS_CBC;
+    private const string NS_CBC = UblDocumentXml::NS_CBC;
 
-    private const string NS_CAC = InvoiceXml::NS_CAC;
+    private const string NS_CAC = UblDocumentXml::NS_CAC;
 
     public function __construct(
         public string $id,

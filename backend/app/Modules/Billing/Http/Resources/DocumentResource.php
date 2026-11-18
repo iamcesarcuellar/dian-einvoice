@@ -5,6 +5,7 @@ namespace App\Modules\Billing\Http\Resources;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Models\Document;
+use App\Modules\Billing\Services\InvoiceBalance;
 use App\Modules\Catalog\Http\Resources\ContactResource;
 use App\Modules\Delivery\Http\DeliveryPresenter;
 use App\Modules\Dian\Http\Resources\DianTransmissionResource;
@@ -47,6 +48,16 @@ final class DocumentResource extends JsonResource
             'payment_means_code' => $this->payment_means_code,
             'currency' => $this->currency,
             'notes' => $this->notes,
+            // A credit or debit note: the invoice it corrects, and the concept and description of the
+            // correction (tables 13.2.4 and 13.2.5 of annex 1.9).
+            'related_document_id' => $this->related_document_id,
+            'related_document' => $this->relatedReference(),
+            'reason_code' => $this->reason_code,
+            'reason_text' => $this->reason_text,
+            // An invoice: open, partially_credited or voided, from the notes the local simulator
+            // accepted; null for drafts and notes.
+            'balance_status' => $this->balance_status,
+            ...$this->balanceDetails(),
             // Decimal strings with 2 decimals, calculated by the API.
             'totals' => $this->resource->only(Document::AMOUNTS),
             'taxes' => DocumentTaxResource::collection($this->whenLoaded('taxes')),
@@ -56,9 +67,10 @@ final class DocumentResource extends JsonResource
             'company_snapshot' => $this->company_snapshot,
             'customer_snapshot' => $this->customer_snapshot,
             'numbering_snapshot' => $this->numbering_snapshot,
-            // Set on issue: the CUFE, the DIAN verification URL drawn as the QR code and the
-            // environment (always 2, habilitación).
+            // Set on issue: the CUFE of an invoice or the CUDE of a note (key_name says which), the
+            // DIAN verification URL drawn as the QR code and the environment (always 2, habilitación).
             'cufe' => $this->cufe,
+            'key_name' => $this->keyName(),
             'qr_url' => $this->qr_url,
             'dian_environment' => $this->dian_environment,
             // UBL 2.1 XML: pending, generated (not signed yet), signed or failed; null for drafts.
@@ -80,6 +92,92 @@ final class DocumentResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+    }
+
+    /**
+     * Summary of an invoice, as a note shows the invoice it corrects.
+     *
+     * @return array<string, mixed>
+     */
+    public static function reference(Document $invoice): array
+    {
+        return [
+            'id' => $invoice->getKey(),
+            'type' => $invoice->type,
+            'full_number' => $invoice->full_number,
+            'issue_date' => $invoice->issue_date?->toDateString(),
+            'cufe' => $invoice->cufe,
+            'customer_name' => $invoice->customer_snapshot['legal_name'] ?? null,
+            'currency' => $invoice->currency,
+            'payable_amount' => (string) $invoice->payable_amount,
+            'electronic_status' => $invoice->electronic_status,
+            'balance_status' => $invoice->balance_status,
+        ];
+    }
+
+    /**
+     * The invoice of a note: the loaded invoice, or the copy frozen on issue.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function relatedReference(): ?array
+    {
+        if ($this->related_document_id === null) {
+            return null;
+        }
+
+        if ($this->relationLoaded('relatedDocument') && $this->relatedDocument !== null) {
+            return self::reference($this->relatedDocument);
+        }
+
+        $snapshot = $this->related_snapshot;
+
+        return $snapshot === null ? ['id' => $this->related_document_id] : [
+            'id' => $this->related_document_id,
+            'type' => 'invoice',
+            'full_number' => $snapshot['full_number'] ?? null,
+            'issue_date' => $snapshot['issue_date'] ?? null,
+            'cufe' => $snapshot['cufe'] ?? null,
+            'customer_name' => $this->customer_snapshot['legal_name'] ?? null,
+            'currency' => $this->currency,
+            'payable_amount' => $snapshot['payable_amount'] ?? null,
+        ];
+    }
+
+    /**
+     * On the detail only. An issued invoice: its balance (total, credited, debited, balance and
+     * what is left to credit, calculated by the server) and the summary of its notes. A note: the
+     * balance of its invoice without the note itself, so its editor shows what is left to credit.
+     *
+     * @return array<string, mixed>
+     */
+    private function balanceDetails(): array
+    {
+        $balances = app(InvoiceBalance::class);
+
+        if (! $this->isNote() && ! $this->isDraft() && $this->relationLoaded('relatedNotes')) {
+            return [
+                'balance' => $balances->of($this->resource, null, $this->relatedNotes),
+                'related_notes' => $this->relatedNotes->map(fn (Document $note): array => [
+                    'id' => $note->getKey(),
+                    'type' => $note->type,
+                    'status' => $note->status,
+                    'full_number' => $note->full_number,
+                    'issue_date' => $note->issue_date?->toDateString(),
+                    'reason_code' => $note->reason_code,
+                    'payable_amount' => (string) $note->payable_amount,
+                    'currency' => $note->currency,
+                    'electronic_status' => $note->electronic_status,
+                    'created_at' => $note->created_at,
+                ])->values()->all(),
+            ];
+        }
+
+        if ($this->isNote() && $this->relationLoaded('lines') && $this->relationLoaded('relatedDocument') && $this->relatedDocument !== null) {
+            return ['invoice_balance' => $balances->of($this->relatedDocument, $this->getKey())];
+        }
+
+        return [];
     }
 
     /**

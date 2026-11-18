@@ -4,21 +4,21 @@ namespace App\Modules\Dian\Services;
 
 use App\Modules\Billing\Models\Document;
 use App\Modules\Dian\Signing\XadesSigner;
-use App\Modules\Dian\Ubl\InvoiceXml;
+use App\Modules\Dian\Ubl\UblDocumentXml;
 use App\Support\Storage\DocumentStorage;
 use Illuminate\Support\Carbon;
 use RuntimeException;
 
 /**
  * The two XML steps of the electronic document chain. generate() builds the UBL XML of an issued
- * invoice from its frozen copies and stores it unsigned; sign() signs it with the company
+ * invoice, credit note or debit note from its frozen copies and stores it unsigned; sign() signs it with the company
  * certificate (XAdES-EPES) and stores the signed XML, which is the only one kept: the unsigned
  * copy is discarded once the signature is recorded. Both throw on failure; the chain records it.
  */
-final class InvoiceXmlGenerator
+final class DocumentXmlGenerator
 {
     public function __construct(
-        private readonly InvoiceXml $builder,
+        private readonly UblDocumentXml $builder,
         private readonly XadesSigner $signer,
         private readonly SigningCertificates $certificates,
         private readonly DocumentStorage $storage,

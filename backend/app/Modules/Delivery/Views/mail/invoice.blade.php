@@ -1,13 +1,13 @@
-{{-- HTML body of the delivery email. Data: company, number, total, dueDate (null for cash), packageName. --}}
+{{-- HTML body of the delivery email. Data: company, document, numberLabel, number, total, dueDate (null for cash), corrects (the invoice of a note, else null), packageName. --}}
 <!doctype html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ __('delivery::mail.intro', ['company' => $company, 'number' => $number]) }}</title>
+    <title>{{ __('delivery::mail.intro', ['company' => $company, 'document' => $document, 'number' => $number]) }}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #18181b;">
-    <span style="display: none; max-height: 0; overflow: hidden;">{{ __('delivery::mail.preheader', ['company' => $company, 'number' => $number]) }}</span>
+    <span style="display: none; max-height: 0; overflow: hidden;">{{ __('delivery::mail.preheader', ['company' => $company, 'document' => $document, 'number' => $number]) }}</span>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5;">
         <tr>
             <td align="center" style="padding: 32px 16px;">
@@ -15,7 +15,7 @@
                     <tr>
                         <td style="padding: 28px 32px 8px 32px; font-size: 15px; line-height: 1.6;">
                             <p style="margin: 0 0 12px 0;">{{ __('delivery::mail.greeting') }}</p>
-                            <p style="margin: 0 0 20px 0;">{{ __('delivery::mail.intro', ['company' => $company, 'number' => $number]) }}</p>
+                            <p style="margin: 0 0 20px 0;">{{ __('delivery::mail.intro', ['company' => $company, 'document' => $document, 'number' => $number]) }}</p>
                         </td>
                     </tr>
                     <tr>
@@ -26,7 +26,7 @@
                                     <td style="padding: 10px 0; text-align: right;">{{ $company }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 10px 0; color: #71717a; border-top: 1px solid #f4f4f5;">{{ __('delivery::mail.number') }}</td>
+                                    <td style="padding: 10px 0; color: #71717a; border-top: 1px solid #f4f4f5;">{{ $numberLabel }}</td>
                                     <td style="padding: 10px 0; text-align: right; border-top: 1px solid #f4f4f5; font-variant-numeric: tabular-nums;">{{ $number }}</td>
                                 </tr>
                                 <tr>
@@ -34,8 +34,13 @@
                                     <td style="padding: 10px 0; text-align: right; border-top: 1px solid #f4f4f5; font-weight: 600; font-variant-numeric: tabular-nums;">{{ $total }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 10px 0; color: #71717a; border-top: 1px solid #f4f4f5;">{{ __('delivery::mail.due_date') }}</td>
-                                    <td style="padding: 10px 0; text-align: right; border-top: 1px solid #f4f4f5; font-variant-numeric: tabular-nums;">{{ $dueDate ?? __('delivery::mail.cash') }}</td>
+                                    @if ($corrects !== null)
+                                        <td style="padding: 10px 0; color: #71717a; border-top: 1px solid #f4f4f5;">{{ __('delivery::mail.corrects') }}</td>
+                                        <td style="padding: 10px 0; text-align: right; border-top: 1px solid #f4f4f5; font-variant-numeric: tabular-nums;">{{ $corrects }}</td>
+                                    @else
+                                        <td style="padding: 10px 0; color: #71717a; border-top: 1px solid #f4f4f5;">{{ __('delivery::mail.due_date') }}</td>
+                                        <td style="padding: 10px 0; text-align: right; border-top: 1px solid #f4f4f5; font-variant-numeric: tabular-nums;">{{ $dueDate ?? __('delivery::mail.cash') }}</td>
+                                    @endif
                                 </tr>
                             </table>
                         </td>

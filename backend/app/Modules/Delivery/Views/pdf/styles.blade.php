@@ -274,6 +274,34 @@ div.notes {
     padding-top: 9mm;
 }
 
+/* A note: the invoice it corrects */
+div.reference {
+    margin-bottom: 7mm;
+    padding: 3mm 3.5mm 2mm 3.5mm;
+    border: 0.3mm solid #e4e4e7;
+    border-radius: 1.5mm;
+}
+
+td.reference-main {
+    padding-top: 1.4mm;
+}
+
+td.reference-concept {
+    padding-top: 1.4mm;
+    text-align: right;
+}
+
+div.reference-label {
+    padding-top: 2mm;
+    font-size: 6.4pt;
+    color: #71717a;
+}
+
+div.reference-text {
+    padding-top: 0.6mm;
+    color: #3f3f46;
+}
+
 div.notes-text {
     padding-top: 1.6mm;
     color: #3f3f46;

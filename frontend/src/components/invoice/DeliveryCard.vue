@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveBlob } from '@/api/client'
-import { invoicesApi } from '@/api/resources'
+import { documentsApi } from '@/api/resources'
 import FormError from '@/components/FormError.vue'
 import FormSection from '@/components/FormSection.vue'
 import DeliveryStatusBadge from '@/components/invoice/DeliveryStatusBadge.vue'
@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/composables/useSession'
+import { ALL_DOCUMENT_RESOURCES, DOCUMENT_RESOURCES } from '@/lib/documents'
 import { formatDateTime, formatInteger } from '@/lib/format'
 import { invalidateTenant, tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
@@ -102,24 +103,24 @@ const sendOpen = ref(false)
 // Downloads.
 const downloadPdf = useMutation({
   mutationFn: async () => {
-    saveBlob(await invoicesApi.pdf(props.invoice.id), files.value?.pdf?.file_name ?? `${props.invoice.full_number}.pdf`)
+    saveBlob(await documentsApi(props.invoice.type).pdf(props.invoice.id), files.value?.pdf?.file_name ?? `${props.invoice.full_number}.pdf`)
   },
 })
 
 const downloadPackage = useMutation({
   mutationFn: async () => {
-    saveBlob(await invoicesApi.package(props.invoice.id), files.value?.package?.file_name ?? `${props.invoice.full_number}.zip`)
+    saveBlob(await documentsApi(props.invoice.type).package(props.invoice.id), files.value?.package?.file_name ?? `${props.invoice.full_number}.zip`)
   },
 })
 
 // Acting on the delivery. The page polls again until the new run ends.
 async function store(updated: Invoice): Promise<void> {
-  queryClient.setQueryData(tenantKey(session.currentCompanyId, 'invoices', 'detail', updated.id), updated)
-  await invalidateTenant('invoices')
+  queryClient.setQueryData(tenantKey(session.currentCompanyId, DOCUMENT_RESOURCES[props.invoice.type], 'detail', updated.id), updated)
+  await invalidateTenant(...ALL_DOCUMENT_RESOURCES)
 }
 
 const regenerate = useMutation({
-  mutationFn: () => invoicesApi.regeneratePdf(props.invoice.id),
+  mutationFn: () => documentsApi(props.invoice.type).regeneratePdf(props.invoice.id),
   onSuccess: store,
 })
 

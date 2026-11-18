@@ -4,7 +4,7 @@ import { DownloadIcon } from '@lucide/vue'
 import { useQuery } from '@tanstack/vue-query'
 import { computed, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { invoicesApi } from '@/api/resources'
+import { documentsApi } from '@/api/resources'
 import FormError from '@/components/FormError.vue'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DOCUMENT_RESOURCES } from '@/lib/documents'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -38,8 +39,8 @@ const session = useSessionStore()
 const sha256 = computed(() => props.invoice.delivery?.files?.pdf?.sha256 ?? null)
 
 const { data: pdf, error, isLoading } = useQuery({
-  queryKey: computed(() => tenantKey(session.currentCompanyId, 'invoices', 'pdf', props.invoice.id, sha256.value)),
-  queryFn: () => invoicesApi.pdf(props.invoice.id),
+  queryKey: computed(() => tenantKey(session.currentCompanyId, DOCUMENT_RESOURCES[props.invoice.type], 'pdf', props.invoice.id, sha256.value)),
+  queryFn: () => documentsApi(props.invoice.type).pdf(props.invoice.id),
   enabled: computed(() => open.value && sha256.value !== null),
   staleTime: Number.POSITIVE_INFINITY,
 })

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Billing\Models;
 
+use App\Modules\Billing\Enums\BalanceStatus;
 use App\Modules\Billing\Enums\DeliveryStatus;
 use App\Modules\Billing\Enums\DeliveryStep;
 use App\Modules\Billing\Enums\DocumentStatus;
@@ -20,9 +21,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * An invoice now; credit and debit notes from stage 8. A draft is editable and has no number;
- * once issued it is numbered, its copies of the company, customer and numbering are frozen, it
- * gets its CUFE and it can no longer change. Its UBL XML is built from those copies only, by the
+ * An invoice, or a credit or debit note that corrects an accepted invoice. A draft is editable and
+ * has no number; once issued it is numbered, its copies of the company, customer and numbering are
+ * frozen, it gets its CUFE (an invoice) or CUDE (a note, kept in the same column) and it can no
+ * longer change. Its UBL XML is built from those copies only, by the
  * electronic document chain (see ElectronicStatus), which also sends it to the DIAN: in this
  * project, always the local simulator. Once accepted, the customer delivery (see DeliveryStatus)
  * builds its AttachedDocument and PDF and emails them, always to the local development mailbox.
@@ -47,7 +49,7 @@ class Document extends Model
     ];
 
     /** Relations the API loads to show one document: lines, totals, timeline, transmissions and delivered files. */
-    public const array DETAILS = ['lines.item', 'taxes', 'withholdings', 'events.actor', 'contact.municipality.department', 'transmissions', 'files'];
+    public const array DETAILS = ['lines.item', 'taxes', 'withholdings', 'events.actor', 'contact.municipality.department', 'transmissions', 'files', 'relatedDocument', 'relatedNotes'];
 
     /** The last answer of the DIAN web service (the local simulator), cleared on Resend. */
     public const array DIAN_RESULT = [
@@ -64,6 +66,11 @@ class Document extends Model
     protected $fillable = [
         'type',
         'status',
+        'related_document_id',
+        'reason_code',
+        'reason_text',
+        'balance_status',
+        'related_snapshot',
         'number_template_id',
         'prefix',
         'number',
@@ -128,6 +135,8 @@ class Document extends Model
         return [
             'type' => DocumentType::class,
             'status' => DocumentStatus::class,
+            'balance_status' => BalanceStatus::class,
+            'related_snapshot' => 'array',
             'number' => 'integer',
             'issue_date' => 'date',
             'issued_at' => 'datetime',
@@ -163,6 +172,38 @@ class Document extends Model
     public function isDraft(): bool
     {
         return $this->status === DocumentStatus::Draft;
+    }
+
+    public function isNote(): bool
+    {
+        return $this->type !== DocumentType::Invoice;
+    }
+
+    /** CUFE for an invoice, CUDE for a note (annex 1.9, sections 11.2 and 11.4). */
+    public function keyName(): string
+    {
+        return $this->isNote() ? 'CUDE' : 'CUFE';
+    }
+
+    /**
+     * The invoice a note corrects.
+     *
+     * @return BelongsTo<Document, $this>
+     */
+    public function relatedDocument(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'related_document_id');
+    }
+
+    /**
+     * The credit and debit notes of an invoice, oldest first. Not named notes: that is the column
+     * with the free text of the document.
+     *
+     * @return HasMany<Document, $this>
+     */
+    public function relatedNotes(): HasMany
+    {
+        return $this->hasMany(self::class, 'related_document_id')->orderBy('created_at')->orderBy('id');
     }
 
     /**

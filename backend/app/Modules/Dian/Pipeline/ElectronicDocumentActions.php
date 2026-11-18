@@ -2,14 +2,17 @@
 
 namespace App\Modules\Dian\Pipeline;
 
+use App\Modules\Billing\Enums\BalanceStatus;
 use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\NumberTemplate;
+use App\Modules\Billing\Services\InvoiceBalance;
 use App\Modules\Dian\Models\DianSetting;
 use App\Modules\Dian\Models\DianTransmission;
-use App\Modules\Dian\Services\InvoiceStamp;
+use App\Modules\Dian\Services\DocumentStamp;
 use App\Modules\Identity\Models\User;
+use Brick\Math\BigDecimal;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -19,14 +22,17 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * What a user can do on the chain of an issued document. Retry now: the next transmission attempt
  * right away while one is scheduled, or a new run from the step that failed. Resend, after a
- * rejection: a new run from the generation, with the CUFE and the software security code
- * calculated again from the current settings, in case they were the problem.
+ * rejection: a new run from the generation, with the CUFE (or the CUDE of a note) and the software
+ * security code calculated again from the current settings, in case they were the problem. A
+ * credit note sent again must still fit what is left to credit on its invoice, checked with the
+ * invoice locked, as when it was issued.
  */
 final class ElectronicDocumentActions
 {
     public function __construct(
         private readonly ElectronicDocumentPipeline $pipeline,
-        private readonly InvoiceStamp $stamp,
+        private readonly DocumentStamp $stamp,
+        private readonly InvoiceBalance $balances,
     ) {}
 
     public function retryNow(string $documentId, User $actor): Document
@@ -92,11 +98,22 @@ final class ElectronicDocumentActions
                 throw ValidationException::withMessages(['dian' => ['Complete the software ID and PIN in Settings → DIAN before resending.']]);
             }
 
-            $numbering = NumberTemplate::query()->findOrFail($document->number_template_id);
+            if ($document->isNote()) {
+                // The note is locked; its invoice after it, as on issue.
+                $invoice = Document::query()->whereKey($document->related_document_id)->lockForUpdate()->firstOrFail();
+
+                if ($invoice->balance_status === BalanceStatus::Voided) {
+                    throw new ConflictHttpException("Invoice {$invoice->full_number} is voided and takes no more notes.");
+                }
+
+                $this->balances->assertFits($document, $invoice, BigDecimal::of((string) $document->payable_amount));
+            }
+
+            $numbering = $document->isNote() ? null : NumberTemplate::query()->findOrFail($document->number_template_id);
             $previousCufe = $document->cufe;
 
-            // CUFE, software security code, QR URL and software data, from the frozen copies and the
-            // current settings and technical key.
+            // CUFE or CUDE, software security code, QR URL and software data, from the frozen copies
+            // and the current settings and technical key.
             $document->fill($this->stamp->stamp($document, $numbering, $settings));
 
             $this->pipeline->move($document, ElectronicStatus::Pending, [

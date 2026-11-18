@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { Contact, DocumentEvent, Invoice, PartySnapshot } from '@/api/types'
+import { ArrowUpRightIcon } from '@lucide/vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import FormSection from '@/components/FormSection.vue'
+import BalanceCard from '@/components/invoice/BalanceCard.vue'
+import BalanceStatusBadge from '@/components/invoice/BalanceStatusBadge.vue'
 import DeliveryCard from '@/components/invoice/DeliveryCard.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
 import ElectronicDocumentCard from '@/components/invoice/ElectronicDocumentCard.vue'
@@ -18,10 +21,15 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useReference } from '@/composables/useReference'
+import { DOCUMENT_ROUTES } from '@/lib/documents'
 import { formatDate, formatDateTime, formatDecimal, formatInteger, formatMoney, formatPercent, formatTime } from '@/lib/format'
 import { formatNit } from '@/lib/utils'
 
-/** Read-only view of an invoice: always for issued invoices, and for drafts when the role cannot edit. */
+/**
+ * Read-only view of an invoice, credit note or debit note: always for issued documents, and for
+ * drafts when the role cannot edit. An accepted invoice shows its balance and notes; a note shows
+ * the invoice it corrects, with a link to it.
+ */
 const props = defineProps<{
   invoice: Invoice
 }>()
@@ -77,15 +85,35 @@ const location = computed(() => {
   return [party.address, place].filter(Boolean).join(' · ')
 })
 
-const subtitle = computed(() => (props.invoice.issue_date
-  ? t('invoices.view.issued', { date: formatDate(props.invoice.issue_date), time: formatTime(props.invoice.issue_time) })
-  : undefined))
+const isNote = computed(() => props.invoice.type !== 'invoice')
+const related = computed(() => props.invoice.related_document)
+
+const subtitle = computed(() => {
+  const issued = props.invoice.issue_date
+    ? t('invoices.view.issued', { date: formatDate(props.invoice.issue_date), time: formatTime(props.invoice.issue_time) })
+    : undefined
+
+  return isNote.value ? [t(`notes.one.${props.invoice.type}`), issued].filter(Boolean).join(' · ') : issued
+})
+
+const concept = computed(() => (props.invoice.reason_code
+  ? `${props.invoice.reason_code} · ${label(props.invoice.type === 'credit_note' ? 'creditNoteConcepts' : 'debitNoteConcepts', props.invoice.reason_code)}`
+  : '—'))
 
 const numbering = computed(() => {
   const snapshot = props.invoice.numbering_snapshot
 
   if (!snapshot) {
     return '—'
+  }
+
+  // Notes need no DIAN resolution.
+  if (isNote.value) {
+    return t('notes.view.numbering', {
+      prefix: snapshot.prefix ?? '',
+      from: formatInteger(snapshot.from_number),
+      to: formatInteger(snapshot.to_number),
+    })
   }
 
   return t('invoices.view.resolution', {
@@ -185,6 +213,8 @@ function eventLabel(event: DocumentEvent): string {
       return t('invoices.view.events.deliveryRequested')
     case 'pdf_regeneration_requested':
       return t('invoices.view.events.pdfRegenerationRequested')
+    case 'note_accepted':
+      return t(payload.voided === true ? 'notes.view.events.voided' : `notes.view.events.accepted.${String(payload.note_type ?? 'credit_note')}`, { number: String(payload.number ?? '') })
     default:
       return t('invoices.view.events.created')
   }
@@ -216,6 +246,8 @@ function eventDetail(event: DocumentEvent): string | null {
         : t('invoices.view.events.retryFrom', { step: t(`invoices.view.events.steps.${String(payload.step ?? 'transmit')}`) })
     case 'resend_requested':
       return payload.cufe_changed === true ? t('invoices.view.events.cufeChanged') : null
+    case 'note_accepted':
+      return t('notes.view.events.balance', { status: t(`notes.balanceStatus.${String(payload.balance_status ?? 'open')}`) })
     case 'attached_document_built':
       return t('invoices.view.events.attachedDocumentDetail', { file: String(payload.file_name ?? ''), size: formatInteger(Number(payload.size ?? 0)) })
     case 'pdf_generated':
@@ -244,6 +276,7 @@ function eventTone(event: DocumentEvent): 'error' | 'warning' | 'success' | 'def
     case 'delivery_failed':
       return 'error'
     case 'accepted':
+    case 'note_accepted':
       return 'success'
     case 'email_attempt':
       return event.payload?.outcome === 'sent' ? 'success' : (event.payload?.outcome === 'rejected' ? 'error' : 'warning')
@@ -264,9 +297,10 @@ const toneClass = {
 
 <template>
   <div class="grid gap-6">
-    <PageHeader :title="invoice.full_number ?? t('invoices.draft')" :description="subtitle" :back="{ name: 'invoices' }">
+    <PageHeader :title="invoice.full_number ?? t('invoices.draft')" :description="subtitle" :back="{ name: DOCUMENT_ROUTES[invoice.type].list }">
       <template #badge>
         <DocumentStatusBadge :status="invoice.status" />
+        <BalanceStatusBadge v-if="invoice.balance_status && invoice.balance_status !== 'open'" :status="invoice.balance_status" />
       </template>
     </PageHeader>
 
@@ -274,6 +308,43 @@ const toneClass = {
 
     <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div class="grid min-w-0 gap-6">
+        <FormSection v-if="isNote" :title="t('notes.view.corrects')">
+          <div class="grid gap-4">
+            <dl class="grid gap-4 sm:grid-cols-3">
+              <div class="grid gap-0.5">
+                <dt class="text-xs text-muted-foreground">{{ t('notes.reference.number') }}</dt>
+                <dd class="font-medium tabular-nums">
+                  <RouterLink v-if="related" :to="{ name: 'invoice', params: { id: related.id } }" class="inline-flex items-center gap-1 hover:underline">
+                    {{ related.full_number ?? '—' }}
+                    <ArrowUpRightIcon class="size-3.5" />
+                  </RouterLink>
+                  <template v-else>—</template>
+                </dd>
+              </div>
+              <div class="grid gap-0.5">
+                <dt class="text-xs text-muted-foreground">{{ t('notes.reference.date') }}</dt>
+                <dd class="tabular-nums">{{ formatDate(related?.issue_date) || '—' }}</dd>
+              </div>
+              <div class="grid gap-0.5">
+                <dt class="text-xs text-muted-foreground">{{ t('notes.reference.total') }}</dt>
+                <dd class="tabular-nums">{{ formatMoney(related?.payable_amount) || '—' }}</dd>
+              </div>
+              <div class="grid gap-0.5 sm:col-span-3">
+                <dt class="text-xs text-muted-foreground">{{ t('notes.view.invoiceCufe') }}</dt>
+                <dd class="font-mono text-xs break-all">{{ related?.cufe ?? '—' }}</dd>
+              </div>
+              <div class="grid gap-0.5 sm:col-span-3">
+                <dt class="text-xs text-muted-foreground">{{ t('notes.correction.concept') }}</dt>
+                <dd>{{ concept }}</dd>
+              </div>
+              <div class="grid gap-0.5 sm:col-span-3">
+                <dt class="text-xs text-muted-foreground">{{ t('notes.correction.reason') }}</dt>
+                <dd class="whitespace-pre-line">{{ invoice.reason_text || '—' }}</dd>
+              </div>
+            </dl>
+          </div>
+        </FormSection>
+
         <FormSection :title="t('invoices.view.customer')">
           <div v-if="customer" class="grid gap-1">
             <p class="font-medium">{{ customer.legal_name }}</p>
@@ -296,7 +367,7 @@ const toneClass = {
               <dt class="text-xs text-muted-foreground">{{ t('invoices.view.issueTime') }}</dt>
               <dd class="tabular-nums">{{ formatTime(invoice.issue_time) || '—' }}</dd>
             </div>
-            <div class="grid gap-0.5">
+            <div v-if="!isNote" class="grid gap-0.5">
               <dt class="text-xs text-muted-foreground">{{ t('invoices.view.dueDate') }}</dt>
               <dd class="tabular-nums">{{ formatDate(invoice.due_date) || t('invoices.view.noDueDate') }}</dd>
             </div>
@@ -314,6 +385,8 @@ const toneClass = {
             </div>
           </dl>
         </FormSection>
+
+        <BalanceCard v-if="invoice.type === 'invoice' && invoice.electronic?.status === 'accepted'" :invoice="invoice" />
 
         <ElectronicDocumentCard v-if="invoice.status === 'issued'" :invoice="invoice" />
 

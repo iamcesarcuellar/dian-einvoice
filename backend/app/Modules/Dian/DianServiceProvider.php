@@ -54,6 +54,8 @@ final class DianServiceProvider extends ServiceProvider
         // Each event of the chain starts its next step; the relay publishes them to the queue.
         $subscribers = $this->app->make(OutboxSubscribers::class);
         $subscribers->subscribe(ChainEvents::ISSUED, GenerateXml::class);
+        $subscribers->subscribe(ChainEvents::CREDIT_NOTE_ISSUED, GenerateXml::class);
+        $subscribers->subscribe(ChainEvents::DEBIT_NOTE_ISSUED, GenerateXml::class);
         $subscribers->subscribe(ChainEvents::GENERATE, GenerateXml::class);
         $subscribers->subscribe(ChainEvents::SIGN, SignXml::class);
         $subscribers->subscribe(ChainEvents::TRANSMIT, TransmitDocument::class);

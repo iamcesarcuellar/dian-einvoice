@@ -2,13 +2,15 @@
 
 namespace App\Modules\Dian\Ubl;
 
+use App\Modules\Billing\Enums\DocumentType;
 use DOMDocument;
 use DOMXPath;
 use LibXMLError;
 
 /**
- * Validates an invoice against the official UBL-Invoice-2.1.xsd of the DIAN toolbox, and an
- * AttachedDocument against UBL-AttachedDocument-2.1.xsd, both kept in resources/dian/xsd. Two
+ * Validates an invoice, a credit note or a debit note against the official UBL-Invoice-2.1.xsd,
+ * UBL-CreditNote-2.1.xsd or UBL-DebitNote-2.1.xsd of the DIAN toolbox, and an AttachedDocument
+ * against UBL-AttachedDocument-2.1.xsd, all kept in resources/dian/xsd. Two
  * adjustments, both on a copy of the document:
  *  - the empty UBLExtension reserved for the signature is left out, because the schema requires
  *    one element in every ExtensionContent; stage 5 fills it with the signature;
@@ -18,9 +20,9 @@ use LibXMLError;
  */
 final class XsdValidator
 {
-    public function schemaPath(): string
+    public function schemaPath(DocumentType $type = DocumentType::Invoice): string
     {
-        return resource_path('dian/xsd/maindoc/UBL-Invoice-2.1.xsd');
+        return resource_path('dian/xsd/maindoc/UBL-'.UblDocumentXml::root($type).'-2.1.xsd');
     }
 
     public function attachedDocumentSchemaPath(): string
@@ -31,6 +33,12 @@ final class XsdValidator
     public function validateInvoice(string $xml): XsdResult
     {
         return $this->validate($xml, $this->schemaPath());
+    }
+
+    /** An issued document against the XSD of its type. */
+    public function validateDocument(DocumentType $type, string $xml): XsdResult
+    {
+        return $this->validate($xml, $this->schemaPath($type));
     }
 
     public function validateAttachedDocument(string $xml): XsdResult
@@ -51,7 +59,7 @@ final class XsdValidator
             }
 
             $skipped = $this->detachEmptyExtensions($dom);
-            $dom->documentElement?->removeAttributeNS(InvoiceXml::NS_XSI, 'schemaLocation');
+            $dom->documentElement?->removeAttributeNS(UblDocumentXml::NS_XSI, 'schemaLocation');
 
             $dom->schemaValidate($schema);
 
@@ -66,7 +74,7 @@ final class XsdValidator
     private function detachEmptyExtensions(DOMDocument $dom): int
     {
         $xpath = new DOMXPath($dom);
-        $xpath->registerNamespace('ext', InvoiceXml::NS_EXT);
+        $xpath->registerNamespace('ext', UblDocumentXml::NS_EXT);
 
         $empty = $xpath->query('/*/ext:UBLExtensions/ext:UBLExtension[ext:ExtensionContent[not(*)]]');
         $count = 0;

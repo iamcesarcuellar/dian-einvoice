@@ -4,11 +4,13 @@ import type {
   Contact,
   ContactInput,
   DataEnvelope,
+  DocumentType,
   Invoice,
   InvoiceInput,
   Item,
   ItemInput,
   ListParams,
+  NotePrefill,
   NumberTemplate,
   NumberTemplateInput,
   Paginated,
@@ -48,64 +50,88 @@ export const taxesApi = resourceApi<Tax, RateInput>('/taxes')
 export const withholdingsApi = resourceApi<Withholding, RateInput>('/withholdings')
 export const numberTemplatesApi = resourceApi<NumberTemplate, NumberTemplateInput>('/number-templates')
 
-export const invoicesApi = {
-  ...resourceApi<Invoice, InvoiceInput>('/invoices'),
+/**
+ * Client of /invoices, /credit-notes or /debit-notes: the same operations on each type.
+ */
+function documentApi(path: string) {
+  return {
+    ...resourceApi<Invoice, InvoiceInput>(path),
 
-  /** Lines, taxes, withholdings and totals of a draft body, calculated by the API without storing it. */
-  async preview(input: InvoiceInput): Promise<Calculation> {
-    return (await request<DataEnvelope<Calculation>>('POST', '/invoices/preview', input)).data
-  },
+    /** Lines, taxes, withholdings and totals of a draft body, calculated by the API without storing it. */
+    async preview(input: InvoiceInput): Promise<Calculation> {
+      return (await request<DataEnvelope<Calculation>>('POST', `${path}/preview`, input)).data
+    },
 
-  /**
-   * Assigns the next number and the CUFE and makes the invoice final; its electronic document chain
-   * (XML, signature, transmission to the local DIAN simulator) then runs in the background.
-   */
-  async issue(id: string): Promise<Invoice> {
-    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/issue`)).data
-  },
+    /**
+     * Assigns the next number and the CUFE and makes the invoice final; its electronic document chain
+     * (XML, signature, transmission to the local DIAN simulator) then runs in the background.
+     */
+    async issue(id: string): Promise<Invoice> {
+      return (await request<DataEnvelope<Invoice>>('POST', `${path}/${id}/issue`)).data
+    },
 
-  /** The signed UBL 2.1 XML of an issued invoice. */
-  xml(id: string): Promise<string> {
-    return requestText(`/invoices/${id}/xml`)
-  },
+    /** The signed UBL 2.1 XML of an issued invoice. */
+    xml(id: string): Promise<string> {
+      return requestText(`${path}/${id}/xml`)
+    },
 
-  /** The ApplicationResponse of the last answer of the local DIAN simulator. */
-  dianResponse(id: string): Promise<string> {
-    return requestText(`/invoices/${id}/dian-response`)
-  },
+    /** The ApplicationResponse of the last answer of the local DIAN simulator. */
+    dianResponse(id: string): Promise<string> {
+      return requestText(`${path}/${id}/dian-response`)
+    },
 
-  /** The next transmission attempt now, or a new run from the step that failed. */
-  async retry(id: string): Promise<Invoice> {
-    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/retry`)).data
-  },
+    /** The next transmission attempt now, or a new run from the step that failed. */
+    async retry(id: string): Promise<Invoice> {
+      return (await request<DataEnvelope<Invoice>>('POST', `${path}/${id}/retry`)).data
+    },
 
-  /** After a rejection: the chain runs again from the generation of the XML. */
-  async resend(id: string): Promise<Invoice> {
-    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/resend`)).data
-  },
+    /** After a rejection: the chain runs again from the generation of the XML. */
+    async resend(id: string): Promise<Invoice> {
+      return (await request<DataEnvelope<Invoice>>('POST', `${path}/${id}/resend`)).data
+    },
 
-  /** The PDF, the graphic representation of an accepted invoice. */
-  pdf(id: string): Promise<Blob> {
-    return requestBlob(`/invoices/${id}/pdf`)
-  },
+    /** The PDF, the graphic representation of an accepted invoice. */
+    pdf(id: string): Promise<Blob> {
+      return requestBlob(`${path}/${id}/pdf`)
+    },
 
-  /** The signed AttachedDocument, with the signed invoice and the response of the local simulator. */
-  attachedDocument(id: string): Promise<Blob> {
-    return requestBlob(`/invoices/${id}/attached-document`)
-  },
+    /** The signed AttachedDocument, with the signed invoice and the response of the local simulator. */
+    attachedDocument(id: string): Promise<Blob> {
+      return requestBlob(`${path}/${id}/attached-document`)
+    },
 
-  /** The zip the email carries: the AttachedDocument and the PDF. */
-  package(id: string): Promise<Blob> {
-    return requestBlob(`/invoices/${id}/package`)
-  },
+    /** The zip the email carries: the AttachedDocument and the PDF. */
+    package(id: string): Promise<Blob> {
+      return requestBlob(`${path}/${id}/package`)
+    },
 
-  /** Send again, to the current recipient or to another address; it lands in the local mailbox. */
-  async deliver(id: string, email: string | null): Promise<Invoice> {
-    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/deliver`, email ? { email } : {})).data
-  },
+    /** Send again, to the current recipient or to another address; it lands in the local mailbox. */
+    async deliver(id: string, email: string | null): Promise<Invoice> {
+      return (await request<DataEnvelope<Invoice>>('POST', `${path}/${id}/deliver`, email ? { email } : {})).data
+    },
 
-  /** After the PDF failed: a new delivery run from the PDF. */
-  async regeneratePdf(id: string): Promise<Invoice> {
-    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/pdf/regenerate`)).data
-  },
+    /** After the PDF failed: a new delivery run from the PDF. */
+    async regeneratePdf(id: string): Promise<Invoice> {
+      return (await request<DataEnvelope<Invoice>>('POST', `${path}/${id}/pdf/regenerate`)).data
+    },
+  }
+}
+
+export const invoicesApi = documentApi('/invoices')
+
+/** A credit or debit note not saved yet, for an accepted invoice: its lines, terms and balance. */
+function prefill(path: string) {
+  return async (invoiceId: string, voidInvoice = false): Promise<NotePrefill> => (await request<DataEnvelope<NotePrefill>>('GET', `${path}/prefill`, undefined, {
+    invoice_id: invoiceId,
+    void: voidInvoice ? 1 : undefined,
+  })).data
+}
+
+export const creditNotesApi = { ...documentApi('/credit-notes'), prefill: prefill('/credit-notes') }
+
+export const debitNotesApi = { ...documentApi('/debit-notes'), prefill: prefill('/debit-notes') }
+
+/** The client of a document type. */
+export function documentsApi(type: DocumentType) {
+  return type === 'credit_note' ? creditNotesApi : type === 'debit_note' ? debitNotesApi : invoicesApi
 }

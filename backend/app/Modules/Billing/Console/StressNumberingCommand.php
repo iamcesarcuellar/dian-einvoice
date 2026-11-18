@@ -2,12 +2,13 @@
 
 namespace App\Modules\Billing\Console;
 
+use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\NumberTemplate;
-use App\Modules\Billing\Services\InvoiceDrafts;
-use App\Modules\Billing\Services\IssueInvoice;
+use App\Modules\Billing\Services\DocumentDrafts;
+use App\Modules\Billing\Services\IssueDocument;
 use App\Modules\Billing\Tools\TemporaryCompany;
 use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Identity\Models\User;
@@ -32,7 +33,7 @@ final class StressNumberingCommand extends Command
 
     protected $description = 'Issue invoices from parallel processes on a temporary company, check the numbering, and time the chain until the DIAN simulator accepts them';
 
-    public function handle(InvoiceDrafts $drafts, IssueInvoice $issue): int
+    public function handle(DocumentDrafts $drafts, IssueDocument $issue): int
     {
         if (! function_exists('pcntl_fork')) {
             $this->error('The pcntl extension is missing; rebuild the api image with make up.');
@@ -53,7 +54,7 @@ final class StressNumberingCommand extends Command
             $ids = [];
 
             for ($index = 1; $index <= $count; $index++) {
-                $ids[] = $drafts->create([
+                $ids[] = $drafts->create(DocumentType::Invoice, [
                     'contact_id' => $customer->getKey(),
                     'number_template_id' => $template->getKey(),
                     'lines' => [
@@ -85,7 +86,7 @@ final class StressNumberingCommand extends Command
      * @param  list<string>  $ids
      * @return int Issues that failed.
      */
-    private function issueInParallel(array $ids, int $workers, IssueInvoice $issue, User $user): int
+    private function issueInParallel(array $ids, int $workers, IssueDocument $issue, User $user): int
     {
         // A forked child must never share the parent's connection.
         DB::disconnect();

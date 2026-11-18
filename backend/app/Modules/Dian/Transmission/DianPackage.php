@@ -9,7 +9,7 @@ use ZipArchive;
 /**
  * File names of annex 1.9 (6.5.7 and 6.5.8) and the zips that carry the files. What SendBillSync
  * receives (7.10.2) is a zip with a single signed XML, named z{NIT}{ppp}{aa}{dddddddd}.zip and
- * fv{NIT}{ppp}{aa}{dddddddd}.xml, where the NIT has ten digits padded with zeros, ppp is 000 (own
+ * fv{NIT}{ppp}{aa}{dddddddd}.xml (nc for a credit note, nd for a debit note), where the NIT has ten digits padded with zeros, ppp is 000 (own
  * software), aa the last two digits of the year and dddddddd the hexadecimal consecutive of the
  * files of that prefix the company produced that year. The AttachedDocument delivered to the
  * customer is named ad{...}.xml with its own consecutive, and its zip z{...}.zip with the same one.
@@ -26,13 +26,14 @@ final class DianPackage
     private const string OWN_SOFTWARE = '000';
 
     /**
-     * Names for the next invoice the company sends to the DIAN in $year; takes the next consecutive.
+     * Names for the next document of a prefix (fv, nc or nd) the company sends to the DIAN in
+     * $year; takes the next consecutive of that prefix.
      *
      * @return array{zip: string, xml: string}
      */
-    public function nextNames(string $companyId, string $nit, int $year): array
+    public function nextNames(string $companyId, string $nit, int $year, string $prefix = self::INVOICE): array
     {
-        return self::names($nit, $year, $this->nextConsecutive($companyId, $year, self::INVOICE));
+        return self::names($nit, $year, $this->nextConsecutive($companyId, $year, $prefix), $prefix);
     }
 
     /**
@@ -47,11 +48,11 @@ final class DianPackage
     /**
      * @return array{zip: string, xml: string}
      */
-    public static function names(string $nit, int $year, int $consecutive): array
+    public static function names(string $nit, int $year, int $consecutive, string $prefix = self::INVOICE): array
     {
         $base = self::base($nit, $year, $consecutive);
 
-        return ['zip' => "z{$base}.zip", 'xml' => self::INVOICE."{$base}.xml"];
+        return ['zip' => "z{$base}.zip", 'xml' => "{$prefix}{$base}.xml"];
     }
 
     public static function base(string $nit, int $year, int $consecutive): string

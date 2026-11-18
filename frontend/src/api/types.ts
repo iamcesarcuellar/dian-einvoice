@@ -99,7 +99,17 @@ export interface Reference {
   units: CodeOption[]
   payment_forms: CodeOption[]
   payment_means: CodeOption[]
+  /** Concepts of the notes, from the official lists of the DIAN toolbox (tables 13.2.4 and 13.2.5). */
+  credit_note_concepts: ConceptOption[]
+  debit_note_concepts: ConceptOption[]
   departments: CodeOption[]
+}
+
+/** A concept of a credit or debit note: its code, English name and the name of the official list. */
+export interface ConceptOption {
+  code: string
+  name: string
+  official_name: string
 }
 
 export interface PageMeta {
@@ -269,6 +279,55 @@ export interface NumberTemplateInput {
 
 export type DocumentStatus = 'draft' | 'issued'
 
+/** Credit and debit notes: the document types that correct an invoice. */
+export type NoteType = Exclude<DocumentType, 'invoice'>
+
+/** Balance of an issued invoice after the notes the local simulator accepted. */
+export type BalanceStatus = 'open' | 'partially_credited' | 'voided'
+
+/** Calculated by the API: decimal strings with 2 decimals. */
+export interface InvoiceBalance {
+  total: string
+  /** Accepted credit notes. */
+  credited: string
+  /** Accepted debit notes. */
+  debited: string
+  /** Total plus debited less credited. */
+  balance: string
+  /** Credit notes still on their way: issued, processing or failed, not rejected. */
+  pending_credits: string
+  /** What a new credit note can still credit. */
+  remaining_to_credit: string
+}
+
+/** The invoice a note corrects. */
+export interface RelatedDocument {
+  id: string
+  type?: 'invoice'
+  full_number: string | null
+  issue_date: string | null
+  cufe: string | null
+  customer_name: string | null
+  currency?: string
+  payable_amount: string | null
+  electronic_status?: ElectronicStatus | null
+  balance_status?: BalanceStatus | null
+}
+
+/** A note in the summary of its invoice. */
+export interface RelatedNote {
+  id: string
+  type: NoteType
+  status: DocumentStatus
+  full_number: string | null
+  issue_date: string | null
+  reason_code: string | null
+  payable_amount: string
+  currency: string
+  electronic_status: ElectronicStatus | null
+  created_at: string
+}
+
 /** Amounts of a document: decimal strings with 2 decimals, calculated by the API. */
 export interface DocumentTotals {
   /** Quantity times price, before discounts. */
@@ -340,6 +399,7 @@ export type DocumentEventType =
   | 'delivery_failed'
   | 'delivery_requested'
   | 'pdf_regeneration_requested'
+  | 'note_accepted'
 
 export interface DocumentEvent {
   id: string
@@ -414,9 +474,10 @@ export interface NumberingSnapshot {
   valid_to: string | null
 }
 
+/** An invoice, a credit note or a debit note. */
 export interface Invoice {
   id: string
-  type: 'invoice'
+  type: DocumentType
   status: DocumentStatus
   number_template_id: string | null
   prefix: string | null
@@ -434,6 +495,18 @@ export interface Invoice {
   payment_means_code: string | null
   currency: string
   notes: string | null
+  /** A note: the invoice it corrects, and the concept and description of the correction. */
+  related_document_id: string | null
+  related_document: RelatedDocument | null
+  reason_code: string | null
+  reason_text: string | null
+  /** An issued invoice: open, partially_credited or voided. */
+  balance_status: BalanceStatus | null
+  /** On the detail of an issued invoice: its balance and its notes. */
+  balance?: InvoiceBalance
+  related_notes?: RelatedNote[]
+  /** On the detail of a note: the balance of its invoice without the note itself. */
+  invoice_balance?: InvoiceBalance
   totals: DocumentTotals
   taxes?: DocumentTaxSubtotal[]
   withholdings?: DocumentWithholdingAmount[]
@@ -442,8 +515,9 @@ export interface Invoice {
   company_snapshot: PartySnapshot | null
   customer_snapshot: PartySnapshot | null
   numbering_snapshot: NumberingSnapshot | null
-  /** Set on issue: SHA-384 code of the invoice, in lowercase hexadecimal. */
+  /** Set on issue: SHA-384 code of the document, in lowercase hexadecimal; the CUFE of an invoice or the CUDE of a note. */
   cufe: string | null
+  key_name: 'CUFE' | 'CUDE'
   /** DIAN verification URL, drawn as the QR code. */
   qr_url: string | null
   /** Always 2, the habilitación (test) environment. */
@@ -682,14 +756,40 @@ export interface InvoiceLineInput {
 }
 
 export interface InvoiceInput {
-  contact_id: string | null
+  contact_id?: string | null
+  /** A new note: the accepted invoice it corrects. */
+  related_document_id?: string | null
+  reason_code?: string | null
+  reason_text?: string | null
   number_template_id: string | null
-  payment_form: string | null
-  payment_means_code: string | null
-  due_date: string | null
+  payment_form?: string | null
+  payment_means_code?: string | null
+  due_date?: string | null
   notes: string | null
   lines: InvoiceLineInput[]
   withholding_ids: string[]
+}
+
+/** GET /credit-notes/prefill and /debit-notes/prefill: a note not saved yet, for an accepted invoice. */
+export interface NotePrefill {
+  type: NoteType
+  status: 'draft'
+  related_document_id: string
+  related_document: RelatedDocument
+  contact_id: string | null
+  contact: Contact | null
+  customer_name: string | null
+  currency: string
+  payment_form: string | null
+  payment_means_code: string | null
+  due_date: string | null
+  number_template_id: string | null
+  reason_code: string | null
+  reason_text: string | null
+  notes: string | null
+  lines: DocumentLine[]
+  withholdings: DocumentWithholdingAmount[]
+  balance: InvoiceBalance
 }
 
 /** POST /invoices/preview: what the invoice would be, with nothing stored. */

@@ -10,7 +10,8 @@ import type { Socket } from 'node:net'
 import { join } from 'node:path'
 import { unzipSync } from 'fflate'
 import { applicationResponse } from './application-response.ts'
-import { readInvoice } from './invoice.ts'
+import { readDocument, schemaName } from './document.ts'
+import type { DocumentKind } from './document.ts'
 import { ALL, MODE_NAMES, currentMode, normalMode, takeMode } from './modes.ts'
 import { RULES, finding, formatFinding, rule } from './rules.ts'
 import type { Finding } from './rules.ts'
@@ -18,12 +19,20 @@ import { faultEnvelope, parseRequest, resultEnvelope } from './soap.ts'
 import type { DianResult, SoapRequest } from './soap.ts'
 import { Store } from './state.ts'
 import type { DocumentRecord, Mode, ModeName, Range, RequestLog, Taxpayer } from './state.ts'
-import { validateInvoice } from './validate.ts'
+import { validateDocument } from './validate.ts'
 import { parseXml } from './xml.ts'
 
 const PORT = Number(process.env.PORT ?? 8602)
 const TOKEN = process.env.SIMULATOR_ADMIN_TOKEN ?? ''
-const SCHEMA = join(import.meta.dirname, '..', 'xsd', 'maindoc', 'UBL-Invoice-2.1.xsd')
+const SCHEMAS = Object.fromEntries((['invoice', 'credit_note', 'debit_note'] as const)
+  .map((kind) => [kind, join(import.meta.dirname, '..', 'xsd', 'maindoc', schemaName(kind))])) as Record<DocumentKind, string>
+
+/** How the DIAN names each kind in the answer of an authorized document. */
+const AUTHORIZED: Record<DocumentKind, string> = {
+  invoice: 'La Factura electrónica',
+  credit_note: 'La Nota Crédito electrónica',
+  debit_note: 'La Nota Débito electrónica',
+}
 const MAX_BODY = 20 * 1024 * 1024
 const REQUEST_LOG = 500
 /** How long a request in no_response mode is held open before the socket is dropped. */
@@ -116,7 +125,7 @@ function resultOf(record: DocumentRecord): DianResult {
     isValid: accepted,
     statusCode: accepted ? '00' : '99',
     statusDescription: accepted ? 'Procesado Correctamente.' : 'Validación contiene errores en campos mandatorios.',
-    statusMessage: accepted ? `La Factura electrónica ${record.number}, ha sido autorizada.` : 'Documento con errores en campos mandatorios.',
+    statusMessage: accepted ? `${AUTHORIZED[record.kind ?? 'invoice']} ${record.number}, ha sido autorizada.` : 'Documento con errores en campos mandatorios.',
     errorMessages: record.findings.map(formatFinding),
     applicationResponse: applicationResponse(record),
     documentKey: record.cufe,
@@ -167,11 +176,12 @@ async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<An
     return { result: unreadable([finding('ZB01', 'the XML is not well formed')]), outcome: 'rejected', document: null, rules: ['ZB01'] }
   }
 
-  const invoice = readInvoice(parsed)
+  const invoice = readDocument(parsed)
   const key = invoice.cufe?.toLowerCase()
+  const kind = invoice.kind ?? 'invoice'
 
   if (!key || !invoice.number || !invoice.supplierNit || !invoice.issueDate || !invoice.customerId || invoice.ublVersion !== 'UBL 2.1') {
-    return { result: unreadable([finding('ZB01', 'CUFE, number, issue date, issuer and customer are required, and UBLVersionID must be UBL 2.1')]), outcome: 'rejected', document: invoice.number ?? null, rules: ['ZB01'] }
+    return { result: unreadable([finding('ZB01', 'CUFE or CUDE, number, issue date, issuer and customer are required, and UBLVersionID must be UBL 2.1')]), outcome: 'rejected', document: invoice.number ?? null, rules: ['ZB01'] }
   }
 
   // The same document again: the earlier result, without validating it again.
@@ -184,14 +194,14 @@ async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<An
     return { result: resultOf(previous), outcome: 'duplicate', document: previous.number, rules: previous.findings.flatMap((item) => (item.code ? [item.code] : [])) }
   }
 
-  // Another document with a number already accepted for this issuer.
-  const sameNumber = Object.values(state.documents).find((record) => record.status === 'accepted' && record.nit === invoice.supplierNit && record.number === invoice.number)
+  // Another document of the same type with a number already accepted for this issuer.
+  const sameNumber = Object.values(state.documents).find((record) => record.status === 'accepted' && (record.kind ?? 'invoice') === kind && record.nit === invoice.supplierNit && record.number === invoice.number)
 
   if (sameNumber) {
     return { result: unreadable([finding('90')], key), outcome: 'rejected', document: invoice.number, rules: ['90'] }
   }
 
-  const findings = await validateInvoice(xml, invoice, state, SCHEMA)
+  const findings = await validateDocument(xml, invoice, state, SCHEMAS)
 
   // A copy sent at the same time finished first: this one is a repetition of it.
   const meanwhile = state.documents[key]
@@ -211,6 +221,8 @@ async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<An
   const now = new Date().toISOString()
   const record: DocumentRecord = {
     cufe: key,
+    kind,
+    references: kind === 'invoice' ? null : (invoice.reference?.cufe?.toLowerCase() ?? null),
     nit: invoice.supplierNit,
     number: invoice.number,
     issue_date: invoice.issueDate ?? null,

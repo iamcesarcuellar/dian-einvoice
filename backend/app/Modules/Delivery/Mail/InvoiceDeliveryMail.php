@@ -12,7 +12,8 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Headers;
 
 /**
- * The email that delivers an accepted invoice to its customer: the subject of annex 1.9 (section
+ * The email that delivers an accepted invoice, credit note or debit note to its customer: the
+ * subject of annex 1.9 (section
  * 9.1), a short body in HTML and plain text, replies to the issuing company, and a single
  * attachment, the zip with the AttachedDocument and the PDF. Sent right away by the delivery step,
  * never queued on its own. It is read from the frozen copies of the document only.
@@ -50,15 +51,20 @@ final class InvoiceDeliveryMail extends Mailable
     public function content(): Content
     {
         $company = $this->document->company_snapshot;
+        $type = $this->document->type->value;
 
         return new Content(
             view: 'delivery::mail.invoice',
             text: 'delivery::mail.invoice-text',
             with: [
                 'company' => (string) $company['legal_name'],
+                'document' => __("delivery::mail.documents.{$type}"),
+                'numberLabel' => __("delivery::mail.numbers.{$type}"),
                 'number' => (string) $this->document->full_number,
                 'total' => ColombianFormat::money((string) $this->document->payable_amount),
                 'dueDate' => $this->document->due_date === null ? null : ColombianFormat::date($this->document->due_date),
+                // A note names the invoice it corrects instead of a due date.
+                'corrects' => $this->document->isNote() ? (string) ($this->document->related_snapshot['full_number'] ?? '') : null,
                 'packageName' => $this->packageName,
             ],
         );

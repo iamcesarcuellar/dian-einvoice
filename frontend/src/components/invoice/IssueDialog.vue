@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
+import type { DocumentType } from '@/api/types'
 import { ArrowRightIcon, CircleAlertIcon, ClipboardListIcon } from '@lucide/vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -21,12 +22,18 @@ import {
  * customer data is missing, it lists what is missing with a link to the screen where each item is
  * completed; any other problem with the draft is listed below.
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   numbering: string
   customerId: string | null
   pending: boolean
   error: unknown
-}>()
+  kind?: DocumentType
+  /** A void credit note: the number of the invoice it voids. */
+  voids?: string | null
+}>(), {
+  kind: 'invoice',
+  voids: null,
+})
 
 const emit = defineEmits<{
   confirm: []
@@ -77,9 +84,14 @@ const hasFieldErrors = computed(() => Object.keys(fieldErrors.value).length > 0)
   <Dialog v-model:open="open">
     <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-lg" :show-close-button="false">
       <DialogHeader>
-        <DialogTitle>{{ t('invoices.editor.issueTitle') }}</DialogTitle>
-        <DialogDescription>{{ t('invoices.editor.issueDescription', { numbering }) }}</DialogDescription>
+        <DialogTitle>{{ kind === 'invoice' ? t('invoices.editor.issueTitle') : t(`notes.issue.title.${kind}`) }}</DialogTitle>
+        <DialogDescription>{{ kind === 'invoice' ? t('invoices.editor.issueDescription', { numbering }) : t('notes.issue.description', { numbering }) }}</DialogDescription>
       </DialogHeader>
+
+      <Alert v-if="voids" variant="destructive">
+        <CircleAlertIcon />
+        <AlertDescription>{{ t('notes.issue.voids', { number: voids }) }}</AlertDescription>
+      </Alert>
 
       <!-- Problems that are not field validation, such as a conflict or a network error. -->
       <FormError v-if="!hasFieldErrors" :error="error" />

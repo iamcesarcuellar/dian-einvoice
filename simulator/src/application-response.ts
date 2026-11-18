@@ -13,6 +13,9 @@ const DIAN_CHECK_DIGIT = '4'
 const SIMULATOR_SOFTWARE_ID = '00000000-0000-4000-8000-00000000d1a5'
 const COLOMBIA_OFFSET_MS = 5 * 60 * 60 * 1000
 
+/** Table 13.1.3 of annex 1.9: 01 electronic sales invoice, 91 credit note, 92 debit note. */
+const DOCUMENT_TYPE = { invoice: '01', credit_note: '91', debit_note: '92' } as const
+
 /** Date and time in Colombia (UTC-05:00), as the IssueDate and IssueTime of UBL documents. */
 export function colombianDateTime(at: Date): { date: string, time: string } {
   const local = new Date(at.getTime() - COLOMBIA_OFFSET_MS).toISOString()
@@ -86,8 +89,8 @@ export function applicationResponse(record: DocumentRecord): string {
     </cac:Response>
     <cac:DocumentReference>
       <cbc:ID>${escapeXml(record.number)}</cbc:ID>
-      <cbc:UUID schemeName="CUFE-SHA384">${escapeXml(record.cufe)}</cbc:UUID>
-      <cbc:DocumentTypeCode>01</cbc:DocumentTypeCode>
+      <cbc:UUID schemeName="${(record.kind ?? 'invoice') === 'invoice' ? 'CUFE-SHA384' : 'CUDE-SHA384'}">${escapeXml(record.cufe)}</cbc:UUID>
+      <cbc:DocumentTypeCode>${DOCUMENT_TYPE[record.kind ?? 'invoice']}</cbc:DocumentTypeCode>
     </cac:DocumentReference>
 ${findings.join('\n')}
   </cac:DocumentResponse>

@@ -3,6 +3,8 @@
 namespace App\Modules\Reference\Http\Controllers;
 
 use App\Http\Listing;
+use App\Modules\Reference\Enums\CreditNoteConcept;
+use App\Modules\Reference\Enums\DebitNoteConcept;
 use App\Modules\Reference\Enums\FiscalResponsibility;
 use App\Modules\Reference\Enums\IdentificationType;
 use App\Modules\Reference\Enums\OrganizationType;
@@ -44,6 +46,9 @@ final class ReferenceController
                 'units' => UnitOfMeasure::options(),
                 'payment_forms' => PaymentForm::options(),
                 'payment_means' => PaymentMeans::options(),
+                // Concepts of credit and debit notes, from the official lists of the toolbox.
+                'credit_note_concepts' => CreditNoteConcept::reference(),
+                'debit_note_concepts' => DebitNoteConcept::reference(),
                 'departments' => Department::query()->orderBy('name')->get(['code', 'name']),
             ],
         ]);

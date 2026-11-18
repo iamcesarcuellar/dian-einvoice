@@ -10,7 +10,7 @@ use Brick\Math\BigDecimal;
  * The text of the QR code of the graphic representation, exactly as section 11.7 of annex 1.9 and
  * its example write it: one "Field: value" line each for NumFac, FecFac, HorFac (with its offset),
  * NitFac and DocAdq (no dots or dashes), ValFac, ValIva, ValOtroIm and ValTolFac (point for decimals,
- * two decimals, no thousands separators, no currency sign), CUFE, and the verification URL of 11.7.1
+ * two decimals, no thousands separators, no currency sign), CUFE (CUDE for a note), and the verification URL of 11.7.1
  * (sts:QRCode of the XML) on the last line. Read from the frozen copies of the document.
  */
 final class QrContent
@@ -42,7 +42,8 @@ final class QrContent
             'ValIva: '.self::amount((string) $iva),
             'ValOtroIm: '.self::amount((string) $other),
             'ValTolFac: '.self::amount((string) $document->payable_amount),
-            'CUFE: '.$document->cufe,
+            // A note carries its CUDE with the same labels (an assumption: 11.7 only shows the invoice).
+            $document->keyName().': '.$document->cufe,
             (string) $document->qr_url,
         ]);
     }

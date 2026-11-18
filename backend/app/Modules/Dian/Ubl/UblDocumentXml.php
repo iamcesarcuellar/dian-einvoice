@@ -2,10 +2,12 @@
 
 namespace App\Modules\Dian\Ubl;
 
+use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\DocumentLine;
 use App\Modules\Billing\Models\DocumentTax;
 use App\Modules\Billing\Models\DocumentWithholding;
+use App\Modules\Dian\Domain\Cude;
 use App\Modules\Dian\Domain\Cufe;
 use App\Modules\Reference\Enums\IdentificationType;
 use App\Modules\Reference\Enums\OrganizationType;
@@ -16,16 +18,21 @@ use Illuminate\Support\Collection;
 use LogicException;
 
 /**
- * Builds the unsigned UBL 2.1 invoice with the DIAN profile (annex 1.9, section 6.1) from the
- * frozen copies of an issued document: its company, customer, numbering and software snapshots,
- * its line copies, tax subtotals, withholdings and totals. Live company, customer, item or tax
- * data is never read, and nothing is recalculated: every amount is the one the document stores.
- * Element order follows UBL-Invoice-2.1.xsd; literals and codes follow the official examples of
- * the DIAN toolbox and the annex tables.
+ * Builds the unsigned UBL 2.1 Invoice, CreditNote or DebitNote with the DIAN profile (annex 1.9,
+ * sections 6.1, 6.2 and 6.3) from the frozen copies of an issued document: its company, customer,
+ * numbering, software and referenced invoice snapshots, its line copies, tax subtotals,
+ * withholdings and totals. Live company, customer, item or tax data is never read, and nothing is
+ * recalculated: every amount is the one the document stores. Element order follows the official
+ * XSD of each document; literals and codes follow the annex tables, and the official examples of
+ * the DIAN toolbox where the tables say nothing.
  */
-final class InvoiceXml
+final class UblDocumentXml
 {
     public const string NS_INVOICE = 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2';
+
+    public const string NS_CREDIT_NOTE = 'urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2';
+
+    public const string NS_DEBIT_NOTE = 'urn:oasis:names:specification:ubl:schema:xsd:DebitNote-2';
 
     public const string NS_CAC = 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2';
 
@@ -43,18 +50,27 @@ final class InvoiceXml
 
     public const string NS_XSI = 'http://www.w3.org/2001/XMLSchema-instance';
 
-    private const string SCHEMA_LOCATION = self::NS_INVOICE.' http://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/UBL-Invoice-2.1.xsd';
+    private const string SCHEMA_BASE = 'http://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/';
 
-    /** Header literals (annex 1.9, FAD01 to FAD15). */
+    /** Header literals (annex 1.9, FAD01 to FAD15, CAD01 to CAD15 and DAD01 to DAD15). */
     private const string UBL_VERSION = 'UBL 2.1';
 
-    /** Table 13.1.5.1: 10, standard operation. */
-    private const string OPERATION_STANDARD = '10';
+    /**
+     * CustomizationID: table 13.1.5.1, 10 standard invoice; table 13.1.5.2, 20 credit note that
+     * references an invoice; table 13.1.5.3, 30 debit note that references an invoice.
+     */
+    private const array OPERATION = [
+        'invoice' => '10',
+        'credit_note' => '20',
+        'debit_note' => '30',
+    ];
 
-    private const string PROFILE = 'DIAN 2.1: Factura Electrónica de Venta';
-
-    /** Table 13.1.3: 01, electronic sales invoice. */
-    private const string INVOICE_TYPE = '01';
+    /** ProfileID (FAD03, CAD03 and DAD03). */
+    private const array PROFILE = [
+        'invoice' => 'DIAN 2.1: Factura Electrónica de Venta',
+        'credit_note' => 'DIAN 2.1: Nota Crédito de Factura Electrónica de Venta',
+        'debit_note' => 'DIAN 2.1: Nota Débito de Factura Electrónica de Venta',
+    ];
 
     /** The DIAN as identification agency and as authorization provider (FAB20 to FAB35). */
     public const string DIAN_AGENCY_ID = '195';
@@ -109,10 +125,35 @@ final class InvoiceXml
 
     private string $currency;
 
+    private DocumentType $type;
+
+    /** Root element of each type; its XSD is UBL-{root}-2.1.xsd. */
+    public static function root(DocumentType $type): string
+    {
+        return match ($type) {
+            DocumentType::Invoice => 'Invoice',
+            DocumentType::CreditNote => 'CreditNote',
+            DocumentType::DebitNote => 'DebitNote',
+        };
+    }
+
+    public static function namespace(DocumentType $type): string
+    {
+        return match ($type) {
+            DocumentType::Invoice => self::NS_INVOICE,
+            DocumentType::CreditNote => self::NS_CREDIT_NOTE,
+            DocumentType::DebitNote => self::NS_DEBIT_NOTE,
+        };
+    }
+
     public function build(Document $document): string
     {
         if ($document->isDraft() || $document->cufe === null) {
-            throw new LogicException('Only issued invoices with a CUFE have an XML.');
+            throw new LogicException("Only issued documents with a {$document->keyName()} have an XML.");
+        }
+
+        if ($document->isNote() && blank($document->related_snapshot['cufe'] ?? null)) {
+            throw new LogicException('A note needs the frozen copy of the invoice it corrects.');
         }
 
         $document->loadMissing(['lines', 'taxes', 'withholdings']);
@@ -121,60 +162,63 @@ final class InvoiceXml
         $this->dom->xmlStandalone = false;
         $this->dom->formatOutput = true;
         $this->currency = $document->currency;
+        $this->type = $document->type;
 
-        $invoice = $this->dom->createElementNS(self::NS_INVOICE, 'Invoice');
-        $this->dom->appendChild($invoice);
+        $name = self::root($this->type);
+        $root = $this->dom->createElementNS(self::namespace($this->type), $name);
+        $this->dom->appendChild($root);
 
-        // The same declarations as the official example; ds and xades are used by the signature (stage 5).
+        // The same declarations as the official examples; ds and xades are used by the signature.
         foreach (['cac' => self::NS_CAC, 'cbc' => self::NS_CBC, 'ds' => self::NS_DS, 'ext' => self::NS_EXT, 'sts' => self::NS_STS, 'xades' => self::NS_XADES, 'xades141' => self::NS_XADES141, 'xsi' => self::NS_XSI] as $prefix => $namespace) {
-            $invoice->setAttributeNS('http://www.w3.org/2000/xmlns/', "xmlns:{$prefix}", $namespace);
+            $root->setAttributeNS('http://www.w3.org/2000/xmlns/', "xmlns:{$prefix}", $namespace);
         }
 
-        $invoice->setAttributeNS(self::NS_XSI, 'xsi:schemaLocation', self::SCHEMA_LOCATION);
+        $root->setAttributeNS(self::NS_XSI, 'xsi:schemaLocation', self::namespace($this->type).' '.self::SCHEMA_BASE."UBL-{$name}-2.1.xsd");
 
-        $this->extensions($invoice, $document);
-        $this->header($invoice, $document);
-        $this->supplier($invoice, $document);
-        $this->customer($invoice, $document);
-        $this->paymentMeans($invoice, $document);
-        $this->taxTotals($invoice, 'TaxTotal', $this->taxGroups($document->taxes));
-        $this->taxTotals($invoice, 'WithholdingTaxTotal', $this->withholdingGroups($document->withholdings));
-        $this->monetaryTotal($invoice, $document);
+        $this->extensions($root, $document);
+        $this->header($root, $document);
+
+        if ($document->isNote()) {
+            $this->correction($root, $document);
+        }
+
+        $this->supplier($root, $document);
+        $this->customer($root, $document);
+        $this->paymentMeans($root, $document);
+        $this->taxTotals($root, 'TaxTotal', $this->taxGroups($document->taxes));
+
+        // CreditNote and DebitNote have no WithholdingTaxTotal in their XSD: the withholdings of
+        // a note stay in its PDF and in its amount due.
+        if (! $document->isNote()) {
+            $this->taxTotals($root, 'WithholdingTaxTotal', $this->withholdingGroups($document->withholdings));
+        }
+
+        $this->monetaryTotal($root, $document);
 
         foreach ($document->lines as $line) {
-            $this->line($invoice, $line);
+            $this->line($root, $line);
         }
 
         return $this->dom->saveXML();
     }
 
     /**
-     * The DIAN extension (FAB01 to FAB36), then a second extension left empty: the XAdES signature
-     * of stage 5 goes there.
+     * The DIAN extension (FAB01 to FAB36; CAB and DAB for the notes, which carry no InvoiceControl
+     * because their numbering needs no resolution), then a second extension left empty: the XAdES
+     * signature goes there.
      */
-    private function extensions(DOMElement $invoice, Document $document): void
+    private function extensions(DOMElement $root, Document $document): void
     {
-        $numbering = $document->numbering_snapshot;
         $dian = $document->dian_snapshot;
         $provider = $dian['software_provider'];
 
-        $extensions = $this->ext($invoice, 'UBLExtensions');
+        $extensions = $this->ext($root, 'UBLExtensions');
         $content = $this->ext($this->ext($extensions, 'UBLExtension'), 'ExtensionContent');
         $dianExtensions = $this->sts($content, 'DianExtensions');
 
-        $control = $this->sts($dianExtensions, 'InvoiceControl');
-        $this->sts($control, 'InvoiceAuthorization', $numbering['resolution_number']);
-        $period = $this->sts($control, 'AuthorizationPeriod');
-        $this->cbc($period, 'StartDate', $numbering['valid_from']);
-        $this->cbc($period, 'EndDate', $numbering['valid_to']);
-        $authorized = $this->sts($control, 'AuthorizedInvoices');
-
-        if (filled($numbering['prefix'])) {
-            $this->sts($authorized, 'Prefix', $numbering['prefix']);
+        if (! $document->isNote()) {
+            $this->invoiceControl($dianExtensions, $document->numbering_snapshot);
         }
-
-        $this->sts($authorized, 'From', (string) $numbering['from_number']);
-        $this->sts($authorized, 'To', (string) $numbering['to_number']);
 
         $source = $this->sts($dianExtensions, 'InvoiceSource');
         $this->cbc($source, 'IdentificationCode', self::COLOMBIA, [
@@ -206,46 +250,97 @@ final class InvoiceXml
         $this->ext($this->ext($extensions, 'UBLExtension'), 'ExtensionContent');
     }
 
-    /** FAD01 to FAD16. */
-    private function header(DOMElement $invoice, Document $document): void
+    /**
+     * FAB02 to FAB13: the resolution of the numbering, as it was frozen on issue.
+     *
+     * @param  array<string, mixed>  $numbering
+     */
+    private function invoiceControl(DOMElement $dianExtensions, array $numbering): void
     {
-        $this->cbc($invoice, 'UBLVersionID', self::UBL_VERSION);
-        $this->cbc($invoice, 'CustomizationID', self::OPERATION_STANDARD);
-        $this->cbc($invoice, 'ProfileID', self::PROFILE);
-        $this->cbc($invoice, 'ProfileExecutionID', (string) $document->dian_environment);
-        $this->cbc($invoice, 'ID', $document->full_number);
-        $this->cbc($invoice, 'UUID', $document->cufe, [
-            'schemeID' => (string) $document->dian_environment,
-            'schemeName' => Cufe::ALGORITHM,
-        ]);
-        $this->cbc($invoice, 'IssueDate', $document->issue_date->toDateString());
-        $this->cbc($invoice, 'IssueTime', $document->issue_time);
+        $control = $this->sts($dianExtensions, 'InvoiceControl');
+        $this->sts($control, 'InvoiceAuthorization', $numbering['resolution_number']);
+        $period = $this->sts($control, 'AuthorizationPeriod');
+        $this->cbc($period, 'StartDate', $numbering['valid_from']);
+        $this->cbc($period, 'EndDate', $numbering['valid_to']);
+        $authorized = $this->sts($control, 'AuthorizedInvoices');
 
-        if ($document->due_date !== null) {
-            $this->cbc($invoice, 'DueDate', $document->due_date->toDateString());
+        if (filled($numbering['prefix'])) {
+            $this->sts($authorized, 'Prefix', $numbering['prefix']);
         }
 
-        $this->cbc($invoice, 'InvoiceTypeCode', self::INVOICE_TYPE);
+        $this->sts($authorized, 'From', (string) $numbering['from_number']);
+        $this->sts($authorized, 'To', (string) $numbering['to_number']);
+    }
+
+    /**
+     * FAD01 to FAD16, CAD01 to CAD16, DAD01 to DAD16. The order of the XSD: an invoice has DueDate
+     * and InvoiceTypeCode; a credit note has CreditNoteTypeCode (91) and no DueDate; a debit note has
+     * neither. Its UUID is the CUFE of an invoice or the CUDE of a note.
+     */
+    private function header(DOMElement $root, Document $document): void
+    {
+        $this->cbc($root, 'UBLVersionID', self::UBL_VERSION);
+        $this->cbc($root, 'CustomizationID', self::OPERATION[$this->type->value]);
+        $this->cbc($root, 'ProfileID', self::PROFILE[$this->type->value]);
+        $this->cbc($root, 'ProfileExecutionID', (string) $document->dian_environment);
+        $this->cbc($root, 'ID', $document->full_number);
+        $this->cbc($root, 'UUID', $document->cufe, [
+            'schemeID' => (string) $document->dian_environment,
+            'schemeName' => $document->isNote() ? Cude::ALGORITHM : Cufe::ALGORITHM,
+        ]);
+        $this->cbc($root, 'IssueDate', $document->issue_date->toDateString());
+        $this->cbc($root, 'IssueTime', $document->issue_time);
+
+        if ($this->type === DocumentType::Invoice && $document->due_date !== null) {
+            $this->cbc($root, 'DueDate', $document->due_date->toDateString());
+        }
+
+        // Table 13.1.3: 01 electronic sales invoice, 91 credit note; the DebitNote has no type code.
+        match ($this->type) {
+            DocumentType::Invoice => $this->cbc($root, 'InvoiceTypeCode', $this->type->dianCode()),
+            DocumentType::CreditNote => $this->cbc($root, 'CreditNoteTypeCode', $this->type->dianCode()),
+            DocumentType::DebitNote => null,
+        };
 
         foreach ($this->chunks($document->notes, self::NOTE_LENGTH) as $note) {
-            $this->cbc($invoice, 'Note', $note);
+            $this->cbc($root, 'Note', $note);
         }
 
-        $this->cbc($invoice, 'DocumentCurrencyCode', $this->currency, [
+        $this->cbc($root, 'DocumentCurrencyCode', $this->currency, [
             'listAgencyID' => self::UNECE_AGENCY_ID,
             'listAgencyName' => self::UNECE_AGENCY_NAME,
             'listID' => 'ISO 4217 Alpha',
         ]);
-        $this->cbc($invoice, 'LineCountNumeric', (string) $document->lines->count());
+        $this->cbc($root, 'LineCountNumeric', (string) $document->lines->count());
+    }
+
+    /**
+     * CBF01 to CBF04 and CBG01 to CBG06 (DBF and DBG for a debit note): the concept of the
+     * correction with its description, and the invoice it corrects with its number, CUFE and date,
+     * from the copy frozen on issue.
+     */
+    private function correction(DOMElement $root, Document $document): void
+    {
+        $invoice = $document->related_snapshot;
+
+        $discrepancy = $this->cac($root, 'DiscrepancyResponse');
+        $this->cbc($discrepancy, 'ReferenceID', $invoice['full_number']);
+        $this->cbc($discrepancy, 'ResponseCode', (string) $document->reason_code);
+        $this->cbc($discrepancy, 'Description', trim((string) $document->reason_text));
+
+        $reference = $this->cac($this->cac($root, 'BillingReference'), 'InvoiceDocumentReference');
+        $this->cbc($reference, 'ID', $invoice['full_number']);
+        $this->cbc($reference, 'UUID', $invoice['cufe'], ['schemeName' => Cufe::ALGORITHM]);
+        $this->cbc($reference, 'IssueDate', $invoice['issue_date']);
     }
 
     /** FAJ01 to FAJ72: the issuing company as it was frozen on issue. */
-    private function supplier(DOMElement $invoice, Document $document): void
+    private function supplier(DOMElement $root, Document $document): void
     {
         $company = $document->company_snapshot;
         $prefix = $document->numbering_snapshot['prefix'] ?? null;
 
-        $supplierParty = $this->cac($invoice, 'AccountingSupplierParty');
+        $supplierParty = $this->cac($root, 'AccountingSupplierParty');
         $this->cbc($supplierParty, 'AdditionalAccountID', $company['organization_type']);
         $party = $this->cac($supplierParty, 'Party');
 
@@ -282,11 +377,11 @@ final class InvoiceXml
     }
 
     /** FAK01 to FAK64: the customer as it was frozen on issue. */
-    private function customer(DOMElement $invoice, Document $document): void
+    private function customer(DOMElement $root, Document $document): void
     {
         $customer = $document->customer_snapshot;
 
-        $customerParty = $this->cac($invoice, 'AccountingCustomerParty');
+        $customerParty = $this->cac($root, 'AccountingCustomerParty');
         $this->cbc($customerParty, 'AdditionalAccountID', $customer['organization_type']);
         $party = $this->cac($customerParty, 'Party');
 
@@ -324,10 +419,10 @@ final class InvoiceXml
         $this->contact($party, $customer);
     }
 
-    /** FAN01 to FAN04: payment form (1 cash, 2 credit) and payment means. */
-    private function paymentMeans(DOMElement $invoice, Document $document): void
+    /** FAN01 to FAN04 (CAN, DAN): payment form (1 cash, 2 credit) and payment means. */
+    private function paymentMeans(DOMElement $root, Document $document): void
     {
-        $means = $this->cac($invoice, 'PaymentMeans');
+        $means = $this->cac($root, 'PaymentMeans');
         $this->cbc($means, 'ID', $document->payment_form->value);
         $this->cbc($means, 'PaymentMeansCode', $document->payment_means_code->value);
 
@@ -354,40 +449,47 @@ final class InvoiceXml
         }
     }
 
-    /** FAU01 to FAU15. Withholdings do not change these totals (annex 1.9, section 11.9.1). */
-    private function monetaryTotal(DOMElement $invoice, Document $document): void
+    /**
+     * FAU01 to FAU15 (CAU; DAU in RequestedMonetaryTotal for a debit note). Withholdings do not
+     * change these totals (annex 1.9, section 11.9.1).
+     */
+    private function monetaryTotal(DOMElement $root, Document $document): void
     {
-        $total = $this->cac($invoice, 'LegalMonetaryTotal');
+        $total = $this->cac($root, $this->type === DocumentType::DebitNote ? 'RequestedMonetaryTotal' : 'LegalMonetaryTotal');
         $this->amount($total, 'LineExtensionAmount', $document->line_extension_amount);
         $this->amount($total, 'TaxExclusiveAmount', $document->tax_exclusive_amount);
         $this->amount($total, 'TaxInclusiveAmount', $document->tax_inclusive_amount);
         $this->amount($total, 'PayableAmount', $document->payable_amount);
     }
 
-    /** FAV, FBE, FAX, FAZ and FBB: one stored line copy. */
-    private function line(DOMElement $invoice, DocumentLine $line): void
+    /**
+     * FAV, FBE, FAX, FAZ and FBB: one stored line copy, as InvoiceLine, CreditNoteLine or
+     * DebitNoteLine. The XSD of an invoice line puts the discount before the tax; those of the
+     * notes put the tax first, and DebitNoteLine has no FreeOfChargeIndicator.
+     */
+    private function line(DOMElement $root, DocumentLine $line): void
     {
-        $element = $this->cac($invoice, 'InvoiceLine');
-        $this->cbc($element, 'ID', (string) $line->position);
-        $this->cbc($element, 'InvoicedQuantity', $line->quantity, ['unitCode' => $line->unit_code]);
-        $this->amount($element, 'LineExtensionAmount', $line->line_extension_amount);
-        $this->cbc($element, 'FreeOfChargeIndicator', 'false');
+        [$name, $quantity] = match ($this->type) {
+            DocumentType::Invoice => ['InvoiceLine', 'InvoicedQuantity'],
+            DocumentType::CreditNote => ['CreditNoteLine', 'CreditedQuantity'],
+            DocumentType::DebitNote => ['DebitNoteLine', 'DebitedQuantity'],
+        };
 
-        if (BigDecimal::of($line->discount_amount)->isPositive()) {
-            // The base is quantity times price: the stored line value plus its stored discount.
-            $discount = $this->cac($element, 'AllowanceCharge');
-            $this->cbc($discount, 'ID', '1');
-            $this->cbc($discount, 'ChargeIndicator', 'false');
-            $this->cbc($discount, 'MultiplierFactorNumeric', $this->decimal($line->discount_rate));
-            $this->amount($discount, 'Amount', $line->discount_amount);
-            $this->amount($discount, 'BaseAmount', (string) BigDecimal::of($line->line_extension_amount)->plus($line->discount_amount));
+        $element = $this->cac($root, $name);
+        $this->cbc($element, 'ID', (string) $line->position);
+        $this->cbc($element, $quantity, $line->quantity, ['unitCode' => $line->unit_code]);
+        $this->amount($element, 'LineExtensionAmount', $line->line_extension_amount);
+
+        if ($this->type !== DocumentType::DebitNote) {
+            $this->cbc($element, 'FreeOfChargeIndicator', 'false');
         }
 
-        // Excluded lines carry no tax group at all (FAX01).
-        if ($line->tax_code !== null) {
-            $tax = $this->cac($element, 'TaxTotal');
-            $this->amount($tax, 'TaxAmount', $line->tax_amount);
-            $this->taxSubtotal($tax, $line->tax_code, $line->line_extension_amount, $line->tax_amount, $line->tax_rate);
+        if ($this->type === DocumentType::Invoice) {
+            $this->lineDiscount($element, $line);
+            $this->lineTax($element, $line);
+        } else {
+            $this->lineTax($element, $line);
+            $this->lineDiscount($element, $line);
         }
 
         $item = $this->cac($element, 'Item');
@@ -405,6 +507,33 @@ final class InvoiceXml
         $price = $this->cac($element, 'Price');
         $this->amount($price, 'PriceAmount', $this->decimal($line->unit_price));
         $this->cbc($price, 'BaseQuantity', $line->quantity, ['unitCode' => $line->unit_code]);
+    }
+
+    private function lineDiscount(DOMElement $element, DocumentLine $line): void
+    {
+        if (! BigDecimal::of($line->discount_amount)->isPositive()) {
+            return;
+        }
+
+        // The base is quantity times price: the stored line value plus its stored discount.
+        $discount = $this->cac($element, 'AllowanceCharge');
+        $this->cbc($discount, 'ID', '1');
+        $this->cbc($discount, 'ChargeIndicator', 'false');
+        $this->cbc($discount, 'MultiplierFactorNumeric', $this->decimal($line->discount_rate));
+        $this->amount($discount, 'Amount', $line->discount_amount);
+        $this->amount($discount, 'BaseAmount', (string) BigDecimal::of($line->line_extension_amount)->plus($line->discount_amount));
+    }
+
+    /** Excluded lines carry no tax group at all (FAX01). */
+    private function lineTax(DOMElement $element, DocumentLine $line): void
+    {
+        if ($line->tax_code === null) {
+            return;
+        }
+
+        $tax = $this->cac($element, 'TaxTotal');
+        $this->amount($tax, 'TaxAmount', $line->tax_amount);
+        $this->taxSubtotal($tax, $line->tax_code, $line->line_extension_amount, $line->tax_amount, $line->tax_rate);
     }
 
     /**

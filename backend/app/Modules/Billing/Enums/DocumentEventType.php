@@ -62,4 +62,10 @@ enum DocumentEventType: string
 
     /** Regenerate the PDF after it failed, by a user; payload: run and the step it starts from. */
     case PdfRegenerationRequested = 'pdf_regeneration_requested';
+
+    /**
+     * On an invoice: the local simulator accepted one of its credit or debit notes. Payload: note_id,
+     * note_type, number, amount, voided and the balance_status it left.
+     */
+    case NoteAccepted = 'note_accepted';
 }

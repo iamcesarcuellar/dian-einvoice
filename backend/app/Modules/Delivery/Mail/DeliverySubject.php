@@ -5,15 +5,15 @@ namespace App\Modules\Delivery\Mail;
 use App\Modules\Billing\Models\Document;
 
 /**
- * Subject of the email that delivers an electronic invoice (annex 1.9, section 9.1): NIT of the
- * issuer; its name; number of the document (cbc:ID); code of the document type (table 13.1.3, 01
- * for an electronic sales invoice); trade name of the issuer, or its legal name when it has none.
+ * Subject of the email that delivers an electronic invoice or one of its notes (annex 1.9, section
+ * 9.1): NIT of the issuer; its name; number of the document (cbc:ID); code of the document type
+ * (table 13.1.3: 01 electronic sales invoice, 91 credit note, 92 debit note); trade name of the issuer, or its legal name when it has none.
  * Separated by ";". The optional sixth field, the line of business, is agreed between the parties
  * and left out.
  */
 final class DeliverySubject
 {
-    /** InvoiceTypeCode of an electronic sales invoice (table 13.1.3). */
+    /** InvoiceTypeCode of an electronic sales invoice (table 13.1.3); 91 credit note, 92 debit note. */
     public const string INVOICE_TYPE = '01';
 
     public static function for(Document $document): string
@@ -26,7 +26,7 @@ final class DeliverySubject
             (string) $company['identification_number'],
             $legalName,
             (string) $document->full_number,
-            self::INVOICE_TYPE,
+            $document->type->dianCode(),
             $tradeName !== '' ? $tradeName : $legalName,
         ]);
     }

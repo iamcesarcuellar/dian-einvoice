@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveTextFile } from '@/api/client'
-import { invoicesApi } from '@/api/resources'
+import { documentsApi } from '@/api/resources'
 import FormError from '@/components/FormError.vue'
 import FormSection from '@/components/FormSection.vue'
 import DianResponseDialog from '@/components/invoice/DianResponseDialog.vue'
@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/composables/useSession'
+import { ALL_DOCUMENT_RESOURCES, DOCUMENT_RESOURCES } from '@/lib/documents'
 import { formatDateTime, formatInteger } from '@/lib/format'
 import { invalidateTenant, tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
@@ -99,29 +100,29 @@ const responseOpen = ref(false)
 
 const downloadXml = useMutation({
   mutationFn: async () => {
-    saveTextFile(await invoicesApi.xml(props.invoice.id), props.invoice.xml.file_name ?? 'invoice.xml', 'application/xml')
+    saveTextFile(await documentsApi(props.invoice.type).xml(props.invoice.id), props.invoice.xml.file_name ?? 'invoice.xml', 'application/xml')
   },
 })
 
 const downloadResponse = useMutation({
   mutationFn: async () => {
-    saveTextFile(await invoicesApi.dianResponse(props.invoice.id), result.value?.response_file_name ?? 'response.xml', 'application/xml')
+    saveTextFile(await documentsApi(props.invoice.type).dianResponse(props.invoice.id), result.value?.response_file_name ?? 'response.xml', 'application/xml')
   },
 })
 
 // Acting on the chain. The page polls again until the new run ends.
 async function store(updated: Invoice): Promise<void> {
-  queryClient.setQueryData(tenantKey(session.currentCompanyId, 'invoices', 'detail', updated.id), updated)
-  await invalidateTenant('invoices')
+  queryClient.setQueryData(tenantKey(session.currentCompanyId, DOCUMENT_RESOURCES[props.invoice.type], 'detail', updated.id), updated)
+  await invalidateTenant(...ALL_DOCUMENT_RESOURCES)
 }
 
 const retry = useMutation({
-  mutationFn: () => invoicesApi.retry(props.invoice.id),
+  mutationFn: () => documentsApi(props.invoice.type).retry(props.invoice.id),
   onSuccess: store,
 })
 
 const resend = useMutation({
-  mutationFn: () => invoicesApi.resend(props.invoice.id),
+  mutationFn: () => documentsApi(props.invoice.type).resend(props.invoice.id),
   onSuccess: store,
 })
 
@@ -182,15 +183,15 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
           </div>
 
           <div class="grid gap-1.5">
-            <p class="text-xs text-muted-foreground">{{ t('invoices.dian.cufe') }}</p>
+            <p class="text-xs text-muted-foreground">{{ invoice.key_name ?? t('invoices.dian.cufe') }}</p>
             <div class="flex items-start gap-2">
               <code class="min-w-0 flex-1 rounded-md bg-muted/50 px-2.5 py-2 font-mono text-xs leading-relaxed break-all">{{ invoice.cufe ?? '—' }}</code>
               <Button
                 v-if="invoice.cufe"
                 variant="outline"
                 size="icon-sm"
-                :aria-label="copied ? t('invoices.dian.copied') : t('invoices.dian.copyCufe')"
-                :title="copied ? t('invoices.dian.copied') : t('invoices.dian.copyCufe')"
+                :aria-label="copied ? t('invoices.dian.copied') : t('invoices.dian.copyKey', { key: invoice.key_name ?? 'CUFE' })"
+                :title="copied ? t('invoices.dian.copied') : t('invoices.dian.copyKey', { key: invoice.key_name ?? 'CUFE' })"
                 @click="copyCufe"
               >
                 <CheckIcon v-if="copied" />

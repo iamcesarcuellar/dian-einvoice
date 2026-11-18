@@ -5,6 +5,7 @@ namespace App\Modules\Dian\Pipeline;
 use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
+use App\Modules\Billing\Services\InvoiceBalance;
 use App\Modules\Delivery\Pipeline\DeliveryPipeline;
 use App\Modules\Dian\Models\DianTransmission;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,8 @@ use Illuminate\Support\Facades\DB;
  * or GetStatus that found the document already processed). The document keeps the status code,
  * description, message, the rules with their messages and the ApplicationResponse, all from the
  * local simulator. A rejection is final: rules are not retried; Resend sends it again. An
- * acceptance starts the customer delivery in the same transaction (AttachedDocument, PDF, email).
+ * acceptance starts the customer delivery in the same transaction (AttachedDocument, PDF, email);
+ * the acceptance of a note also updates the balance status of its invoice, locked after the note.
  */
 final class RecordDianResponse extends ChainStep
 {
@@ -28,9 +30,9 @@ final class RecordDianResponse extends ChainStep
         return $document->electronic_status === ElectronicStatus::Sending;
     }
 
-    public function process(ElectronicDocumentPipeline $pipeline, DeliveryPipeline $delivery): void
+    public function process(ElectronicDocumentPipeline $pipeline, DeliveryPipeline $delivery, InvoiceBalance $balances): void
     {
-        DB::transaction(function () use ($pipeline, $delivery): void {
+        DB::transaction(function () use ($pipeline, $delivery, $balances): void {
             $document = $pipeline->lock($this->documentId);
 
             if ($document === null || $document->electronic_run !== $this->run || ! $this->expects($document) || $this->transmissionId === null) {
@@ -78,6 +80,14 @@ final class RecordDianResponse extends ChainStep
                 'cufe' => $document->cufe,
                 ...$summary,
             ]);
+
+            if ($accepted && $document->isNote() && $document->related_document_id !== null) {
+                $invoice = Document::query()->whereKey($document->related_document_id)->lockForUpdate()->first();
+
+                if ($invoice !== null) {
+                    $balances->noteAccepted($invoice, $document);
+                }
+            }
 
             if ($accepted) {
                 $delivery->start($document);

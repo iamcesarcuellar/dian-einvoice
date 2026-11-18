@@ -3,7 +3,7 @@ import type { Invoice } from '@/api/types'
 import { InfoIcon, SendIcon } from '@lucide/vue'
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { invoicesApi } from '@/api/resources'
+import { documentsApi } from '@/api/resources'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -38,7 +38,7 @@ const { t } = useI18n()
 const email = ref('')
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
-  mutationFn: () => invoicesApi.deliver(props.invoice.id, email.value.trim() || null),
+  mutationFn: () => documentsApi(props.invoice.type).deliver(props.invoice.id, email.value.trim() || null),
   onSuccess: (invoice) => {
     emit('sent', invoice)
     open.value = false

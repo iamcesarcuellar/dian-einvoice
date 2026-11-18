@@ -5,14 +5,14 @@ namespace App\Modules\Dian\Pipeline;
 use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
-use App\Modules\Dian\Services\InvoiceXmlGenerator;
+use App\Modules\Dian\Services\DocumentXmlGenerator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
- * Step 1: pending → generated. Builds the UBL XML from the frozen copies of the invoice and stores
- * it unsigned; then the signing step is due. Started by invoice.issued, Resend, or Retry now after
+ * Step 1: pending → generated. Builds the UBL XML from the frozen copies of the document and stores
+ * it unsigned; then the signing step is due. Started by the issued event of its type, Resend, or Retry now after
  * the generation failed.
  */
 final class GenerateXml extends ChainStep
@@ -27,7 +27,7 @@ final class GenerateXml extends ChainStep
         return $document->electronic_status === ElectronicStatus::Pending;
     }
 
-    public function process(ElectronicDocumentPipeline $pipeline, InvoiceXmlGenerator $generator): void
+    public function process(ElectronicDocumentPipeline $pipeline, DocumentXmlGenerator $generator): void
     {
         $failure = DB::transaction(function () use ($pipeline, $generator): ?Throwable {
             $document = $pipeline->lock($this->documentId);

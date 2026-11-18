@@ -2,10 +2,11 @@
 
 namespace App\Modules\Dian\Console;
 
+use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Models\Document;
-use App\Modules\Billing\Services\InvoiceDrafts;
-use App\Modules\Billing\Services\IssueInvoice;
+use App\Modules\Billing\Services\DocumentDrafts;
+use App\Modules\Billing\Services\IssueDocument;
 use App\Modules\Billing\Tools\TemporaryCompany;
 use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Dian\Simulator\DianSimulator;
@@ -34,7 +35,7 @@ final class DianChaosCommand extends Command
 
     protected $description = 'Steps of make chaos: issue invoices on a temporary company, then check every one was accepted exactly once after the workers, the relay and the simulator restarted';
 
-    public function handle(InvoiceDrafts $drafts, IssueInvoice $issue, DianSimulator $simulator): int
+    public function handle(DocumentDrafts $drafts, IssueDocument $issue, DianSimulator $simulator): int
     {
         return match ($this->argument('action')) {
             'start' => $this->start($drafts, $issue),
@@ -51,7 +52,7 @@ final class DianChaosCommand extends Command
         return self::FAILURE;
     }
 
-    private function start(InvoiceDrafts $drafts, IssueInvoice $issue): int
+    private function start(DocumentDrafts $drafts, IssueDocument $issue): int
     {
         $count = max(1, (int) $this->option('invoices'));
         $temporary = TemporaryCompany::create('Chaos Test', 'CH');
@@ -63,7 +64,7 @@ final class DianChaosCommand extends Command
             $ids = [];
 
             for ($index = 1; $index <= $count; $index++) {
-                $ids[] = $drafts->create([
+                $ids[] = $drafts->create(DocumentType::Invoice, [
                     'contact_id' => $customer->getKey(),
                     'number_template_id' => $template->getKey(),
                     'lines' => [

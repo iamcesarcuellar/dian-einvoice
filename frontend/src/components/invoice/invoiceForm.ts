@@ -1,4 +1,4 @@
-import type { Contact, Invoice, InvoiceInput, ItemOption } from '@/api/types'
+import type { Contact, DocumentLine, DocumentType, DocumentWithholdingAmount, Invoice, InvoiceInput, ItemOption, NotePrefill } from '@/api/types'
 import { orNull } from '@/components/company/companyForm'
 
 /** Value of the "Excluded (no tax)" option; the API receives null. */
@@ -30,6 +30,10 @@ export interface InvoiceForm {
   notes: string
   lines: LineForm[]
   withholding_ids: string[]
+  /** A note: the invoice it corrects (it never changes), its concept and its description. */
+  related_document_id: string | null
+  reason_code: string | null
+  reason_text: string
 }
 
 let sequence = 0
@@ -65,9 +69,33 @@ export function emptyInvoiceForm(): InvoiceForm {
     notes: '',
     lines: [],
     withholding_ids: [],
+    related_document_id: null,
+    reason_code: null,
+    reason_text: '',
   }
 }
 
+function linesFrom(lines: DocumentLine[]): LineForm[] {
+  return lines.map((line) => ({
+    key: newKey(),
+    item: line.item ?? null,
+    code: line.code ?? '',
+    description: line.description ?? '',
+    unit_code: line.unit_code,
+    quantity: line.quantity,
+    unit_price: line.unit_price,
+    discount_rate: line.discount_rate,
+    tax_id: line.tax_id ?? EXCLUDED,
+  }))
+}
+
+function withholdingIds(withholdings: DocumentWithholdingAmount[]): string[] {
+  return withholdings
+    .map((withholding) => withholding.withholding_id)
+    .filter((id): id is string => id !== null)
+}
+
+/** A saved draft: an invoice or a note. */
 export function invoiceFormFrom(invoice: Invoice): InvoiceForm {
   return {
     contact: invoice.contact ?? null,
@@ -76,20 +104,28 @@ export function invoiceFormFrom(invoice: Invoice): InvoiceForm {
     payment_means_code: invoice.payment_means_code,
     due_date: invoice.due_date ?? '',
     notes: invoice.notes ?? '',
-    lines: (invoice.lines ?? []).map((line) => ({
-      key: newKey(),
-      item: line.item ?? null,
-      code: line.code ?? '',
-      description: line.description ?? '',
-      unit_code: line.unit_code,
-      quantity: line.quantity,
-      unit_price: line.unit_price,
-      discount_rate: line.discount_rate,
-      tax_id: line.tax_id ?? EXCLUDED,
-    })),
-    withholding_ids: (invoice.withholdings ?? [])
-      .map((withholding) => withholding.withholding_id)
-      .filter((id): id is string => id !== null),
+    lines: linesFrom(invoice.lines ?? []),
+    withholding_ids: withholdingIds(invoice.withholdings ?? []),
+    related_document_id: invoice.related_document_id,
+    reason_code: invoice.reason_code,
+    reason_text: invoice.reason_text ?? '',
+  }
+}
+
+/** A new note, from what the API prefilled from its invoice. */
+export function noteFormFrom(prefill: NotePrefill): InvoiceForm {
+  return {
+    contact: prefill.contact,
+    number_template_id: prefill.number_template_id,
+    payment_form: prefill.payment_form,
+    payment_means_code: prefill.payment_means_code,
+    due_date: prefill.due_date ?? '',
+    notes: prefill.notes ?? '',
+    lines: linesFrom(prefill.lines),
+    withholding_ids: withholdingIds(prefill.withholdings),
+    related_document_id: prefill.related_document_id,
+    reason_code: prefill.reason_code,
+    reason_text: prefill.reason_text ?? '',
   }
 }
 
@@ -100,18 +136,28 @@ export function isBlankLine(line: LineForm): boolean {
 
 /**
  * The body for the API, without blank lines, and the keys of the lines that were sent: the API
- * answers line by line in that order.
+ * answers line by line in that order. A note sends its invoice, concept and description; its
+ * customer and payment terms come from the invoice.
  */
-export function toInvoiceInput(form: InvoiceForm): { input: InvoiceInput, keys: string[] } {
+export function toInvoiceInput(form: InvoiceForm, type: DocumentType = 'invoice'): { input: InvoiceInput, keys: string[] } {
   const lines = form.lines.filter((line) => !isBlankLine(line))
+  const header = type === 'invoice'
+    ? {
+        contact_id: form.contact?.id ?? null,
+        payment_form: form.payment_form,
+        payment_means_code: form.payment_means_code,
+        due_date: orNull(form.due_date),
+      }
+    : {
+        related_document_id: form.related_document_id,
+        reason_code: form.reason_code,
+        reason_text: orNull(form.reason_text),
+      }
 
   return {
     input: {
-      contact_id: form.contact?.id ?? null,
+      ...header,
       number_template_id: form.number_template_id,
-      payment_form: form.payment_form,
-      payment_means_code: form.payment_means_code,
-      due_date: orNull(form.due_date),
       notes: orNull(form.notes),
       lines: lines.map((line) => ({
         item_id: line.item?.id ?? null,

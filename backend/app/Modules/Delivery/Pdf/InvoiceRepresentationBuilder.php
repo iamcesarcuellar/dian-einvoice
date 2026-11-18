@@ -2,6 +2,7 @@
 
 namespace App\Modules\Delivery\Pdf;
 
+use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\DocumentLine;
 use App\Modules\Billing\Models\DocumentTax;
@@ -10,6 +11,8 @@ use App\Modules\Delivery\Support\AmountInWords;
 use App\Modules\Delivery\Support\ColombianFormat;
 use App\Modules\Delivery\Support\QrContent;
 use App\Modules\Dian\Ubl\ApplicationResponseSummary;
+use App\Modules\Reference\Enums\CreditNoteConcept;
+use App\Modules\Reference\Enums\DebitNoteConcept;
 use App\Modules\Reference\Enums\IdentificationType;
 use App\Support\Storage\DocumentStorage;
 use Brick\Math\BigDecimal;
@@ -17,10 +20,11 @@ use Illuminate\Support\Facades\Lang;
 use LogicException;
 
 /**
- * The graphic representation of an accepted invoice, built only from what was frozen on the
- * document: its company, customer and numbering copies, its line copies, tax subtotals, withholdings
- * and totals, its CUFE and QR URL, and the ApplicationResponse of its validation. Live company,
- * customer, item or tax data is never read, and nothing is recalculated.
+ * The graphic representation of an accepted invoice, credit note or debit note, built only from
+ * what was frozen on the document: its company, customer and numbering copies, its line copies, tax
+ * subtotals, withholdings and totals, its CUFE or CUDE and QR URL, the ApplicationResponse of its
+ * validation, and for a note the copy of the invoice it corrects with the concept of the correction.
+ * Live company, customer, item or tax data is never read, and nothing is recalculated.
  */
 final class InvoiceRepresentationBuilder
 {
@@ -29,12 +33,14 @@ final class InvoiceRepresentationBuilder
     public function build(Document $document): InvoiceRepresentation
     {
         if ($document->isDraft() || $document->cufe === null || $document->full_number === null) {
-            throw new LogicException('Only issued invoices with a CUFE have a graphic representation.');
+            throw new LogicException('Only issued documents with a CUFE or CUDE have a graphic representation.');
         }
 
         if ($document->dian_response_path === null) {
-            throw new LogicException('The invoice has no ApplicationResponse: it was not validated.');
+            throw new LogicException('The document has no ApplicationResponse: it was not validated.');
         }
+
+        $type = $document->type->value;
 
         $document->loadMissing(['lines', 'taxes', 'withholdings']);
 
@@ -44,7 +50,7 @@ final class InvoiceRepresentationBuilder
         $nit = ColombianFormat::nit((string) $company['identification_number'], $company['check_digit']);
 
         return new InvoiceRepresentation(
-            title: __('delivery::pdf.title'),
+            title: __("delivery::pdf.titles.{$type}"),
             number: $document->full_number,
             testMark: __('delivery::pdf.test_mark'),
             testNotice: __('delivery::pdf.test_notice'),
@@ -75,9 +81,12 @@ final class InvoiceRepresentationBuilder
             amountInWords: AmountInWords::pesos((string) $document->payable_amount),
             notes: filled($document->notes) ? (string) $document->notes : null,
             footer: [
-                'authorization' => $this->authorization($document->numbering_snapshot ?? []),
+                'authorization' => $document->isNote()
+                    ? $this->noteNumbering($document->numbering_snapshot ?? [])
+                    : $this->authorization($document->numbering_snapshot ?? []),
+                'key_label' => $document->keyName(),
                 'cufe' => $document->cufe,
-                'representation' => __('delivery::pdf.representation'),
+                'representation' => __("delivery::pdf.representations.{$type}"),
                 'software' => __('delivery::pdf.software', ['name' => (string) $company['legal_name'], 'nit' => $nit]),
                 'validation' => __('delivery::pdf.validation', [
                     'date' => ColombianFormat::date($validation->issueDate),
@@ -86,12 +95,56 @@ final class InvoiceRepresentationBuilder
             ],
             qrText: QrContent::for($document),
             metadata: [
-                'title' => __('delivery::pdf.metadata_title', ['number' => $document->full_number]),
+                'title' => __('delivery::pdf.metadata_title', ['title' => __("delivery::pdf.titles.{$type}"), 'number' => $document->full_number]),
                 'author' => (string) $company['legal_name'],
-                'subject' => __('delivery::pdf.metadata_subject'),
-                'keywords' => 'CUFE '.$document->cufe,
+                'subject' => __('delivery::pdf.metadata_subject', ['title' => mb_strtolower(__("delivery::pdf.titles.{$type}"))]),
+                'keywords' => $document->keyName().' '.$document->cufe,
             ],
+            reference: $document->isNote() ? $this->reference($document) : null,
         );
+    }
+
+    /**
+     * The invoice a note corrects, from the copy frozen on issue, and the concept of the correction
+     * with the name of the official list.
+     *
+     * @return array{title: string, invoice: string, cufe_label: string, cufe: string, concept: string, description: string}
+     */
+    private function reference(Document $document): array
+    {
+        $invoice = $document->related_snapshot ?? [];
+        $concept = $document->type === DocumentType::CreditNote
+            ? CreditNoteConcept::tryFrom((string) $document->reason_code)
+            : DebitNoteConcept::tryFrom((string) $document->reason_code);
+
+        return [
+            'title' => __('delivery::pdf.reference.title'),
+            'invoice' => __('delivery::pdf.reference.invoice', [
+                'number' => (string) ($invoice['full_number'] ?? '—'),
+                'date' => ColombianFormat::date($invoice['issue_date'] ?? null) ?: '—',
+            ]),
+            'cufe_label' => __('delivery::pdf.reference.cufe'),
+            'cufe' => (string) ($invoice['cufe'] ?? '—'),
+            'concept' => __('delivery::pdf.reference.concept', [
+                'code' => (string) $document->reason_code,
+                'name' => $concept === null ? '—' : __("delivery::codes.{$document->type->value}_concepts.{$concept->value}"),
+            ]),
+            'description' => trim((string) $document->reason_text),
+        ];
+    }
+
+    /**
+     * Notes need no DIAN resolution: the legend names the numbering of the issuer for the type.
+     *
+     * @param  array<string, mixed>  $numbering
+     */
+    private function noteNumbering(array $numbering): string
+    {
+        return __('delivery::pdf.note_numbering', [
+            'prefix' => (string) ($numbering['prefix'] ?? '—'),
+            'from' => (string) ($numbering['from_number'] ?? '—'),
+            'to' => (string) ($numbering['to_number'] ?? '—'),
+        ]);
     }
 
     /**
@@ -109,7 +162,7 @@ final class InvoiceRepresentationBuilder
                 'time' => substr($time, 0, 8),
                 'offset' => substr($time, 8) ?: '-05:00',
             ])],
-            ['label' => __('delivery::pdf.due_date'), 'value' => $document->due_date === null ? __('delivery::pdf.no_due_date') : ColombianFormat::date($document->due_date)],
+            ...($document->isNote() ? [] : [['label' => __('delivery::pdf.due_date'), 'value' => $document->due_date === null ? __('delivery::pdf.no_due_date') : ColombianFormat::date($document->due_date)]]),
             ['label' => __('delivery::pdf.payment_form'), 'value' => $this->code('payment_forms', $document->payment_form?->value)],
             ['label' => __('delivery::pdf.payment_means'), 'value' => $this->code('payment_means', $document->payment_means_code?->value)],
         ];

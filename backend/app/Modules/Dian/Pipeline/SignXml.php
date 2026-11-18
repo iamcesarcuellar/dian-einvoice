@@ -5,7 +5,7 @@ namespace App\Modules\Dian\Pipeline;
 use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
-use App\Modules\Dian\Services\InvoiceXmlGenerator;
+use App\Modules\Dian\Services\DocumentXmlGenerator;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -26,7 +26,7 @@ final class SignXml extends ChainStep
         return $document->electronic_status === ElectronicStatus::Generated;
     }
 
-    public function process(ElectronicDocumentPipeline $pipeline, InvoiceXmlGenerator $generator): void
+    public function process(ElectronicDocumentPipeline $pipeline, DocumentXmlGenerator $generator): void
     {
         /** @var array{0: Document|null, 1: Throwable|null} $result */
         $result = DB::transaction(function () use ($pipeline, $generator): array {

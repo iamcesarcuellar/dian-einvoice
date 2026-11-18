@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Invoices now, and credit and debit notes from stage 8, share these tables.
+ * Invoices and their credit and debit notes share these tables.
  */
 return new class extends Migration
 {
@@ -14,8 +14,15 @@ return new class extends Migration
         Schema::create('documents', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('company_id')->constrained()->cascadeOnDelete();
-            $table->string('type', 20)->comment('invoice; credit_note and debit_note from stage 8');
+            $table->string('type', 20)->comment('invoice, credit_note or debit_note');
             $table->string('status', 20)->comment('draft or issued');
+            // Credit and debit notes: the invoice they correct, the concept of the correction (tables
+            // 13.2.4 and 13.2.5 of annex 1.9) and its description, which goes into the XML.
+            $table->foreignUlid('related_document_id')->nullable()->comment('Notes: the invoice they correct')->constrained('documents')->restrictOnDelete();
+            $table->string('reason_code', 2)->nullable()->comment('Notes: concept of the correction');
+            $table->text('reason_text')->nullable()->comment('Notes: description of the correction, up to 5000 characters');
+            $table->string('balance_status', 20)->nullable()->comment('Invoices: open, partially_credited or voided, from their accepted notes');
+            $table->json('related_snapshot')->nullable()->comment('Notes: number, CUFE and date of the invoice, frozen on issue');
             $table->foreignUlid('number_template_id')->nullable()->constrained()->restrictOnDelete();
             $table->string('prefix', 4)->nullable()->comment('Set on issue; an empty string when the numbering has no prefix');
             $table->unsignedBigInteger('number')->nullable()->comment('Consecutive number, set on issue');
@@ -93,6 +100,7 @@ return new class extends Migration
             $table->unique(['company_id', 'type', 'prefix', 'number'], 'documents_number_unique');
             $table->index(['company_id', 'type', 'status']);
             $table->index(['company_id', 'type', 'electronic_status']);
+            $table->index(['related_document_id', 'type']);
             // The relay looks across companies for chains that stopped moving.
             $table->index(['electronic_status', 'updated_at']);
             $table->index(['delivery_status', 'updated_at']);

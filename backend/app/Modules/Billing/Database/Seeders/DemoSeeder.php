@@ -3,9 +3,11 @@
 namespace App\Modules\Billing\Database\Seeders;
 
 use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Models\Document;
+use App\Modules\Billing\Models\DocumentLine;
 use App\Modules\Billing\Models\NumberTemplate;
-use App\Modules\Billing\Services\InvoiceDrafts;
-use App\Modules\Billing\Services\IssueInvoice;
+use App\Modules\Billing\Services\DocumentDrafts;
+use App\Modules\Billing\Services\IssueDocument;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\Withholding;
@@ -15,8 +17,11 @@ use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\User;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use LogicException;
 
 /**
  * DEMO DATA for local development. The invoice range uses the public values of the DIAN test set
@@ -35,6 +40,10 @@ use Illuminate\Support\Carbon;
  * Every accepted invoice then goes through the customer delivery in line too: AttachedDocument,
  * PDF and the email with both in a zip, caught by the local mailbox. The one to the final consumer
  * has no email, so its delivery ends as not applicable; one invoice has thirty lines.
+ *
+ * Then the SYNTHETIC credit and debit notes, through the same issue service, chain and delivery:
+ * in Demo Comercial a partial return, the void of a whole invoice, interest on a late invoice and a
+ * credit note left as a draft; in Demo Servicios a partial rebate.
  */
 final class DemoSeeder extends Seeder
 {
@@ -100,6 +109,25 @@ final class DemoSeeder extends Seeder
     ];
 
     /**
+     * Notes by set: position of the invoice in its plan, type, days before today and Colombian time
+     * of issue (null for a draft), concept, description, and lines: 'all' for every line of the
+     * invoice, or [item code, quantity, price factor] copying that invoice line with another
+     * quantity (and a share of its price), or [null, quantity, description, unit price] for a free
+     * line without tax. The notes take the withholdings of their invoice.
+     */
+    private const array NOTES = [
+        'commerce' => [
+            [0, 'credit_note', 25, '10:30', '1', 'Return of one office chair and five packs of paper that arrived damaged.', [['P-001', '1', '1'], ['P-002', '5', '1']]],
+            [3, 'credit_note', 17, '09:15', '2', 'The invoice was issued to the wrong customer, so it is voided in full.', 'all'],
+            [2, 'debit_note', 2, '15:20', '1', 'Late payment interest: the invoice was paid eight days after its due date.', [[null, '1', 'Late payment interest, eight days past the due date', '42350']]],
+            [5, 'credit_note', null, null, '1', 'Return of one hour of technical support that was not delivered.', [['S-002', '1', '1']]],
+        ],
+        'services' => [
+            [0, 'credit_note', 24, '11:40', '3', 'Rebate of 10% on the consulting hours, agreed after the review of the project.', [['S-101', '12', '0.10']]],
+        ],
+    ];
+
+    /**
      * SIMULATED outcomes by set and position in its plan: the simulator mode set right before that
      * invoice is issued. count 0 means one request per transmission attempt.
      */
@@ -116,7 +144,7 @@ final class DemoSeeder extends Seeder
         private readonly ElectronicDocumentPipeline $pipeline,
     ) {}
 
-    public function run(InvoiceDrafts $drafts, IssueInvoice $issue): void
+    public function run(DocumentDrafts $drafts, IssueDocument $issue): void
     {
         $user = User::query()->where('email', 'demo@example.com')->firstOrFail();
 
@@ -126,10 +154,12 @@ final class DemoSeeder extends Seeder
             $set = $company->identification_number === IdentityDemoSeeder::NITS[0] ? 'commerce' : 'services';
 
             try {
-                $this->createInvoices(self::INVOICES[$set], self::OUTCOMES[$set] ?? [], $company, $drafts, $issue, $user);
+                $invoices = $this->createInvoices(self::INVOICES[$set], self::OUTCOMES[$set] ?? [], $company, $drafts, $issue, $user);
             } finally {
                 $this->simulator->setMode($company->identification_number, ['mode' => 'normal']);
             }
+
+            $this->createNotes(self::NOTES[$set] ?? [], $invoices, $drafts, $issue, $user);
         });
     }
 
@@ -164,9 +194,11 @@ final class DemoSeeder extends Seeder
     /**
      * @param  list<array<int, mixed>>  $plan
      * @param  array<int, array<string, mixed>>  $outcomes
+     * @return array<int, string> The id of each invoice, by position in the plan.
      */
-    private function createInvoices(array $plan, array $outcomes, Company $company, InvoiceDrafts $drafts, IssueInvoice $issue, User $user): void
+    private function createInvoices(array $plan, array $outcomes, Company $company, DocumentDrafts $drafts, IssueDocument $issue, User $user): array
     {
+        $created = [];
         $contacts = Contact::query()->pluck('id', 'identification_number');
         $items = Item::query()->pluck('id', 'code');
         $withholdings = Withholding::query()->pluck('id', 'name');
@@ -182,7 +214,7 @@ final class DemoSeeder extends Seeder
 
             $issueDay = ($issuedAt ?? Carbon::now())->copy()->setTimezone(NumberTemplate::TIMEZONE);
 
-            $document = $drafts->create([
+            $document = $drafts->create(DocumentType::Invoice, [
                 'contact_id' => $contacts[$customer],
                 'payment_form' => $creditDays === null ? '1' : '2',
                 'payment_means_code' => $means,
@@ -192,6 +224,8 @@ final class DemoSeeder extends Seeder
                     : ['item_id' => $items[$line[0]], 'quantity' => $line[1], 'discount_rate' => $line[2]], $lines),
                 'withholding_ids' => array_map(fn (string $name): string => $withholdings[$name], $withholdingNames),
             ], $user);
+
+            $created[$position] = $document->getKey();
 
             if ($issuedAt !== null) {
                 if (isset($outcomes[$position])) {
@@ -209,5 +243,69 @@ final class DemoSeeder extends Seeder
         }
 
         Carbon::setTestNow();
+
+        return $created;
+    }
+
+    /**
+     * @param  list<array<int, mixed>>  $plan
+     * @param  array<int, string>  $invoices
+     */
+    private function createNotes(array $plan, array $invoices, DocumentDrafts $drafts, IssueDocument $issue, User $user): void
+    {
+        $items = Item::query()->pluck('id', 'code');
+        $today = Carbon::now(NumberTemplate::TIMEZONE)->startOfDay();
+
+        foreach ($plan as [$position, $type, $daysAgo, $time, $concept, $description, $lines]) {
+            $invoice = Document::query()->with(['lines', 'withholdings'])->findOrFail($invoices[$position]);
+            $issuedAt = $daysAgo === null ? null : $today->copy()->subDays($daysAgo)->setTimeFromTimeString($time)->utc();
+
+            // A draft is written a few hours ago; an issued note a few minutes before it is issued.
+            Carbon::setTestNow($issuedAt?->copy()->subMinutes(9) ?? Carbon::now()->subHours(3));
+
+            $note = $drafts->create(DocumentType::from($type), [
+                'related_document_id' => $invoice->getKey(),
+                'reason_code' => $concept,
+                'reason_text' => $description,
+                'lines' => $lines === 'all'
+                    ? $invoice->lines->map(fn (DocumentLine $line): array => $this->copyLine($line, (string) $line->quantity, '1'))->all()
+                    : array_map(fn (array $line): array => $line[0] === null
+                        ? ['description' => $line[2], 'unit_code' => '94', 'quantity' => $line[1], 'unit_price' => $line[3], 'discount_rate' => '0', 'tax_id' => null]
+                        : $this->copyLine($invoice->lines->firstWhere('item_id', $items[$line[0]]), $line[1], $line[2]), $lines),
+                'withholding_ids' => $invoice->withholdings->pluck('withholding_id')->filter()->values()->all(),
+            ], $user);
+
+            if ($issuedAt !== null) {
+                Carbon::setTestNow($issuedAt);
+                $issue($note->getKey(), $user);
+                $this->chain->run($note->getKey());
+            }
+        }
+
+        Carbon::setTestNow();
+    }
+
+    /**
+     * The input of a note line that corrects a line of the invoice: the same item, price, discount
+     * and tax, with its own quantity and a share of the price.
+     *
+     * @return array<string, mixed>
+     */
+    private function copyLine(?DocumentLine $line, string $quantity, string $priceFactor): array
+    {
+        if ($line === null) {
+            throw new LogicException('The demo note names an item its invoice does not have.');
+        }
+
+        return [
+            'item_id' => $line->item_id,
+            'code' => $line->code,
+            'description' => $line->description,
+            'unit_code' => $line->unit_code,
+            'quantity' => $quantity,
+            'unit_price' => (string) BigDecimal::of((string) $line->unit_price)->multipliedBy($priceFactor)->toScale(2, RoundingMode::HalfEven),
+            'discount_rate' => (string) $line->discount_rate,
+            'tax_id' => $line->tax_id,
+        ];
     }
 }
