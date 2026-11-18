@@ -41,6 +41,8 @@ export function useReference() {
     taxTypes: computed(() => options(data.value?.tax_types, 'taxTypes')),
     withholdingTypes: computed(() => options(data.value?.withholding_types, 'withholdingTypes')),
     units: computed(() => options(data.value?.units, 'units')),
+    paymentForms: computed(() => options(data.value?.payment_forms, 'paymentForms')),
+    paymentMeans: computed(() => options(data.value?.payment_means, 'paymentMeans')),
     departments: computed<Option[]>(() => (data.value?.departments ?? []).map((department) => ({
       value: department.code,
       label: department.name,

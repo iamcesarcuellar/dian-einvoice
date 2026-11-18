@@ -18,12 +18,14 @@ use Illuminate\Http\Response;
 final class ContactController
 {
     /**
-     * Contacts, the final consumer first; ?search= matches names, identification and email.
+     * Contacts, the final consumer first; ?search= matches names, identification and email, and
+     * ?active=1 leaves out inactive contacts.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Contact::query()
             ->with('municipality.department')
+            ->when($request->boolean('active'), fn ($query) => $query->where('is_active', true))
             ->orderByDesc('is_system')
             ->orderBy('legal_name');
 

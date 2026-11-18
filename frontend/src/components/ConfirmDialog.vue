@@ -11,14 +11,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-/** Asks before a destructive action, such as deleting, and shows why it failed. */
-defineProps<{
+/** Asks before an action that cannot be undone, such as deleting or issuing, and shows why it failed. */
+withDefaults(defineProps<{
   title: string
   description: string
   confirmLabel: string
   pending?: boolean
   error?: unknown
-}>()
+  /** "destructive" for deleting, "default" for other final actions. */
+  variant?: 'default' | 'destructive'
+}>(), {
+  pending: false,
+  variant: 'destructive',
+})
 
 const emit = defineEmits<{
   confirm: []
@@ -37,13 +42,13 @@ const { t } = useI18n()
         <DialogDescription>{{ description }}</DialogDescription>
       </DialogHeader>
 
-      <FormError :error="error" />
+      <FormError :error="error" list />
 
       <DialogFooter>
         <Button type="button" variant="outline" @click="open = false">
           {{ t('common.cancel') }}
         </Button>
-        <Button type="button" variant="destructive" :disabled="pending" @click="emit('confirm')">
+        <Button type="button" :variant="variant" :disabled="pending" @click="emit('confirm')">
           {{ confirmLabel }}
         </Button>
       </DialogFooter>

@@ -6,6 +6,8 @@ use App\Http\Listing;
 use App\Modules\Reference\Enums\FiscalResponsibility;
 use App\Modules\Reference\Enums\IdentificationType;
 use App\Modules\Reference\Enums\OrganizationType;
+use App\Modules\Reference\Enums\PaymentForm;
+use App\Modules\Reference\Enums\PaymentMeans;
 use App\Modules\Reference\Enums\TaxScheme;
 use App\Modules\Reference\Enums\TaxType;
 use App\Modules\Reference\Enums\UnitOfMeasure;
@@ -40,6 +42,8 @@ final class ReferenceController
                     'base' => $type->base()->value,
                 ], WithholdingType::cases()),
                 'units' => UnitOfMeasure::options(),
+                'payment_forms' => PaymentForm::options(),
+                'payment_means' => PaymentMeans::options(),
                 'departments' => Department::query()->orderBy('name')->get(['code', 'name']),
             ],
         ]);

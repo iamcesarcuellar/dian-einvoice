@@ -6,9 +6,9 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { itemsApi, taxesApi } from '@/api/resources'
 import { orNull } from '@/components/company/companyForm'
-import DecimalInput from '@/components/DecimalInput.vue'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
+import MoneyInput from '@/components/MoneyInput.vue'
 import SelectInput from '@/components/SelectInput.vue'
 import SwitchField from '@/components/SwitchField.vue'
 import { Button } from '@/components/ui/button'
@@ -164,7 +164,7 @@ watch(open, (isOpen) => {
 
         <div class="grid gap-4 sm:grid-cols-2">
           <FormField id="item-price" :label="t('items.form.unitPrice')" :hint="t('items.form.unitPriceHint')" :error="errors.unit_price?.[0]">
-            <DecimalInput id="item-price" v-model="form.unit_price" :scale="6" :min-fraction="2" prefix="$" :invalid="!!errors.unit_price" />
+            <MoneyInput id="item-price" v-model="form.unit_price" :invalid="!!errors.unit_price" />
           </FormField>
           <FormField id="item-tax" :label="t('items.form.tax')" :error="errors.tax_id?.[0]">
             <SelectInput id="item-tax" v-model="form.tax_id" :options="taxOptions" :invalid="!!errors.tax_id" />

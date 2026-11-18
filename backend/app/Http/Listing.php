@@ -2,13 +2,14 @@
 
 namespace App\Http;
 
+use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 /**
  * Page-based listing shared by every collection endpoint: ?page=, ?per_page= (1 to 100, default 25)
- * and ?search=, matched with LIKE against the given columns.
+ * and ?search=, matched with LIKE against the given columns or by a custom search callback.
  */
 final class Listing
 {
@@ -18,8 +19,9 @@ final class Listing
 
     /**
      * @param  list<string>  $searchable
+     * @param  (Closure(Builder, string): void)|null  $search  Receives the query and the LIKE pattern.
      */
-    public static function paginate(Builder $query, Request $request, array $searchable): LengthAwarePaginator
+    public static function paginate(Builder $query, Request $request, array $searchable, ?Closure $search = null): LengthAwarePaginator
     {
         $params = $request->validate([
             'page' => ['sometimes', 'integer', 'min:1'],
@@ -27,12 +29,18 @@ final class Listing
             'search' => ['sometimes', 'nullable', 'string', 'max:100'],
         ]);
 
-        $search = trim((string) ($params['search'] ?? ''));
+        $term = trim((string) ($params['search'] ?? ''));
 
-        if ($search !== '' && $searchable !== []) {
-            $pattern = '%'.addcslashes($search, '%_\\').'%';
+        if ($term !== '' && ($searchable !== [] || $search !== null)) {
+            $pattern = '%'.addcslashes($term, '%_\\').'%';
 
-            $query->where(function (Builder $query) use ($searchable, $pattern): void {
+            $query->where(function (Builder $query) use ($searchable, $search, $pattern): void {
+                if ($search !== null) {
+                    $search($query, $pattern);
+
+                    return;
+                }
+
                 foreach ($searchable as $column) {
                     $query->orWhere($column, 'like', $pattern);
                 }

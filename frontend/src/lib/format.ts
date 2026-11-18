@@ -103,6 +103,42 @@ export function parseDecimal(text: string, scale: number): string | null {
   return value.endsWith('.') ? value.slice(0, -1) : value
 }
 
+const COLOMBIA = 'America/Bogota'
+
+/** Today's date in Colombia, as YYYY-MM-DD. */
+export function todayInColombia(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: COLOMBIA, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+}
+
+/** "2026-11-17" plus 30 days, as YYYY-MM-DD. */
+export function addDays(date: string, days: number): string {
+  const [year = 1970, month = 1, day = 1] = date.split('-').map(Number)
+
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
+}
+
+/** An instant shown in Colombian time: "17/11/2026, 10:15". */
+export function formatDateTime(value: string | null | undefined): string {
+  if (!value) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat('es-CO', {
+    timeZone: COLOMBIA,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(value))
+}
+
+/** "10:15:30" becomes "10:15". */
+export function formatTime(value: string | null | undefined): string {
+  return value ? value.slice(0, 5) : ''
+}
+
 /** A decimal string as the user edits it: "1234567.5" becomes "1234567,5". */
 export function toEditableDecimal(value: string): string {
   const decimal = parts(value)

@@ -5,7 +5,11 @@ export HOST_GID := $(shell id -g)
 
 COMPOSE := docker compose
 
-.PHONY: up down logs ps seed demo clean nuke sh-api sh-web screenshots
+# Size of make stress.
+INVOICES ?= 60
+CONCURRENCY ?= 20
+
+.PHONY: up down logs ps seed demo stress clean nuke sh-api sh-web screenshots
 
 # Build images if needed, start the stack, wait for the database, install missing dependencies, generate the key and migrate.
 up:
@@ -38,6 +42,10 @@ seed:
 # Start the stack and load the synthetic demo data.
 demo: up
 	@$(MAKE) --no-print-directory seed
+
+# Issue INVOICES invoices from CONCURRENCY parallel processes on a temporary company and check the numbers have no gaps or repeats.
+stress:
+	$(COMPOSE) exec api php artisan billing:stress --invoices=$(INVOICES) --concurrency=$(CONCURRENCY)
 
 # Remove this project's containers and volumes, which deletes the database.
 clean:

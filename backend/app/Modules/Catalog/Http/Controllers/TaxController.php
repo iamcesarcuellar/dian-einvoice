@@ -50,7 +50,7 @@ final class TaxController
     {
         abort_if($tax->is_system, 403, 'Default taxes cannot be deleted. Deactivate them instead.');
 
-        Deletion::deleteOrConflict($tax, 'This tax is used by items. Deactivate it instead.');
+        Deletion::deleteOrConflict($tax, 'This tax is used by items or documents. Deactivate it instead.');
 
         return response()->noContent();
     }

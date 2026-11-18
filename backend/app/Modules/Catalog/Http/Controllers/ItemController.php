@@ -18,11 +18,14 @@ use Illuminate\Http\Response;
 final class ItemController
 {
     /**
-     * Items by name; ?search= matches the code and the name.
+     * Items by name; ?search= matches the code and the name, and ?active=1 leaves out inactive items.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = Item::query()->with('tax')->orderBy('name');
+        $query = Item::query()
+            ->with('tax')
+            ->when($request->boolean('active'), fn ($query) => $query->where('is_active', true))
+            ->orderBy('name');
 
         return ItemResource::collection(Listing::paginate($query, $request, ['code', 'name']));
     }

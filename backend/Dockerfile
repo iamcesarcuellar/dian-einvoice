@@ -1,7 +1,8 @@
 # Development image for the API: FrankenPHP in classic mode (no worker), one container without nginx.
+# pcntl lets the billing:stress tool issue invoices from truly parallel processes.
 FROM dunglas/frankenphp:1-php8.5-alpine
 
-RUN install-php-extensions pdo_mysql intl zip \
+RUN install-php-extensions pdo_mysql intl zip pcntl \
     && cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini" \
     && chmod -R a+rwX /config /data
 

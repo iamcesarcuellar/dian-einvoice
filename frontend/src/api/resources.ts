@@ -1,8 +1,11 @@
 import { request } from './client'
 import type {
+  Calculation,
   Contact,
   ContactInput,
   DataEnvelope,
+  Invoice,
+  InvoiceInput,
   Item,
   ItemInput,
   ListParams,
@@ -44,3 +47,17 @@ export const itemsApi = resourceApi<Item, ItemInput>('/items')
 export const taxesApi = resourceApi<Tax, RateInput>('/taxes')
 export const withholdingsApi = resourceApi<Withholding, RateInput>('/withholdings')
 export const numberTemplatesApi = resourceApi<NumberTemplate, NumberTemplateInput>('/number-templates')
+
+export const invoicesApi = {
+  ...resourceApi<Invoice, InvoiceInput>('/invoices'),
+
+  /** Lines, taxes, withholdings and totals of a draft body, calculated by the API without storing it. */
+  async preview(input: InvoiceInput): Promise<Calculation> {
+    return (await request<DataEnvelope<Calculation>>('POST', '/invoices/preview', input)).data
+  },
+
+  /** Assigns the next number and makes the invoice final. */
+  async issue(id: string): Promise<Invoice> {
+    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/issue`)).data
+  },
+}

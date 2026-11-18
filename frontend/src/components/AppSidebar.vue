@@ -28,7 +28,7 @@ const { t } = useI18n()
 
 const items: NavItem[] = [
   { label: 'nav.dashboard', icon: LayoutDashboardIcon, to: '/', exact: true },
-  { label: 'nav.invoices', icon: FileTextIcon },
+  { label: 'nav.invoices', icon: FileTextIcon, to: '/invoices' },
   { label: 'nav.contacts', icon: UsersIcon, to: '/contacts' },
   { label: 'nav.items', icon: PackageIcon, to: '/items' },
   { label: 'nav.payments', icon: CreditCardIcon },

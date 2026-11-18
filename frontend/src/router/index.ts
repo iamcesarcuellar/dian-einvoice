@@ -39,6 +39,24 @@ export const router = createRouter({
           meta: { title: 'nav.dashboard' },
         },
         {
+          path: 'invoices',
+          name: 'invoices',
+          component: () => import('@/pages/InvoicesPage.vue'),
+          meta: { title: 'invoices.title' },
+        },
+        {
+          path: 'invoices/new',
+          name: 'invoice-new',
+          component: () => import('@/pages/InvoicePage.vue'),
+          meta: { title: 'invoices.editor.newTitle' },
+        },
+        {
+          path: 'invoices/:id',
+          name: 'invoice',
+          component: () => import('@/pages/InvoicePage.vue'),
+          meta: { title: 'invoices.invoice' },
+        },
+        {
           path: 'contacts',
           name: 'contacts',
           component: () => import('@/pages/ContactsPage.vue'),

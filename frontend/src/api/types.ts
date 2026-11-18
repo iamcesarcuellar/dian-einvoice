@@ -1,7 +1,10 @@
 export type Role = 'owner' | 'admin' | 'member' | 'viewer'
 
-/** manage-catalog: contacts and items. manage-settings: taxes, withholdings, numbering and the company. */
-export type Permission = 'manage-catalog' | 'manage-settings'
+/**
+ * manage-catalog: contacts and items. manage-documents: drafts and issuing.
+ * manage-settings: taxes, withholdings, numbering and the company.
+ */
+export type Permission = 'manage-catalog' | 'manage-documents' | 'manage-settings'
 
 export interface Municipality {
   code: string
@@ -94,6 +97,8 @@ export interface Reference {
   tax_types: CodeOption[]
   withholding_types: Array<CodeOption & { base: WithholdingBase }>
   units: CodeOption[]
+  payment_forms: CodeOption[]
+  payment_means: CodeOption[]
   departments: CodeOption[]
 }
 
@@ -257,6 +262,164 @@ export interface NumberTemplateInput {
   technical_key?: string | null
   is_default: boolean
   is_active: boolean
+}
+
+export type DocumentStatus = 'draft' | 'issued'
+
+/** Amounts of a document: decimal strings with 2 decimals, calculated by the API. */
+export interface DocumentTotals {
+  /** Quantity times price, before discounts. */
+  subtotal_amount: string
+  discount_total: string
+  line_extension_amount: string
+  tax_exclusive_amount: string
+  tax_total: string
+  tax_inclusive_amount: string
+  payable_amount: string
+  withholding_total: string
+  /** Payable amount minus withholdings. */
+  amount_due: string
+}
+
+export interface DocumentTaxSubtotal {
+  dian_code: string
+  name: string
+  rate: string
+  taxable_amount: string
+  tax_amount: string
+}
+
+export interface DocumentWithholdingAmount {
+  withholding_id: string | null
+  dian_code: string
+  name: string
+  rate: string
+  base_amount: string
+  amount: string
+}
+
+export interface DocumentLine {
+  id: string
+  position: number
+  item_id: string | null
+  item?: ItemOption | null
+  code: string | null
+  description: string | null
+  unit_code: string | null
+  quantity: string
+  unit_price: string
+  discount_rate: string
+  discount_amount: string
+  line_extension_amount: string
+  tax_id: string | null
+  tax_code: string | null
+  tax_name: string | null
+  tax_rate: string | null
+  tax_amount: string
+}
+
+export interface DocumentEvent {
+  id: string
+  type: 'created' | 'issued'
+  payload: Record<string, unknown> | null
+  occurred_at: string
+  actor: { id: string, name: string } | null
+}
+
+/** A party as it was frozen on an issued document. */
+export interface PartySnapshot {
+  legal_name: string
+  trade_name?: string | null
+  name?: string
+  identification_type: string
+  identification_number: string
+  check_digit: number | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  country_code: string
+  municipality: Municipality | null
+  postal_code: string | null
+}
+
+export interface NumberingSnapshot {
+  number_template_id: string
+  prefix: string | null
+  from_number: number
+  to_number: number
+  resolution_number: string | null
+  valid_from: string | null
+  valid_to: string | null
+}
+
+export interface Invoice {
+  id: string
+  type: 'invoice'
+  status: DocumentStatus
+  number_template_id: string | null
+  prefix: string | null
+  number: number | null
+  full_number: string | null
+  contact_id: string | null
+  contact?: Contact | null
+  customer_name: string | null
+  /** Colombian date and time of issue. */
+  issue_date: string | null
+  issue_time: string | null
+  issued_at: string | null
+  due_date: string | null
+  payment_form: string | null
+  payment_means_code: string | null
+  currency: string
+  notes: string | null
+  totals: DocumentTotals
+  taxes?: DocumentTaxSubtotal[]
+  withholdings?: DocumentWithholdingAmount[]
+  lines?: DocumentLine[]
+  events?: DocumentEvent[]
+  company_snapshot: PartySnapshot | null
+  customer_snapshot: PartySnapshot | null
+  numbering_snapshot: NumberingSnapshot | null
+  created_at: string
+  updated_at: string
+}
+
+export interface InvoiceLineInput {
+  item_id: string | null
+  code: string | null
+  description: string | null
+  unit_code: string | null
+  quantity: string | null
+  unit_price: string | null
+  discount_rate: string | null
+  /** Null means excluded: no tax. */
+  tax_id: string | null
+}
+
+export interface InvoiceInput {
+  contact_id: string | null
+  number_template_id: string | null
+  payment_form: string | null
+  payment_means_code: string | null
+  due_date: string | null
+  notes: string | null
+  lines: InvoiceLineInput[]
+  withholding_ids: string[]
+}
+
+/** POST /invoices/preview: what the invoice would be, with nothing stored. */
+export interface Calculation {
+  lines: Array<{ position: number, discount_amount: string, line_extension_amount: string, tax_amount: string }>
+  taxes: DocumentTaxSubtotal[]
+  withholdings: DocumentWithholdingAmount[]
+  totals: DocumentTotals
+}
+
+/** The item fields a line shows when it was taken from the catalog. */
+export interface ItemOption {
+  id: string
+  code: string
+  name: string
 }
 
 /** RFC 9457 problem details: the shape of every API error. */

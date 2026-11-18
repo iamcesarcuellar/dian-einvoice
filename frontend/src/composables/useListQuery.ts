@@ -1,17 +1,24 @@
-import type { ListParams, Paginated } from '@/api/types'
+import type { ListParams, Paginated, QueryParams } from '@/api/types'
 import { useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
-/** Page and search state of a tenant list, with its query; pair it with DataTable. */
-export function useListQuery<T>(resource: string, list: (params: ListParams) => Promise<Paginated<T>>, perPage = 25) {
+interface ListOptions {
+  perPage?: number
+  /** Extra query parameters, such as { status: 'draft' }; changing them starts again from page 1. */
+  filters?: () => QueryParams
+}
+
+/** Page, search and filter state of a tenant list, with its query; pair it with DataTable. */
+export function useListQuery<T>(resource: string, list: (params: ListParams) => Promise<Paginated<T>>, options: ListOptions = {}) {
   const session = useSessionStore()
   const page = ref(1)
   const search = ref('')
+  const filters = computed(() => options.filters?.() ?? {})
 
-  // A new search, or another company, starts again from the first page.
-  watch(search, () => {
+  // A new search, other filters or another company start again from the first page.
+  watch([search, () => JSON.stringify(filters.value)], () => {
     page.value = 1
   })
 
@@ -21,8 +28,9 @@ export function useListQuery<T>(resource: string, list: (params: ListParams) => 
   })
 
   const params = computed<ListParams>(() => ({
+    ...filters.value,
     page: page.value,
-    per_page: perPage,
+    per_page: options.perPage ?? 25,
     search: search.value.trim() || undefined,
   }))
 
