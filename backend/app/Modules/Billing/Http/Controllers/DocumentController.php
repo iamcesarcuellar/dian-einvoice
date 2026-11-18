@@ -19,6 +19,7 @@ use App\Modules\Billing\Services\InvoiceReceivables;
 use App\Modules\Billing\Services\IssueDocument;
 use App\Modules\Billing\Services\NotePrefill;
 use App\Modules\Dian\Pipeline\ElectronicDocumentActions;
+use App\Modules\Identity\Tenancy\Actor;
 use App\Support\Storage\DocumentStorage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -105,7 +106,7 @@ final class DocumentController
      */
     public function store(DocumentRequest $request, DocumentDrafts $drafts): JsonResponse
     {
-        $document = $drafts->create($request->documentType(), $request->validated(), $request->user());
+        $document = $drafts->create($request->documentType(), $request->validated(), Actor::user($request));
 
         return DocumentResource::make($this->withDetails($document))->response()->setStatusCode(201);
     }
@@ -181,7 +182,7 @@ final class DocumentController
      */
     public function issue(Request $request, Document $document, IssueDocument $issue): DocumentResource
     {
-        return DocumentResource::make($this->withDetails($issue($document->getKey(), $request->user())));
+        return DocumentResource::make($this->withDetails($issue($document->getKey(), Actor::user($request))));
     }
 
     /**
@@ -226,7 +227,7 @@ final class DocumentController
      */
     public function retry(Request $request, Document $document, ElectronicDocumentActions $actions): DocumentResource
     {
-        return DocumentResource::make($this->withDetails($actions->retryNow($document->getKey(), $request->user())));
+        return DocumentResource::make($this->withDetails($actions->retryNow($document->getKey(), Actor::user($request))));
     }
 
     /**
@@ -235,7 +236,7 @@ final class DocumentController
      */
     public function resend(Request $request, Document $document, ElectronicDocumentActions $actions): DocumentResource
     {
-        return DocumentResource::make($this->withDetails($actions->resend($document->getKey(), $request->user())));
+        return DocumentResource::make($this->withDetails($actions->resend($document->getKey(), Actor::user($request))));
     }
 
     private function withDetails(Document $document): Document

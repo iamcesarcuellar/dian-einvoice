@@ -28,7 +28,7 @@ final class DeliveryActions
         private readonly DocumentFiles $files,
     ) {}
 
-    public function sendAgain(string $documentId, ?string $email, User $actor): Document
+    public function sendAgain(string $documentId, ?string $email, ?User $actor = null): Document
     {
         return DB::transaction(function () use ($documentId, $email, $actor): Document {
             $document = $this->deliverable($documentId);
@@ -55,7 +55,7 @@ final class DeliveryActions
         }, 3);
     }
 
-    public function regeneratePdf(string $documentId, User $actor): Document
+    public function regeneratePdf(string $documentId, ?User $actor = null): Document
     {
         return DB::transaction(function () use ($documentId, $actor): Document {
             $document = $this->deliverable($documentId);

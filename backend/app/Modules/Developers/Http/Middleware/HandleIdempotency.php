@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Modules\Developers\Http\Middleware;
+
+use App\Http\ProblemDetails;
+use App\Modules\Developers\Idempotency\IdempotencyStore;
+use App\Modules\Identity\Tenancy\CurrentCompany;
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Throwable;
+
+/**
+ * Idempotency-Key on any POST, optional, per company. The first request reserves the key, runs and
+ * keeps its answer (status and body) for 24 hours with a fingerprint of the request: method, path
+ * and body (JSON compared by content, not by spacing or key order). Then:
+ *
+ * - the same key with the same request gets the kept answer, with Idempotent-Replayed: true, and
+ *   nothing runs again;
+ * - the same key with another request answers 422;
+ * - the same key while the first request is still running answers 409.
+ *
+ * A 5xx answer is not kept: the key is freed so the request can be tried again. Alias "idempotency".
+ */
+final class HandleIdempotency
+{
+    public const string HEADER = 'Idempotency-Key';
+
+    public const string REPLAYED = 'Idempotent-Replayed';
+
+    public function __construct(
+        private readonly IdempotencyStore $store,
+        private readonly CurrentCompany $currentCompany,
+    ) {}
+
+    public function handle(Request $request, Closure $next): Response
+    {
+        if ($request->method() !== 'POST' || ! $request->headers->has(self::HEADER)) {
+            return $next($request);
+        }
+
+        $key = trim((string) $request->headers->get(self::HEADER));
+
+        if ($key === '' || strlen($key) > 255 || preg_match('/[^\x21-\x7E]/', $key) === 1) {
+            throw new BadRequestHttpException('Idempotency-Key must be 1 to 255 visible ASCII characters, such as a UUID.');
+        }
+
+        [$outcome, $row] = $this->store->reserve($this->currentCompany->id(), $key, $this->fingerprint($request), $request->method(), $request->getPathInfo());
+
+        return match ($outcome) {
+            'mismatch' => ProblemDetails::response(422, 'This Idempotency-Key was already used with another request (method, path or body). Use a new key for a new request.'),
+            'in_progress' => ProblemDetails::response(409, 'A request with this Idempotency-Key is still in progress. Wait for it to finish, then repeat it to get its answer.'),
+            'replay' => $this->replay($row),
+            default => $this->run($request, $next, (string) $row->id),
+        };
+    }
+
+    private function run(Request $request, Closure $next, string $id): Response
+    {
+        try {
+            $response = $next($request);
+        } catch (Throwable $exception) {
+            $this->store->release($id);
+
+            throw $exception;
+        }
+
+        if ($response->getStatusCode() >= 500) {
+            $this->store->release($id);
+        } else {
+            $this->store->complete($id, $response);
+        }
+
+        return $response;
+    }
+
+    private function replay(object $row): Response
+    {
+        $headers = json_decode((string) ($row->response_headers ?? '[]'), true) ?: [];
+
+        return new HttpResponse((string) $row->response_body, (int) $row->response_status, [...$headers, self::REPLAYED => 'true']);
+    }
+
+    /** SHA-256 of the method, the path and the body; a JSON body in a canonical form. */
+    private function fingerprint(Request $request): string
+    {
+        $content = (string) $request->getContent();
+        $decoded = json_decode($content, true);
+
+        $body = json_last_error() === JSON_ERROR_NONE && $content !== ''
+            ? json_encode(self::canonical($decoded), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            : $content;
+
+        return hash('sha256', $request->method()."\n".$request->getPathInfo()."\n".$body);
+    }
+
+    private static function canonical(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        $value = array_map(self::canonical(...), $value);
+
+        if (! array_is_list($value)) {
+            ksort($value, SORT_STRING);
+        }
+
+        return $value;
+    }
+}

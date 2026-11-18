@@ -10,8 +10,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
- * Lets the request through only when the user's role in the current company has the permission.
- * Alias "permission", used after "company": permission:manage-catalog.
+ * Lets the request through only when whoever acts in the current company has the permission: the
+ * role of the signed-in user, or the level of the API key. Alias "permission", used after
+ * "company": permission:manage-catalog.
  */
 final class EnsureCompanyPermission
 {
@@ -19,8 +20,14 @@ final class EnsureCompanyPermission
 
     public function handle(Request $request, Closure $next, string $permission): Response
     {
-        if (! $this->currentCompany->role()->can(Permission::from($permission))) {
-            throw new AccessDeniedHttpException('Your role in this company does not allow this action.');
+        $permission = Permission::from($permission);
+
+        if (! $this->currentCompany->can($permission)) {
+            throw new AccessDeniedHttpException(match (true) {
+                $this->currentCompany->apiKey() === null => 'Your role in this company does not allow this action.',
+                $permission === Permission::ManageSettings => 'API keys cannot change settings: an owner or admin does it in the web app.',
+                default => 'This API key does not allow this action.',
+            });
         }
 
         return $next($request);

@@ -41,10 +41,24 @@ final class ProblemDetails
     {
         return match (true) {
             $e instanceof ValidationException => self::response(422, 'The given data was invalid.', ['errors' => $e->errors()]),
-            $e instanceof AuthenticationException => self::response(401, 'Sign in to continue.'),
+            $e instanceof AuthenticationException => self::unauthenticated($e),
             $e instanceof HttpExceptionInterface => self::fromHttpException($e),
             default => self::serverError($e),
         };
+    }
+
+    /**
+     * 401: the API key was refused (its own message), or no credentials came at all. The challenge
+     * names the bearer scheme of API keys; the web app signs in with its session instead.
+     */
+    private static function unauthenticated(AuthenticationException $e): JsonResponse
+    {
+        $message = $e->getMessage();
+        $detail = $message !== '' && $message !== 'Unauthenticated.'
+            ? $message
+            : 'Sign in to the web app, or send an API key in the Authorization header: Bearer dei_...';
+
+        return self::response(401, $detail, headers: ['WWW-Authenticate' => 'Bearer realm="dian-einvoice"']);
     }
 
     private static function fromHttpException(HttpExceptionInterface&Throwable $e): JsonResponse

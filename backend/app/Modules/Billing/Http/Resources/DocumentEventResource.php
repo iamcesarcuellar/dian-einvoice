@@ -21,9 +21,9 @@ final class DocumentEventResource extends JsonResource
             'type' => $this->type,
             'payload' => $this->payload,
             'occurred_at' => $this->occurred_at,
-            'actor' => $this->whenLoaded('actor', fn () => $this->actor
-                ? ['id' => $this->actor->id, 'name' => $this->actor->name]
-                : null),
+            // A user, or the API key that acted (type api_key, with its name); null for the system.
+            // Not whenLoaded('actor'): it answers null without asking when the user is null.
+            'actor' => $this->when($this->resource->relationLoaded('actor'), fn () => $this->resource->actorSummary()),
         ];
     }
 }

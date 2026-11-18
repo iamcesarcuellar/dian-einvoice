@@ -12,7 +12,7 @@ CONCURRENCY ?= 20
 # Size of make chaos.
 CHAOS_INVOICES ?= 40
 
-.PHONY: up down logs ps seed demo stress chaos dian-check delivery-check clean nuke sh-api sh-web screenshots payments-check
+.PHONY: up down logs ps seed demo stress chaos dian-check delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi
 
 # Build images if needed, start the stack, wait for the database, Redis and the local mailbox, install missing dependencies,
 # generate the key, migrate, and start the queue workers and the outbox relay with the current code.
@@ -26,7 +26,7 @@ up:
 	$(COMPOSE) up -d api web simulator
 	$(COMPOSE) exec api php artisan migrate --force --no-interaction
 	$(COMPOSE) up -d --force-recreate worker relay
-	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  DIAN simulator: http://localhost:8602/health  Local mailbox: http://localhost:8603"
+	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8600/docs/api  DIAN simulator and webhook receiver: http://localhost:8602/health  Local mailbox: http://localhost:8603"
 
 # Stop and remove this project's containers; the database, Redis, simulator and mailbox volumes are kept.
 down:
@@ -74,6 +74,17 @@ delivery-check:
 # of a tenth of its balance. Exactly 10 must fit, the balance must end at zero, and the receipts have no gaps.
 payments-check:
 	$(COMPOSE) exec api php artisan payments:check
+
+# On a temporary company of its own, deleted at the end, and over HTTP with API keys only: idempotent issue
+# (repeat, other body, 10 at once), a read-only key refused, signed webhooks in the local receiver, a
+# webhook retried after two HTTP 500, and the rate limit answering 429 with Retry-After.
+api-check:
+	$(COMPOSE) exec api php artisan api:check
+
+# Export the public API reference (Scramble) to openapi.json at the root of the repository.
+openapi:
+	$(COMPOSE) exec -T api sh -c 'php artisan scramble:export --path=/tmp/openapi.json >/dev/null && cat /tmp/openapi.json' > openapi.json
+	@echo "openapi.json written; the reference is also served at http://localhost:8600/docs/api"
 
 # Remove this project's containers and volumes, which deletes the database, the queue, the simulator state and the mailbox.
 clean:

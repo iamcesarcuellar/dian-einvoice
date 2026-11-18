@@ -1,5 +1,12 @@
 export type Role = 'owner' | 'admin' | 'member' | 'viewer'
 
+/** Who did something on a timeline: a user, or an API key with its name. */
+export interface TimelineActor {
+  type: 'user' | 'api_key'
+  id: string
+  name: string
+}
+
 /**
  * manage-catalog: contacts and items. manage-documents: drafts and issuing.
  * manage-settings: taxes, withholdings, numbering and the company.
@@ -434,7 +441,8 @@ export interface DocumentEvent {
    */
   payload: Record<string, unknown> | null
   occurred_at: string
-  actor: { id: string, name: string } | null
+  /** A user, or the API key that acted (type api_key, with its name); null for the system. */
+  actor: TimelineActor | null
 }
 
 /** How one call to the local DIAN simulator ended. */
@@ -871,7 +879,8 @@ export interface PaymentEvent {
   type: PaymentEventType
   payload: Record<string, unknown> | null
   occurred_at: string
-  actor: { id: string, name: string } | null
+  /** A user, or the API key that acted (type api_key, with its name); null for the system. */
+  actor: TimelineActor | null
 }
 
 export interface Payment {
@@ -954,4 +963,159 @@ export interface ReceivablesRow extends ReceivablesAmounts {
 export interface Receivables {
   customers: ReceivablesRow[]
   totals: ReceivablesAmounts
+}
+
+/** read_only reads every business resource; read_write also writes them and runs their actions. */
+export type ApiKeyLevel = 'read_only' | 'read_write'
+
+export type ApiKeyStatus = 'active' | 'expired' | 'revoked'
+
+/** An API key of the company, without its secret: the key is shown once, when it is created. */
+export interface ApiKey {
+  id: string
+  name: string
+  level: ApiKeyLevel
+  /** The prefix and the public part of the key, such as dei_k3J9xQ2mPa7Z. */
+  visible_id: string
+  status: ApiKeyStatus
+  rate_limit_per_minute: number
+  custom_rate_limit: boolean
+  expires_at: string | null
+  /** Updated at most once a minute. */
+  last_used_at: string | null
+  revoked_at: string | null
+  created_by: { id: string, name: string } | null
+  created_at: string
+}
+
+export interface ApiKeyInput {
+  name: string
+  level: ApiKeyLevel
+  /** Last day of validity, YYYY-MM-DD in Colombia; null for a key that does not expire. */
+  expires_at: string | null
+  /** Null for the default limit, 120 per minute. */
+  rate_limit_per_minute: number | null
+}
+
+/** The answer that creates a key: the only time the key itself is shown. */
+export interface CreatedApiKey extends ApiKey {
+  key: string
+}
+
+/** active; inactive, switched off by hand; disabled, switched off after failures in a row. */
+export type WebhookSubscriptionStatus = 'active' | 'inactive' | 'disabled'
+
+export interface WebhookSubscription {
+  id: string
+  url: string
+  description: string | null
+  events: string[]
+  is_active: boolean
+  status: WebhookSubscriptionStatus
+  disabled_at: string | null
+  disabled_reason: string | null
+  consecutive_failures: number
+  /** whsec_… and its last characters. */
+  secret_hint: string
+  secret_rotated_at: string | null
+  last_delivery: { at: string, status: 'succeeded' | 'failed', response_code: number | null } | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WebhookSubscriptionInput {
+  url: string
+  description: string | null
+  events: string[]
+  is_active: boolean
+}
+
+/** The answer that creates a subscription or rotates its secret: the only time the secret is shown. */
+export interface WebhookSubscriptionWithSecret extends WebhookSubscription {
+  secret: string
+}
+
+export interface WebhookEventType {
+  type: string
+  description: string
+}
+
+export type WebhookDeliveryStatus = 'pending' | 'succeeded' | 'failed'
+
+export type WebhookAttemptOutcome = 'succeeded' | 'http_error' | 'timeout' | 'connection_error' | 'blocked' | 'abandoned'
+
+export interface WebhookAttempt {
+  id: string
+  run: number
+  attempt: number
+  url: string
+  started_at: string
+  finished_at: string | null
+  duration_ms: number | null
+  status_code: number | null
+  outcome: WebhookAttemptOutcome | null
+  error: string | null
+  response_snippet: string | null
+}
+
+export interface WebhookDelivery {
+  id: string
+  subscription_id: string
+  /** evt_…: also the webhook-id header of every attempt. */
+  event_id: string
+  event_type: string
+  status: WebhookDeliveryStatus
+  attempts: number
+  run: number
+  last_status_code: number | null
+  last_error: string | null
+  last_attempt_at: string | null
+  next_attempt_at: string | null
+  succeeded_at: string | null
+  failed_at: string | null
+  created_at: string
+  /** Only on the detail. */
+  request?: { url: string, headers: Record<string, string>, body: string }
+  attempt_log?: WebhookAttempt[]
+}
+
+export type ReceiverModeName = 'normal' | 'error_500' | 'slow'
+
+export interface ReceiverMode {
+  mode: ReceiverModeName
+  remaining: number | null
+  delay_ms: number | null
+  updated_at: string
+}
+
+/** A webhook the local receiver got, with the result of its signature check. */
+export interface ReceivedWebhook {
+  received_at: string
+  webhook_id: string | null
+  timestamp: string | null
+  event_id: string | null
+  event_type: string | null
+  object_id: string | null
+  verified: boolean
+  verification: 'valid' | 'invalid_signature' | 'no_secret' | 'missing_headers' | 'timestamp_out_of_tolerance'
+  mode: ReceiverModeName
+  response_status: number
+  delay_ms: number | null
+  size: number
+  body_preview: string
+}
+
+export interface ReceiverStatus {
+  /** What a subscription uses to reach the receiver, on the internal network of the stack. */
+  url: string
+  modes: ReceiverModeName[]
+  mode: ReceiverMode
+  secrets: number
+  received: ReceivedWebhook[]
+}
+
+export interface ReceiverModeInput {
+  mode: ReceiverModeName
+  count: number | null
+  delay_ms: number | null
 }

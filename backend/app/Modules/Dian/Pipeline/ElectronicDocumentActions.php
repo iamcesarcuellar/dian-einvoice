@@ -35,7 +35,7 @@ final class ElectronicDocumentActions
         private readonly InvoiceBalance $balances,
     ) {}
 
-    public function retryNow(string $documentId, User $actor): Document
+    public function retryNow(string $documentId, ?User $actor = null): Document
     {
         return DB::transaction(function () use ($documentId, $actor): Document {
             $document = $this->pipeline->lock($documentId) ?? throw new NotFoundHttpException;
@@ -83,7 +83,7 @@ final class ElectronicDocumentActions
         }, 3);
     }
 
-    public function resend(string $documentId, User $actor): Document
+    public function resend(string $documentId, ?User $actor = null): Document
     {
         return DB::transaction(function () use ($documentId, $actor): Document {
             $document = $this->pipeline->lock($documentId) ?? throw new NotFoundHttpException;

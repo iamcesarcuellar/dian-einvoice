@@ -11,6 +11,7 @@ const tabs = [
   { name: 'withholdings', label: 'settings.tabs.withholdings' },
   { name: 'numbering', label: 'settings.tabs.numbering' },
   { name: 'dian-settings', label: 'settings.tabs.dian' },
+  { name: 'developers', label: 'settings.tabs.developers' },
 ]
 </script>
 

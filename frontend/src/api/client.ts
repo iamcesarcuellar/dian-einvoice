@@ -67,8 +67,11 @@ function url(path: string, query?: QueryParams): string {
   return `${API_BASE}${path}${search ? `?${search}` : ''}`
 }
 
-async function send(method: Method, path: string, body: unknown, query?: QueryParams): Promise<Response> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
+/** Extra request headers, such as an Idempotency-Key. */
+export type RequestHeaders = Record<string, string>
+
+async function send(method: Method, path: string, body: unknown, query?: QueryParams, extra?: RequestHeaders): Promise<Response> {
+  const headers: Record<string, string> = { Accept: 'application/json', ...extra }
   const isForm = body instanceof FormData
 
   // FormData sets its own multipart content type, with the boundary.
@@ -103,13 +106,14 @@ async function send(method: Method, path: string, body: unknown, query?: QueryPa
   })
 }
 
-async function sendChecked(method: Method, path: string, body?: unknown, query?: QueryParams): Promise<Response> {
-  let response = await send(method, path, body, query)
+async function sendChecked(method: Method, path: string, body?: unknown, query?: QueryParams, headers?: RequestHeaders): Promise<Response> {
+  let response = await send(method, path, body, query, headers)
 
-  // The CSRF token expired or was replaced: fetch a fresh cookie and retry once.
+  // The CSRF token expired or was replaced: fetch a fresh cookie and retry once, with the same
+  // headers (an Idempotency-Key included: the first try never reached the action).
   if (response.status === 419) {
     await fetchCsrfCookie()
-    response = await send(method, path, body, query)
+    response = await send(method, path, body, query, headers)
   }
 
   if (!response.ok) {
@@ -123,14 +127,22 @@ async function sendChecked(method: Method, path: string, body?: unknown, query?:
  * Calls the API under /api/v1 and returns the JSON body. A FormData body is sent as multipart, for
  * file uploads. Throws ApiError on HTTP errors.
  */
-export async function request<T>(method: Method, path: string, body?: unknown, query?: QueryParams): Promise<T> {
-  const response = await sendChecked(method, path, body, query)
+export async function request<T>(method: Method, path: string, body?: unknown, query?: QueryParams, headers?: RequestHeaders): Promise<T> {
+  const response = await sendChecked(method, path, body, query, headers)
 
   if (response.status === 204) {
     return undefined as T
   }
 
   return (await response.json()) as T
+}
+
+/**
+ * Headers with a new Idempotency-Key: one per submission of an action that must not run twice
+ * (issue, a payment, a void), so a repeated request returns the first answer instead.
+ */
+export function idempotent(): RequestHeaders {
+  return { 'Idempotency-Key': crypto.randomUUID() }
 }
 
 /** GETs a file from the API, such as an XML document, as text. Throws ApiError on HTTP errors. */

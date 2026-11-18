@@ -50,7 +50,7 @@ class Document extends Model
     ];
 
     /** Relations the API loads to show one document: lines, totals, timeline, transmissions and delivered files. */
-    public const array DETAILS = ['lines.item', 'taxes', 'withholdings', 'events.actor', 'contact.municipality.department', 'transmissions', 'files', 'relatedDocument', 'relatedNotes', 'payments'];
+    public const array DETAILS = ['lines.item', 'taxes', 'withholdings', 'events.actor', 'events.apiKey', 'contact.municipality.department', 'transmissions', 'files', 'relatedDocument', 'relatedNotes', 'payments'];
 
     /** The last answer of the DIAN web service (the local simulator), cleared on Resend. */
     public const array DIAN_RESULT = [

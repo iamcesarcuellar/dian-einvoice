@@ -23,7 +23,7 @@ class Payment extends Model
 
     public const string CURRENCY = 'COP';
 
-    public const array DETAILS = ['allocations', 'events.actor', 'creator', 'voider'];
+    public const array DETAILS = ['allocations', 'events.actor', 'events.apiKey', 'creator', 'voider'];
 
     /** @var list<string> */
     protected $fillable = [

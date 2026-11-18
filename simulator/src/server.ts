@@ -2,8 +2,9 @@
 // dian-einvoice. It is not the DIAN: nothing it accepts is registered anywhere.
 //
 //   POST /WcfDianCustomerServices.svc   SOAP 1.2: SendBillSync and GetStatus (annex 1.9, section 7)
+//   POST /webhook-receiver/{company}    the local webhook receiver, another development tool
 //   GET  /health
-//   /admin/...                          taxpayers, failure modes, activity (X-Simulator-Token)
+//   /admin/...                          taxpayers, failure modes, activity, the webhook receiver (X-Simulator-Token)
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Socket } from 'node:net'
@@ -20,6 +21,7 @@ import type { DianResult, SoapRequest } from './soap.ts'
 import { Store } from './state.ts'
 import type { DocumentRecord, Mode, ModeName, Range, RequestLog, Taxpayer } from './state.ts'
 import { validateDocument } from './validate.ts'
+import { ReceiverError, admin as receiverAdmin, receive } from './webhook-receiver.ts'
 import { parseXml } from './xml.ts'
 
 const PORT = Number(process.env.PORT ?? 8602)
@@ -434,8 +436,12 @@ async function admin(request: IncomingMessage, response: ServerResponse, url: UR
   }
 
   const method = request.method ?? 'GET'
-  const [, , resource, id] = url.pathname.split('/')
+  const [, , resource, id, ...rest] = url.pathname.split('/')
   const body = method === 'PUT' || method === 'POST' ? JSON.parse((await readBody(request)) || '{}') as Record<string, unknown> : {}
+
+  if (resource === 'webhook-receiver') {
+    return json(response, 200, receiverAdmin(state, method, [id, ...rest].filter((part) => part !== ''), url, body, () => store.save()))
+  }
 
   if (resource === 'rules' && method === 'GET') {
     return json(response, 200, { rules: RULES })
@@ -534,11 +540,18 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       documents: Object.keys(state.documents).length,
       modes: Object.keys(state.modes).length,
       all: state.modes[ALL] ?? null,
+      webhook_receiver: { companies: Object.keys(state.receiver ?? {}).length },
     })
   }
 
   if (path.startsWith('/admin/')) {
     return admin(request, response, url)
+  }
+
+  if (path.startsWith('/webhook-receiver/') && request.method === 'POST') {
+    const [, , companyId] = url.pathname.split('/')
+
+    return receive(state, companyId, request.headers, await readBody(request), response, () => store.save())
   }
 
   if (path.endsWith('.svc')) {
@@ -557,7 +570,7 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
 
 const server = createServer((request, response) => {
   route(request, response).catch((error: unknown) => {
-    const status = error instanceof HttpError ? error.status : (error instanceof SyntaxError ? 400 : 500)
+    const status = error instanceof HttpError || error instanceof ReceiverError ? error.status : (error instanceof SyntaxError ? 400 : 500)
 
     if (status === 500) {
       console.error(error)

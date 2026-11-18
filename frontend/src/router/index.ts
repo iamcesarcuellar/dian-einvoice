@@ -200,6 +200,12 @@ export const router = createRouter({
               component: () => import('@/pages/DianSettingsPage.vue'),
               meta: { title: 'settings.tabs.dian' },
             },
+            {
+              path: 'developers',
+              name: 'developers',
+              component: () => import('@/pages/DevelopersPage.vue'),
+              meta: { title: 'settings.tabs.developers' },
+            },
           ],
         },
       ],

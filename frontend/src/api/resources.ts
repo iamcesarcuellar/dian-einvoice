@@ -1,4 +1,4 @@
-import { request, requestBlob, requestText } from './client'
+import { idempotent, request, requestBlob, requestText } from './client'
 import type {
   Calculation,
   Contact,
@@ -68,10 +68,11 @@ function documentApi(path: string) {
 
     /**
      * Assigns the next number and the CUFE and makes the invoice final; its electronic document chain
-     * (XML, signature, transmission to the local DIAN simulator) then runs in the background.
+     * (XML, signature, transmission to the local DIAN simulator) then runs in the background. Each
+     * submission carries a new Idempotency-Key.
      */
     async issue(id: string): Promise<Invoice> {
-      return (await request<DataEnvelope<Invoice>>('POST', `${path}/${id}/issue`)).data
+      return (await request<DataEnvelope<Invoice>>('POST', `${path}/${id}/issue`, undefined, undefined, idempotent())).data
     },
 
     /** The signed UBL 2.1 XML of an issued invoice. */
@@ -150,12 +151,13 @@ export const paymentsApi = {
     return (await request<DataEnvelope<Payment>>('GET', `/payments/${id}`)).data
   },
 
+  /** Each submission carries a new Idempotency-Key, so a repeated request never records it twice. */
   async create(input: PaymentInput): Promise<Payment> {
-    return (await request<DataEnvelope<Payment>>('POST', '/payments', input)).data
+    return (await request<DataEnvelope<Payment>>('POST', '/payments', input, undefined, idempotent())).data
   },
 
   async void(id: string, reason: string): Promise<Payment> {
-    return (await request<DataEnvelope<Payment>>('POST', `/payments/${id}/void`, { reason })).data
+    return (await request<DataEnvelope<Payment>>('POST', `/payments/${id}/void`, { reason }, undefined, idempotent())).data
   },
 
   /** The accepted invoices of a customer with something left to collect, oldest due first. */

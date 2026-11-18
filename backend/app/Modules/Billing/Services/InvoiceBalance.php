@@ -2,6 +2,7 @@
 
 namespace App\Modules\Billing\Services;
 
+use App\Modules\Billing\BillingEvents;
 use App\Modules\Billing\Enums\BalanceStatus;
 use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\DocumentStatus;
@@ -11,6 +12,7 @@ use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\DocumentEvent;
 use App\Modules\Delivery\Support\ColombianFormat;
 use App\Modules\Reference\Enums\CreditNoteConcept;
+use App\Support\Outbox\Outbox;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -27,7 +29,10 @@ final class InvoiceBalance
     /** Less than this left to credit counts as credited in full. */
     public const string ONE_PESO = '1.00';
 
-    public function __construct(private readonly InvoiceReceivables $receivables) {}
+    public function __construct(
+        private readonly InvoiceReceivables $receivables,
+        private readonly Outbox $outbox,
+    ) {}
 
     /**
      * $notes, when given, are the notes of the invoice already loaded; otherwise they are read.
@@ -107,11 +112,13 @@ final class InvoiceBalance
     /**
      * The balance status from the accepted notes, written on the locked invoice with a timeline entry
      * of the note: open, partially credited, credited when less than one peso is left, or voided by an
-     * accepted credit note with the void concept. Its receivable and payment status follow.
+     * accepted credit note with the void concept. Its receivable and payment status follow. The
+     * moment an invoice becomes voided, invoice.voided goes to the outbox for integrations.
      */
     public function noteAccepted(Document $invoice, Document $note): void
     {
         $voided = $note->type === DocumentType::CreditNote && $note->reason_code === CreditNoteConcept::Void->value;
+        $wasVoided = $invoice->balance_status === BalanceStatus::Voided;
         $balance = $this->of($invoice);
         $status = match (true) {
             $voided || $invoice->balance_status === BalanceStatus::Voided => BalanceStatus::Voided,
@@ -136,6 +143,15 @@ final class InvoiceBalance
             ],
             'occurred_at' => Carbon::now(),
         ]);
+
+        if ($status === BalanceStatus::Voided && ! $wasVoided) {
+            $this->outbox->record($invoice->company_id, 'document', $invoice->getKey(), BillingEvents::INVOICE_VOIDED, [
+                'document_id' => $invoice->getKey(),
+                'number' => $invoice->full_number,
+                'note_id' => $note->getKey(),
+                'note_number' => $note->full_number,
+            ]);
+        }
     }
 
     /**

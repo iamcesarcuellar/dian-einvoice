@@ -6,6 +6,7 @@ use App\Modules\Billing\Database\Seeders\DemoSeeder as BillingDemoSeeder;
 use App\Modules\Catalog\Database\Seeders\DemoSeeder as CatalogDemoSeeder;
 use App\Modules\Delivery\LocalMailbox\LocalMailbox;
 use App\Modules\Delivery\LocalMailbox\LocalMailboxUnavailable;
+use App\Modules\Developers\Database\Seeders\DemoSeeder as DevelopersDemoSeeder;
 use App\Modules\Dian\Database\Seeders\DemoSeeder as DianDemoSeeder;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
@@ -21,7 +22,8 @@ class DatabaseSeeder extends Seeder
      * Synthetic demo data for local development only. DIAN settings and test certificates come
      * before the invoices: issuing needs them, and every issued demo invoice goes through the real
      * electronic document chain against the local DIAN simulator, and once accepted through the
-     * customer delivery, whose emails land in the local mailbox.
+     * customer delivery, whose emails land in the local mailbox. The demo API keys and the webhook
+     * subscription to the local receiver come before them too, so their events reach the receiver.
      */
     public function run(DocumentStorage $storage, DianSimulator $simulator, LocalMailbox $mailbox): void
     {
@@ -52,7 +54,16 @@ class DatabaseSeeder extends Seeder
             IdentityDemoSeeder::class,
             CatalogDemoSeeder::class,
             DianDemoSeeder::class,
+            DevelopersDemoSeeder::class,
             BillingDemoSeeder::class,
         ]);
+
+        // Only the hash of an API key is stored: this is the one chance to show the demo key.
+        if (DevelopersDemoSeeder::$readWriteKey !== null) {
+            $this->command?->newLine();
+            $this->command?->warn('SYNTHETIC demo API key of Demo Comercial SAS (read_write), shown only now; only its hash is stored:');
+            $this->command?->line('  '.DevelopersDemoSeeder::$readWriteKey);
+            $this->command?->newLine();
+        }
     }
 }

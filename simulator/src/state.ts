@@ -1,5 +1,5 @@
 // Everything the simulator remembers, in one JSON file of its own volume: registered taxpayers,
-// processed documents, failure modes and the recent requests. Written after every change, to a
+// processed documents, failure modes, the recent requests, and what the local webhook receiver got. Written after every change, to a
 // temporary file renamed over the old one, so a restart never finds it half written.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -70,6 +70,42 @@ export interface RequestLog {
   rules: string[]
 }
 
+export type ReceiverModeName = 'normal' | 'error_500' | 'slow'
+
+export interface ReceiverMode {
+  mode: ReceiverModeName
+  /** Deliveries it still applies to; null until it is changed. */
+  remaining: number | null
+  delay_ms: number | null
+  updated_at: string
+}
+
+export interface ReceivedWebhook {
+  received_at: string
+  webhook_id: string | null
+  timestamp: string | null
+  event_id: string | null
+  event_type: string | null
+  /** data.object.id of the body: the document or payment the event is about. */
+  object_id: string | null
+  verified: boolean
+  /** valid, invalid_signature, no_secret, missing_headers or timestamp_out_of_tolerance. */
+  verification: string
+  mode: ReceiverModeName
+  /** What the receiver answered; slow answers 200 after delay_ms, when the sender may be gone. */
+  response_status: number
+  delay_ms: number | null
+  size: number
+  body_preview: string
+}
+
+/** The local webhook receiver of one company: secrets by subscription, mode and last webhooks. */
+export interface ReceiverCompany {
+  secrets: Record<string, string>
+  mode: ReceiverMode
+  received: ReceivedWebhook[]
+}
+
 export interface State {
   version: 1
   created_at: string
@@ -78,6 +114,8 @@ export interface State {
   documents: Record<string, DocumentRecord>
   modes: Record<string, Mode>
   requests: RequestLog[]
+  /** By company id. Missing in state files written before the receiver existed. */
+  receiver?: Record<string, ReceiverCompany>
 }
 
 export function emptyState(): State {
@@ -89,6 +127,7 @@ export function emptyState(): State {
     documents: {},
     modes: {},
     requests: [],
+    receiver: {},
   }
 }
 

@@ -1,0 +1,66 @@
+<?php
+
+namespace App\Modules\Developers\Http\Middleware;
+
+use App\Http\ProblemDetails;
+use App\Modules\Developers\Models\ApiKey;
+use Closure;
+use Illuminate\Contracts\Redis\Factory as Redis;
+use Illuminate\Http\Request;
+use Illuminate\Redis\Limiters\DurationLimiter;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Requests per minute of each API key (120 unless the key sets its own), counted in Redis in fixed
+ * windows of 60 seconds. Every response to a key carries the limit headers: X-RateLimit-Limit,
+ * X-RateLimit-Remaining and X-RateLimit-Reset (Unix time), plus RateLimit-Policy and RateLimit of
+ * the IETF draft. Above the limit: 429 with Retry-After. Alias "api-rate-limit"; requests of the
+ * web app session are not limited here.
+ */
+final class RateLimitApiKeys
+{
+    private const int WINDOW = 60;
+
+    public function __construct(private readonly Redis $redis) {}
+
+    public function handle(Request $request, Closure $next): Response
+    {
+        $key = $request->user();
+
+        if (! $key instanceof ApiKey) {
+            return $next($request);
+        }
+
+        $limit = $key->rateLimit();
+        $limiter = new DurationLimiter($this->redis->connection(), 'api-key-rate:'.$key->getKey(), $limit, self::WINDOW);
+        $allowed = $limiter->acquire();
+
+        $reset = (int) $limiter->decaysAt;
+        $resetIn = max(1, $reset - time());
+        $remaining = max(0, (int) $limiter->remaining);
+
+        $headers = [
+            'X-RateLimit-Limit' => (string) $limit,
+            'X-RateLimit-Remaining' => (string) $remaining,
+            'X-RateLimit-Reset' => (string) $reset,
+            'RateLimit-Policy' => sprintf('"api-key";q=%d;w=%d', $limit, self::WINDOW),
+            'RateLimit' => sprintf('"api-key";r=%d;t=%d', $remaining, $resetIn),
+        ];
+
+        if (! $allowed) {
+            return ProblemDetails::response(
+                429,
+                sprintf('This API key allows %d requests per minute. Try again in %d seconds.', $limit, $resetIn),
+                headers: [...$headers, 'Retry-After' => (string) $resetIn],
+            );
+        }
+
+        $response = $next($request);
+
+        foreach ($headers as $name => $value) {
+            $response->headers->set($name, $value);
+        }
+
+        return $response;
+    }
+}

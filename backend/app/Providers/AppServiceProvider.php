@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\ApiDocs\ApiDocumentation;
 use App\Support\Keys\KeyStore;
 use App\Support\Keys\LocalKeyStore;
 use App\Support\Outbox\OutboxSubscribers;
@@ -28,6 +29,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Outside production, fail on lazy loading, unknown attributes and silently discarded fills.
         Model::shouldBeStrict(! $this->app->isProduction());
+
+        // The public API reference at /docs/api, and openapi.json through make openapi.
+        ApiDocumentation::configure();
 
         if ($this->app->runningInConsole()) {
             $this->commands([RelayCommand::class]);

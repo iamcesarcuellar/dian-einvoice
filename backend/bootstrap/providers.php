@@ -3,6 +3,7 @@
 use App\Modules\Billing\BillingServiceProvider;
 use App\Modules\Catalog\CatalogServiceProvider;
 use App\Modules\Delivery\DeliveryServiceProvider;
+use App\Modules\Developers\DevelopersServiceProvider;
 use App\Modules\Dian\DianServiceProvider;
 use App\Modules\Identity\IdentityServiceProvider;
 use App\Modules\Payments\PaymentsServiceProvider;
@@ -18,4 +19,5 @@ return [
     DianServiceProvider::class,
     DeliveryServiceProvider::class,
     PaymentsServiceProvider::class,
+    DevelopersServiceProvider::class,
 ];

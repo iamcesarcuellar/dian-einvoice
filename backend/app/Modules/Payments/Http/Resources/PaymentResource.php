@@ -52,7 +52,8 @@ final class PaymentResource extends JsonResource
                 'type' => $event->type,
                 'payload' => $event->payload,
                 'occurred_at' => $event->occurred_at,
-                'actor' => $event->relationLoaded('actor') && $event->actor !== null ? ['id' => $event->actor->id, 'name' => $event->actor->name] : null,
+                // A user, or the API key that acted (type api_key, with its name); null for the system.
+                'actor' => $event->actorSummary(),
             ])->values()->all()),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

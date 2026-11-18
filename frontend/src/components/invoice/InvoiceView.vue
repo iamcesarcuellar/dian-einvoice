@@ -464,7 +464,7 @@ const toneClass = {
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDateTime(event.occurred_at) }}
-                  <template v-if="event.actor">· {{ t('invoices.view.by', { name: event.actor.name }) }}</template>
+                  <template v-if="event.actor">· {{ t(event.actor.type === 'api_key' ? 'invoices.view.byApiKey' : 'invoices.view.by', { name: event.actor.name }) }}</template>
                 </p>
               </div>
             </li>

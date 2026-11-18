@@ -3,6 +3,7 @@
 namespace App\Modules\Payments\Http\Controllers;
 
 use App\Http\Listing;
+use App\Modules\Identity\Tenancy\Actor;
 use App\Modules\Payments\Enums\PaymentStatus;
 use App\Modules\Payments\Http\Requests\RecordPaymentRequest;
 use App\Modules\Payments\Http\Requests\VoidPaymentRequest;
@@ -61,7 +62,7 @@ final class PaymentController
      */
     public function store(RecordPaymentRequest $request, RecordPayment $record): JsonResponse
     {
-        $payment = $record($request->validated(), $request->user());
+        $payment = $record($request->validated(), Actor::user($request));
 
         return PaymentResource::make($payment->load(Payment::DETAILS))->response()->setStatusCode(201);
     }
@@ -78,6 +79,6 @@ final class PaymentController
      */
     public function void(VoidPaymentRequest $request, Payment $payment, VoidPayment $void): PaymentResource
     {
-        return PaymentResource::make($void($payment->getKey(), (string) $request->validated('reason'), $request->user())->load(Payment::DETAILS));
+        return PaymentResource::make($void($payment->getKey(), (string) $request->validated('reason'), Actor::user($request))->load(Payment::DETAILS));
     }
 }
