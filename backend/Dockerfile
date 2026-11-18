@@ -1,8 +1,10 @@
 # Development image for the API: FrankenPHP in classic mode (no worker), one container without nginx.
 # pcntl lets the billing:stress tool issue invoices from truly parallel processes.
+# xmlsec1 lets dian:check verify XML signatures with a tool independent of our code.
 FROM dunglas/frankenphp:1-php8.5-alpine
 
 RUN install-php-extensions pdo_mysql intl zip pcntl \
+    && apk add --no-cache xmlsec \
     && cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini" \
     && chmod -R a+rwX /config /data
 

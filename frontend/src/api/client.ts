@@ -69,8 +69,10 @@ function url(path: string, query?: QueryParams): string {
 
 async function send(method: Method, path: string, body: unknown, query?: QueryParams): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' }
+  const isForm = body instanceof FormData
 
-  if (body !== undefined) {
+  // FormData sets its own multipart content type, with the boundary.
+  if (body !== undefined && !isForm) {
     headers['Content-Type'] = 'application/json'
   }
 
@@ -97,7 +99,7 @@ async function send(method: Method, path: string, body: unknown, query?: QueryPa
     method,
     headers,
     credentials: 'include',
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : (isForm ? body : JSON.stringify(body)),
   })
 }
 
@@ -117,7 +119,10 @@ async function sendChecked(method: Method, path: string, body?: unknown, query?:
   return response
 }
 
-/** Calls the API under /api/v1 and returns the JSON body. Throws ApiError on HTTP errors. */
+/**
+ * Calls the API under /api/v1 and returns the JSON body. A FormData body is sent as multipart, for
+ * file uploads. Throws ApiError on HTTP errors.
+ */
 export async function request<T>(method: Method, path: string, body?: unknown, query?: QueryParams): Promise<T> {
   const response = await sendChecked(method, path, body, query)
 

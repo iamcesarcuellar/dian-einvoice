@@ -4,14 +4,16 @@ namespace App\Modules\Dian\Services;
 
 use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Catalog\Models\Contact;
+use App\Modules\Dian\Enums\CertificateStatus;
 use App\Modules\Dian\Models\DianSetting;
+use App\Modules\Dian\Models\SigningCertificate;
 use App\Modules\Identity\Models\Company;
 
 /**
  * What an electronic invoice needs before it can be issued, beyond the draft itself: the tax
- * profile of the company, its DIAN software, the technical key of the numbering and the
- * identification of the customer. Error keys start with the screen where each item is completed
- * (company., dian., numbering., customer.), so clients can link to it.
+ * profile of the company, its DIAN software, a signing certificate valid today, the technical key
+ * of the numbering and the identification of the customer. Error keys start with the screen where
+ * each item is completed (company., dian., numbering., customer.), so clients can link to it.
  */
 final class IssueRequirements
 {
@@ -30,7 +32,7 @@ final class IssueRequirements
     /**
      * @return array<string, list<string>> Messages by key; empty when nothing is missing.
      */
-    public function missing(Company $company, DianSetting $settings, ?NumberTemplate $numbering, ?Contact $customer): array
+    public function missing(Company $company, DianSetting $settings, ?SigningCertificate $certificate, ?NumberTemplate $numbering, ?Contact $customer): array
     {
         $errors = [];
 
@@ -48,6 +50,12 @@ final class IssueRequirements
             $errors['dian.software_pin'][] = 'Add the software PIN in the DIAN settings.';
         }
 
+        $certificateProblem = $this->certificateProblem($certificate);
+
+        if ($certificateProblem !== null) {
+            $errors['dian.certificate'][] = $certificateProblem;
+        }
+
         if ($numbering !== null && blank($numbering->technical_key)) {
             $errors['numbering.technical_key'][] = sprintf(
                 'Add the technical key of the numbering %s.',
@@ -60,5 +68,19 @@ final class IssueRequirements
         }
 
         return $errors;
+    }
+
+    /** Why the certificate cannot sign today, or null when it can. */
+    private function certificateProblem(?SigningCertificate $certificate): ?string
+    {
+        if ($certificate === null) {
+            return 'Add a signing certificate in the DIAN settings.';
+        }
+
+        return match ($certificate->status()) {
+            CertificateStatus::Expired => "The signing certificate expired on {$certificate->valid_to->toDateString()}. Upload a valid one in the DIAN settings.",
+            CertificateStatus::NotYetValid => "The signing certificate is valid from {$certificate->valid_from->toDateString()}. Use one that is valid today.",
+            CertificateStatus::Valid, CertificateStatus::ExpiringSoon => null,
+        };
     }
 }

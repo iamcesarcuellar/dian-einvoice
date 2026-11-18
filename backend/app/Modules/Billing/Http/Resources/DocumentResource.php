@@ -54,13 +54,16 @@ final class DocumentResource extends JsonResource
             'cufe' => $this->cufe,
             'qr_url' => $this->qr_url,
             'dian_environment' => $this->dian_environment,
-            // Unsigned UBL 2.1 XML: status pending, generated or failed; null for drafts.
+            // UBL 2.1 XML: status pending, generated, signed or failed; null for drafts. Size and
+            // SHA-256 are those of the stored, signed XML.
             'xml' => [
                 'status' => $this->xml_status,
                 'file_name' => $this->full_number === null ? null : $this->full_number.'.xml',
                 'size' => $this->xml_size,
                 'sha256' => $this->xml_sha256,
                 'generated_at' => $this->xml_generated_at,
+                'signed_at' => $this->xml_signed_at,
+                'certificate_serial' => $this->signing_certificate_serial,
             ],
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

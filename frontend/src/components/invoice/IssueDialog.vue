@@ -59,7 +59,10 @@ const missing = computed<Missing[]>(() => Object.entries(fieldErrors.value)
   .map(([key, messages]) => ({
     key,
     message: messages[0] ?? key,
-    link: screens.value[key.split('.')[0] as string] ?? null,
+    // The certificate lives on the DIAN settings screen too, in its own card.
+    link: key === 'dian.certificate'
+      ? { label: t('invoices.issue.screens.certificate'), to: { name: 'dian-settings' } }
+      : screens.value[key.split('.')[0] as string] ?? null,
   })))
 
 /** Other validation messages, about the draft itself. */

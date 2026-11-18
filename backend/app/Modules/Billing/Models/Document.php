@@ -70,6 +70,8 @@ class Document extends Model
         'xml_sha256',
         'xml_size',
         'xml_generated_at',
+        'xml_signed_at',
+        'signing_certificate_serial',
         'created_by',
     ];
 
@@ -102,6 +104,7 @@ class Document extends Model
             'xml_status' => XmlStatus::class,
             'xml_size' => 'integer',
             'xml_generated_at' => 'datetime',
+            'xml_signed_at' => 'datetime',
         ];
     }
 
@@ -139,7 +142,8 @@ class Document extends Model
      */
     public function events(): HasMany
     {
-        return $this->hasMany(DocumentEvent::class)->orderBy('occurred_at');
+        // Entries of the same second keep the order they were written in (ULIDs grow with time).
+        return $this->hasMany(DocumentEvent::class)->orderBy('occurred_at')->orderBy('id');
     }
 
     /**

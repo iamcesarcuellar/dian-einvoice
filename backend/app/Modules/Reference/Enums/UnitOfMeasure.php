@@ -5,7 +5,8 @@ namespace App\Modules\Reference\Enums;
 use App\Modules\Reference\Enums\Concerns\CodeList;
 
 /**
- * Units of measure (UN/ECE codes, DIAN technical annex 1.9).
+ * Units of measure (UN/ECE codes in the DIAN list, annex 1.9 table 13.3.6). Month (MON) and year
+ * (ANN) are not in that list, so they are not offered.
  */
 enum UnitOfMeasure: string
 {
@@ -20,8 +21,6 @@ enum UnitOfMeasure: string
     case SquareMeter = 'MTK';
     case Hour = 'HUR';
     case Day = 'DAY';
-    case Month = 'MON';
-    case Year = 'ANN';
     case Box = 'BX';
     case Pack = 'PK';
     case Dozen = 'DZN';
@@ -38,8 +37,6 @@ enum UnitOfMeasure: string
             self::SquareMeter => 'Square meter',
             self::Hour => 'Hour',
             self::Day => 'Day',
-            self::Month => 'Month',
-            self::Year => 'Year',
             self::Box => 'Box',
             self::Pack => 'Pack',
             self::Dozen => 'Dozen',

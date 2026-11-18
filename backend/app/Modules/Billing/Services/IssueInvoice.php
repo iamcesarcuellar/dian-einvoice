@@ -13,6 +13,7 @@ use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Catalog\Models\Tax;
 use App\Modules\Catalog\Models\Withholding;
 use App\Modules\Dian\Models\DianSetting;
+use App\Modules\Dian\Models\SigningCertificate;
 use App\Modules\Dian\Services\InvoiceStamp;
 use App\Modules\Dian\Services\InvoiceXmlGenerator;
 use App\Modules\Dian\Services\IssueRequirements;
@@ -31,7 +32,7 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
  * numbering row (always in that order, so concurrent issues queue instead of deadlocking), takes
  * the next number, freezes the copies and stamps the CUFE. Any failure rolls everything back, so a
  * number is never skipped or repeated. Deadlocks are retried. Once committed, the UBL XML is
- * generated; a failure there leaves the invoice issued and marked.
+ * generated and signed; a failure there leaves the invoice issued and marked.
  */
 final class IssueInvoice
 {
@@ -129,7 +130,7 @@ final class IssueInvoice
             return $document;
         }, self::ATTEMPTS);
 
-        // 4. After the commit: the XML. It never throws; a failure is recorded on the invoice.
+        // 4. After the commit: the signed XML. It never throws; a failure is recorded on the invoice.
         return $this->xml->generate($document);
     }
 
@@ -184,7 +185,7 @@ final class IssueInvoice
         $errors = array_merge(
             $errors,
             $this->staleRates($lines, $withholdings),
-            $this->requirements->missing($this->currentCompany->company(), $settings, $this->numbering($document), $document->contact),
+            $this->requirements->missing($this->currentCompany->company(), $settings, SigningCertificate::current(), $this->numbering($document), $document->contact),
         );
 
         if ($errors !== []) {

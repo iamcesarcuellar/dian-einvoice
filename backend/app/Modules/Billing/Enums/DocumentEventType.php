@@ -10,5 +10,6 @@ enum DocumentEventType: string
     case Created = 'created';
     case Issued = 'issued';
     case XmlGenerated = 'xml_generated';
+    case XmlSigned = 'xml_signed';
     case XmlFailed = 'xml_failed';
 }

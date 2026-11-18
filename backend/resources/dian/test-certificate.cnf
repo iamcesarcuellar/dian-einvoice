@@ -1,0 +1,13 @@
+# OpenSSL configuration of the synthetic self-signed test certificates this project generates.
+# They are not issued by an accredited certification authority and the DIAN does not accept them.
+
+[ req ]
+distinguished_name = req_distinguished_name
+string_mask = utf8only
+
+[ req_distinguished_name ]
+
+[ test_signing ]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, nonRepudiation
+subjectKeyIdentifier = hash

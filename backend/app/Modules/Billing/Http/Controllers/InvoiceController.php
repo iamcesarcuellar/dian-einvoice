@@ -5,7 +5,6 @@ namespace App\Modules\Billing\Http\Controllers;
 use App\Http\Listing;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
-use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Http\Requests\InvoiceRequest;
 use App\Modules\Billing\Http\Resources\CalculationResource;
 use App\Modules\Billing\Http\Resources\DocumentResource;
@@ -114,12 +113,12 @@ final class InvoiceController
     }
 
     /**
-     * Download the unsigned UBL 2.1 XML, named after the invoice number. Drafts, and invoices
-     * whose XML is pending or failed, answer 409.
+     * Download the signed UBL 2.1 XML, named after the invoice number. Drafts, and invoices whose
+     * XML is pending or failed, answer 409.
      */
     public function xml(Document $invoice, DocumentStorage $storage): Response
     {
-        if ($invoice->xml_status !== XmlStatus::Generated || $invoice->xml_path === null) {
+        if ($invoice->xml_status?->available() !== true || $invoice->xml_path === null) {
             throw new ConflictHttpException($invoice->isDraft()
                 ? 'Drafts have no XML. Issue the invoice first.'
                 : 'The XML of this invoice is not available. Regenerate it.');
@@ -133,8 +132,8 @@ final class InvoiceController
     }
 
     /**
-     * Generate the XML again from the frozen copies of the invoice, such as after a failure.
-     * The result, generated or failed, is in the timeline. Drafts answer 409.
+     * Generate and sign the XML again from the frozen copies of the invoice, such as after a
+     * failure. The result, signed or failed, is in the timeline. Drafts answer 409.
      */
     public function regenerateXml(Request $request, Document $invoice, InvoiceXmlGenerator $generator): DocumentResource
     {

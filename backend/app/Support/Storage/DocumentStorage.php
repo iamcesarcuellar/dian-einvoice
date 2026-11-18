@@ -18,4 +18,10 @@ interface DocumentStorage
 
     /** Removes every file under the prefix, such as everything of one company. */
     public function deletePrefix(string $prefix): void;
+
+    /**
+     * Removes every stored file. Only the demo seeder calls it, right after the database is
+     * recreated, when no stored file belongs to any document any more.
+     */
+    public function purge(): void;
 }

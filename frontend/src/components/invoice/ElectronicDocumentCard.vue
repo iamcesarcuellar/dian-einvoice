@@ -20,7 +20,8 @@ import { useSessionStore } from '@/stores/session'
 
 /**
  * The electronic side of an issued invoice: its CUFE, the QR code of its DIAN verification URL,
- * the environment and its unsigned UBL XML, which can be viewed, downloaded or regenerated.
+ * the environment and its UBL XML signed with the company certificate, which can be viewed,
+ * downloaded or, after a failure, regenerated.
  */
 const props = defineProps<{
   invoice: Invoice
@@ -32,9 +33,13 @@ const session = useSessionStore()
 const { can } = useSession()
 
 const status = computed<XmlStatus>(() => props.invoice.xml.status ?? 'pending')
-const canRegenerate = computed(() => can('manage-documents') && status.value !== 'generated')
 
-const statusVariant: Record<XmlStatus, 'secondary' | 'outline' | 'destructive'> = {
+/** A stored XML exists: the signed one, or an unsigned one from before signing existed. */
+const available = computed(() => status.value === 'signed' || status.value === 'generated')
+const canRegenerate = computed(() => can('manage-documents') && !available.value)
+
+const statusVariant: Record<XmlStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+  signed: 'default',
   generated: 'secondary',
   pending: 'outline',
   failed: 'destructive',
@@ -55,11 +60,13 @@ const failure = computed(() => {
 const xmlDetails = computed(() => {
   const xml = props.invoice.xml
 
-  if (status.value !== 'generated' || xml.size === null) {
+  if (!available.value || xml.size === null) {
     return null
   }
 
-  return t('invoices.dian.xmlDetails', { date: formatDateTime(xml.generated_at), size: formatInteger(xml.size) })
+  return status.value === 'signed'
+    ? t('invoices.dian.signedDetails', { date: formatDateTime(xml.signed_at), size: formatInteger(xml.size) })
+    : t('invoices.dian.xmlDetails', { date: formatDateTime(xml.generated_at), size: formatInteger(xml.size) })
 })
 
 // Copying the CUFE.
@@ -136,6 +143,10 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
           <div class="grid gap-1.5">
             <p class="text-xs text-muted-foreground">{{ t('invoices.dian.xml') }}</p>
             <p v-if="xmlDetails" class="text-sm">{{ xmlDetails }}</p>
+            <p v-if="status === 'signed' && invoice.xml.certificate_serial" class="text-sm text-muted-foreground">
+              {{ t('invoices.dian.certificateSerial') }}
+              <span class="font-mono text-xs break-all text-foreground">{{ invoice.xml.certificate_serial }}</span>
+            </p>
             <p v-else-if="status === 'pending'" class="text-sm text-muted-foreground">{{ t('invoices.dian.xmlPending') }}</p>
             <Alert v-if="status === 'failed'" variant="destructive">
               <TriangleAlertIcon />
@@ -147,11 +158,11 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" :disabled="status !== 'generated'" @click="viewOpen = true">
+            <Button variant="outline" size="sm" :disabled="!available" @click="viewOpen = true">
               <EyeIcon />
               {{ t('invoices.dian.viewXml') }}
             </Button>
-            <Button variant="outline" size="sm" :disabled="status !== 'generated' || download.isPending.value" @click="download.mutate()">
+            <Button variant="outline" size="sm" :disabled="!available || download.isPending.value" @click="download.mutate()">
               <DownloadIcon />
               {{ t('invoices.dian.downloadXml') }}
             </Button>

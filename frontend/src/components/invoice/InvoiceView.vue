@@ -100,6 +100,8 @@ function eventLabel(event: DocumentEvent): string {
       return t('invoices.view.events.issued', { number: String(event.payload?.full_number ?? '') })
     case 'xml_generated':
       return t('invoices.view.events.xmlGenerated')
+    case 'xml_signed':
+      return t('invoices.view.events.xmlSigned')
     case 'xml_failed':
       return t('invoices.view.events.xmlFailed')
     default:
@@ -107,9 +109,14 @@ function eventLabel(event: DocumentEvent): string {
   }
 }
 
-/** The reason of a failed XML generation, shown under its timeline entry. */
+/** Shown under a timeline entry: the certificate that signed, or why the XML failed. */
 function eventDetail(event: DocumentEvent): string | null {
   const reason = event.payload?.reason
+  const serial = event.payload?.certificate_serial
+
+  if (event.type === 'xml_signed' && typeof serial === 'string') {
+    return t(event.payload?.test_certificate === true ? 'invoices.view.events.signedWithTest' : 'invoices.view.events.signedWith', { serial })
+  }
 
   return event.type === 'xml_failed' && typeof reason === 'string' ? reason : null
 }
@@ -216,7 +223,13 @@ function eventDetail(event: DocumentEvent): string | null {
               />
               <div class="grid gap-0.5">
                 <p class="font-medium">{{ eventLabel(event) }}</p>
-                <p v-if="eventDetail(event)" class="font-mono text-xs break-words text-destructive">{{ eventDetail(event) }}</p>
+                <p
+                  v-if="eventDetail(event)"
+                  class="text-xs break-words"
+                  :class="event.type === 'xml_failed' ? 'font-mono text-destructive' : 'text-muted-foreground'"
+                >
+                  {{ eventDetail(event) }}
+                </p>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDateTime(event.occurred_at) }}
                   <template v-if="event.actor">· {{ t('invoices.view.by', { name: event.actor.name }) }}</template>

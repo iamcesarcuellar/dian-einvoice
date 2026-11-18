@@ -11,6 +11,7 @@ use App\Modules\Billing\Services\IssueInvoice;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Tax;
 use App\Modules\Dian\Models\DianSetting;
+use App\Modules\Dian\Services\SigningCertificates;
 use App\Modules\Identity\Actions\CreateCompany;
 use App\Modules\Identity\Enums\Role;
 use App\Modules\Identity\Models\Company;
@@ -41,7 +42,7 @@ final class StressNumberingCommand extends Command
 
     protected $description = 'Issue invoices from parallel processes on a temporary company and check the numbering has no gaps or repeats';
 
-    public function handle(CreateCompany $createCompany, InvoiceDrafts $drafts, IssueInvoice $issue, CurrentCompany $currentCompany): int
+    public function handle(CreateCompany $createCompany, InvoiceDrafts $drafts, IssueInvoice $issue, CurrentCompany $currentCompany, SigningCertificates $certificates): int
     {
         if (! function_exists('pcntl_fork')) {
             $this->error('The pcntl extension is missing; rebuild the api image with make up.');
@@ -61,7 +62,7 @@ final class StressNumberingCommand extends Command
         $company = null;
 
         try {
-            // A complete tax profile and synthetic DIAN software: issuing requires both.
+            // A complete tax profile, synthetic DIAN software and a test certificate: issuing requires them.
             $company = $createCompany($user, [
                 'name' => 'Stress Test '.Carbon::now()->format('His'),
                 'identification_number' => $this->freeNit(),
@@ -82,6 +83,7 @@ final class StressNumberingCommand extends Command
             $currentCompany->set($membership);
 
             DianSetting::create(['software_id' => (string) Str::uuid(), 'software_pin' => Str::random(8)]);
+            $certificates->generateTest($company);
 
             $template = $this->createNumbering();
             $customer = Contact::query()->where('is_system', true)->firstOrFail();
@@ -246,7 +248,7 @@ final class StressNumberingCommand extends Command
      */
     private function deleteCompany(string $companyId): void
     {
-        foreach (['outbox_events', 'documents', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'dian_settings', 'memberships'] as $table) {
+        foreach (['outbox_events', 'documents', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'dian_settings', 'signing_certificates', 'key_store_entries', 'memberships'] as $table) {
             DB::table($table)->where('company_id', $companyId)->delete();
         }
 

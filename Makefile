@@ -47,7 +47,7 @@ demo: up
 stress:
 	$(COMPOSE) exec api php artisan billing:stress --invoices=$(INVOICES) --concurrency=$(CONCURRENCY)
 
-# Compare the CUFE of the DIAN annex example with its published result and validate the XML of an issued demo invoice against the official XSD.
+# Check the CUFE against the DIAN annex example, validate an issued demo invoice XML against the official XSD, sign it and verify the signature with xmlsec1 (and that a tampered copy fails).
 dian-check:
 	$(COMPOSE) exec api php artisan dian:check
 

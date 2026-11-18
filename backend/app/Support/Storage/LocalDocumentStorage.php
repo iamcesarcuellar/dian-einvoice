@@ -39,6 +39,19 @@ final class LocalDocumentStorage implements DocumentStorage
         $this->disk()->deleteDirectory($prefix);
     }
 
+    public function purge(): void
+    {
+        $disk = $this->disk();
+
+        foreach ($disk->directories() as $directory) {
+            $disk->deleteDirectory($directory);
+        }
+
+        foreach ($disk->files() as $file) {
+            $disk->delete($file);
+        }
+    }
+
     private function disk(): Filesystem
     {
         return Storage::disk(self::DISK);

@@ -63,9 +63,9 @@ final class DemoSeeder extends Seeder
         ],
         'services' => [
             ['S-101', 'Accounting advisory', 'service', 'HUR', '180000', 'IVA 19%'],
-            ['S-102', 'Monthly bookkeeping', 'service', 'MON', '1200000', 'IVA 19%'],
-            ['S-103', 'Payroll processing', 'service', 'MON', '650000', 'IVA 19%'],
-            ['S-104', 'Software support plan', 'service', 'ANN', '4800000', 'IVA 19%'],
+            ['S-102', 'Monthly bookkeeping', 'service', '94', '1200000', 'IVA 19%'],
+            ['S-103', 'Payroll processing', 'service', '94', '650000', 'IVA 19%'],
+            ['S-104', 'Software support plan', 'service', '94', '4800000', 'IVA 19%'],
             ['S-105', 'Training workshop', 'service', 'DAY', '950000', 'IVA 19%'],
             ['S-106', 'Legal consultation', 'service', 'HUR', '250000.50', 'IVA 19%'],
             ['S-107', 'Occupational safety course', 'service', 'HUR', '120000', null],

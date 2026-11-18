@@ -47,12 +47,15 @@ return new class extends Migration
             $table->string('qr_url')->nullable()->comment('DIAN verification URL, drawn as the QR code');
             $table->unsignedTinyInteger('dian_environment')->nullable()->comment('2: habilitación (test)');
             $table->json('dian_snapshot')->nullable()->comment('Software data the XML uses, frozen on issue');
-            // Unsigned UBL 2.1 XML, generated after the issue is committed.
-            $table->string('xml_status', 20)->nullable()->comment('pending, generated or failed; null for drafts');
+            // UBL 2.1 XML, generated and signed (XAdES-EPES) after the issue is committed. Only the
+            // signed XML is stored.
+            $table->string('xml_status', 20)->nullable()->comment('pending, generated, signed or failed; null for drafts');
             $table->string('xml_path')->nullable()->comment('Path in the private document storage');
-            $table->char('xml_sha256', 64)->nullable();
-            $table->unsignedInteger('xml_size')->nullable()->comment('Bytes');
+            $table->char('xml_sha256', 64)->nullable()->comment('Of the stored (signed) XML');
+            $table->unsignedInteger('xml_size')->nullable()->comment('Bytes of the stored (signed) XML');
             $table->timestamp('xml_generated_at')->nullable();
+            $table->timestamp('xml_signed_at')->nullable()->comment('xades:SigningTime');
+            $table->string('signing_certificate_serial', 100)->nullable()->comment('Decimal serial number of the certificate that signed');
             $table->foreignUlid('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
