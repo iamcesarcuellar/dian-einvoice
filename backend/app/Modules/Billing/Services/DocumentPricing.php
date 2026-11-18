@@ -30,6 +30,8 @@ final class DocumentPricing
         'item_id',
         'code',
         'description',
+        'standard_scheme',
+        'standard_code',
         'unit_code',
         'quantity',
         'unit_price',
@@ -71,6 +73,9 @@ final class DocumentPricing
                 'item_id' => $item?->getKey(),
                 'code' => $line['code'] ?? $item?->code,
                 'description' => $line['description'] ?? $item?->name,
+                // The product standard always comes from the item; free lines have none.
+                'standard_scheme' => $item?->standard_scheme,
+                'standard_code' => $item?->standard_code,
                 'unit_code' => $line['unit_code'] ?? $item?->unit_code->value ?? UnitOfMeasure::Unit->value,
                 'quantity' => (string) ($line['quantity'] ?? '0'),
                 'unit_price' => (string) ($line['unit_price'] ?? $item?->unit_price ?? '0'),

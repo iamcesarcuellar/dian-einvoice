@@ -10,6 +10,7 @@ const tabs = [
   { name: 'taxes', label: 'settings.tabs.taxes' },
   { name: 'withholdings', label: 'settings.tabs.withholdings' },
   { name: 'numbering', label: 'settings.tabs.numbering' },
+  { name: 'dian-settings', label: 'settings.tabs.dian' },
 ]
 </script>
 

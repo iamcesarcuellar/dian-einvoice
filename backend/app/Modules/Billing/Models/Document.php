@@ -4,6 +4,7 @@ namespace App\Modules\Billing\Models;
 
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Tenancy\BelongsToCompany;
@@ -16,8 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * An invoice now; credit and debit notes from stage 8. A draft is editable and has no number;
- * once issued it is numbered, its copies of the company, customer and numbering are frozen and
- * it can no longer change.
+ * once issued it is numbered, its copies of the company, customer and numbering are frozen, it
+ * gets its CUFE and it can no longer change. Its UBL XML is built from those copies only.
  */
 class Document extends Model
 {
@@ -48,6 +49,7 @@ class Document extends Model
         'full_number',
         'contact_id',
         'issue_date',
+        'issue_time',
         'issued_at',
         'due_date',
         'payment_form',
@@ -58,6 +60,16 @@ class Document extends Model
         'company_snapshot',
         'customer_snapshot',
         'numbering_snapshot',
+        'cufe',
+        'software_security_code',
+        'qr_url',
+        'dian_environment',
+        'dian_snapshot',
+        'xml_status',
+        'xml_path',
+        'xml_sha256',
+        'xml_size',
+        'xml_generated_at',
         'created_by',
     ];
 
@@ -85,6 +97,11 @@ class Document extends Model
             'company_snapshot' => 'array',
             'customer_snapshot' => 'array',
             'numbering_snapshot' => 'array',
+            'dian_environment' => 'integer',
+            'dian_snapshot' => 'array',
+            'xml_status' => XmlStatus::class,
+            'xml_size' => 'integer',
+            'xml_generated_at' => 'datetime',
         ];
     }
 

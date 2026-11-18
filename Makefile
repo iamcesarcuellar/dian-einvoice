@@ -9,7 +9,7 @@ COMPOSE := docker compose
 INVOICES ?= 60
 CONCURRENCY ?= 20
 
-.PHONY: up down logs ps seed demo stress clean nuke sh-api sh-web screenshots
+.PHONY: up down logs ps seed demo stress dian-check clean nuke sh-api sh-web screenshots
 
 # Build images if needed, start the stack, wait for the database, install missing dependencies, generate the key and migrate.
 up:
@@ -46,6 +46,10 @@ demo: up
 # Issue INVOICES invoices from CONCURRENCY parallel processes on a temporary company and check the numbers have no gaps or repeats.
 stress:
 	$(COMPOSE) exec api php artisan billing:stress --invoices=$(INVOICES) --concurrency=$(CONCURRENCY)
+
+# Compare the CUFE of the DIAN annex example with its published result and validate the XML of an issued demo invoice against the official XSD.
+dian-check:
+	$(COMPOSE) exec api php artisan dian:check
 
 # Remove this project's containers and volumes, which deletes the database.
 clean:

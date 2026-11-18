@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('full_number', 24)->nullable()->comment('Prefix and number');
             $table->foreignUlid('contact_id')->nullable()->constrained()->restrictOnDelete();
             $table->date('issue_date')->nullable()->comment('Colombian calendar date of issue');
+            $table->string('issue_time', 14)->nullable()->comment('Colombian time of issue with its offset, such as 09:20:00-05:00');
             $table->timestamp('issued_at')->nullable()->comment('Instant of issue, in UTC');
             $table->date('due_date')->nullable();
             $table->char('payment_form', 1)->nullable()->comment('DIAN payment form: 1 cash, 2 credit');
@@ -40,6 +41,18 @@ return new class extends Migration
             $table->json('company_snapshot')->nullable()->comment('Company tax data, frozen on issue');
             $table->json('customer_snapshot')->nullable()->comment('Customer data, frozen on issue');
             $table->json('numbering_snapshot')->nullable()->comment('Resolution, prefix, range and validity, frozen on issue');
+            // DIAN values, set on issue (annex 1.9).
+            $table->char('cufe', 96)->nullable()->unique()->comment('SHA-384 hex of the CUFE fields');
+            $table->char('software_security_code', 96)->nullable()->comment('SHA-384 hex of software ID, PIN and number');
+            $table->string('qr_url')->nullable()->comment('DIAN verification URL, drawn as the QR code');
+            $table->unsignedTinyInteger('dian_environment')->nullable()->comment('2: habilitación (test)');
+            $table->json('dian_snapshot')->nullable()->comment('Software data the XML uses, frozen on issue');
+            // Unsigned UBL 2.1 XML, generated after the issue is committed.
+            $table->string('xml_status', 20)->nullable()->comment('pending, generated or failed; null for drafts');
+            $table->string('xml_path')->nullable()->comment('Path in the private document storage');
+            $table->char('xml_sha256', 64)->nullable();
+            $table->unsignedInteger('xml_size')->nullable()->comment('Bytes');
+            $table->timestamp('xml_generated_at')->nullable();
             $table->foreignUlid('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
@@ -57,6 +70,8 @@ return new class extends Migration
             // The line keeps its own copy of the item and tax data: later changes to them do not alter it.
             $table->string('code', 50)->nullable();
             $table->string('description', 500)->nullable();
+            $table->string('standard_scheme', 20)->nullable()->comment('Product standard of the item, such as UNSPSC');
+            $table->string('standard_code', 50)->nullable();
             $table->string('unit_code', 3)->nullable();
             $table->decimal('quantity', 18, 6)->default(0);
             $table->decimal('unit_price', 18, 6)->default(0);

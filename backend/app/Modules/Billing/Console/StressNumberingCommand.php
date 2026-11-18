@@ -10,12 +10,17 @@ use App\Modules\Billing\Services\InvoiceDrafts;
 use App\Modules\Billing\Services\IssueInvoice;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Tax;
+use App\Modules\Dian\Models\DianSetting;
 use App\Modules\Identity\Actions\CreateCompany;
 use App\Modules\Identity\Enums\Role;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\Membership;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Tenancy\CurrentCompany;
+use App\Modules\Reference\Enums\FiscalResponsibility;
+use App\Modules\Reference\Enums\OrganizationType;
+use App\Modules\Reference\Enums\TaxScheme;
+use App\Support\Storage\DocumentStorage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -56,9 +61,16 @@ final class StressNumberingCommand extends Command
         $company = null;
 
         try {
+            // A complete tax profile and synthetic DIAN software: issuing requires both.
             $company = $createCompany($user, [
                 'name' => 'Stress Test '.Carbon::now()->format('His'),
                 'identification_number' => $this->freeNit(),
+                'organization_type' => OrganizationType::LegalEntity->value,
+                'tax_scheme' => TaxScheme::Iva->value,
+                'fiscal_responsibilities' => [FiscalResponsibility::NotApplicable->value],
+                'email' => 'stress@example.com',
+                'address' => 'Carrera 1 # 1-01',
+                'municipality_code' => '05001',
             ]);
 
             $membership = Membership::query()
@@ -68,6 +80,8 @@ final class StressNumberingCommand extends Command
                 ->firstOrFail();
 
             $currentCompany->set($membership);
+
+            DianSetting::create(['software_id' => (string) Str::uuid(), 'software_pin' => Str::random(8)]);
 
             $template = $this->createNumbering();
             $customer = Contact::query()->where('is_system', true)->firstOrFail();
@@ -227,15 +241,17 @@ final class StressNumberingCommand extends Command
     }
 
     /**
-     * Deletes the temporary company. Documents go first: they hold restrictive keys on contacts,
-     * items, taxes, withholdings and numbering.
+     * Deletes the temporary company and the XML files of its invoices. Documents go first: they
+     * hold restrictive keys on contacts, items, taxes, withholdings and numbering.
      */
     private function deleteCompany(string $companyId): void
     {
-        foreach (['outbox_events', 'documents', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'memberships'] as $table) {
+        foreach (['outbox_events', 'documents', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'dian_settings', 'memberships'] as $table) {
             DB::table($table)->where('company_id', $companyId)->delete();
         }
 
         DB::table('companies')->where('id', $companyId)->delete();
+
+        app(DocumentStorage::class)->deletePrefix($companyId);
     }
 }

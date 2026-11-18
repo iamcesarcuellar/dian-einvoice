@@ -22,6 +22,8 @@ class DocumentLine extends Model
         'item_id',
         'code',
         'description',
+        'standard_scheme',
+        'standard_code',
         'unit_code',
         'quantity',
         'unit_price',

@@ -101,8 +101,7 @@ async function send(method: Method, path: string, body: unknown, query?: QueryPa
   })
 }
 
-/** Calls the API under /api/v1 and returns the JSON body. Throws ApiError on HTTP errors. */
-export async function request<T>(method: Method, path: string, body?: unknown, query?: QueryParams): Promise<T> {
+async function sendChecked(method: Method, path: string, body?: unknown, query?: QueryParams): Promise<Response> {
   let response = await send(method, path, body, query)
 
   // The CSRF token expired or was replaced: fetch a fresh cookie and retry once.
@@ -115,9 +114,34 @@ export async function request<T>(method: Method, path: string, body?: unknown, q
     throw await toApiError(response)
   }
 
+  return response
+}
+
+/** Calls the API under /api/v1 and returns the JSON body. Throws ApiError on HTTP errors. */
+export async function request<T>(method: Method, path: string, body?: unknown, query?: QueryParams): Promise<T> {
+  const response = await sendChecked(method, path, body, query)
+
   if (response.status === 204) {
     return undefined as T
   }
 
   return (await response.json()) as T
+}
+
+/** GETs a file from the API, such as an XML document, as text. Throws ApiError on HTTP errors. */
+export async function requestText(path: string): Promise<string> {
+  return (await sendChecked('GET', path)).text()
+}
+
+/** Hands text to the browser as a file download. */
+export function saveTextFile(contents: string, fileName: string, type: string): void {
+  const url = URL.createObjectURL(new Blob([contents], { type }))
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = fileName
+  link.click()
+
+  // Released once the browser has taken the file.
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

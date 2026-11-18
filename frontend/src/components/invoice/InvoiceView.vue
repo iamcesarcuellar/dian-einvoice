@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import FormSection from '@/components/FormSection.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
+import ElectronicDocumentCard from '@/components/invoice/ElectronicDocumentCard.vue'
 import TotalsPanel from '@/components/invoice/TotalsPanel.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import {
@@ -94,9 +95,23 @@ const numbering = computed(() => {
 })
 
 function eventLabel(event: DocumentEvent): string {
-  return event.type === 'issued'
-    ? t('invoices.view.events.issued', { number: String(event.payload?.full_number ?? '') })
-    : t('invoices.view.events.created')
+  switch (event.type) {
+    case 'issued':
+      return t('invoices.view.events.issued', { number: String(event.payload?.full_number ?? '') })
+    case 'xml_generated':
+      return t('invoices.view.events.xmlGenerated')
+    case 'xml_failed':
+      return t('invoices.view.events.xmlFailed')
+    default:
+      return t('invoices.view.events.created')
+  }
+}
+
+/** The reason of a failed XML generation, shown under its timeline entry. */
+function eventDetail(event: DocumentEvent): string | null {
+  const reason = event.payload?.reason
+
+  return event.type === 'xml_failed' && typeof reason === 'string' ? reason : null
 }
 </script>
 
@@ -151,6 +166,8 @@ function eventLabel(event: DocumentEvent): string {
           </dl>
         </FormSection>
 
+        <ElectronicDocumentCard v-if="invoice.status === 'issued'" :invoice="invoice" />
+
         <FormSection :title="t('invoices.view.lines')">
           <div class="-mx-6 overflow-x-auto">
             <Table>
@@ -192,9 +209,14 @@ function eventLabel(event: DocumentEvent): string {
         <FormSection :title="t('invoices.view.timeline')">
           <ol class="grid gap-4">
             <li v-for="event in invoice.events ?? []" :key="event.id" class="flex gap-3">
-              <span class="mt-1.5 size-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+              <span
+                class="mt-1.5 size-2 shrink-0 rounded-full"
+                :class="event.type === 'xml_failed' ? 'bg-destructive' : 'bg-primary'"
+                aria-hidden="true"
+              />
               <div class="grid gap-0.5">
                 <p class="font-medium">{{ eventLabel(event) }}</p>
+                <p v-if="eventDetail(event)" class="font-mono text-xs break-words text-destructive">{{ eventDetail(event) }}</p>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDateTime(event.occurred_at) }}
                   <template v-if="event.actor">· {{ t('invoices.view.by', { name: event.actor.name }) }}</template>

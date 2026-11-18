@@ -318,12 +318,26 @@ export interface DocumentLine {
   tax_amount: string
 }
 
+export type DocumentEventType = 'created' | 'issued' | 'xml_generated' | 'xml_failed'
+
 export interface DocumentEvent {
   id: string
-  type: 'created' | 'issued'
+  type: DocumentEventType
+  /** xml_failed carries { reason }; xml_generated carries { sha256, size }. */
   payload: Record<string, unknown> | null
   occurred_at: string
   actor: { id: string, name: string } | null
+}
+
+/** Unsigned UBL 2.1 XML of an issued document; null for drafts. */
+export type XmlStatus = 'pending' | 'generated' | 'failed'
+
+export interface DocumentXml {
+  status: XmlStatus | null
+  file_name: string | null
+  size: number | null
+  sha256: string | null
+  generated_at: string | null
 }
 
 /** A party as it was frozen on an issued document. */
@@ -363,7 +377,7 @@ export interface Invoice {
   contact_id: string | null
   contact?: Contact | null
   customer_name: string | null
-  /** Colombian date and time of issue. */
+  /** Colombian date of issue, and time with its offset, such as 10:53:10-05:00. */
   issue_date: string | null
   issue_time: string | null
   issued_at: string | null
@@ -380,8 +394,34 @@ export interface Invoice {
   company_snapshot: PartySnapshot | null
   customer_snapshot: PartySnapshot | null
   numbering_snapshot: NumberingSnapshot | null
+  /** Set on issue: SHA-384 code of the invoice, in lowercase hexadecimal. */
+  cufe: string | null
+  /** DIAN verification URL, drawn as the QR code. */
+  qr_url: string | null
+  /** Always 2, the habilitación (test) environment. */
+  dian_environment: number | null
+  xml: DocumentXml
   created_at: string
   updated_at: string
+}
+
+/** DIAN settings of the company, for owners and admins. */
+export interface DianSettings {
+  /** Always 2, habilitación (test): production is not part of this project. */
+  environment: number
+  environment_name: string
+  software_id: string | null
+  /** The PIN itself is never returned. */
+  software_pin_set: boolean
+  test_set_id: string | null
+  updated_at: string | null
+}
+
+export interface DianSettingsInput {
+  software_id: string | null
+  /** Write-only: leave it out to keep the stored PIN. */
+  software_pin?: string | null
+  test_set_id: string | null
 }
 
 export interface InvoiceLineInput {

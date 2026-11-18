@@ -1,4 +1,4 @@
-import { request } from './client'
+import { request, requestText } from './client'
 import type {
   Calculation,
   Contact,
@@ -56,8 +56,18 @@ export const invoicesApi = {
     return (await request<DataEnvelope<Calculation>>('POST', '/invoices/preview', input)).data
   },
 
-  /** Assigns the next number and makes the invoice final. */
+  /** Assigns the next number and the CUFE, makes the invoice final and generates its XML. */
   async issue(id: string): Promise<Invoice> {
     return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/issue`)).data
+  },
+
+  /** The unsigned UBL 2.1 XML of an issued invoice. */
+  xml(id: string): Promise<string> {
+    return requestText(`/invoices/${id}/xml`)
+  },
+
+  /** Generates the XML again, such as after a failure. */
+  async regenerateXml(id: string): Promise<Invoice> {
+    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/xml/regenerate`)).data
   },
 }

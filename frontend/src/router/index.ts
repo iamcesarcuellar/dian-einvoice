@@ -111,6 +111,12 @@ export const router = createRouter({
               component: () => import('@/pages/NumberingPage.vue'),
               meta: { title: 'settings.tabs.numbering' },
             },
+            {
+              path: 'dian',
+              name: 'dian-settings',
+              component: () => import('@/pages/DianSettingsPage.vue'),
+              meta: { title: 'settings.tabs.dian' },
+            },
           ],
         },
       ],

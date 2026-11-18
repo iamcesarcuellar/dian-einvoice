@@ -16,6 +16,7 @@ import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import FormSection from '@/components/FormSection.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
+import IssueDialog from '@/components/invoice/IssueDialog.vue'
 import {
   CREDIT,
   emptyInvoiceForm,
@@ -539,12 +540,10 @@ onBeforeUnmount(() => clearTimeout(savedTimer))
       </div>
     </div>
 
-    <ConfirmDialog
+    <IssueDialog
       v-model:open="issueOpen"
-      :title="t('invoices.editor.issueTitle')"
-      :description="t('invoices.editor.issueDescription', { numbering: numberingName })"
-      :confirm-label="issuing.isPending.value ? t('invoices.editor.issuing') : t('invoices.editor.issue')"
-      variant="default"
+      :numbering="numberingName"
+      :customer-id="form.contact?.id ?? null"
       :pending="issuing.isPending.value"
       :error="issuing.error.value"
       @confirm="issuing.mutate()"

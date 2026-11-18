@@ -5,6 +5,7 @@ namespace App\Modules\Billing\Http\Controllers;
 use App\Http\Listing;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Http\Requests\InvoiceRequest;
 use App\Modules\Billing\Http\Resources\CalculationResource;
 use App\Modules\Billing\Http\Resources\DocumentResource;
@@ -12,12 +13,15 @@ use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Services\DocumentPricing;
 use App\Modules\Billing\Services\InvoiceDrafts;
 use App\Modules\Billing\Services\IssueInvoice;
+use App\Modules\Dian\Services\InvoiceXmlGenerator;
+use App\Support\Storage\DocumentStorage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 /**
  * Invoices of the current company: drafts that can change, and issued invoices that cannot.
@@ -107,6 +111,38 @@ final class InvoiceController
     public function issue(Request $request, Document $invoice, IssueInvoice $issue): DocumentResource
     {
         return DocumentResource::make($this->withDetails($issue($invoice->getKey(), $request->user())));
+    }
+
+    /**
+     * Download the unsigned UBL 2.1 XML, named after the invoice number. Drafts, and invoices
+     * whose XML is pending or failed, answer 409.
+     */
+    public function xml(Document $invoice, DocumentStorage $storage): Response
+    {
+        if ($invoice->xml_status !== XmlStatus::Generated || $invoice->xml_path === null) {
+            throw new ConflictHttpException($invoice->isDraft()
+                ? 'Drafts have no XML. Issue the invoice first.'
+                : 'The XML of this invoice is not available. Regenerate it.');
+        }
+
+        return response($storage->get($invoice->xml_path), 200, [
+            'Content-Type' => 'application/xml; charset=UTF-8',
+            'Content-Disposition' => sprintf('attachment; filename="%s.xml"', $invoice->full_number),
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * Generate the XML again from the frozen copies of the invoice, such as after a failure.
+     * The result, generated or failed, is in the timeline. Drafts answer 409.
+     */
+    public function regenerateXml(Request $request, Document $invoice, InvoiceXmlGenerator $generator): DocumentResource
+    {
+        if ($invoice->isDraft()) {
+            throw new ConflictHttpException('Drafts have no XML. Issue the invoice first.');
+        }
+
+        return DocumentResource::make($this->withDetails($generator->generate($invoice, $request->user())));
     }
 
     private function withDetails(Document $document): Document

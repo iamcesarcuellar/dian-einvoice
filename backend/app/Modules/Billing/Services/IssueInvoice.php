@@ -6,9 +6,16 @@ use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\NumberingStatus;
+use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\DocumentEvent;
 use App\Modules\Billing\Models\NumberTemplate;
+use App\Modules\Catalog\Models\Tax;
+use App\Modules\Catalog\Models\Withholding;
+use App\Modules\Dian\Models\DianSetting;
+use App\Modules\Dian\Services\InvoiceStamp;
+use App\Modules\Dian\Services\InvoiceXmlGenerator;
+use App\Modules\Dian\Services\IssueRequirements;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Modules\Reference\Enums\PaymentForm;
@@ -22,8 +29,9 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 /**
  * Issues a draft invoice in one database transaction. It locks the document row, then the
  * numbering row (always in that order, so concurrent issues queue instead of deadlocking), takes
- * the next number and freezes the copies. Any failure rolls everything back, so a number is never
- * skipped or repeated. Deadlocks are retried.
+ * the next number, freezes the copies and stamps the CUFE. Any failure rolls everything back, so a
+ * number is never skipped or repeated. Deadlocks are retried. Once committed, the UBL XML is
+ * generated; a failure there leaves the invoice issued and marked.
  */
 final class IssueInvoice
 {
@@ -35,11 +43,14 @@ final class IssueInvoice
         private readonly DocumentSnapshots $snapshots,
         private readonly CurrentCompany $currentCompany,
         private readonly Outbox $outbox,
+        private readonly IssueRequirements $requirements,
+        private readonly InvoiceStamp $stamp,
+        private readonly InvoiceXmlGenerator $xml,
     ) {}
 
     public function __invoke(string $documentId, ?User $actor = null): Document
     {
-        return DB::transaction(function () use ($documentId, $actor): Document {
+        $document = DB::transaction(function () use ($documentId, $actor): Document {
             // 1. The document. A second click waits here, then finds it issued.
             $document = Document::query()->whereKey($documentId)->lockForUpdate()->firstOrFail();
 
@@ -49,15 +60,20 @@ final class IssueInvoice
 
             $document->load('contact.municipality.department');
 
-            // The system sets the moment of issue: Colombian date, UTC instant.
+            // The system sets the moment of issue: Colombian date and time with its offset, UTC instant.
             $now = Carbon::now();
-            $today = $now->copy()->setTimezone(NumberTemplate::TIMEZONE)->toDateString();
+            $local = $now->copy()->setTimezone(NumberTemplate::TIMEZONE);
+            $today = $local->toDateString();
 
+            $company = $this->currentCompany->company();
+            $settings = DianSetting::current();
             $lines = $this->pricing->storedLines($document);
             $withholdings = $this->pricing->storedWithholdings($document);
-            $this->validate($document, $lines, $today);
 
-            // Totals are recalculated on the server from the line copies. Nothing is written yet.
+            $this->validate($document, $lines, $withholdings, $today, $settings);
+
+            // Totals are recalculated on the server from the line copies, which were just checked
+            // against the current taxes and withholdings. Nothing is written yet.
             if (! $this->pricing->calculate($lines, $withholdings)->totals->payableAmount->isPositive()) {
                 throw ValidationException::withMessages(['lines' => ['The total must be greater than zero.']]);
             }
@@ -80,16 +96,21 @@ final class IssueInvoice
                 'number' => $number,
                 'full_number' => $prefix.$number,
                 'issue_date' => $today,
+                'issue_time' => $local->format('H:i:sP'),
                 'issued_at' => $now,
-                'company_snapshot' => $this->snapshots->company($this->currentCompany->company()),
+                'company_snapshot' => $this->snapshots->company($company),
                 'customer_snapshot' => $this->snapshots->customer($document->contact),
                 'numbering_snapshot' => $this->snapshots->numbering($template),
-            ])->save();
+                'xml_status' => XmlStatus::Pending,
+            ]);
+
+            // 3. CUFE, software security code, QR URL and environment, from what was just frozen.
+            $document->fill($this->stamp->stamp($document, $template, $settings))->save();
 
             DocumentEvent::create([
                 'document_id' => $document->getKey(),
                 'type' => DocumentEventType::Issued,
-                'payload' => ['number' => $number, 'full_number' => $document->full_number],
+                'payload' => ['number' => $number, 'full_number' => $document->full_number, 'cufe' => $document->cufe],
                 'occurred_at' => $now,
                 'actor_id' => $actor?->getKey(),
             ]);
@@ -97,6 +118,7 @@ final class IssueInvoice
             $this->outbox->record($document->company_id, 'document', $document->getKey(), 'invoice.issued', [
                 'document_id' => $document->getKey(),
                 'full_number' => $document->full_number,
+                'cufe' => $document->cufe,
                 'issue_date' => $today,
                 'contact_id' => $document->contact_id,
                 'payable_amount' => $document->payable_amount,
@@ -106,12 +128,16 @@ final class IssueInvoice
 
             return $document;
         }, self::ATTEMPTS);
+
+        // 4. After the commit: the XML. It never throws; a failure is recorded on the invoice.
+        return $this->xml->generate($document);
     }
 
     /**
      * @param  list<array<string, mixed>>  $lines
+     * @param  list<array<string, mixed>>  $withholdings
      */
-    private function validate(Document $document, array $lines, string $today): void
+    private function validate(Document $document, array $lines, array $withholdings, string $today, DianSetting $settings): void
     {
         $errors = [];
 
@@ -155,17 +181,97 @@ final class IssueInvoice
             }
         }
 
+        $errors = array_merge(
+            $errors,
+            $this->staleRates($lines, $withholdings),
+            $this->requirements->missing($this->currentCompany->company(), $settings, $this->numbering($document), $document->contact),
+        );
+
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
         }
     }
 
-    private function lockNumbering(Document $document): NumberTemplate
+    /**
+     * Taxes and withholdings copied into the draft that are no longer active, or whose rate
+     * changed since the draft was saved. The draft is never recalculated in silence: the user
+     * reviews it, and saving it again takes the current rates.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @param  list<array<string, mixed>>  $withholdings
+     * @return array<string, list<string>>
+     */
+    private function staleRates(array $lines, array $withholdings): array
     {
-        $id = $document->number_template_id ?? NumberTemplate::query()
+        $errors = [];
+        $taxes = Tax::query()->whereKey(array_filter(array_column($lines, 'tax_id')))->get()->keyBy('id');
+
+        foreach ($lines as $index => $line) {
+            if ($line['tax_id'] === null) {
+                continue;
+            }
+
+            $problem = $this->rateProblem($taxes->get($line['tax_id']), (string) $line['tax_name'], (string) $line['tax_code'], (string) $line['tax_rate']);
+
+            if ($problem !== null) {
+                $errors["lines.{$index}.tax_id"][] = $problem;
+            }
+        }
+
+        $current = Withholding::query()->whereKey(array_filter(array_column($withholdings, 'withholding_id')))->get()->keyBy('id');
+
+        foreach ($withholdings as $index => $withholding) {
+            if ($withholding['withholding_id'] === null) {
+                continue;
+            }
+
+            $problem = $this->rateProblem($current->get($withholding['withholding_id']), (string) $withholding['name'], (string) $withholding['dian_code'], (string) $withholding['rate']);
+
+            if ($problem !== null) {
+                $errors["withholdings.{$index}"][] = $problem;
+            }
+        }
+
+        return $errors;
+    }
+
+    private function rateProblem(Tax|Withholding|null $rate, string $name, string $code, string $copiedRate): ?string
+    {
+        if ($rate === null || ! $rate->is_active) {
+            return "{$name} is no longer active. Review the draft and choose another one.";
+        }
+
+        if ($rate->dian_code->value !== $code || ! BigDecimal::of($rate->rate)->isEqualTo($copiedRate)) {
+            return sprintf(
+                '%s changed from %s %% to %s %% since the draft was saved. Review the draft and save it again.',
+                $name,
+                BigDecimal::of($copiedRate)->strippedOfTrailingZeros(),
+                BigDecimal::of($rate->rate)->strippedOfTrailingZeros(),
+            );
+        }
+
+        return null;
+    }
+
+    /** The numbering the draft will take, read without a lock to check its technical key. */
+    private function numbering(Document $document): ?NumberTemplate
+    {
+        $id = $this->numberingId($document);
+
+        return $id === null ? null : NumberTemplate::query()->find($id);
+    }
+
+    private function numberingId(Document $document): ?string
+    {
+        return $document->number_template_id ?? NumberTemplate::query()
             ->where('document_type', DocumentType::Invoice)
             ->where('is_default', true)
             ->value('id');
+    }
+
+    private function lockNumbering(Document $document): NumberTemplate
+    {
+        $id = $this->numberingId($document);
 
         $template = $id === null ? null : NumberTemplate::query()->whereKey($id)->lockForUpdate()->first();
 
