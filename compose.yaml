@@ -1,0 +1,57 @@
+name: dian-einvoice
+
+# Local development stack. Ports are published on 127.0.0.1 only, in the 8600-8699 range.
+# api and web run with the host user (HOST_UID/HOST_GID, exported by the Makefile) so files in the repo stay yours.
+
+services:
+  api:
+    build:
+      context: ./backend
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 512m
+    volumes:
+      - ./backend:/app
+    ports:
+      - "127.0.0.1:8600:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 1g
+    init: true
+    environment:
+      API_URL: http://api:8000
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "127.0.0.1:8601:5173"
+    depends_on:
+      - api
+
+  db:
+    image: mysql:8.4
+    restart: "no"
+    mem_limit: 1g
+    command: ["--default-time-zone=+00:00"]
+    environment:
+      MYSQL_DATABASE: dian_einvoice
+      MYSQL_USER: dian
+      MYSQL_PASSWORD: dian
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  db-data:

@@ -1,0 +1,26 @@
+# Dependencies, installed inside the containers
+/backend/vendor/
+/frontend/node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Laravel runtime files
+/backend/public/storage
+/backend/storage/*.key
+/backend/storage/app/
+/backend/storage/framework/cache/
+/backend/storage/framework/sessions/
+/backend/storage/framework/testing/
+/backend/storage/logs/
+
+# Frontend build output
+/frontend/dist/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.log
