@@ -28,7 +28,8 @@ class User extends Authenticatable
     }
 
     /**
-     * Companies the user belongs to. Each one carries the membership, with the role, as $company->membership.
+     * Companies the user belongs to, with their municipality. Each one carries the membership,
+     * with the role, as $company->membership.
      *
      * @return BelongsToMany<Company, $this>
      */
@@ -39,6 +40,7 @@ class User extends Authenticatable
             ->as('membership')
             ->withPivot('id', 'role')
             ->withTimestamps()
+            ->with('municipality.department')
             ->orderBy('companies.name');
     }
 

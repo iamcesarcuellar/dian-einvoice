@@ -31,9 +31,9 @@ logs:
 ps:
 	$(COMPOSE) ps
 
-# Load the synthetic demo data; safe to run more than once.
+# Rebuild the database from scratch and load the synthetic demo data; local data is lost.
 seed:
-	$(COMPOSE) exec api php artisan db:seed --force --no-interaction
+	$(COMPOSE) exec api php artisan migrate:fresh --seed --force --no-interaction
 
 # Start the stack and load the synthetic demo data.
 demo: up

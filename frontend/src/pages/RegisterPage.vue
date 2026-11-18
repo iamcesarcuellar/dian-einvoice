@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import { computed, reactive, ref } from 'vue'
+import { useQueryClient } from '@tanstack/vue-query'
+import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
-import { fieldErrors } from '@/api/client'
 import CompanyFields from '@/components/company/CompanyFields.vue'
 import { emptyCompanyForm, toCompanyInput } from '@/components/company/companyForm'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useFormMutation } from '@/composables/useFormMutation'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { queryKeys } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
@@ -23,7 +23,7 @@ const session = useSessionStore()
 const account = reactive({ name: '', email: '', password: '' })
 const company = ref(emptyCompanyForm())
 
-const { mutate, isPending, error } = useMutation({
+const { submit, isPending, error, errors } = useFormMutation({
   mutationFn: () => {
     const { name, legal_name, identification_number, check_digit } = toCompanyInput(company.value)
 
@@ -36,13 +36,11 @@ const { mutate, isPending, error } = useMutation({
     await router.replace({ name: 'dashboard' })
   },
 })
-
-const errors = computed(() => fieldErrors(error.value))
 </script>
 
 <template>
   <AuthLayout :title="t('auth.register.title')" :description="t('auth.register.subtitle')" wide>
-    <form class="grid gap-8" novalidate @submit.prevent="mutate()">
+    <form class="grid gap-8" novalidate @submit.prevent="submit">
       <FormError :error="error" />
 
       <section class="grid gap-4">

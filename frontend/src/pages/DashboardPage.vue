@@ -53,7 +53,7 @@ const firstName = computed(() => user.value?.name.trim().split(/\s+/)[0] ?? '')
           </div>
           <div class="grid gap-1">
             <dt class="text-xs text-muted-foreground">{{ t('dashboard.company.city') }}</dt>
-            <dd class="font-medium">{{ currentCompany.city ?? t('dashboard.company.notSet') }}</dd>
+            <dd class="font-medium">{{ currentCompany.municipality?.name ?? t('dashboard.company.notSet') }}</dd>
           </div>
           <div class="grid gap-1">
             <dt class="text-xs text-muted-foreground">{{ t('dashboard.company.role') }}</dt>

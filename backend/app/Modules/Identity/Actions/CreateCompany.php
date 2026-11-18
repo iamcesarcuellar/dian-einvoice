@@ -3,13 +3,14 @@
 namespace App\Modules\Identity\Actions;
 
 use App\Modules\Identity\Enums\Role;
+use App\Modules\Identity\Events\CompanyCreated;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\Membership;
 use App\Modules\Identity\Models\User;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Creates a company and makes the given user its owner.
+ * Creates a company, makes the given user its owner and lets other modules add its defaults.
  */
 final class CreateCompany
 {
@@ -26,6 +27,8 @@ final class CreateCompany
                 'user_id' => $owner->getKey(),
                 'role' => Role::Owner,
             ]);
+
+            event(new CompanyCreated($company));
 
             return $company;
         });

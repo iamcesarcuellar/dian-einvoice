@@ -3,15 +3,21 @@
 namespace App\Modules\Identity\Models;
 
 use App\Modules\Identity\Support\NitCheckDigit;
+use App\Modules\Reference\Enums\OrganizationType;
+use App\Modules\Reference\Enums\TaxScheme;
+use App\Modules\Reference\Models\Municipality;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * The tenant. Every business record belongs to exactly one company.
+ * The tenant. Every business record belongs to exactly one company. Its country is always CO.
  */
 class Company extends Model
 {
     use HasUlids;
+
+    public const string COUNTRY_CODE = 'CO';
 
     /** @var list<string> */
     protected $fillable = [
@@ -19,10 +25,15 @@ class Company extends Model
         'legal_name',
         'identification_number',
         'check_digit',
+        'organization_type',
+        'tax_scheme',
+        'fiscal_responsibilities',
+        'registration_number',
         'email',
         'phone',
         'address',
-        'city',
+        'municipality_code',
+        'postal_code',
     ];
 
     /**
@@ -32,6 +43,9 @@ class Company extends Model
     {
         return [
             'check_digit' => 'integer',
+            'organization_type' => OrganizationType::class,
+            'tax_scheme' => TaxScheme::class,
+            'fiscal_responsibilities' => 'array',
         ];
     }
 
@@ -45,5 +59,13 @@ class Company extends Model
                 $company->legal_name = $company->name;
             }
         });
+    }
+
+    /**
+     * @return BelongsTo<Municipality, $this>
+     */
+    public function municipality(): BelongsTo
+    {
+        return $this->belongsTo(Municipality::class, 'municipality_code', 'code');
     }
 }

@@ -1,5 +1,15 @@
 export type Role = 'owner' | 'admin' | 'member' | 'viewer'
 
+/** manage-catalog: contacts and items. manage-settings: taxes, withholdings, numbering and the company. */
+export type Permission = 'manage-catalog' | 'manage-settings'
+
+export interface Municipality {
+  code: string
+  name: string
+  department_code: string
+  department_name?: string
+}
+
 export interface Company {
   id: string
   name: string
@@ -8,12 +18,20 @@ export interface Company {
   identification_number: string
   /** Computed by the API with the DIAN modulo 11 algorithm. */
   check_digit: number
+  organization_type: string | null
+  tax_scheme: string | null
+  fiscal_responsibilities: string[]
+  registration_number: string | null
   email: string | null
   phone: string | null
   address: string | null
-  city: string | null
-  /** Role of the signed-in user in this company. */
+  country_code: 'CO'
+  municipality_code: string | null
+  municipality?: Municipality | null
+  postal_code: string | null
+  /** Role of the signed-in user in this company, and what it allows. */
   role?: Role
+  permissions?: Permission[]
   created_at: string
   updated_at: string
 }
@@ -35,10 +53,15 @@ export interface CompanyInput {
   identification_number: string
   /** Optional; when sent it must match the NIT, otherwise the API computes it. */
   check_digit: string | null
+  organization_type: string | null
+  tax_scheme: string | null
+  fiscal_responsibilities: string[] | null
+  registration_number: string | null
   email: string | null
   phone: string | null
   address: string | null
-  city: string | null
+  municipality_code: string | null
+  postal_code: string | null
 }
 
 export type CompanyIdentityInput = Pick<CompanyInput, 'name' | 'legal_name' | 'identification_number' | 'check_digit'>
@@ -53,6 +76,187 @@ export interface RegisterInput {
 export interface LoginInput {
   email: string
   password: string
+}
+
+/** A code list entry from GET /reference, with its English name. */
+export interface CodeOption {
+  code: string
+  name: string
+}
+
+export type WithholdingBase = 'tax' | 'subtotal'
+
+export interface Reference {
+  identification_types: CodeOption[]
+  organization_types: CodeOption[]
+  fiscal_responsibilities: CodeOption[]
+  tax_schemes: CodeOption[]
+  tax_types: CodeOption[]
+  withholding_types: Array<CodeOption & { base: WithholdingBase }>
+  units: CodeOption[]
+  departments: CodeOption[]
+}
+
+export interface PageMeta {
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+  from: number | null
+  to: number | null
+}
+
+export interface Paginated<T> {
+  data: T[]
+  meta: PageMeta
+}
+
+export type QueryParams = Record<string, string | number | undefined>
+
+export interface ListParams extends QueryParams {
+  page?: number
+  per_page?: number
+  search?: string
+}
+
+export interface Contact {
+  id: string
+  organization_type: string
+  identification_type: string
+  identification_number: string
+  /** Only for a NIT. */
+  check_digit: number | null
+  legal_name: string
+  trade_name: string | null
+  tax_scheme: string
+  fiscal_responsibilities: string[]
+  email: string | null
+  phone: string | null
+  address: string | null
+  country_code: string
+  municipality_code: string | null
+  municipality?: Municipality | null
+  postal_code: string | null
+  is_active: boolean
+  /** The final consumer: it cannot be edited or deleted. */
+  is_system: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ContactInput {
+  organization_type: string
+  identification_type: string
+  identification_number: string
+  legal_name: string
+  trade_name: string | null
+  tax_scheme: string
+  fiscal_responsibilities: string[]
+  email: string | null
+  phone: string | null
+  address: string | null
+  country_code: string
+  municipality_code: string | null
+  postal_code: string | null
+  is_active: boolean
+}
+
+/** A tax rate, such as IVA 19 %. Rates are percentage strings with 4 decimals. */
+export interface Tax {
+  id: string
+  dian_code: string
+  name: string
+  rate: string
+  is_active: boolean
+  /** A company default: it can only be activated or deactivated. */
+  is_system: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Withholding extends Tax {
+  base: WithholdingBase
+}
+
+export interface RateInput {
+  dian_code?: string
+  name?: string
+  rate?: string
+  is_active: boolean
+}
+
+export type ItemType = 'product' | 'service'
+
+export interface Item {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  type: ItemType
+  unit_code: string
+  /** Decimal string with 6 decimals. */
+  unit_price: string
+  /** Null means excluded: no tax. */
+  tax_id: string | null
+  tax?: Tax | null
+  standard_scheme: string | null
+  standard_code: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ItemInput {
+  code: string
+  name: string
+  description: string | null
+  type: ItemType
+  unit_code: string
+  unit_price: string
+  tax_id: string | null
+  standard_scheme: string | null
+  standard_code: string | null
+  is_active: boolean
+}
+
+export type DocumentType = 'invoice' | 'credit_note' | 'debit_note'
+
+export type NumberingStatus = 'active' | 'upcoming' | 'expired' | 'exhausted'
+
+export interface NumberTemplate {
+  id: string
+  document_type: DocumentType
+  prefix: string | null
+  from_number: number
+  to_number: number
+  next_number: number
+  resolution_number: string | null
+  valid_from: string | null
+  valid_to: string | null
+  /** The technical key itself is never returned. */
+  technical_key_set: boolean
+  technical_key_last4: string | null
+  is_default: boolean
+  is_active: boolean
+  status: NumberingStatus
+  usage: { used: number, total: number }
+  created_at: string
+  updated_at: string
+}
+
+export interface NumberTemplateInput {
+  document_type: DocumentType
+  prefix: string | null
+  from_number: number
+  to_number: number
+  next_number: number
+  resolution_number: string | null
+  valid_from: string | null
+  valid_to: string | null
+  /** Write-only: leave it out to keep the stored key. */
+  technical_key?: string | null
+  is_default: boolean
+  is_active: boolean
 }
 
 /** RFC 9457 problem details: the shape of every API error. */

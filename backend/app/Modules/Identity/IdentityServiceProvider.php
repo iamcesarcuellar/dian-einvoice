@@ -2,6 +2,7 @@
 
 namespace App\Modules\Identity;
 
+use App\Modules\Identity\Http\Middleware\EnsureCompanyPermission;
 use App\Modules\Identity\Http\Middleware\ResolveCurrentCompany;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Policies\CompanyPolicy;
@@ -26,8 +27,10 @@ final class IdentityServiceProvider extends ServiceProvider
 
         Gate::policy(Company::class, CompanyPolicy::class);
 
-        // Tenant routes use ['auth:sanctum', 'company'] to act on the company sent in X-Company-Id.
+        // Tenant routes use ['auth:sanctum', 'company'] to act on the company sent in X-Company-Id,
+        // and add 'permission:<name>' on the routes that change data.
         Route::aliasMiddleware('company', ResolveCurrentCompany::class);
+        Route::aliasMiddleware('permission', EnsureCompanyPermission::class);
 
         // A {company} route parameter only resolves to a company the signed-in user belongs to,
         // with that membership loaded. Anything else is a 404, so other tenants stay invisible.

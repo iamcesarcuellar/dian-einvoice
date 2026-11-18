@@ -13,10 +13,21 @@ enum Role: string
     case Viewer = 'viewer';
 
     /**
-     * Owners and admins may edit the company profile.
+     * Viewers only read; members manage contacts and items; owners and admins manage everything.
+     *
+     * @return list<Permission>
      */
-    public function canManageCompany(): bool
+    public function permissions(): array
     {
-        return $this === self::Owner || $this === self::Admin;
+        return match ($this) {
+            self::Owner, self::Admin => [Permission::ManageCatalog, Permission::ManageSettings],
+            self::Member => [Permission::ManageCatalog],
+            self::Viewer => [],
+        };
+    }
+
+    public function can(Permission $permission): bool
+    {
+        return in_array($permission, $this->permissions(), true);
     }
 }

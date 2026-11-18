@@ -8,4 +8,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('health', HealthController::class)->name('health');
 
 // Each module owns its route file.
+require app_path('Modules/Reference/routes.php');
 require app_path('Modules/Identity/routes.php');
+require app_path('Modules/Catalog/routes.php');
+require app_path('Modules/Billing/routes.php');

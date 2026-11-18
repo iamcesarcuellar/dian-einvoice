@@ -1,4 +1,4 @@
-import type { Problem } from './types'
+import type { Problem, QueryParams } from './types'
 import { useSessionStore } from '@/stores/session'
 
 const API_BASE = '/api/v1'
@@ -53,7 +53,21 @@ async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError({ ...problem, status: response.status })
 }
 
-async function send(method: Method, path: string, body: unknown): Promise<Response> {
+function url(path: string, query?: QueryParams): string {
+  const params = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined && value !== '') {
+      params.set(key, String(value))
+    }
+  }
+
+  const search = params.toString()
+
+  return `${API_BASE}${path}${search ? `?${search}` : ''}`
+}
+
+async function send(method: Method, path: string, body: unknown, query?: QueryParams): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' }
 
   if (body !== undefined) {
@@ -79,7 +93,7 @@ async function send(method: Method, path: string, body: unknown): Promise<Respon
     headers['X-Company-Id'] = companyId
   }
 
-  return fetch(`${API_BASE}${path}`, {
+  return fetch(url(path, query), {
     method,
     headers,
     credentials: 'include',
@@ -88,13 +102,13 @@ async function send(method: Method, path: string, body: unknown): Promise<Respon
 }
 
 /** Calls the API under /api/v1 and returns the JSON body. Throws ApiError on HTTP errors. */
-export async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
-  let response = await send(method, path, body)
+export async function request<T>(method: Method, path: string, body?: unknown, query?: QueryParams): Promise<T> {
+  let response = await send(method, path, body, query)
 
   // The CSRF token expired or was replaced: fetch a fresh cookie and retry once.
   if (response.status === 419) {
     await fetchCsrfCookie()
-    response = await send(method, path, body)
+    response = await send(method, path, body, query)
   }
 
   if (!response.ok) {

@@ -6,6 +6,7 @@
     "license": "proprietary",
     "require": {
         "php": "^8.3",
+        "brick/math": "^1.0",
         "dedoc/scramble": "^0.13.55",
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4.5"

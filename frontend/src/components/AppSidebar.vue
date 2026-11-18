@@ -9,6 +9,7 @@ import {
   UsersIcon,
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import BrandMark from '@/components/BrandMark.vue'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -28,13 +29,24 @@ const { t } = useI18n()
 const items: NavItem[] = [
   { label: 'nav.dashboard', icon: LayoutDashboardIcon, to: '/', exact: true },
   { label: 'nav.invoices', icon: FileTextIcon },
-  { label: 'nav.contacts', icon: UsersIcon },
-  { label: 'nav.items', icon: PackageIcon },
+  { label: 'nav.contacts', icon: UsersIcon, to: '/contacts' },
+  { label: 'nav.items', icon: PackageIcon, to: '/items' },
   { label: 'nav.payments', icon: CreditCardIcon },
-  { label: 'nav.settings', icon: SettingsIcon, to: '/settings/company' },
+  { label: 'nav.settings', icon: SettingsIcon, to: '/settings' },
 ]
 
 const itemClass = 'flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors'
+
+const route = useRoute()
+
+// A section stays highlighted on its inner pages, such as a contact form under /contacts.
+function isCurrent(item: NavItem): boolean {
+  if (!item.to) {
+    return false
+  }
+
+  return item.exact ? route.path === item.to : route.path === item.to || route.path.startsWith(`${item.to}/`)
+}
 </script>
 
 <template>
@@ -46,13 +58,13 @@ const itemClass = 'flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medi
     <nav class="flex-1 overflow-y-auto px-3 py-4" :aria-label="t('nav.main')">
       <ul class="grid gap-0.5">
         <li v-for="item in items" :key="item.label">
-          <RouterLink v-if="item.to" v-slot="{ href, navigate, isActive, isExactActive }" :to="item.to" custom>
+          <RouterLink v-if="item.to" v-slot="{ href, navigate }" :to="item.to" custom>
             <a
               :href="href"
-              :aria-current="(item.exact ? isExactActive : isActive) ? 'page' : undefined"
+              :aria-current="isCurrent(item) ? 'page' : undefined"
               :class="cn(
                 itemClass,
-                (item.exact ? isExactActive : isActive)
+                isCurrent(item)
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
               )"

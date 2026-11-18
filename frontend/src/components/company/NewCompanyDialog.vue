@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import type { Me } from '@/api/types'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import { computed, ref, watch } from 'vue'
+import { useQueryClient } from '@tanstack/vue-query'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { fieldErrors } from '@/api/client'
 import { companiesApi } from '@/api/companies'
 import CompanyFields from '@/components/company/CompanyFields.vue'
 import { emptyCompanyForm, toCompanyInput } from '@/components/company/companyForm'
@@ -17,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useFormMutation } from '@/composables/useFormMutation'
 import { queryKeys } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -28,7 +28,7 @@ const session = useSessionStore()
 
 const form = ref(emptyCompanyForm())
 
-const { mutate, isPending, error, reset } = useMutation({
+const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => companiesApi.create(toCompanyInput(form.value)),
   onSuccess: (company) => {
     queryClient.setQueryData<Me | null>(queryKeys.me, (me) =>
@@ -39,8 +39,6 @@ const { mutate, isPending, error, reset } = useMutation({
     open.value = false
   },
 })
-
-const errors = computed(() => fieldErrors(error.value))
 
 // Each time the dialog opens it starts with an empty form.
 watch(open, (isOpen) => {
@@ -59,7 +57,7 @@ watch(open, (isOpen) => {
         <DialogDescription>{{ t('companies.new.description') }}</DialogDescription>
       </DialogHeader>
 
-      <form id="new-company-form" class="grid gap-4" novalidate @submit.prevent="mutate()">
+      <form id="new-company-form" class="grid gap-4" novalidate @submit.prevent="submit">
         <FormError :error="error" />
         <CompanyFields v-model="form" section="identity" id-prefix="new-company" :errors="errors" :disabled="isPending" />
       </form>

@@ -51,6 +51,6 @@ final class CompanyController
     {
         $company->update($request->validated());
 
-        return CompanyResource::make($company);
+        return CompanyResource::make($company->load('municipality.department'));
     }
 }

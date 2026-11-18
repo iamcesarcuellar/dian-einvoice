@@ -2,6 +2,7 @@
 
 namespace App\Modules\Identity\Policies;
 
+use App\Modules\Identity\Enums\Permission;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -19,7 +20,7 @@ final class CompanyPolicy
             return Response::denyAsNotFound();
         }
 
-        return $role->canManageCompany()
+        return $role->can(Permission::ManageSettings)
             ? Response::allow()
             : Response::deny('Only owners and admins can edit this company.');
     }
