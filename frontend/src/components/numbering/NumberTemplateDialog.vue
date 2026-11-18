@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DocumentType, NumberTemplate, NumberTemplateInput } from '@/api/types'
+import type { NumberingType, NumberTemplate, NumberTemplateInput } from '@/api/types'
 import type { Option } from '@/lib/options'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -68,7 +68,7 @@ function formFrom(template: NumberTemplate | null): TemplateForm {
 
 const form = ref<TemplateForm>(formFrom(props.template))
 
-const documentTypes = computed<Option[]>(() => (['invoice', 'credit_note', 'debit_note'] as const).map((type) => ({
+const documentTypes = computed<Option[]>(() => (['invoice', 'credit_note', 'debit_note', 'payment'] as const).map((type) => ({
   value: type,
   label: t(`numbering.documentTypes.${type}`),
 })))
@@ -81,7 +81,7 @@ function toNumber(value: string): number {
 
 function toInput(): NumberTemplateInput {
   const input: NumberTemplateInput = {
-    document_type: (form.value.document_type ?? 'invoice') as DocumentType,
+    document_type: (form.value.document_type ?? 'invoice') as NumberingType,
     prefix: orNull(form.value.prefix)?.toUpperCase() ?? null,
     from_number: toNumber(form.value.from_number),
     to_number: toNumber(form.value.to_number),

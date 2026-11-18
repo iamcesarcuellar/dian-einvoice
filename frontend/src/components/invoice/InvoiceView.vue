@@ -10,6 +10,8 @@ import DeliveryCard from '@/components/invoice/DeliveryCard.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
 import ElectronicDocumentCard from '@/components/invoice/ElectronicDocumentCard.vue'
 import ElectronicProgress from '@/components/invoice/ElectronicProgress.vue'
+import InvoicePaymentBadges from '@/components/invoice/InvoicePaymentBadges.vue'
+import InvoicePaymentsCard from '@/components/invoice/InvoicePaymentsCard.vue'
 import TotalsPanel from '@/components/invoice/TotalsPanel.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import {
@@ -215,6 +217,10 @@ function eventLabel(event: DocumentEvent): string {
       return t('invoices.view.events.pdfRegenerationRequested')
     case 'note_accepted':
       return t(payload.voided === true ? 'notes.view.events.voided' : `notes.view.events.accepted.${String(payload.note_type ?? 'credit_note')}`, { number: String(payload.number ?? '') })
+    case 'payment_applied':
+      return t('invoices.payments.events.applied', { number: String(payload.number ?? ''), amount: formatMoney(String(payload.amount ?? '0')) })
+    case 'payment_released':
+      return t('invoices.payments.events.released', { number: String(payload.number ?? ''), amount: formatMoney(String(payload.amount ?? '0')) })
     default:
       return t('invoices.view.events.created')
   }
@@ -248,6 +254,9 @@ function eventDetail(event: DocumentEvent): string | null {
       return payload.cufe_changed === true ? t('invoices.view.events.cufeChanged') : null
     case 'note_accepted':
       return t('notes.view.events.balance', { status: t(`notes.balanceStatus.${String(payload.balance_status ?? 'open')}`) })
+    case 'payment_applied':
+    case 'payment_released':
+      return t('invoices.payments.events.balance', { amount: formatMoney(String(payload.balance ?? '0')) })
     case 'attached_document_built':
       return t('invoices.view.events.attachedDocumentDetail', { file: String(payload.file_name ?? ''), size: formatInteger(Number(payload.size ?? 0)) })
     case 'pdf_generated':
@@ -277,7 +286,10 @@ function eventTone(event: DocumentEvent): 'error' | 'warning' | 'success' | 'def
       return 'error'
     case 'accepted':
     case 'note_accepted':
+    case 'payment_applied':
       return 'success'
+    case 'payment_released':
+      return 'warning'
     case 'email_attempt':
       return event.payload?.outcome === 'sent' ? 'success' : (event.payload?.outcome === 'rejected' ? 'error' : 'warning')
     case 'transmission_attempt':
@@ -301,6 +313,7 @@ const toneClass = {
       <template #badge>
         <DocumentStatusBadge :status="invoice.status" />
         <BalanceStatusBadge v-if="invoice.balance_status && invoice.balance_status !== 'open'" :status="invoice.balance_status" />
+        <InvoicePaymentBadges v-if="invoice.type === 'invoice' && invoice.electronic?.status === 'accepted'" :invoice="invoice" />
       </template>
     </PageHeader>
 
@@ -385,6 +398,8 @@ const toneClass = {
             </div>
           </dl>
         </FormSection>
+
+        <InvoicePaymentsCard v-if="invoice.type === 'invoice' && invoice.electronic?.status === 'accepted'" :invoice="invoice" />
 
         <BalanceCard v-if="invoice.type === 'invoice' && invoice.electronic?.status === 'accepted'" :invoice="invoice" />
 

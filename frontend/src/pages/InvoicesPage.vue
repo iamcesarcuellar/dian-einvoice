@@ -2,10 +2,10 @@
 import type { DocumentType, Invoice } from '@/api/types'
 import type { DataTableColumn, RowAction } from '@/components/data-table/types'
 import type { Option } from '@/lib/options'
-import { EyeIcon, PencilIcon, PlusIcon } from '@lucide/vue'
+import { EyeIcon, PencilIcon, PlusIcon, XIcon } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { documentsApi } from '@/api/resources'
 import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
@@ -13,6 +13,7 @@ import BalanceStatusBadge from '@/components/invoice/BalanceStatusBadge.vue'
 import DeliveryStatusBadge from '@/components/invoice/DeliveryStatusBadge.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
 import ElectronicStatusBadge from '@/components/invoice/ElectronicStatusBadge.vue'
+import InvoicePaymentBadges from '@/components/invoice/InvoicePaymentBadges.vue'
 import SelectInput from '@/components/SelectInput.vue'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
@@ -23,8 +24,9 @@ import { formatDate, formatMoney } from '@/lib/format'
 
 /**
  * The list of one tab of the Invoices section: invoices, credit notes or debit notes, with search
- * and filters. Invoices show their balance status; notes show the invoice they correct and their
- * concept.
+ * and filters. Invoices show what is left to collect, their payment and balance status, and can be
+ * filtered by payment status, overdue, or one customer (?contact=, from the receivables); notes
+ * show the invoice they correct and their concept.
  */
 const props = withDefaults(defineProps<{
   kind?: DocumentType
@@ -35,6 +37,7 @@ const props = withDefaults(defineProps<{
 const ALL = 'all'
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const { can } = useSession()
 const { label } = useReference()
@@ -46,6 +49,11 @@ const routes = computed(() => DOCUMENT_ROUTES[props.kind])
 const status = ref<string | null>(ALL)
 const electronic = ref<string | null>(ALL)
 const balance = ref<string | null>(ALL)
+const payment = ref<string | null>(ALL)
+
+/** One customer, from the receivables: ?contact= and its name in ?customer=. */
+const contactId = computed(() => (typeof route.query.contact === 'string' ? route.query.contact : null))
+const contactName = computed(() => (typeof route.query.customer === 'string' ? route.query.customer : null))
 
 const statusOptions = computed<Option[]>(() => [
   { value: ALL, label: t('invoices.filters.all') },
@@ -61,7 +69,12 @@ const electronicOptions = computed<Option[]>(() => [
 
 const balanceOptions = computed<Option[]>(() => [
   { value: ALL, label: t('notes.filters.allBalance') },
-  ...['open', 'partially_credited', 'voided'].map((value) => ({ value, label: t(`notes.balanceStatus.${value}`) })),
+  ...['open', 'partially_credited', 'credited', 'voided'].map((value) => ({ value, label: t(`notes.balanceStatus.${value}`) })),
+])
+
+const paymentOptions = computed<Option[]>(() => [
+  { value: ALL, label: t('invoices.filters.allPayment') },
+  ...['unpaid', 'partially_paid', 'paid', 'overdue'].map((value) => ({ value, label: t(`invoices.paymentStatus.${value}`) })),
 ])
 
 function filterValue(value: string | null): string | undefined {
@@ -73,6 +86,9 @@ const { page, search, rows, meta, isLoading } = useListQuery(DOCUMENT_RESOURCES[
     status: filterValue(status.value),
     electronic_status: filterValue(electronic.value),
     balance_status: isNote.value ? undefined : filterValue(balance.value),
+    payment_status: isNote.value || payment.value === 'overdue' ? undefined : filterValue(payment.value),
+    overdue: !isNote.value && payment.value === 'overdue' ? 1 : undefined,
+    contact_id: contactId.value ?? undefined,
   }),
   // While a document on screen is still processing or being delivered, the list refreshes every 3 seconds.
   refetchInterval: (items: Invoice[]) => (items.some((item) => item.electronic && (!item.electronic.final
@@ -86,6 +102,7 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: 'issue_date', label: t('invoices.columns.issueDate') },
   isNote.value ? { key: 'concept', label: t('notes.columns.concept') } : { key: 'due_date', label: t('invoices.columns.dueDate') },
   { key: 'total', label: t('invoices.columns.total'), align: 'right' },
+  ...(isNote.value ? [] : [{ key: 'balance', label: t('invoices.columns.balance'), align: 'right' as const }]),
   { key: 'status', label: t('invoices.columns.status') },
   { key: 'electronic', label: t('invoices.columns.electronic') },
   { key: 'delivery', label: t('invoices.columns.delivery') },
@@ -130,6 +147,18 @@ function actions(document: Invoice): RowAction[] {
         <div v-if="!isNote" class="w-48">
           <SelectInput v-model="balance" :options="balanceOptions" :placeholder="t('notes.filters.balance')" />
         </div>
+        <div v-if="!isNote" class="w-48">
+          <SelectInput v-model="payment" :options="paymentOptions" :placeholder="t('invoices.filters.payment')" />
+        </div>
+        <RouterLink
+          v-if="contactId"
+          :to="{ name: 'invoices' }"
+          class="inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted"
+          :aria-label="t('invoices.filters.clearCustomer')"
+        >
+          {{ t('invoices.filters.customer', { name: contactName ?? '…' }) }}
+          <XIcon class="size-3.5" />
+        </RouterLink>
       </div>
     </template>
     <template #cell-number="{ row }">
@@ -161,10 +190,17 @@ function actions(document: Invoice): RowAction[] {
     <template #cell-total="{ row }">
       <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.totals.payable_amount) || '$ 0' }}</span>
     </template>
+    <template #cell-balance="{ row }">
+      <span v-if="row.receivable_amount !== null && row.electronic?.status === 'accepted'" class="whitespace-nowrap tabular-nums" :class="row.receivable_amount.startsWith('-') ? 'text-emerald-700 dark:text-emerald-400' : ''">
+        {{ row.receivable_amount.startsWith('-') ? t('invoices.payments.creditShort', { amount: formatMoney(row.receivable_amount.slice(1)) }) : formatMoney(row.receivable_amount) }}
+      </span>
+      <span v-else class="text-muted-foreground">—</span>
+    </template>
     <template #cell-status="{ row }">
       <span class="inline-flex flex-wrap gap-1">
         <DocumentStatusBadge :status="row.status" />
-        <BalanceStatusBadge v-if="row.balance_status === 'partially_credited'" :status="row.balance_status" />
+        <BalanceStatusBadge v-if="row.balance_status === 'partially_credited' || row.balance_status === 'credited'" :status="row.balance_status" />
+        <InvoicePaymentBadges v-if="!isNote && row.electronic?.status === 'accepted'" :invoice="row" />
       </span>
     </template>
     <template #cell-electronic="{ row }">

@@ -11,7 +11,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <Badge :variant="status === 'voided' ? 'destructive' : (status === 'partially_credited' ? 'secondary' : 'outline')">
+  <Badge :variant="status === 'voided' ? 'destructive' : (status === 'open' ? 'outline' : 'secondary')">
     {{ t(`notes.balanceStatus.${status}`) }}
   </Badge>
 </template>

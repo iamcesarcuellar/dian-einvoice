@@ -4,7 +4,7 @@ export type Role = 'owner' | 'admin' | 'member' | 'viewer'
  * manage-catalog: contacts and items. manage-documents: drafts and issuing.
  * manage-settings: taxes, withholdings, numbering and the company.
  */
-export type Permission = 'manage-catalog' | 'manage-documents' | 'manage-settings'
+export type Permission = 'manage-catalog' | 'manage-documents' | 'manage-settings' | 'record-payments' | 'void-payments'
 
 export interface Municipality {
   code: string
@@ -236,11 +236,14 @@ export interface ItemInput {
 
 export type DocumentType = 'invoice' | 'credit_note' | 'debit_note'
 
+/** What a numbering range numbers: the documents, and the receipts of the payments. */
+export type NumberingType = DocumentType | 'payment'
+
 export type NumberingStatus = 'active' | 'upcoming' | 'expired' | 'exhausted'
 
 export interface NumberTemplate {
   id: string
-  document_type: DocumentType
+  document_type: NumberingType
   prefix: string | null
   from_number: number
   to_number: number
@@ -262,7 +265,7 @@ export interface NumberTemplate {
 }
 
 export interface NumberTemplateInput {
-  document_type: DocumentType
+  document_type: NumberingType
   prefix: string | null
   from_number: number
   to_number: number
@@ -283,7 +286,20 @@ export type DocumentStatus = 'draft' | 'issued'
 export type NoteType = Exclude<DocumentType, 'invoice'>
 
 /** Balance of an issued invoice after the notes the local simulator accepted. */
-export type BalanceStatus = 'open' | 'partially_credited' | 'voided'
+export type BalanceStatus = 'open' | 'partially_credited' | 'credited' | 'voided'
+
+/** Payment status of an issued invoice; overdue is apart: it has a balance after its due date. */
+export type InvoicePaymentStatus = 'unpaid' | 'partially_paid' | 'paid'
+
+/** A payment applied to an invoice, as the invoice keeps it; released once the payment is voided. */
+export interface InvoicePayment {
+  payment_id: string
+  number: string
+  payment_date: string
+  payment_means_code: string
+  amount: string
+  status: 'applied' | 'released'
+}
 
 /** Calculated by the API: decimal strings with 2 decimals. */
 export interface InvoiceBalance {
@@ -298,6 +314,8 @@ export interface InvoiceBalance {
   pending_credits: string
   /** What a new credit note can still credit. */
   remaining_to_credit: string
+  /** One peso or more is left to credit: less counts as credited in full. */
+  can_credit: boolean
 }
 
 /** The invoice a note corrects. */
@@ -400,6 +418,8 @@ export type DocumentEventType =
   | 'delivery_requested'
   | 'pdf_regeneration_requested'
   | 'note_accepted'
+  | 'payment_applied'
+  | 'payment_released'
 
 export interface DocumentEvent {
   id: string
@@ -507,6 +527,14 @@ export interface Invoice {
   related_notes?: RelatedNote[]
   /** On the detail of a note: the balance of its invoice without the note itself. */
   invoice_balance?: InvoiceBalance
+  /** An issued invoice: what payments took and what is left to collect (negative: customer credit). */
+  paid_amount: string | null
+  receivable_amount: string | null
+  payment_status: InvoicePaymentStatus | null
+  overdue: boolean
+  days_past_due: number | null
+  /** On the detail of an issued invoice: the payments applied to it. */
+  payments?: InvoicePayment[]
   totals: DocumentTotals
   taxes?: DocumentTaxSubtotal[]
   withholdings?: DocumentWithholdingAmount[]
@@ -820,4 +848,110 @@ export interface Problem {
 
 export interface DataEnvelope<T> {
   data: T
+}
+
+/** A payment received from one customer, applied to some of its accepted invoices. */
+export type PaymentStatus = 'recorded' | 'voided'
+
+export interface PaymentAllocation {
+  id: string
+  document_id: string
+  document_number: string
+  document_issue_date: string | null
+  document_due_date: string | null
+  amount: string
+  /** What was left to collect on the invoice right after the payment. */
+  balance_after: string
+}
+
+export type PaymentEventType = 'recorded' | 'voided'
+
+export interface PaymentEvent {
+  id: string
+  type: PaymentEventType
+  payload: Record<string, unknown> | null
+  occurred_at: string
+  actor: { id: string, name: string } | null
+}
+
+export interface Payment {
+  id: string
+  number: number
+  full_number: string
+  payment_date: string
+  contact_id: string
+  customer_name: string
+  customer_identification: string | null
+  /** The sum applied to its invoices, a decimal string with 2 decimals. */
+  amount: string
+  currency: string
+  payment_means_code: string
+  reference: string | null
+  notes: string | null
+  status: PaymentStatus
+  void_reason: string | null
+  voided_at: string | null
+  voided_by?: { id: string, name: string } | null
+  created_by?: { id: string, name: string } | null
+  allocations?: PaymentAllocation[]
+  events?: PaymentEvent[]
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentInput {
+  contact_id: string
+  payment_date: string
+  payment_means_code: string
+  reference: string | null
+  notes: string | null
+  /** The sum of the allocations. */
+  amount: string
+  allocations: Array<{ document_id: string, amount: string }>
+}
+
+/** An accepted invoice with something left to collect, or a credit in favor of the customer. */
+export interface OpenInvoice {
+  id: string
+  number: string
+  contact_id: string
+  customer_name: string
+  customer_identification: string | null
+  issue_date: string
+  due_date: string | null
+  currency: string
+  amount_due: string
+  credited: string
+  debited: string
+  paid: string
+  balance: string
+  days_past_due: number
+  overdue: boolean
+}
+
+export interface OpenInvoices {
+  data: OpenInvoice[]
+  meta: { contact_id: string, total: string, credits: OpenInvoice[] }
+}
+
+/** The aging buckets of the receivables, by days after the due date. */
+export type AgingBucket = 'current' | 'days_1_30' | 'days_31_60' | 'days_61_90' | 'over_90'
+
+export type ReceivablesAmounts = Record<AgingBucket, string> & {
+  invoices: number
+  overdue_invoices: number
+  total: string
+  customer_credit: string
+  oldest_days_past_due: number
+}
+
+export interface ReceivablesRow extends ReceivablesAmounts {
+  contact_id: string
+  customer_name: string
+  customer_identification: string | null
+}
+
+export interface Receivables {
+  customers: ReceivablesRow[]
+  totals: ReceivablesAmounts
 }

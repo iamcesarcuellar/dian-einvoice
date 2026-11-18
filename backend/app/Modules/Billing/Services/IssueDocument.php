@@ -7,7 +7,9 @@ use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\ElectronicStatus;
+use App\Modules\Billing\Enums\InvoicePaymentStatus;
 use App\Modules\Billing\Enums\NumberingStatus;
+use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\DocumentEvent;
 use App\Modules\Billing\Models\NumberTemplate;
@@ -123,6 +125,10 @@ final class IssueDocument
                 'customer_snapshot' => $invoice?->customer_snapshot ?? $this->snapshots->customer($document->contact),
                 'numbering_snapshot' => $this->snapshots->numbering($template),
                 'balance_status' => $document->isNote() ? null : BalanceStatus::Open,
+                // An invoice owes its amount due until notes and payments change it.
+                'paid_amount' => '0.00',
+                'receivable_amount' => $document->isNote() ? null : (string) $document->amount_due,
+                'payment_status' => $document->isNote() ? null : InvoicePaymentStatus::Unpaid,
                 // The invoice a note corrects, as its XML and PDF reference it.
                 'related_snapshot' => $invoice === null ? null : [
                     'id' => $invoice->getKey(),
@@ -229,7 +235,7 @@ final class IssueDocument
 
         $errors = array_merge(
             $errors,
-            $this->staleRates($lines, $withholdings),
+            $this->staleRates($lines, $withholdings, $invoice),
             $this->requirements->missing(
                 $this->currentCompany->company(),
                 $settings,
@@ -293,19 +299,28 @@ final class IssueDocument
     /**
      * Taxes and withholdings copied into the draft that are no longer active, or whose rate
      * changed since the draft was saved. The draft is never recalculated in silence: the user
-     * reviews it, and saving it again takes the current rates.
+     * reviews it, and saving it again takes the current rates. A note keeps the rates frozen on its
+     * invoice: a copy equal to the one of the invoice is never stale.
      *
      * @param  list<array<string, mixed>>  $lines
      * @param  list<array<string, mixed>>  $withholdings
      * @return array<string, list<string>>
      */
-    private function staleRates(array $lines, array $withholdings): array
+    private function staleRates(array $lines, array $withholdings, ?Document $invoice = null): array
     {
         $errors = [];
         $taxes = Tax::query()->whereKey(array_filter(array_column($lines, 'tax_id')))->get()->keyBy('id');
+        $frozenTaxes = $invoice === null ? [] : $this->pricing->frozenTaxes($invoice);
+        $frozenWithholdings = $invoice === null ? [] : $this->pricing->frozenWithholdings($invoice);
 
         foreach ($lines as $index => $line) {
             if ($line['tax_id'] === null) {
+                continue;
+            }
+
+            $copy = $frozenTaxes[(string) $line['tax_id']] ?? null;
+
+            if ($copy !== null && $copy['tax_code'] === (string) $line['tax_code'] && BigDecimal::of($copy['tax_rate'])->isEqualTo((string) $line['tax_rate'])) {
                 continue;
             }
 
@@ -320,6 +335,12 @@ final class IssueDocument
 
         foreach ($withholdings as $index => $withholding) {
             if ($withholding['withholding_id'] === null) {
+                continue;
+            }
+
+            $copy = $frozenWithholdings[(string) $withholding['withholding_id']] ?? null;
+
+            if ($copy !== null && $copy['dian_code'] === (string) $withholding['dian_code'] && BigDecimal::of($copy['rate'])->isEqualTo((string) $withholding['rate'])) {
                 continue;
             }
 
@@ -381,7 +402,7 @@ final class IssueDocument
         $name = trim(($template->prefix ?? '').' '.$template->from_number.' to '.$template->to_number);
 
         $problem = match (true) {
-            $template->document_type !== $document->type => "This numbering is not for {$noun}s.",
+            $template->document_type !== NumberingType::forDocument($document->type) => "This numbering is not for {$noun}s.",
             ! $template->is_active => "The numbering {$name} is inactive. Activate it or choose another one.",
             default => match ($template->status()) {
                 NumberingStatus::Exhausted => "The numbering {$name} has no numbers left. Add the next range in Settings.",

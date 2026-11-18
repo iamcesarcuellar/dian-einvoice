@@ -12,6 +12,10 @@ import type {
   ListParams,
   NotePrefill,
   NumberTemplate,
+  OpenInvoices,
+  Payment,
+  PaymentInput,
+  Receivables,
   NumberTemplateInput,
   Paginated,
   RateInput,
@@ -134,4 +138,33 @@ export const debitNotesApi = { ...documentApi('/debit-notes'), prefill: prefill(
 /** The client of a document type. */
 export function documentsApi(type: DocumentType) {
   return type === 'credit_note' ? creditNotesApi : type === 'debit_note' ? debitNotesApi : invoicesApi
+}
+
+/** Payments received from customers: recorded and applied to their invoices, or voided with a reason. */
+export const paymentsApi = {
+  list(params: ListParams = {}): Promise<Paginated<Payment>> {
+    return request<Paginated<Payment>>('GET', '/payments', undefined, params)
+  },
+
+  async get(id: string): Promise<Payment> {
+    return (await request<DataEnvelope<Payment>>('GET', `/payments/${id}`)).data
+  },
+
+  async create(input: PaymentInput): Promise<Payment> {
+    return (await request<DataEnvelope<Payment>>('POST', '/payments', input)).data
+  },
+
+  async void(id: string, reason: string): Promise<Payment> {
+    return (await request<DataEnvelope<Payment>>('POST', `/payments/${id}/void`, { reason })).data
+  },
+
+  /** The accepted invoices of a customer with something left to collect, oldest due first. */
+  openInvoices(contactId: string): Promise<OpenInvoices> {
+    return request<OpenInvoices>('GET', `/contacts/${contactId}/open-invoices`)
+  },
+
+  /** Accounts receivable by customer, with the aging buckets and the totals. */
+  async receivables(): Promise<Receivables> {
+    return (await request<DataEnvelope<Receivables>>('GET', '/receivables')).data
+  },
 }

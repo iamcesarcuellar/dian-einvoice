@@ -49,16 +49,19 @@ final class DocumentPricing
 
     /**
      * Copies the item and tax data of the current company into each line. A field left out falls
-     * back to the item; an explicit null tax_id means excluded (no tax).
+     * back to the item; an explicit null tax_id means excluded (no tax). For a note, $invoice is the
+     * invoice it corrects: a tax the invoice carried keeps the rate frozen on the invoice, not the
+     * current one.
      *
      * @param  array<int, array<string, mixed>>  $lines  Validated input lines.
      * @return list<array<string, mixed>>
      */
-    public function resolveLines(array $lines): array
+    public function resolveLines(array $lines, ?Document $invoice = null): array
     {
         $lines = array_values($lines);
         $items = Item::query()->with('tax')->whereKey(array_filter(array_column($lines, 'item_id')))->get()->keyBy('id');
         $taxes = Tax::query()->whereKey(array_filter(array_column($lines, 'tax_id')))->get()->keyBy('id');
+        $frozen = $invoice === null ? [] : $this->frozenTaxes($invoice);
 
         $resolved = [];
 
@@ -67,6 +70,7 @@ final class DocumentPricing
             $tax = array_key_exists('tax_id', $line)
                 ? ($line['tax_id'] === null ? null : $taxes->get($line['tax_id']))
                 : $item?->tax;
+            $copy = $tax === null ? null : ($frozen[$tax->getKey()] ?? null);
 
             $resolved[] = [
                 'position' => $index + 1,
@@ -81,9 +85,9 @@ final class DocumentPricing
                 'unit_price' => (string) ($line['unit_price'] ?? $item?->unit_price ?? '0'),
                 'discount_rate' => (string) ($line['discount_rate'] ?? '0'),
                 'tax_id' => $tax?->getKey(),
-                'tax_code' => $tax?->dian_code->value,
-                'tax_name' => $tax?->name,
-                'tax_rate' => $tax?->rate,
+                'tax_code' => $copy['tax_code'] ?? $tax?->dian_code->value,
+                'tax_name' => $copy['tax_name'] ?? $tax?->name,
+                'tax_rate' => $copy['tax_rate'] ?? $tax?->rate,
             ];
         }
 
@@ -91,26 +95,71 @@ final class DocumentPricing
     }
 
     /**
-     * Copies the withholdings of the current company, in the order given.
+     * The taxes of an issued invoice as its lines froze them, by tax id.
+     *
+     * @return array<string, array{tax_code: string, tax_name: string, tax_rate: string}>
+     */
+    public function frozenTaxes(Document $invoice): array
+    {
+        $copies = [];
+
+        foreach ($invoice->lines()->whereNotNull('tax_id')->get(['tax_id', 'tax_code', 'tax_name', 'tax_rate']) as $line) {
+            /** @var DocumentLine $line */
+            $copies[(string) $line->tax_id] ??= [
+                'tax_code' => (string) $line->tax_code,
+                'tax_name' => (string) $line->tax_name,
+                'tax_rate' => (string) $line->tax_rate,
+            ];
+        }
+
+        return $copies;
+    }
+
+    /**
+     * The withholdings of an issued invoice as it froze them, by withholding id.
+     *
+     * @return array<string, array{dian_code: string, name: string, rate: string}>
+     */
+    public function frozenWithholdings(Document $invoice): array
+    {
+        $copies = [];
+
+        foreach ($invoice->withholdings()->whereNotNull('withholding_id')->get(['withholding_id', 'dian_code', 'name', 'rate']) as $withholding) {
+            /** @var DocumentWithholding $withholding */
+            $copies[(string) $withholding->withholding_id] ??= [
+                'dian_code' => (string) $withholding->dian_code,
+                'name' => (string) $withholding->name,
+                'rate' => (string) $withholding->rate,
+            ];
+        }
+
+        return $copies;
+    }
+
+    /**
+     * Copies the withholdings of the current company, in the order given. For a note, a withholding
+     * its invoice carried keeps the rate frozen on the invoice.
      *
      * @param  array<int, string>  $ids
      * @return list<array<string, mixed>>
      */
-    public function resolveWithholdings(array $ids): array
+    public function resolveWithholdings(array $ids, ?Document $invoice = null): array
     {
         $withholdings = Withholding::query()->whereKey($ids)->get()->keyBy('id');
+        $frozen = $invoice === null ? [] : $this->frozenWithholdings($invoice);
         $resolved = [];
 
         foreach (array_values($ids) as $id) {
             $withholding = $withholdings->get($id);
+            $copy = $frozen[(string) $id] ?? null;
 
             if ($withholding !== null) {
                 $resolved[] = [
                     'position' => count($resolved) + 1,
                     'withholding_id' => $withholding->getKey(),
-                    'dian_code' => $withholding->dian_code->value,
-                    'name' => $withholding->name,
-                    'rate' => $withholding->rate,
+                    'dian_code' => $copy['dian_code'] ?? $withholding->dian_code->value,
+                    'name' => $copy['name'] ?? $withholding->name,
+                    'rate' => $copy['rate'] ?? $withholding->rate,
                 ];
             }
         }

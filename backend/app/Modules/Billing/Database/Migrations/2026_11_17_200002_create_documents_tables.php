@@ -45,6 +45,11 @@ return new class extends Migration
             $table->decimal('payable_amount', 18, 2)->default(0);
             $table->decimal('withholding_total', 18, 2)->default(0);
             $table->decimal('amount_due', 18, 2)->default(0)->comment('Payable amount minus withholdings');
+            // Issued invoices: what payments took, what is left to collect after the accepted notes and
+            // those payments (negative is a credit in favor of the customer), and the payment status.
+            $table->decimal('paid_amount', 18, 2)->default(0)->comment('Invoices: payments applied and not voided');
+            $table->decimal('receivable_amount', 18, 2)->nullable()->comment('Invoices: amount due less accepted credit notes, plus accepted debit notes, less payments');
+            $table->string('payment_status', 20)->nullable()->comment('Invoices: unpaid, partially_paid or paid');
             $table->json('company_snapshot')->nullable()->comment('Company tax data, frozen on issue');
             $table->json('customer_snapshot')->nullable()->comment('Customer data, frozen on issue');
             $table->json('numbering_snapshot')->nullable()->comment('Resolution, prefix, range and validity, frozen on issue');
@@ -104,6 +109,7 @@ return new class extends Migration
             // The relay looks across companies for chains that stopped moving.
             $table->index(['electronic_status', 'updated_at']);
             $table->index(['delivery_status', 'updated_at']);
+            $table->index(['company_id', 'contact_id', 'receivable_amount']);
         });
 
         Schema::create('document_lines', function (Blueprint $table) {
@@ -169,10 +175,31 @@ return new class extends Migration
 
             $table->index(['document_id', 'occurred_at']);
         });
+
+        // The invoice side of the payments: each payment applied to an invoice, written by the payments
+        // module through the invoice ledger, so Billing never reads the tables of Payments. payment_id
+        // has no foreign key on purpose: payments will move to a service of their own.
+        Schema::create('document_payments', function (Blueprint $table) {
+            $table->ulid('id')->primary();
+            $table->foreignUlid('company_id')->constrained()->cascadeOnDelete();
+            $table->foreignUlid('document_id')->constrained()->cascadeOnDelete();
+            $table->ulid('payment_id');
+            $table->string('payment_number', 40);
+            $table->date('payment_date');
+            $table->string('payment_means_code', 10);
+            $table->decimal('amount', 18, 2);
+            $table->string('status', 20)->comment('applied, or released when the payment was voided');
+            $table->timestamp('applied_at');
+            $table->timestamp('released_at')->nullable();
+
+            $table->unique(['document_id', 'payment_id']);
+            $table->index(['payment_id']);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('document_payments');
         Schema::dropIfExists('document_events');
         Schema::dropIfExists('document_withholdings');
         Schema::dropIfExists('document_taxes');

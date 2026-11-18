@@ -109,6 +109,37 @@ export const router = createRouter({
           meta: { title: 'invoices.invoice' },
         },
         {
+          // Payments received and the receivables: two tabs of one section.
+          path: 'payments',
+          component: () => import('@/layouts/PaymentsLayout.vue'),
+          children: [
+            {
+              path: '',
+              name: 'payments',
+              component: () => import('@/pages/PaymentsPage.vue'),
+              meta: { title: 'payments.title' },
+            },
+            {
+              path: 'receivables',
+              name: 'receivables',
+              component: () => import('@/pages/ReceivablesPage.vue'),
+              meta: { title: 'payments.tabs.receivables' },
+            },
+          ],
+        },
+        {
+          path: 'payments/new',
+          name: 'payment-new',
+          component: () => import('@/pages/PaymentPage.vue'),
+          meta: { title: 'payments.editor.title' },
+        },
+        {
+          path: 'payments/:id',
+          name: 'payment',
+          component: () => import('@/pages/PaymentPage.vue'),
+          meta: { title: 'payments.payment' },
+        },
+        {
           path: 'contacts',
           name: 'contacts',
           component: () => import('@/pages/ContactsPage.vue'),

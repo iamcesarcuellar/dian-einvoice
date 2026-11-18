@@ -68,4 +68,10 @@ enum DocumentEventType: string
      * note_type, number, amount, voided and the balance_status it left.
      */
     case NoteAccepted = 'note_accepted';
+
+    /** On an invoice: a payment was applied to it. Payload: payment_id, number, amount and balance. */
+    case PaymentApplied = 'payment_applied';
+
+    /** On an invoice: a voided payment gave its amount back. Payload: payment_id, number, amount and balance. */
+    case PaymentReleased = 'payment_released';
 }

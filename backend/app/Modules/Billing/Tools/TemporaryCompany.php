@@ -3,6 +3,7 @@
 namespace App\Modules\Billing\Tools;
 
 use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Tax;
@@ -25,17 +26,18 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * Development tool for make stress and make chaos: a SYNTHETIC company with everything issuing
+ * Development tool for make stress, make chaos and make payments-check: a SYNTHETIC company with everything issuing
  * needs (tax profile, made-up DIAN software, a test certificate and a numbering range with a random
  * technical key), and its deletion afterwards, with its files and its records in the simulator.
  */
 final class TemporaryCompany
 {
     /**
-     * Tables with company_id, children first: documents hold restrictive keys on contacts, items,
-     * taxes, withholdings and numbering. Lines, events and transmissions go with their documents.
+     * Tables with company_id, children first: payments and documents hold restrictive keys on
+     * contacts, items, taxes, withholdings and numbering. Lines, events, transmissions and the
+     * invoice side of the payments go with their documents; allocations and events with their payments.
      */
-    private const array TABLES = ['outbox_events', 'documents', 'dian_file_counters', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'dian_settings', 'signing_certificates', 'key_store_entries', 'memberships'];
+    private const array TABLES = ['payment_events', 'payment_allocations', 'payments', 'outbox_events', 'documents', 'dian_file_counters', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'dian_settings', 'signing_certificates', 'key_store_entries', 'memberships'];
 
     private function __construct(
         public readonly Company $company,
@@ -77,7 +79,7 @@ final class TemporaryCompany
         $today = Carbon::now(NumberTemplate::TIMEZONE);
 
         NumberTemplate::create([
-            'document_type' => DocumentType::Invoice,
+            'document_type' => NumberingType::Invoice,
             'prefix' => $prefix,
             'from_number' => 1,
             'to_number' => 999999,

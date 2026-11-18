@@ -48,8 +48,9 @@ final class DocumentDrafts
     public function create(DocumentType $type, array $input, ?User $actor = null): Document
     {
         return DB::transaction(function () use ($type, $input, $actor): Document {
-            $header = $type->isNote()
-                ? [...$this->inherited((string) $input['related_document_id']), ...Arr::only($input, self::NOTE_HEADER)]
+            $invoice = $type->isNote() ? $this->invoice((string) $input['related_document_id']) : null;
+            $header = $invoice !== null
+                ? [...$this->inherited($invoice), ...Arr::only($input, self::NOTE_HEADER)]
                 : ['payment_form' => PaymentForm::Cash, 'payment_means_code' => PaymentMeans::Cash, ...Arr::only($input, self::INVOICE_HEADER)];
 
             $document = new Document([
@@ -67,10 +68,11 @@ final class DocumentDrafts
 
             $document->save();
 
+            // A note keeps the tax and withholding rates frozen on its invoice.
             $this->pricing->apply(
                 $document,
-                $this->pricing->resolveLines($input['lines'] ?? []),
-                $this->pricing->resolveWithholdings($input['withholding_ids'] ?? []),
+                $this->pricing->resolveLines($input['lines'] ?? [], $invoice),
+                $this->pricing->resolveWithholdings($input['withholding_ids'] ?? [], $invoice),
             );
 
             DocumentEvent::create([
@@ -99,13 +101,15 @@ final class DocumentDrafts
             $draft->fill(Arr::only($input, $draft->isNote() ? self::NOTE_HEADER : self::INVOICE_HEADER))->save();
 
             if (array_key_exists('lines', $input) || array_key_exists('withholding_ids', $input)) {
+                $invoice = $draft->isNote() && $draft->related_document_id !== null ? $this->invoice($draft->related_document_id) : null;
+
                 $this->pricing->apply(
                     $draft,
                     array_key_exists('lines', $input)
-                        ? $this->pricing->resolveLines($input['lines'] ?? [])
+                        ? $this->pricing->resolveLines($input['lines'] ?? [], $invoice)
                         : $this->pricing->storedLines($draft),
                     array_key_exists('withholding_ids', $input)
-                        ? $this->pricing->resolveWithholdings($input['withholding_ids'] ?? [])
+                        ? $this->pricing->resolveWithholdings($input['withholding_ids'] ?? [], $invoice)
                         : $this->pricing->storedWithholdings($draft),
                 );
             }
@@ -122,15 +126,19 @@ final class DocumentDrafts
         });
     }
 
+    /** The invoice a note corrects: the request checked it is an accepted invoice. */
+    private function invoice(string $invoiceId): Document
+    {
+        return Document::query()->where('type', DocumentType::Invoice)->findOrFail($invoiceId);
+    }
+
     /**
-     * What a note takes from the invoice it corrects: the request checked it is an accepted invoice.
+     * What a note takes from the invoice it corrects.
      *
      * @return array<string, mixed>
      */
-    private function inherited(string $invoiceId): array
+    private function inherited(Document $invoice): array
     {
-        $invoice = Document::query()->where('type', DocumentType::Invoice)->findOrFail($invoiceId);
-
         return [
             'related_document_id' => $invoice->getKey(),
             'contact_id' => $invoice->contact_id,

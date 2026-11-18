@@ -58,7 +58,8 @@ final class NotePrefill
         $balance = $this->balances->of($invoice, null, $notes);
         $void = $void && $type === DocumentType::CreditNote;
 
-        if ($type === DocumentType::CreditNote && ! BigDecimal::of($balance['remaining_to_credit'])->isPositive()) {
+        // Less than one peso left counts as credited in full.
+        if ($type === DocumentType::CreditNote && ! $balance['can_credit']) {
             throw new ConflictHttpException("Nothing is left to credit on invoice {$invoice->full_number}.");
         }
 

@@ -5,7 +5,9 @@ namespace App\Modules\Billing\Http\Resources;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Models\Document;
+use App\Modules\Billing\Models\DocumentPayment;
 use App\Modules\Billing\Services\InvoiceBalance;
+use App\Modules\Billing\Services\InvoiceReceivables;
 use App\Modules\Catalog\Http\Resources\ContactResource;
 use App\Modules\Delivery\Http\DeliveryPresenter;
 use App\Modules\Dian\Http\Resources\DianTransmissionResource;
@@ -58,6 +60,7 @@ final class DocumentResource extends JsonResource
             // accepted; null for drafts and notes.
             'balance_status' => $this->balance_status,
             ...$this->balanceDetails(),
+            ...$this->receivable(),
             // Decimal strings with 2 decimals, calculated by the API.
             'totals' => $this->resource->only(Document::AMOUNTS),
             'taxes' => DocumentTaxResource::collection($this->whenLoaded('taxes')),
@@ -178,6 +181,35 @@ final class DocumentResource extends JsonResource
         }
 
         return [];
+    }
+
+    /**
+     * An issued invoice: what payments took, what is left to collect after its accepted notes and
+     * those payments (negative: a credit in favor of the customer), its payment status, whether it
+     * is overdue, and on the detail the payments applied to it. Null for drafts and notes.
+     *
+     * @return array<string, mixed>
+     */
+    private function receivable(): array
+    {
+        $issuedInvoice = ! $this->isNote() && ! $this->isDraft();
+
+        return [
+            'paid_amount' => $issuedInvoice ? (string) $this->paid_amount : null,
+            'receivable_amount' => $issuedInvoice && $this->receivable_amount !== null ? (string) $this->receivable_amount : null,
+            'payment_status' => $issuedInvoice ? $this->payment_status : null,
+            'overdue' => $issuedInvoice && InvoiceReceivables::overdue($this->resource),
+            'days_past_due' => $issuedInvoice ? max(0, InvoiceReceivables::daysPastDue($this->resource)) : null,
+            'payments' => $this->when($issuedInvoice && $this->relationLoaded('payments'), fn () => $this->payments->map(fn (DocumentPayment $payment): array => [
+                'payment_id' => $payment->payment_id,
+                'number' => $payment->payment_number,
+                'payment_date' => $payment->payment_date->toDateString(),
+                'payment_means_code' => $payment->payment_means_code,
+                'amount' => (string) $payment->amount,
+                // applied, or released when the payment was voided.
+                'status' => $payment->status,
+            ])->values()->all()),
+        ];
     }
 
     /**

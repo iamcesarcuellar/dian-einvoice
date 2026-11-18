@@ -2,7 +2,7 @@
 
 namespace App\Modules\Billing\Http\Requests;
 
-use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Models\NumberTemplate;
 use BackedEnum;
 use DateTimeInterface;
@@ -27,7 +27,7 @@ final class NumberTemplateRequest extends FormRequest
         $required = $this->template() === null ? ['required'] : ['sometimes', 'required'];
 
         return [
-            'document_type' => [...$required, Rule::enum(DocumentType::class)],
+            'document_type' => [...$required, Rule::enum(NumberingType::class)],
             'prefix' => ['nullable', 'string', 'regex:/^[A-Z0-9]{1,4}$/'],
             'from_number' => [...$required, 'integer', 'min:0', 'max:'.self::MAX_NUMBER],
             'to_number' => [...$required, 'integer', 'min:0', 'max:'.self::MAX_NUMBER],
@@ -55,7 +55,7 @@ final class NumberTemplateRequest extends FormRequest
             }
 
             $errors = $validator->errors();
-            $type = DocumentType::from((string) $this->resulting('document_type'));
+            $type = NumberingType::from((string) $this->resulting('document_type'));
             $from = (int) $this->resulting('from_number');
             $to = (int) $this->resulting('to_number');
             $next = (int) $this->resulting('next_number');
@@ -149,7 +149,7 @@ final class NumberTemplateRequest extends FormRequest
     }
 
     /** Another range of the same document type and prefix that shares numbers with this one. */
-    private function overlappingTemplate(DocumentType $type, int $from, int $to): ?NumberTemplate
+    private function overlappingTemplate(NumberingType $type, int $from, int $to): ?NumberTemplate
     {
         $prefix = $this->resulting('prefix');
 

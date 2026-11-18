@@ -2,7 +2,7 @@
 
 namespace App\Modules\Billing\Models;
 
-use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Enums\NumberingStatus;
 use App\Modules\Identity\Tenancy\BelongsToCompany;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
@@ -51,7 +51,7 @@ class NumberTemplate extends Model
     protected function casts(): array
     {
         return [
-            'document_type' => DocumentType::class,
+            'document_type' => NumberingType::class,
             'from_number' => 'integer',
             'to_number' => 'integer',
             'next_number' => 'integer',

@@ -19,15 +19,21 @@ use Illuminate\Validation\ValidationException;
  * The balance of an invoice after its notes, calculated on the server from the payable amounts:
  * credited and debited count the notes the local simulator accepted; what is left to credit also
  * subtracts the credit notes still on their way (issued, processing or failed, not rejected), so
- * two credit notes can never credit more than the invoice plus its accepted debit notes.
+ * two credit notes can never credit more than the invoice plus its accepted debit notes. Less than
+ * one peso left counts as nothing left: the invoice is credited in full, and a void may leave it.
  */
 final class InvoiceBalance
 {
+    /** Less than this left to credit counts as credited in full. */
+    public const string ONE_PESO = '1.00';
+
+    public function __construct(private readonly InvoiceReceivables $receivables) {}
+
     /**
      * $notes, when given, are the notes of the invoice already loaded; otherwise they are read.
      *
      * @param  iterable<Document>|null  $notes
-     * @return array{total: string, credited: string, debited: string, balance: string, pending_credits: string, remaining_to_credit: string}
+     * @return array{total: string, credited: string, debited: string, balance: string, pending_credits: string, remaining_to_credit: string, can_credit: bool}
      */
     public function of(Document $invoice, ?string $exceptNoteId = null, ?iterable $notes = null): array
     {
@@ -61,6 +67,8 @@ final class InvoiceBalance
             'balance' => (string) $total->plus($debited)->minus($credited)->toScale(2),
             'pending_credits' => (string) $committed->minus($credited)->toScale(2),
             'remaining_to_credit' => (string) ($remaining->isNegative() ? BigDecimal::zero() : $remaining)->toScale(2),
+            // One peso or more left: a new credit note makes sense.
+            'can_credit' => $remaining->isGreaterThanOrEqualTo(self::ONE_PESO),
         ];
     }
 
@@ -85,9 +93,10 @@ final class InvoiceBalance
             )]]);
         }
 
-        if ($note->reason_code === CreditNoteConcept::Void->value && ! $payable->isEqualTo($remaining)) {
+        // A void takes all that is left; less than one peso may stay, and then counts as credited.
+        if ($note->reason_code === CreditNoteConcept::Void->value && $remaining->minus($payable)->isGreaterThanOrEqualTo(self::ONE_PESO)) {
             throw ValidationException::withMessages(['reason_code' => [sprintf(
-                'A credit note that voids invoice %s must be for all that is left to credit, %s; this one is for %s.',
+                'A credit note that voids invoice %s must be for all that is left to credit, %s, or less than one peso below it; this one is for %s.',
                 $invoice->full_number,
                 ColombianFormat::money((string) $remaining),
                 ColombianFormat::money((string) $payable),
@@ -97,18 +106,22 @@ final class InvoiceBalance
 
     /**
      * The balance status from the accepted notes, written on the locked invoice with a timeline entry
-     * of the note: open, partially credited, or voided by an accepted credit note with the void concept.
+     * of the note: open, partially credited, credited when less than one peso is left, or voided by an
+     * accepted credit note with the void concept. Its receivable and payment status follow.
      */
     public function noteAccepted(Document $invoice, Document $note): void
     {
         $voided = $note->type === DocumentType::CreditNote && $note->reason_code === CreditNoteConcept::Void->value;
+        $balance = $this->of($invoice);
         $status = match (true) {
             $voided || $invoice->balance_status === BalanceStatus::Voided => BalanceStatus::Voided,
-            BigDecimal::of($this->of($invoice)['credited'])->isPositive() => BalanceStatus::PartiallyCredited,
-            default => BalanceStatus::Open,
+            ! BigDecimal::of($balance['credited'])->isPositive() => BalanceStatus::Open,
+            BigDecimal::of($balance['balance'])->isLessThan(self::ONE_PESO) => BalanceStatus::Credited,
+            default => BalanceStatus::PartiallyCredited,
         };
 
         $invoice->fill(['balance_status' => $status])->save();
+        $this->receivables->refresh($invoice);
 
         DocumentEvent::create([
             'document_id' => $invoice->getKey(),

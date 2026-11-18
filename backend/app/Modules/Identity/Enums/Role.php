@@ -13,15 +13,16 @@ enum Role: string
     case Viewer = 'viewer';
 
     /**
-     * Viewers only read; members manage contacts, items and documents; owners and admins manage everything.
+     * Viewers only read; members manage contacts, items and documents and record payments; owners
+     * and admins manage everything, voiding payments included.
      *
      * @return list<Permission>
      */
     public function permissions(): array
     {
         return match ($this) {
-            self::Owner, self::Admin => [Permission::ManageCatalog, Permission::ManageDocuments, Permission::ManageSettings],
-            self::Member => [Permission::ManageCatalog, Permission::ManageDocuments],
+            self::Owner, self::Admin => [Permission::ManageCatalog, Permission::ManageDocuments, Permission::ManageSettings, Permission::RecordPayments, Permission::VoidPayments],
+            self::Member => [Permission::ManageCatalog, Permission::ManageDocuments, Permission::RecordPayments],
             self::Viewer => [],
         };
     }

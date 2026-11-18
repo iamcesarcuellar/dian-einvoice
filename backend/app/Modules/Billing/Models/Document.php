@@ -4,6 +4,7 @@ namespace App\Modules\Billing\Models;
 
 use App\Modules\Billing\Enums\BalanceStatus;
 use App\Modules\Billing\Enums\DeliveryStatus;
+use App\Modules\Billing\Enums\InvoicePaymentStatus;
 use App\Modules\Billing\Enums\DeliveryStep;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
@@ -49,7 +50,7 @@ class Document extends Model
     ];
 
     /** Relations the API loads to show one document: lines, totals, timeline, transmissions and delivered files. */
-    public const array DETAILS = ['lines.item', 'taxes', 'withholdings', 'events.actor', 'contact.municipality.department', 'transmissions', 'files', 'relatedDocument', 'relatedNotes'];
+    public const array DETAILS = ['lines.item', 'taxes', 'withholdings', 'events.actor', 'contact.municipality.department', 'transmissions', 'files', 'relatedDocument', 'relatedNotes', 'payments'];
 
     /** The last answer of the DIAN web service (the local simulator), cleared on Resend. */
     public const array DIAN_RESULT = [
@@ -71,6 +72,9 @@ class Document extends Model
         'reason_text',
         'balance_status',
         'related_snapshot',
+        'paid_amount',
+        'receivable_amount',
+        'payment_status',
         'number_template_id',
         'prefix',
         'number',
@@ -137,6 +141,9 @@ class Document extends Model
             'status' => DocumentStatus::class,
             'balance_status' => BalanceStatus::class,
             'related_snapshot' => 'array',
+            'paid_amount' => 'decimal:2',
+            'receivable_amount' => 'decimal:2',
+            'payment_status' => InvoicePaymentStatus::class,
             'number' => 'integer',
             'issue_date' => 'date',
             'issued_at' => 'datetime',
@@ -183,6 +190,16 @@ class Document extends Model
     public function keyName(): string
     {
         return $this->isNote() ? 'CUDE' : 'CUFE';
+    }
+
+    /**
+     * The payments applied to an invoice, as Billing keeps them; voided ones are released.
+     *
+     * @return HasMany<DocumentPayment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(DocumentPayment::class)->orderBy('payment_date')->orderBy('applied_at');
     }
 
     /**

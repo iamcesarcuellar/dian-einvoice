@@ -7,6 +7,7 @@ use App\Modules\Billing\Enums\BalanceStatus;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\ElectronicStatus;
+use App\Modules\Billing\Enums\InvoicePaymentStatus;
 use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Http\Requests\DocumentRequest;
 use App\Modules\Billing\Http\Resources\CalculationResource;
@@ -14,6 +15,7 @@ use App\Modules\Billing\Http\Resources\DocumentResource;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Services\DocumentDrafts;
 use App\Modules\Billing\Services\DocumentPricing;
+use App\Modules\Billing\Services\InvoiceReceivables;
 use App\Modules\Billing\Services\IssueDocument;
 use App\Modules\Billing\Services\NotePrefill;
 use App\Modules\Dian\Pipeline\ElectronicDocumentActions;
@@ -42,7 +44,9 @@ final class DocumentController
      * ?electronic_status=pending|generated|signed|sending|accepted|rejected|failed, or processing
      * for the first four, ?from= and ?to= (dates of issue, or of creation for drafts), ?search=
      * (number or customer; for notes also the number of the invoice), ?balance_status= for
-     * invoices and ?related_document_id= for the notes of one invoice.
+     * invoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one
+     * customer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted
+     * invoices with something left to collect after their due date, or their issue date for cash).
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -53,6 +57,9 @@ final class DocumentController
             'electronic_status' => ['sometimes', 'nullable', Rule::in([self::PROCESSING, ...array_column(ElectronicStatus::cases(), 'value')])],
             'balance_status' => ['sometimes', 'nullable', Rule::enum(BalanceStatus::class)],
             'related_document_id' => ['sometimes', 'nullable', 'string'],
+            'contact_id' => ['sometimes', 'nullable', 'string'],
+            'payment_status' => ['sometimes', 'nullable', Rule::enum(InvoicePaymentStatus::class)],
+            'overdue' => ['sometimes', 'nullable', 'boolean'],
             'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'to' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
@@ -66,6 +73,13 @@ final class DocumentController
                 : $query->where('electronic_status', $state))
             ->when($filters['balance_status'] ?? null, fn (Builder $query, string $state) => $query->where('balance_status', $state))
             ->when($filters['related_document_id'] ?? null, fn (Builder $query, string $id) => $query->where('related_document_id', $id))
+            ->when($filters['contact_id'] ?? null, fn (Builder $query, string $id) => $query->where('contact_id', $id))
+            ->when($filters['payment_status'] ?? null, fn (Builder $query, string $status) => $query->where('status', DocumentStatus::Issued)->where('payment_status', $status))
+            ->when($request->boolean('overdue'), fn (Builder $query) => $query
+                ->where('status', DocumentStatus::Issued)
+                ->where('electronic_status', ElectronicStatus::Accepted)
+                ->where('receivable_amount', '>', 0)
+                ->whereRaw('coalesce(due_date, issue_date) < ?', [InvoiceReceivables::today()]))
             ->when($filters['from'] ?? null, fn (Builder $query, string $from) => $query->whereRaw('coalesce(issue_date, date(created_at)) >= ?', [$from]))
             ->when($filters['to'] ?? null, fn (Builder $query, string $to) => $query->whereRaw('coalesce(issue_date, date(created_at)) <= ?', [$to]))
             ->orderByRaw('issued_at is null desc')
@@ -102,8 +116,12 @@ final class DocumentController
     public function preview(DocumentRequest $request, DocumentPricing $pricing): CalculationResource
     {
         $input = $request->validated();
-        $lines = $pricing->resolveLines($input['lines'] ?? []);
-        $withholdings = $pricing->resolveWithholdings($input['withholding_ids'] ?? []);
+        // A note is priced with the rates frozen on its invoice.
+        $invoice = $request->documentType()->isNote() && filled($input['related_document_id'] ?? null)
+            ? Document::query()->where('type', DocumentType::Invoice)->find($input['related_document_id'])
+            : null;
+        $lines = $pricing->resolveLines($input['lines'] ?? [], $invoice);
+        $withholdings = $pricing->resolveWithholdings($input['withholding_ids'] ?? [], $invoice);
 
         return new CalculationResource($pricing->calculate($lines, $withholdings), $withholdings);
     }

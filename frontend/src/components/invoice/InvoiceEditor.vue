@@ -292,8 +292,8 @@ const exceeds = computed(() => remaining.value !== null && payable.value !== nul
 
 const voiding = computed(() => type.value === 'credit_note' && form.value.reason_code === VOID_CONCEPT)
 
-/** A void must be for exactly what is left to credit. */
-const voidMismatch = computed(() => voiding.value && remaining.value !== null && payable.value !== null && cents(payable.value) !== cents(remaining.value))
+/** A void takes all that is left to credit; less than one peso may stay, and then counts as credited. */
+const voidMismatch = computed(() => voiding.value && remaining.value !== null && payable.value !== null && cents(remaining.value) - cents(payable.value) >= 100n)
 
 const conceptOptions = computed<Option[]>(() => (type.value === 'credit_note' ? creditNoteConcepts.value : debitNoteConcepts.value))
 const conceptGroup = computed(() => (type.value === 'credit_note' ? 'creditNoteConceptHints' : 'debitNoteConceptHints'))

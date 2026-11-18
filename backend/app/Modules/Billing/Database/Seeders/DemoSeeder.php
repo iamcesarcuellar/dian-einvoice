@@ -3,6 +3,7 @@
 namespace App\Modules\Billing\Database\Seeders;
 
 use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\DocumentLine;
 use App\Modules\Billing\Models\NumberTemplate;
@@ -17,6 +18,10 @@ use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\User;
+use App\Modules\Payments\Ports\InvoiceLedger;
+use App\Modules\Payments\Ports\OpenInvoice;
+use App\Modules\Payments\Services\RecordPayment;
+use App\Modules\Payments\Services\VoidPayment;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Database\Seeder;
@@ -25,11 +30,13 @@ use LogicException;
 
 /**
  * DEMO DATA for local development. The invoice range uses the public values of the DIAN test set
- * (prefix SETP, resolution 18760000001 and its technical key); the note ranges are synthetic.
+ * (prefix SETP, resolution 18760000001 and its technical key); the note ranges are synthetic, and
+ * the receipt range (RC) is the one every company gets.
  *
  * The SYNTHETIC invoices are issued with the real issue service, so their numbers are consecutive
- * and their copies coherent. To spread them over the last 30 days the clock is moved to each
- * moment of issue (Carbon test time) and restored at the end.
+ * and their copies coherent. To spread them over the last four months the clock is moved to each
+ * moment of issue (Carbon test time) and restored at the end. The oldest have short terms, so the
+ * receivables fill every aging bucket.
  *
  * Each issued invoice then runs the real electronic document chain in line (InlineChain): XML,
  * signature, transmission to the local DIAN simulator and its answer, with retries moving the
@@ -41,9 +48,12 @@ use LogicException;
  * PDF and the email with both in a zip, caught by the local mailbox. The one to the final consumer
  * has no email, so its delivery ends as not applicable; one invoice has thirty lines.
  *
- * Then the SYNTHETIC credit and debit notes, through the same issue service, chain and delivery:
- * in Demo Comercial a partial return, the void of a whole invoice, interest on a late invoice and a
- * credit note left as a draft; in Demo Servicios a partial rebate.
+ * Then what happens after the invoices, in the order of its dates and through the real services:
+ * SYNTHETIC credit and debit notes (chain and delivery included) and payments. In Demo Comercial a
+ * partial return on an invoice paid before (a credit in favor of the customer), the void of a whole
+ * invoice, interest on an invoice paid late, a credit note left as a draft, invoices paid in full,
+ * one paid in part, one payment split between two invoices, one voided, and overdue invoices of
+ * three customers. In Demo Servicios a partial rebate, two payments and one overdue invoice.
  */
 final class DemoSeeder extends Seeder
 {
@@ -54,6 +64,11 @@ final class DemoSeeder extends Seeder
      */
     private const array INVOICES = [
         'commerce' => [
+            // Older invoices with short terms: more than 90, 61 to 90 and 31 to 60 days past due.
+            [118, '10:30', '990000103', 15, '47', [['P-008', '6', '0'], ['P-002', '8', '0']], ['ReteFuente 2.5% (purchases)']],
+            [82, '14:15', '990000102', 15, '42', [['P-004', '4', '0'], ['P-007', '2', '0']], []],
+            [50, '09:50', '990000101', 10, '47', [['P-005', '4', '0']], ['ReteFuente 2.5% (purchases)']],
+            [40, '11:30', '990000104', 15, '42', [['P-001', '1', '0'], ['S-002', '2', '0']], ['ReteFuente 2.5% (purchases)']],
             [29, '09:20', '990000101', 30, '42', [['P-001', '4', '5'], ['P-002', '20', '0']], ['ReteFuente 2.5% (purchases)']],
             [26, '11:05', '222222222222', null, '10', [['P-003', '3', '0'], ['P-004', '5', '0'], ['P-007', '2', '0']], []],
             [23, '15:40', '990000102', 15, '47', [['P-005', '10', '10'], ['P-008', '12', '0']], ['ReteFuente 2.5% (purchases)', 'ReteIVA 15%']],
@@ -99,6 +114,8 @@ final class DemoSeeder extends Seeder
             ], ['ReteFuente 2.5% (purchases)']],
         ],
         'services' => [
+            // Due 33 days ago and never paid.
+            [48, '10:20', '990000203', 15, '47', [['S-104', '1', '0'], ['S-106', '1', '0']], ['ReteFuente 4% (services)']],
             [27, '10:00', '990000201', 30, '47', [['S-101', '12', '0'], ['S-105', '1', '0']], ['ReteFuente 4% (services)', 'ReteIVA 15%']],
             [20, '09:30', '990000202', 30, '42', [['S-102', '1', '0'], ['S-103', '1', '5']], ['ReteFuente 4% (services)']],
             [13, '15:15', '9990000205', null, '48', [['S-106', '2', '0'], ['S-107', '3', '0']], []],
@@ -109,32 +126,45 @@ final class DemoSeeder extends Seeder
     ];
 
     /**
-     * Notes by set: position of the invoice in its plan, type, days before today and Colombian time
-     * of issue (null for a draft), concept, description, and lines: 'all' for every line of the
-     * invoice, or [item code, quantity, price factor] copying that invoice line with another
-     * quantity (and a share of its price), or [null, quantity, description, unit price] for a free
-     * line without tax. The notes take the withholdings of their invoice.
-     */
-    private const array NOTES = [
-        'commerce' => [
-            [0, 'credit_note', 25, '10:30', '1', 'Return of one office chair and five packs of paper that arrived damaged.', [['P-001', '1', '1'], ['P-002', '5', '1']]],
-            [3, 'credit_note', 17, '09:15', '2', 'The invoice was issued to the wrong customer, so it is voided in full.', 'all'],
-            [2, 'debit_note', 2, '15:20', '1', 'Late payment interest: the invoice was paid eight days after its due date.', [[null, '1', 'Late payment interest, eight days past the due date', '42350']]],
-            [5, 'credit_note', null, null, '1', 'Return of one hour of technical support that was not delivered.', [['S-002', '1', '1']]],
-        ],
-        'services' => [
-            [0, 'credit_note', 24, '11:40', '3', 'Rebate of 10% on the consulting hours, agreed after the review of the project.', [['S-101', '12', '0.10']]],
-        ],
-    ];
-
-    /**
      * SIMULATED outcomes by set and position in its plan: the simulator mode set right before that
      * invoice is issued. count 0 means one request per transmission attempt.
      */
     private const array OUTCOMES = [
         'commerce' => [
-            6 => ['mode' => 'reject', 'rule' => 'FAB27b', 'count' => 1],
-            7 => ['mode' => 'error_500', 'count' => 0],
+            10 => ['mode' => 'reject', 'rule' => 'FAB27b', 'count' => 1],
+            11 => ['mode' => 'error_500', 'count' => 0],
+        ],
+    ];
+
+    /**
+     * What happens after the invoices, in the order of its dates (a balance depends on what came
+     * before it). Notes: ['note', position of the invoice, type, days before today and Colombian
+     * time (null for a draft), concept, description, lines], lines being 'all' for every line of the
+     * invoice, [item code, quantity, price factor] copying that invoice line with another quantity
+     * (and a share of its price), or [null, quantity, description, unit price] for a free line
+     * without tax; a note takes the withholdings of its invoice. Payments: ['payment', key, days
+     * before today, time, payment means, reference, [[position of the invoice, 'full' or a share of
+     * its balance], ...]]. Voids: ['void', key of the payment, days before today, time, reason].
+     */
+    private const array TIMELINE = [
+        'commerce' => [
+            ['payment', 'partial', 60, '10:00', '47', 'TRF-0099412', [[1, '0.40']]],
+            ['payment', 'paid-before-return', 27, '15:00', '42', 'DEP-5512094', [[4, 'full']]],
+            ['payment', 'consumer', 26, '11:12', '10', null, [[5, 'full']]],
+            ['note', 4, 'credit_note', 25, '10:30', '1', 'Return of one office chair and five packs of paper that arrived damaged.', [['P-001', '1', '1'], ['P-002', '5', '1']]],
+            ['note', 7, 'credit_note', 17, '09:15', '2', 'The invoice was issued to the wrong customer, so it is voided in full.', 'all'],
+            ['payment', 'cash', 11, '12:05', '10', null, [[9, 'full']]],
+            ['payment', 'split', 5, '09:30', '47', 'TRF-0101877', [[3, 'full'], [8, 'full']]],
+            ['payment', 'late', 2, '10:00', '47', 'TRF-0102530', [[6, 'full']]],
+            ['note', 6, 'debit_note', 2, '15:20', '1', 'Late payment interest: the invoice was paid six days after its due date.', [[null, '1', 'Late payment interest, six days past the due date', '42350']]],
+            ['payment', 'returned', 1, '16:30', '20', 'CHK-0004471', [[14, 'full']]],
+            ['void', 'returned', 1, '18:10', 'The bank returned the check for insufficient funds.'],
+            ['note', 9, 'credit_note', null, null, '1', 'Return of one hour of technical support that was not delivered.', [['S-002', '1', '1']]],
+        ],
+        'services' => [
+            ['note', 1, 'credit_note', 24, '11:40', '3', 'Rebate of 10% on the consulting hours, agreed after the review of the project.', [['S-101', '12', '0.10']]],
+            ['payment', 'transfer', 20, '10:00', '47', 'TRF-2200317', [[1, 'full']]],
+            ['payment', 'card', 13, '15:20', '48', null, [[3, 'full']]],
         ],
     ];
 
@@ -142,6 +172,9 @@ final class DemoSeeder extends Seeder
         private readonly InlineChain $chain,
         private readonly DianSimulator $simulator,
         private readonly ElectronicDocumentPipeline $pipeline,
+        private readonly InvoiceLedger $ledger,
+        private readonly RecordPayment $recordPayment,
+        private readonly VoidPayment $voidPayment,
     ) {}
 
     public function run(DocumentDrafts $drafts, IssueDocument $issue): void
@@ -159,14 +192,14 @@ final class DemoSeeder extends Seeder
                 $this->simulator->setMode($company->identification_number, ['mode' => 'normal']);
             }
 
-            $this->createNotes(self::NOTES[$set] ?? [], $invoices, $drafts, $issue, $user);
+            $this->runTimeline(self::TIMELINE[$set] ?? [], $invoices, $drafts, $issue, $user);
         });
     }
 
     private function createNumbering(): void
     {
         NumberTemplate::create([
-            'document_type' => DocumentType::Invoice,
+            'document_type' => NumberingType::Invoice,
             'prefix' => 'SETP',
             'from_number' => 990000000,
             'to_number' => 995000000,
@@ -179,7 +212,7 @@ final class DemoSeeder extends Seeder
             'is_default' => true,
         ]);
 
-        foreach ([DocumentType::CreditNote->value => 'NC', DocumentType::DebitNote->value => 'ND'] as $type => $prefix) {
+        foreach ([NumberingType::CreditNote->value => 'NC', NumberingType::DebitNote->value => 'ND'] as $type => $prefix) {
             NumberTemplate::create([
                 'document_type' => $type,
                 'prefix' => $prefix,
@@ -205,9 +238,7 @@ final class DemoSeeder extends Seeder
         $today = Carbon::now(NumberTemplate::TIMEZONE)->startOfDay();
 
         foreach ($plan as $position => [$daysAgo, $time, $customer, $creditDays, $means, $lines, $withholdingNames]) {
-            $issuedAt = $daysAgo === null
-                ? null
-                : $today->copy()->subDays($daysAgo)->setTimeFromTimeString($time)->utc();
+            $issuedAt = $daysAgo === null ? null : $this->at($today, $daysAgo, $time);
 
             // Each draft is written a few minutes before it is issued.
             Carbon::setTestNow($issuedAt?->copy()->subMinutes(12));
@@ -248,41 +279,124 @@ final class DemoSeeder extends Seeder
     }
 
     /**
-     * @param  list<array<int, mixed>>  $plan
+     * @param  list<array<int, mixed>>  $timeline
      * @param  array<int, string>  $invoices
      */
-    private function createNotes(array $plan, array $invoices, DocumentDrafts $drafts, IssueDocument $issue, User $user): void
+    private function runTimeline(array $timeline, array $invoices, DocumentDrafts $drafts, IssueDocument $issue, User $user): void
     {
-        $items = Item::query()->pluck('id', 'code');
         $today = Carbon::now(NumberTemplate::TIMEZONE)->startOfDay();
+        $payments = [];
 
-        foreach ($plan as [$position, $type, $daysAgo, $time, $concept, $description, $lines]) {
-            $invoice = Document::query()->with(['lines', 'withholdings'])->findOrFail($invoices[$position]);
-            $issuedAt = $daysAgo === null ? null : $today->copy()->subDays($daysAgo)->setTimeFromTimeString($time)->utc();
-
-            // A draft is written a few hours ago; an issued note a few minutes before it is issued.
-            Carbon::setTestNow($issuedAt?->copy()->subMinutes(9) ?? Carbon::now()->subHours(3));
-
-            $note = $drafts->create(DocumentType::from($type), [
-                'related_document_id' => $invoice->getKey(),
-                'reason_code' => $concept,
-                'reason_text' => $description,
-                'lines' => $lines === 'all'
-                    ? $invoice->lines->map(fn (DocumentLine $line): array => $this->copyLine($line, (string) $line->quantity, '1'))->all()
-                    : array_map(fn (array $line): array => $line[0] === null
-                        ? ['description' => $line[2], 'unit_code' => '94', 'quantity' => $line[1], 'unit_price' => $line[3], 'discount_rate' => '0', 'tax_id' => null]
-                        : $this->copyLine($invoice->lines->firstWhere('item_id', $items[$line[0]]), $line[1], $line[2]), $lines),
-                'withholding_ids' => $invoice->withholdings->pluck('withholding_id')->filter()->values()->all(),
-            ], $user);
-
-            if ($issuedAt !== null) {
-                Carbon::setTestNow($issuedAt);
-                $issue($note->getKey(), $user);
-                $this->chain->run($note->getKey());
-            }
+        foreach ($timeline as $step) {
+            match ($step[0]) {
+                'note' => $this->createNote($step, $invoices, $today, $drafts, $issue, $user),
+                'payment' => $payments[$step[1]] = $this->recordPayment($step, $invoices, $today, $user),
+                'void' => $this->voidPayment($step, $payments, $today, $user),
+            };
         }
 
         Carbon::setTestNow();
+    }
+
+    /**
+     * @param  array<int, mixed>  $step
+     * @param  array<int, string>  $invoices
+     */
+    private function createNote(array $step, array $invoices, Carbon $today, DocumentDrafts $drafts, IssueDocument $issue, User $user): void
+    {
+        [, $position, $type, $daysAgo, $time, $concept, $description, $lines] = $step;
+
+        $items = Item::query()->pluck('id', 'code');
+        $invoice = Document::query()->with(['lines', 'withholdings'])->findOrFail($invoices[$position]);
+        $issuedAt = $daysAgo === null ? null : $this->at($today, $daysAgo, $time);
+
+        // A draft is written a few hours ago; an issued note a few minutes before it is issued.
+        Carbon::setTestNow($issuedAt?->copy()->subMinutes(9) ?? Carbon::now()->subHours(3));
+
+        $note = $drafts->create(DocumentType::from($type), [
+            'related_document_id' => $invoice->getKey(),
+            'reason_code' => $concept,
+            'reason_text' => $description,
+            'lines' => $lines === 'all'
+                ? $invoice->lines->map(fn (DocumentLine $line): array => $this->copyLine($line, (string) $line->quantity, '1'))->all()
+                : array_map(fn (array $line): array => $line[0] === null
+                    ? ['description' => $line[2], 'unit_code' => '94', 'quantity' => $line[1], 'unit_price' => $line[3], 'discount_rate' => '0', 'tax_id' => null]
+                    : $this->copyLine($invoice->lines->firstWhere('item_id', $items[$line[0]]), $line[1], $line[2]), $lines),
+            'withholding_ids' => $invoice->withholdings->pluck('withholding_id')->filter()->values()->all(),
+        ], $user);
+
+        if ($issuedAt !== null) {
+            Carbon::setTestNow($issuedAt);
+            $issue($note->getKey(), $user);
+            $this->chain->run($note->getKey());
+        }
+
+        Carbon::setTestNow();
+    }
+
+    /**
+     * Records a payment through the payments module, for the balance its invoices have at that
+     * moment ('full') or a share of it, rounded to whole pesos.
+     *
+     * @param  array<int, mixed>  $step
+     * @param  array<int, string>  $invoices
+     * @return string The id of the payment.
+     */
+    private function recordPayment(array $step, array $invoices, Carbon $today, User $user): string
+    {
+        [, , $daysAgo, $time, $means, $reference, $allocations] = $step;
+
+        $at = $this->at($today, $daysAgo, $time);
+        Carbon::setTestNow($at);
+
+        $contactId = (string) Document::query()->whereKey($invoices[$allocations[0][0]])->value('contact_id');
+        $open = [];
+
+        foreach ($this->ledger->openInvoices($contactId) as $invoice) {
+            $open[$invoice->id] = $invoice;
+        }
+
+        $lines = array_map(function (array $allocation) use ($open, $invoices): array {
+            [$position, $share] = $allocation;
+            $invoice = $open[$invoices[$position]] ?? throw new LogicException("The demo payment names invoice {$position}, which has nothing left to collect.");
+            /** @var OpenInvoice $invoice */
+            $balance = BigDecimal::of($invoice->balance);
+            $amount = $share === 'full' ? $balance : $balance->multipliedBy($share)->toScale(0, RoundingMode::HalfEven);
+
+            return ['document_id' => $invoice->id, 'amount' => (string) $amount->toScale(2)];
+        }, $allocations);
+
+        $payment = ($this->recordPayment)([
+            'contact_id' => $contactId,
+            'payment_date' => $at->copy()->setTimezone(NumberTemplate::TIMEZONE)->toDateString(),
+            'payment_means_code' => $means,
+            'reference' => $reference,
+            'notes' => null,
+            'allocations' => $lines,
+        ], $user);
+
+        Carbon::setTestNow();
+
+        return $payment->getKey();
+    }
+
+    /**
+     * @param  array<int, mixed>  $step
+     * @param  array<string, string>  $payments
+     */
+    private function voidPayment(array $step, array $payments, Carbon $today, User $user): void
+    {
+        [, $key, $daysAgo, $time, $reason] = $step;
+
+        Carbon::setTestNow($this->at($today, $daysAgo, $time));
+        ($this->voidPayment)($payments[$key], $reason, $user);
+        Carbon::setTestNow();
+    }
+
+    /** A Colombian day and time before today, as an instant in UTC. */
+    private function at(Carbon $today, int $daysAgo, string $time): Carbon
+    {
+        return $today->copy()->subDays($daysAgo)->setTimeFromTimeString($time)->utc();
     }
 
     /**

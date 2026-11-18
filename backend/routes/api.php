@@ -14,3 +14,4 @@ require app_path('Modules/Catalog/routes.php');
 require app_path('Modules/Billing/routes.php');
 require app_path('Modules/Dian/routes.php');
 require app_path('Modules/Delivery/routes.php');
+require app_path('Modules/Payments/routes.php');

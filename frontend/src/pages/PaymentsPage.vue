@@ -1,0 +1,116 @@
+<script setup lang="ts">
+import type { Payment } from '@/api/types'
+import type { DataTableColumn, RowAction } from '@/components/data-table/types'
+import type { Option } from '@/lib/options'
+import { EyeIcon, PlusIcon } from '@lucide/vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { paymentsApi } from '@/api/resources'
+import DataTable from '@/components/data-table/DataTable.vue'
+import RowActions from '@/components/data-table/RowActions.vue'
+import PaymentStatusBadge from '@/components/payment/PaymentStatusBadge.vue'
+import SelectInput from '@/components/SelectInput.vue'
+import { Button } from '@/components/ui/button'
+import { useListQuery } from '@/composables/useListQuery'
+import { useReference } from '@/composables/useReference'
+import { useSession } from '@/composables/useSession'
+import { formatDate, formatMoney } from '@/lib/format'
+
+/** Payments received, newest first, with search, status and payment means filters. */
+const ALL = 'all'
+
+const { t } = useI18n()
+const router = useRouter()
+const { can } = useSession()
+const { label, paymentMeans } = useReference()
+
+const status = ref<string | null>(ALL)
+const means = ref<string | null>(ALL)
+
+const statusOptions = computed<Option[]>(() => [
+  { value: ALL, label: t('payments.filters.allStatuses') },
+  { value: 'recorded', label: t('payments.status.recorded') },
+  { value: 'voided', label: t('payments.status.voided') },
+])
+
+const meansOptions = computed<Option[]>(() => [{ value: ALL, label: t('payments.filters.allMeans') }, ...paymentMeans.value])
+
+function filterValue(value: string | null): string | undefined {
+  return value === ALL || value === null ? undefined : value
+}
+
+const { page, search, rows, meta, isLoading } = useListQuery('payments', paymentsApi.list, {
+  filters: () => ({ status: filterValue(status.value), payment_means_code: filterValue(means.value) }),
+})
+
+const columns = computed<DataTableColumn[]>(() => [
+  { key: 'number', label: t('payments.columns.number') },
+  { key: 'date', label: t('payments.columns.date') },
+  { key: 'customer', label: t('payments.columns.customer') },
+  { key: 'means', label: t('payments.columns.means') },
+  { key: 'amount', label: t('payments.columns.amount'), align: 'right' },
+  { key: 'status', label: t('payments.columns.status') },
+])
+
+function actions(payment: Payment): RowAction[] {
+  return [{ label: t('common.view'), icon: EyeIcon, onSelect: () => router.push({ name: 'payment', params: { id: payment.id } }) }]
+}
+</script>
+
+<template>
+  <DataTable
+    v-model:search="search"
+    v-model:page="page"
+    :columns="columns"
+    :rows="rows"
+    :meta="meta"
+    :loading="isLoading"
+    :search-placeholder="t('payments.searchPlaceholder')"
+    :empty-title="t('payments.empty.title')"
+    :empty-description="t('payments.empty.description')"
+    actions
+  >
+    <template #toolbar>
+      <div class="flex flex-wrap gap-2">
+        <div class="w-44">
+          <SelectInput v-model="status" :options="statusOptions" :placeholder="t('payments.filters.status')" />
+        </div>
+        <div class="w-52">
+          <SelectInput v-model="means" :options="meansOptions" :placeholder="t('payments.filters.means')" />
+        </div>
+      </div>
+    </template>
+    <template #cell-number="{ row }">
+      <RouterLink :to="{ name: 'payment', params: { id: row.id } }" class="font-medium whitespace-nowrap text-foreground tabular-nums hover:underline">
+        {{ row.full_number }}
+      </RouterLink>
+    </template>
+    <template #cell-date="{ row }">
+      <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.payment_date) }}</span>
+    </template>
+    <template #cell-customer="{ row }">
+      <span class="block max-w-64 truncate">{{ row.customer_name }}</span>
+    </template>
+    <template #cell-means="{ row }">
+      <span class="whitespace-nowrap text-muted-foreground">{{ label('paymentMeans', row.payment_means_code) }}</span>
+    </template>
+    <template #cell-amount="{ row }">
+      <span class="whitespace-nowrap tabular-nums" :class="row.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{ formatMoney(row.amount) }}</span>
+    </template>
+    <template #cell-status="{ row }">
+      <PaymentStatusBadge :status="row.status" />
+    </template>
+    <template #actions="{ row }">
+      <RowActions :actions="actions(row)" />
+    </template>
+    <template v-if="can('record-payments')" #empty-action>
+      <Button variant="outline" size="sm" as-child>
+        <RouterLink :to="{ name: 'payment-new' }">
+          <PlusIcon />
+          {{ t('payments.new') }}
+        </RouterLink>
+      </Button>
+    </template>
+  </DataTable>
+</template>

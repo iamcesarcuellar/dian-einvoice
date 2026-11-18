@@ -31,7 +31,7 @@ const items: NavItem[] = [
   { label: 'nav.invoices', icon: FileTextIcon, to: '/invoices' },
   { label: 'nav.contacts', icon: UsersIcon, to: '/contacts' },
   { label: 'nav.items', icon: PackageIcon, to: '/items' },
-  { label: 'nav.payments', icon: CreditCardIcon },
+  { label: 'nav.payments', icon: CreditCardIcon, to: '/payments' },
   { label: 'nav.settings', icon: SettingsIcon, to: '/settings' },
 ]
 

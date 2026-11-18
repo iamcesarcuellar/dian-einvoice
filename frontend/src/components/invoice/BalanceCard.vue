@@ -41,7 +41,8 @@ const balance = computed(() => props.invoice.balance ?? null)
 const notes = computed(() => props.invoice.related_notes ?? [])
 const voided = computed(() => props.invoice.balance_status === 'voided')
 const canCorrect = computed(() => can('manage-documents') && !voided.value)
-const canCredit = computed(() => canCorrect.value && Number(balance.value?.remaining_to_credit ?? '0') > 0)
+// Less than one peso left counts as credited in full.
+const canCredit = computed(() => canCorrect.value && balance.value?.can_credit === true)
 const hasPending = computed(() => Number(balance.value?.pending_credits ?? '0') > 0)
 
 const voidOpen = ref(false)

@@ -3,7 +3,7 @@
 namespace App\Modules\Billing\Http\Controllers;
 
 use App\Http\Listing;
-use App\Modules\Billing\Enums\DocumentType;
+use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Http\Requests\NumberTemplateRequest;
 use App\Modules\Billing\Http\Resources\NumberTemplateResource;
 use App\Modules\Billing\Models\NumberTemplate;
@@ -102,7 +102,7 @@ final class NumberTemplateController
         $this->outbox->record($this->currentCompany->id(), 'company', $this->currentCompany->id(), ChainEvents::TAXPAYER_CHANGED);
     }
 
-    private function clearDefault(DocumentType $type, ?NumberTemplate $except = null): void
+    private function clearDefault(NumberingType $type, ?NumberTemplate $except = null): void
     {
         NumberTemplate::query()
             ->where('document_type', $type)

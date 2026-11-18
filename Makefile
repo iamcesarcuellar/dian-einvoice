@@ -12,7 +12,7 @@ CONCURRENCY ?= 20
 # Size of make chaos.
 CHAOS_INVOICES ?= 40
 
-.PHONY: up down logs ps seed demo stress chaos dian-check delivery-check clean nuke sh-api sh-web screenshots
+.PHONY: up down logs ps seed demo stress chaos dian-check delivery-check clean nuke sh-api sh-web screenshots payments-check
 
 # Build images if needed, start the stack, wait for the database, Redis and the local mailbox, install missing dependencies,
 # generate the key, migrate, and start the queue workers and the outbox relay with the current code.
@@ -69,6 +69,11 @@ dian-check:
 # ApplicationResponse inside), read its PDF with poppler (pages, number, CUFE), and find its email in the local mailbox.
 delivery-check:
 	$(COMPOSE) exec api php artisan delivery:check
+
+# On a temporary company of its own, deleted at the end: an accepted invoice and 20 simultaneous payments
+# of a tenth of its balance. Exactly 10 must fit, the balance must end at zero, and the receipts have no gaps.
+payments-check:
+	$(COMPOSE) exec api php artisan payments:check
 
 # Remove this project's containers and volumes, which deletes the database, the queue, the simulator state and the mailbox.
 clean:
