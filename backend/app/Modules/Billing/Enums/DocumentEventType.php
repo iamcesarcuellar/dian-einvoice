@@ -37,4 +37,29 @@ enum DocumentEventType: string
 
     /** Resend after a rejection, by a user; payload: whether the CUFE changed. */
     case ResendRequested = 'resend_requested';
+
+    /** The AttachedDocument was built and signed; payload: run, file_name, sha256 and size. */
+    case AttachedDocumentBuilt = 'attached_document_built';
+
+    /** The PDF was generated; payload: run, file_name, pages, sha256 and size. */
+    case PdfGenerated = 'pdf_generated';
+
+    /**
+     * One email attempt to the customer, always caught by the local mailbox. Payload: run, attempt,
+     * max_attempts, recipient, outcome (sent or failed), error, message_id, package, and retry_in and
+     * next_attempt_at when a retry was scheduled.
+     */
+    case EmailAttempt = 'email_attempt';
+
+    /** The customer has no email address, so nothing was sent; payload: run and package. */
+    case DeliveryNotApplicable = 'delivery_not_applicable';
+
+    /** A delivery step failed, or every email attempt did; payload: step, reason and attempts. */
+    case DeliveryFailed = 'delivery_failed';
+
+    /** Send again, by a user; payload: run, recipient, previous_recipient and the step it starts from. */
+    case DeliveryRequested = 'delivery_requested';
+
+    /** Regenerate the PDF after it failed, by a user; payload: run and the step it starts from. */
+    case PdfRegenerationRequested = 'pdf_regeneration_requested';
 }

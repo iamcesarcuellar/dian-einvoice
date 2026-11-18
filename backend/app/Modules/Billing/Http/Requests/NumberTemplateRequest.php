@@ -33,6 +33,7 @@ final class NumberTemplateRequest extends FormRequest
             'to_number' => [...$required, 'integer', 'min:0', 'max:'.self::MAX_NUMBER],
             'next_number' => [...$required, 'integer', 'min:0', 'max:'.self::MAX_NUMBER],
             'resolution_number' => ['nullable', 'string', 'max:30'],
+            'resolution_date' => ['nullable', 'date_format:Y-m-d'],
             'valid_from' => ['nullable', 'date_format:Y-m-d'],
             'valid_to' => ['nullable', 'date_format:Y-m-d'],
             'technical_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9]{8,128}$/'],
@@ -72,8 +73,14 @@ final class NumberTemplateRequest extends FormRequest
                 $errors->add('valid_to', 'The end of the validity must be after its start.');
             }
 
+            $resolutionDate = $this->resulting('resolution_date');
+
+            if (filled($resolutionDate) && filled($validFrom) && $resolutionDate > $validFrom) {
+                $errors->add('resolution_date', 'The resolution cannot be dated after the start of its validity.');
+            }
+
             if ($type->requiresResolution()) {
-                foreach (['resolution_number' => 'resolution number', 'valid_from' => 'start of the validity', 'valid_to' => 'end of the validity'] as $key => $label) {
+                foreach (['resolution_number' => 'resolution number', 'resolution_date' => 'date of the resolution', 'valid_from' => 'start of the validity', 'valid_to' => 'end of the validity'] as $key => $label) {
                     if (blank($this->resulting($key))) {
                         $errors->add($key, "The {$label} is required for invoices.");
                     }

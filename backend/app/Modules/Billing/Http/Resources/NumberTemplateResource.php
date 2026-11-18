@@ -26,6 +26,7 @@ final class NumberTemplateResource extends JsonResource
             'to_number' => $this->to_number,
             'next_number' => $this->next_number,
             'resolution_number' => $this->resolution_number,
+            'resolution_date' => $this->resolution_date?->toDateString(),
             'valid_from' => $this->valid_from?->toDateString(),
             'valid_to' => $this->valid_to?->toDateString(),
             // The technical key is write-only: only whether it is set and its last four characters.

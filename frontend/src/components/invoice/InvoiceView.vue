@@ -3,6 +3,7 @@ import type { Contact, DocumentEvent, Invoice, PartySnapshot } from '@/api/types
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import FormSection from '@/components/FormSection.vue'
+import DeliveryCard from '@/components/invoice/DeliveryCard.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
 import ElectronicDocumentCard from '@/components/invoice/ElectronicDocumentCard.vue'
 import ElectronicProgress from '@/components/invoice/ElectronicProgress.vue'
@@ -17,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useReference } from '@/composables/useReference'
-import { formatDate, formatDateTime, formatDecimal, formatMoney, formatPercent, formatTime } from '@/lib/format'
+import { formatDate, formatDateTime, formatDecimal, formatInteger, formatMoney, formatPercent, formatTime } from '@/lib/format'
 import { formatNit } from '@/lib/utils'
 
 /** Read-only view of an invoice: always for issued invoices, and for drafts when the role cannot edit. */
@@ -90,6 +91,7 @@ const numbering = computed(() => {
   return t('invoices.view.resolution', {
     prefix: snapshot.prefix ?? '',
     number: snapshot.resolution_number ?? '—',
+    date: formatDate(snapshot.resolution_date) || '—',
     from: formatDate(snapshot.valid_from) || '—',
     to: formatDate(snapshot.valid_to) || '—',
   })
@@ -122,6 +124,25 @@ function attemptLabel(payload: Record<string, unknown>): string {
   }
 }
 
+/** One email attempt to the customer, always caught by the local mailbox. */
+function emailLabel(payload: Record<string, unknown>): string {
+  const attempt = Number(payload.attempt ?? 1)
+  const recipient = String(payload.recipient ?? '')
+
+  switch (payload.outcome) {
+    case 'sent':
+      return t('invoices.view.events.emailSent', { recipient })
+    case 'rejected':
+      return t('invoices.view.events.emailRejected', { attempt, recipient })
+    case 'abandoned':
+      return t('invoices.view.events.emailInterrupted', { attempt })
+    default:
+      return typeof payload.retry_in === 'number'
+        ? t('invoices.view.events.emailFailed', { attempt, recipient, seconds: payload.retry_in })
+        : t('invoices.view.events.emailFailedLast', { attempt, recipient })
+  }
+}
+
 function rulesOf(payload: Record<string, unknown> | null): string {
   return Array.isArray(payload?.rules) ? payload.rules.join(', ') : ''
 }
@@ -150,6 +171,20 @@ function eventLabel(event: DocumentEvent): string {
       return t('invoices.view.events.retryRequested')
     case 'resend_requested':
       return t('invoices.view.events.resendRequested')
+    case 'attached_document_built':
+      return t('invoices.view.events.attachedDocumentBuilt')
+    case 'pdf_generated':
+      return t('invoices.view.events.pdfGenerated')
+    case 'email_attempt':
+      return emailLabel(payload)
+    case 'delivery_not_applicable':
+      return t('invoices.view.events.deliveryNotApplicable')
+    case 'delivery_failed':
+      return t('invoices.view.events.deliveryFailed', { step: t(`invoices.view.events.steps.${String(payload.step ?? 'email')}`) })
+    case 'delivery_requested':
+      return t('invoices.view.events.deliveryRequested')
+    case 'pdf_regeneration_requested':
+      return t('invoices.view.events.pdfRegenerationRequested')
     default:
       return t('invoices.view.events.created')
   }
@@ -181,8 +216,19 @@ function eventDetail(event: DocumentEvent): string | null {
         : t('invoices.view.events.retryFrom', { step: t(`invoices.view.events.steps.${String(payload.step ?? 'transmit')}`) })
     case 'resend_requested':
       return payload.cufe_changed === true ? t('invoices.view.events.cufeChanged') : null
+    case 'attached_document_built':
+      return t('invoices.view.events.attachedDocumentDetail', { file: String(payload.file_name ?? ''), size: formatInteger(Number(payload.size ?? 0)) })
+    case 'pdf_generated':
+      return t('invoices.view.events.pdfDetail', { file: String(payload.file_name ?? ''), pages: Number(payload.pages ?? 0), size: formatInteger(Number(payload.size ?? 0)) })
+    case 'email_attempt':
+      return payload.outcome === 'sent'
+        ? t('invoices.view.events.emailSentDetail', { attempt: Number(payload.attempt ?? 1), max: Number(payload.max_attempts ?? 1), ms: Number(payload.duration_ms ?? 0) })
+        : (typeof payload.error === 'string' ? payload.error : null)
+    case 'delivery_requested':
+      return t('invoices.view.events.deliveryRequestedTo', { recipient: String(payload.recipient ?? '') })
     case 'xml_failed':
     case 'transmission_failed':
+    case 'delivery_failed':
       return typeof reason === 'string' ? reason : null
     default:
       return null
@@ -195,9 +241,12 @@ function eventTone(event: DocumentEvent): 'error' | 'warning' | 'success' | 'def
     case 'xml_failed':
     case 'rejected':
     case 'transmission_failed':
+    case 'delivery_failed':
       return 'error'
     case 'accepted':
       return 'success'
+    case 'email_attempt':
+      return event.payload?.outcome === 'sent' ? 'success' : (event.payload?.outcome === 'rejected' ? 'error' : 'warning')
     case 'transmission_attempt':
       return ['responded', 'found', 'not_found'].includes(String(event.payload?.outcome)) ? 'default' : 'warning'
     default:
@@ -221,7 +270,7 @@ const toneClass = {
       </template>
     </PageHeader>
 
-    <ElectronicProgress v-if="invoice.electronic" :electronic="invoice.electronic" />
+    <ElectronicProgress v-if="invoice.electronic" :electronic="invoice.electronic" :delivery="invoice.delivery" />
 
     <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div class="grid min-w-0 gap-6">
@@ -267,6 +316,8 @@ const toneClass = {
         </FormSection>
 
         <ElectronicDocumentCard v-if="invoice.status === 'issued'" :invoice="invoice" />
+
+        <DeliveryCard v-if="invoice.status === 'issued'" :invoice="invoice" />
 
         <FormSection :title="t('invoices.view.lines')">
           <div class="-mx-6 overflow-x-auto">
@@ -319,7 +370,7 @@ const toneClass = {
                 <p
                   v-if="eventDetail(event)"
                   class="text-xs break-words"
-                  :class="event.type === 'xml_failed' || event.type === 'transmission_failed' ? 'font-mono text-destructive' : 'text-muted-foreground'"
+                  :class="['xml_failed', 'transmission_failed', 'delivery_failed'].includes(event.type) ? 'font-mono text-destructive' : 'text-muted-foreground'"
                 >
                   {{ eventDetail(event) }}
                 </p>

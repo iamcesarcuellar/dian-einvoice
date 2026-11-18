@@ -138,9 +138,14 @@ export async function requestText(path: string): Promise<string> {
   return (await sendChecked('GET', path)).text()
 }
 
-/** Hands text to the browser as a file download. */
-export function saveTextFile(contents: string, fileName: string, type: string): void {
-  const url = URL.createObjectURL(new Blob([contents], { type }))
+/** GETs a file from the API, such as a PDF or a zip, as a Blob with its type. Throws ApiError on HTTP errors. */
+export async function requestBlob(path: string, query?: QueryParams): Promise<Blob> {
+  return (await sendChecked('GET', path, undefined, query)).blob()
+}
+
+/** Hands a Blob to the browser as a file download. */
+export function saveBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
 
   link.href = url
@@ -149,4 +154,9 @@ export function saveTextFile(contents: string, fileName: string, type: string): 
 
   // Released once the browser has taken the file.
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** Hands text to the browser as a file download. */
+export function saveTextFile(contents: string, fileName: string, type: string): void {
+  saveBlob(new Blob([contents], { type }), fileName)
 }

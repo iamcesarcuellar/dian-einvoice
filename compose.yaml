@@ -17,6 +17,8 @@ x-backend: &backend
       condition: service_healthy
     redis:
       condition: service_healthy
+    mail:
+      condition: service_healthy
 
 services:
   api:
@@ -80,6 +82,27 @@ services:
       timeout: 3s
       retries: 20
 
+  # Local development mailbox (Mailpit): it keeps every email the app sends over SMTP and relays
+  # none, so nothing leaves this machine. Web interface and API on 127.0.0.1:8603; SMTP (1025) only
+  # on the internal network.
+  mail:
+    image: axllent/mailpit:v1.33.0
+    restart: "no"
+    mem_limit: 128m
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: 2000
+      TZ: America/Bogota
+    volumes:
+      - mail-data:/data
+    ports:
+      - "127.0.0.1:8603:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   db:
     image: mysql:8.4
     restart: "no"
@@ -117,3 +140,4 @@ volumes:
   db-data:
   redis-data:
   simulator-data:
+  mail-data:

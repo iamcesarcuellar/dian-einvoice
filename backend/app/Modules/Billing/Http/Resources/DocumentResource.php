@@ -6,6 +6,7 @@ use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Enums\XmlStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Catalog\Http\Resources\ContactResource;
+use App\Modules\Delivery\Http\DeliveryPresenter;
 use App\Modules\Dian\Http\Resources\DianTransmissionResource;
 use App\Modules\Dian\Pipeline\ElectronicDocumentPipeline;
 use Illuminate\Http\Request;
@@ -73,6 +74,9 @@ final class DocumentResource extends JsonResource
                 'certificate_serial' => $this->signing_certificate_serial,
             ],
             'electronic' => $this->electronic(),
+            // Delivery to the customer once accepted: AttachedDocument, PDF and the email with both in
+            // a zip, always caught by the local development mailbox. Files only on the detail.
+            'delivery' => DeliveryPresenter::present($this->resource),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

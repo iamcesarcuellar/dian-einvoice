@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use App\Modules\Billing\Database\Seeders\DemoSeeder as BillingDemoSeeder;
 use App\Modules\Catalog\Database\Seeders\DemoSeeder as CatalogDemoSeeder;
+use App\Modules\Delivery\LocalMailbox\LocalMailbox;
+use App\Modules\Delivery\LocalMailbox\LocalMailboxUnavailable;
 use App\Modules\Dian\Database\Seeders\DemoSeeder as DianDemoSeeder;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
@@ -18,9 +20,10 @@ class DatabaseSeeder extends Seeder
     /**
      * Synthetic demo data for local development only. DIAN settings and test certificates come
      * before the invoices: issuing needs them, and every issued demo invoice goes through the real
-     * electronic document chain against the local DIAN simulator.
+     * electronic document chain against the local DIAN simulator, and once accepted through the
+     * customer delivery, whose emails land in the local mailbox.
      */
-    public function run(DocumentStorage $storage, DianSimulator $simulator): void
+    public function run(DocumentStorage $storage, DianSimulator $simulator, LocalMailbox $mailbox): void
     {
         // make seed has just recreated the database, so every stored file is an orphan. The guard
         // keeps the files of a database that still has documents.
@@ -30,6 +33,13 @@ class DatabaseSeeder extends Seeder
             // A fresh world: the simulator forgets the taxpayers, documents and modes of the previous
             // database, and jobs queued for it are dropped.
             $simulator->reset();
+
+            // The local mailbox forgets the emails of the previous database too.
+            try {
+                $mailbox->clear();
+            } catch (LocalMailboxUnavailable $exception) {
+                $this->command?->warn('The local mailbox is not answering, so it keeps its earlier emails: '.$exception->getMessage());
+            }
 
             $queue = Queue::connection();
 

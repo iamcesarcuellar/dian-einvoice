@@ -73,6 +73,19 @@ return new class extends Migration
             $table->json('dian_messages')->nullable()->comment('Rules failed or noted: rule, kind (rejection or notification) and message');
             $table->string('dian_response_path')->nullable()->comment('ApplicationResponse in the private document storage');
             $table->timestamp('dian_responded_at')->nullable();
+            // Customer delivery, started when the local simulator accepts the document: build the
+            // AttachedDocument, generate the PDF, then package both and email them to the customer.
+            // Its files are in document_files and every email attempt in delivery_attempts.
+            $table->string('delivery_status', 20)->nullable()->comment('pending, delivered, failed or not_applicable; null until accepted');
+            $table->string('delivery_step', 20)->nullable()->comment('attached_document, pdf or email: the step due while pending, the one that failed while failed');
+            $table->timestamp('delivery_status_at')->nullable()->comment('When the delivery status last changed');
+            $table->unsignedSmallInteger('delivery_run')->default(0)->comment('Pass of the delivery: 1 on acceptance, one more on each Send again or Regenerate PDF');
+            $table->unsignedTinyInteger('delivery_attempt')->default(0)->comment('Last email attempt started in this run');
+            $table->timestamp('delivery_next_attempt_at')->nullable()->comment('Set while an email waits for its next attempt');
+            $table->string('delivery_recipient')->nullable()->comment('Email address of the current or last delivery; null when the customer has none');
+            $table->timestamp('delivered_at')->nullable()->comment('When the mail server (the local mailbox) accepted the email');
+            $table->string('delivery_error', 500)->nullable()->comment('Why the delivery failed, while failed');
+            $table->string('delivery_file_base', 30)->nullable()->comment('NIT + 000 + year + hexadecimal consecutive of the AttachedDocument and its zip (annex 1.9, 6.5.7 and 6.5.8)');
             $table->foreignUlid('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
@@ -82,6 +95,7 @@ return new class extends Migration
             $table->index(['company_id', 'type', 'electronic_status']);
             // The relay looks across companies for chains that stopped moving.
             $table->index(['electronic_status', 'updated_at']);
+            $table->index(['delivery_status', 'updated_at']);
         });
 
         Schema::create('document_lines', function (Blueprint $table) {

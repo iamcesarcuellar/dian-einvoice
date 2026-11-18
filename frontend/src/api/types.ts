@@ -236,6 +236,8 @@ export interface NumberTemplate {
   to_number: number
   next_number: number
   resolution_number: string | null
+  /** Date of the DIAN resolution, required for invoices. */
+  resolution_date: string | null
   valid_from: string | null
   valid_to: string | null
   /** The technical key itself is never returned. */
@@ -256,6 +258,7 @@ export interface NumberTemplateInput {
   to_number: number
   next_number: number
   resolution_number: string | null
+  resolution_date: string | null
   valid_from: string | null
   valid_to: string | null
   /** Write-only: leave it out to keep the stored key. */
@@ -330,6 +333,13 @@ export type DocumentEventType =
   | 'transmission_failed'
   | 'retry_requested'
   | 'resend_requested'
+  | 'attached_document_built'
+  | 'pdf_generated'
+  | 'email_attempt'
+  | 'delivery_not_applicable'
+  | 'delivery_failed'
+  | 'delivery_requested'
+  | 'pdf_regeneration_requested'
 
 export interface DocumentEvent {
   id: string
@@ -338,7 +348,9 @@ export interface DocumentEvent {
    * xml_failed: { step, reason }; xml_signed: { certificate_serial, test_certificate, sha256, size };
    * transmission_attempt: TransmissionAttemptPayload; accepted and rejected: { status_code, rules,
    * notifications }; transmission_failed: { attempts, reason }; retry_requested: { step, waiting };
-   * resend_requested: { cufe_changed }.
+   * resend_requested: { cufe_changed }; attached_document_built and pdf_generated: { file_name, size,
+   * sha256, pages }; email_attempt: { attempt, max_attempts, recipient, outcome, error, retry_in };
+   * delivery_failed: { step, reason, attempts }; delivery_requested: { recipient, previous_recipient, step }.
    */
   payload: Record<string, unknown> | null
   occurred_at: string
@@ -397,6 +409,7 @@ export interface NumberingSnapshot {
   from_number: number
   to_number: number
   resolution_number: string | null
+  resolution_date: string | null
   valid_from: string | null
   valid_to: string | null
 }
@@ -438,8 +451,72 @@ export interface Invoice {
   xml: DocumentXml
   /** The electronic document chain; null for drafts. */
   electronic: ElectronicDocument | null
+  /** Delivery to the customer once accepted; null for drafts. */
+  delivery: InvoiceDelivery | null
   created_at: string
   updated_at: string
+}
+
+/** Delivery of an accepted invoice to its customer, apart from its electronic status. */
+export type DeliveryStatus = 'pending' | 'delivered' | 'failed' | 'not_applicable'
+
+/** The steps of the delivery, in order. */
+export type DeliveryStep = 'attached_document' | 'pdf' | 'email'
+
+/** A file delivered to the customer, as stored. */
+export interface DeliveredFile {
+  /** Name of the download; the PDF downloads under the invoice number. */
+  file_name: string
+  /** Name inside the zip, as annex 1.9 names the files. */
+  package_name: string
+  mime_type: string
+  size: number
+  sha256: string
+  pages: number | null
+  updated_at: string
+}
+
+export interface InvoiceDelivery {
+  /** Null until the local simulator accepts the invoice. */
+  status: DeliveryStatus | null
+  /** Delivered, failed or not applicable: the delivery has ended. */
+  final: boolean
+  /** The step running while pending, or the one that failed. */
+  step: DeliveryStep | null
+  status_changed_at: string | null
+  /** Pass of the delivery: 1 on acceptance, one more on each Send again or Regenerate PDF. */
+  run: number
+  attempt: number
+  max_attempts: number
+  /** Waiting for the next email attempt after a transient failure. */
+  retrying: boolean
+  next_attempt_at: string | null
+  recipient: string | null
+  /** The customer email frozen on the invoice; null for the final consumer. */
+  customer_email: string | null
+  delivered_at: string | null
+  /** Why the delivery failed, while failed. */
+  error: string | null
+  can_send: boolean
+  can_regenerate_pdf: boolean
+  /** Always the local development mailbox: no email leaves the machine. */
+  mailbox: 'local'
+  /** Only on the invoice detail. */
+  files: {
+    attached_document: DeliveredFile | null
+    pdf: DeliveredFile | null
+    package: DeliveredFile | null
+  } | null
+}
+
+/** The local development mailbox (Mailpit), a development tool. */
+export interface LocalMailboxStatus {
+  /** Address of its web interface. */
+  url: string
+  reachable: boolean
+  /** Emails it holds, from every company. */
+  messages: number | null
+  version: string | null
 }
 
 /** State of the electronic document chain of an issued invoice. */

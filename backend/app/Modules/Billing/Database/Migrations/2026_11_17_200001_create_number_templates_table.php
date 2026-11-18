@@ -17,6 +17,7 @@ return new class extends Migration
             $table->unsignedBigInteger('to_number');
             $table->unsignedBigInteger('next_number')->comment('Next consecutive; above to_number once exhausted');
             $table->string('resolution_number', 30)->nullable()->comment('DIAN resolution; required for invoices');
+            $table->date('resolution_date')->nullable()->comment('Date of the DIAN resolution; required for invoices');
             $table->date('valid_from')->nullable();
             $table->date('valid_to')->nullable();
             $table->text('technical_key')->nullable()->comment('Encrypted with the app key; required for invoices');

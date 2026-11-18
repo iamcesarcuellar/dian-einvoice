@@ -7,8 +7,9 @@ use DOMXPath;
 use LibXMLError;
 
 /**
- * Validates an invoice against the official UBL-Invoice-2.1.xsd of the DIAN toolbox, kept in
- * resources/dian/xsd. Two adjustments, both on a copy of the document:
+ * Validates an invoice against the official UBL-Invoice-2.1.xsd of the DIAN toolbox, and an
+ * AttachedDocument against UBL-AttachedDocument-2.1.xsd, both kept in resources/dian/xsd. Two
+ * adjustments, both on a copy of the document:
  *  - the empty UBLExtension reserved for the signature is left out, because the schema requires
  *    one element in every ExtensionContent; stage 5 fills it with the signature;
  *  - xsi:schemaLocation is ignored, so libxml never reaches the network: the schema is the local copy.
@@ -22,7 +23,22 @@ final class XsdValidator
         return resource_path('dian/xsd/maindoc/UBL-Invoice-2.1.xsd');
     }
 
+    public function attachedDocumentSchemaPath(): string
+    {
+        return resource_path('dian/xsd/maindoc/UBL-AttachedDocument-2.1.xsd');
+    }
+
     public function validateInvoice(string $xml): XsdResult
+    {
+        return $this->validate($xml, $this->schemaPath());
+    }
+
+    public function validateAttachedDocument(string $xml): XsdResult
+    {
+        return $this->validate($xml, $this->attachedDocumentSchemaPath());
+    }
+
+    private function validate(string $xml, string $schema): XsdResult
     {
         $previous = libxml_use_internal_errors(true);
         libxml_clear_errors();
@@ -37,7 +53,7 @@ final class XsdValidator
             $skipped = $this->detachEmptyExtensions($dom);
             $dom->documentElement?->removeAttributeNS(InvoiceXml::NS_XSI, 'schemaLocation');
 
-            $dom->schemaValidate($this->schemaPath());
+            $dom->schemaValidate($schema);
 
             return new XsdResult($this->errors(), $skipped);
         } finally {

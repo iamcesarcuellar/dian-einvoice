@@ -16,7 +16,8 @@ import { useSessionStore } from '@/stores/session'
 /**
  * /invoices/new and /invoices/:id. Drafts open in the editor for roles that can change them;
  * issued invoices, and drafts for viewers, open read-only. While the electronic document chain of
- * an issued invoice runs, the page asks for it every 2 seconds, and stops once it ends.
+ * an issued invoice runs, and then its delivery to the customer, the page asks for it every 2
+ * seconds, and stops once both end.
  */
 const { t } = useI18n()
 const route = useRoute()
@@ -30,7 +31,18 @@ const invoiceId = computed(() => (typeof route.params.id === 'string' ? route.pa
 const POLL_MS = 2000
 
 function running(value: Invoice | undefined): boolean {
-  return value?.electronic !== null && value?.electronic !== undefined && !value.electronic.final
+  const electronic = value?.electronic
+
+  if (!electronic) {
+    return false
+  }
+
+  if (!electronic.final) {
+    return true
+  }
+
+  // An accepted invoice goes on with its delivery: AttachedDocument, PDF and email.
+  return electronic.status === 'accepted' && value?.delivery?.final !== true
 }
 
 const { data: invoice } = useQuery({
@@ -40,9 +52,9 @@ const { data: invoice } = useQuery({
   refetchInterval: (query) => (running(query.state.data) ? POLL_MS : false),
 })
 
-// When the chain ends, lists that show this invoice refresh too.
-watch(() => invoice.value?.electronic?.final, (final, before) => {
-  if (final === true && before === false) {
+// When the chain or the delivery ends, lists that show this invoice refresh too.
+watch(() => running(invoice.value), (isRunning, wasRunning) => {
+  if (!isRunning && wasRunning) {
     void invalidateTenant('invoices')
   }
 })

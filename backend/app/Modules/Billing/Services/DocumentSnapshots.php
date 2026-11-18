@@ -67,7 +67,8 @@ final class DocumentSnapshots
     }
 
     /**
-     * Resolution data of the numbering. The technical key is not copied: it stays encrypted.
+     * Resolution data of the numbering: number and date of the resolution, prefix, range and
+     * validity. The technical key is not copied: it stays encrypted.
      *
      * @return array<string, mixed>
      */
@@ -79,6 +80,7 @@ final class DocumentSnapshots
             'from_number' => $template->from_number,
             'to_number' => $template->to_number,
             'resolution_number' => $template->resolution_number,
+            'resolution_date' => $template->resolution_date?->toDateString(),
             'valid_from' => $template->valid_from?->toDateString(),
             'valid_to' => $template->valid_to?->toDateString(),
         ];

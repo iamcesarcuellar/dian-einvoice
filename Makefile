@@ -12,13 +12,13 @@ CONCURRENCY ?= 20
 # Size of make chaos.
 CHAOS_INVOICES ?= 40
 
-.PHONY: up down logs ps seed demo stress chaos dian-check clean nuke sh-api sh-web screenshots
+.PHONY: up down logs ps seed demo stress chaos dian-check delivery-check clean nuke sh-api sh-web screenshots
 
-# Build images if needed, start the stack, wait for the database and Redis, install missing dependencies,
+# Build images if needed, start the stack, wait for the database, Redis and the local mailbox, install missing dependencies,
 # generate the key, migrate, and start the queue workers and the outbox relay with the current code.
 up:
 	$(COMPOSE) build
-	$(COMPOSE) up -d --wait db redis
+	$(COMPOSE) up -d --wait db redis mail
 	test -f backend/.env || cp backend/.env.example backend/.env
 	test -d backend/vendor || $(COMPOSE) run --rm --no-deps api composer install --no-interaction
 	grep -Eq '^APP_KEY=.+' backend/.env || $(COMPOSE) run --rm --no-deps api php artisan key:generate --no-interaction
@@ -26,9 +26,9 @@ up:
 	$(COMPOSE) up -d api web simulator
 	$(COMPOSE) exec api php artisan migrate --force --no-interaction
 	$(COMPOSE) up -d --force-recreate worker relay
-	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  DIAN simulator: http://localhost:8602/health"
+	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  DIAN simulator: http://localhost:8602/health  Local mailbox: http://localhost:8603"
 
-# Stop and remove this project's containers; the database, Redis and simulator volumes are kept.
+# Stop and remove this project's containers; the database, Redis, simulator and mailbox volumes are kept.
 down:
 	$(COMPOSE) down
 
@@ -65,7 +65,12 @@ chaos:
 dian-check:
 	$(COMPOSE) exec api php artisan dian:check
 
-# Remove this project's containers and volumes, which deletes the database, the queue and the simulator state.
+# On an accepted demo invoice: validate its AttachedDocument against the official XSD (signed invoice and
+# ApplicationResponse inside), read its PDF with poppler (pages, number, CUFE), and find its email in the local mailbox.
+delivery-check:
+	$(COMPOSE) exec api php artisan delivery:check
+
+# Remove this project's containers and volumes, which deletes the database, the queue, the simulator state and the mailbox.
 clean:
 	$(COMPOSE) down --volumes --remove-orphans
 

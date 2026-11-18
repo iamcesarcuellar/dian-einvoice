@@ -41,6 +41,7 @@ interface TemplateForm {
   to_number: string
   next_number: string
   resolution_number: string
+  resolution_date: string
   valid_from: string
   valid_to: string
   technical_key: string
@@ -56,6 +57,7 @@ function formFrom(template: NumberTemplate | null): TemplateForm {
     to_number: template ? String(template.to_number) : '',
     next_number: template ? String(template.next_number) : '',
     resolution_number: template?.resolution_number ?? '',
+    resolution_date: template?.resolution_date ?? '',
     valid_from: template?.valid_from ?? '',
     valid_to: template?.valid_to ?? '',
     technical_key: '',
@@ -86,6 +88,7 @@ function toInput(): NumberTemplateInput {
     // A new range starts at its first number unless another one is typed.
     next_number: form.value.next_number.trim() === '' ? toNumber(form.value.from_number) : toNumber(form.value.next_number),
     resolution_number: orNull(form.value.resolution_number),
+    resolution_date: orNull(form.value.resolution_date),
     valid_from: orNull(form.value.valid_from),
     valid_to: orNull(form.value.valid_to),
     is_default: form.value.is_default,
@@ -154,9 +157,14 @@ const keyHint = computed(() => (props.template?.technical_key_set
           </FormField>
         </div>
 
-        <FormField id="numbering-resolution" :label="t('numbering.form.resolution')" :hint="isInvoice ? t('numbering.form.requiredForInvoices') : undefined" :error="errors.resolution_number?.[0]" :optional="!isInvoice">
-          <Input id="numbering-resolution" v-model="form.resolution_number" autocomplete="off" :aria-invalid="!!errors.resolution_number" />
-        </FormField>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <FormField id="numbering-resolution" :label="t('numbering.form.resolution')" :hint="isInvoice ? t('numbering.form.requiredForInvoices') : undefined" :error="errors.resolution_number?.[0]" :optional="!isInvoice">
+            <Input id="numbering-resolution" v-model="form.resolution_number" autocomplete="off" :aria-invalid="!!errors.resolution_number" />
+          </FormField>
+          <FormField id="numbering-resolution-date" :label="t('numbering.form.resolutionDate')" :hint="isInvoice ? t('numbering.form.resolutionDateHint') : undefined" :error="errors.resolution_date?.[0]" :optional="!isInvoice">
+            <Input id="numbering-resolution-date" v-model="form.resolution_date" type="date" :aria-invalid="!!errors.resolution_date" />
+          </FormField>
+        </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
           <FormField id="numbering-valid-from" :label="t('numbering.form.validFrom')" :error="errors.valid_from?.[0]" :optional="!isInvoice">

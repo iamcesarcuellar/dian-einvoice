@@ -9,6 +9,7 @@ import { useRouter } from 'vue-router'
 import { invoicesApi } from '@/api/resources'
 import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
+import DeliveryStatusBadge from '@/components/invoice/DeliveryStatusBadge.vue'
 import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
 import ElectronicStatusBadge from '@/components/invoice/ElectronicStatusBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -47,8 +48,9 @@ function filterValue(value: string | null): string | undefined {
 
 const { page, search, rows, meta, isLoading } = useListQuery('invoices', invoicesApi.list, {
   filters: () => ({ status: filterValue(status.value), electronic_status: filterValue(electronic.value) }),
-  // While an invoice on screen is still processing, the list refreshes every 3 seconds.
-  refetchInterval: (items: Invoice[]) => (items.some((item) => item.electronic && !item.electronic.final) ? 3000 : false),
+  // While an invoice on screen is still processing or being delivered, the list refreshes every 3 seconds.
+  refetchInterval: (items: Invoice[]) => (items.some((item) => item.electronic && (!item.electronic.final
+    || (item.electronic.status === 'accepted' && item.delivery?.final !== true))) ? 3000 : false),
 })
 
 const columns = computed<DataTableColumn[]>(() => [
@@ -59,6 +61,7 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: 'total', label: t('invoices.columns.total'), align: 'right' },
   { key: 'status', label: t('invoices.columns.status') },
   { key: 'electronic', label: t('invoices.columns.electronic') },
+  { key: 'delivery', label: t('invoices.columns.delivery') },
 ])
 
 function actions(invoice: Invoice): RowAction[] {
@@ -125,6 +128,10 @@ function actions(invoice: Invoice): RowAction[] {
       </template>
       <template #cell-electronic="{ row }">
         <ElectronicStatusBadge v-if="row.electronic" :status="row.electronic.status" />
+        <span v-else class="text-muted-foreground">—</span>
+      </template>
+      <template #cell-delivery="{ row }">
+        <DeliveryStatusBadge v-if="row.delivery && row.electronic?.status === 'accepted'" :status="row.delivery.status" compact />
         <span v-else class="text-muted-foreground">—</span>
       </template>
       <template #actions="{ row }">

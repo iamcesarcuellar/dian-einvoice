@@ -63,6 +63,14 @@ final class IssueRequirements
             );
         }
 
+        // The graphic representation prints the date of the resolution in its authorization legend.
+        if ($numbering !== null && $numbering->resolution_date === null) {
+            $errors['numbering.resolution_date'][] = sprintf(
+                'Add the date of the resolution of the numbering %s.',
+                trim(($numbering->prefix ?? '').' '.$numbering->from_number.' to '.$numbering->to_number),
+            );
+        }
+
         if ($customer !== null && (blank($customer->identification_type) || blank($customer->identification_number))) {
             $errors['customer.identification_number'][] = 'Add the identification of the customer.';
         }

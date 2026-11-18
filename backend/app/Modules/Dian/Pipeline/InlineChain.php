@@ -13,12 +13,13 @@ use LogicException;
  * workers: it takes the unpublished outbox events of the document in order, marks them published
  * and runs their jobs right away, until none is left. A retry scheduled for later moves the clock
  * there (Carbon test time) instead of waiting. The steps, the simulator calls and the outbox are
- * the real ones. Only the demo seeder uses it, while the workers and the relay are stopped.
+ * the real ones, the customer delivery that follows an acceptance included. Only the demo seeder
+ * uses it, while the workers and the relay are stopped.
  */
 final class InlineChain
 {
-    /** More than any chain needs: 4 steps, 6 attempts, GetStatus checks. */
-    private const int MAX_EVENTS = 60;
+    /** More than any chain needs: 4 steps, 6 attempts, GetStatus checks, and the 3 delivery steps with 6 email attempts. */
+    private const int MAX_EVENTS = 90;
 
     public function __construct(private readonly OutboxSubscribers $subscribers) {}
 

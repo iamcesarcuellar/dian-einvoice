@@ -31,6 +31,10 @@ use Illuminate\Support\Carbon;
  * clock instead of waiting. Two SIMULATED outcomes use the failure modes of the simulator: one
  * invoice of Demo Comercial is rejected by a rule, and another gets HTTP 500 on every attempt,
  * so it fails once the attempts run out. The simulator is left in normal mode.
+ *
+ * Every accepted invoice then goes through the customer delivery in line too: AttachedDocument,
+ * PDF and the email with both in a zip, caught by the local mailbox. The one to the final consumer
+ * has no email, so its delivery ends as not applicable; one invoice has thirty lines.
  */
 final class DemoSeeder extends Seeder
 {
@@ -51,6 +55,39 @@ final class DemoSeeder extends Seeder
             [2, '14:30', '9990000107', null, '49', [['P-005', '2', '0'], ['P-007', '3', '0']], []],
             [null, null, '990000101', 30, '42', [['P-001', '10', '10']], ['ReteFuente 2.5% (purchases)']],
             [null, null, 'US4400000108', null, '47', [[null, '1', '0', 'Export documentation handling', '350000'], ['P-006', '5', '0']], []],
+            // Thirty lines, so its PDF runs over two pages with the table header repeated.
+            [1, '11:15', '990000104', 30, '42', [
+                ['P-001', '1', '0'],
+                ['P-002', '12', '0'],
+                ['P-003', '6', '0'],
+                ['P-004', '10', '0'],
+                ['P-005', '3', '5'],
+                ['P-006', '2', '0'],
+                ['P-007', '4', '0'],
+                ['P-008', '8', '0'],
+                ['S-001', '1', '0'],
+                ['S-002', '6', '0'],
+                ['P-001', '2', '5'],
+                ['P-002', '25', '0'],
+                ['P-003', '4', '0'],
+                ['P-004', '15', '0'],
+                ['P-005', '5', '0'],
+                ['P-006', '1', '10'],
+                ['P-007', '6', '0'],
+                ['P-008', '12', '0'],
+                ['S-001', '1', '0'],
+                ['S-002', '10', '0'],
+                ['P-001', '1', '0'],
+                ['P-002', '30', '0'],
+                ['P-003', '8', '2.5'],
+                ['P-004', '20', '0'],
+                ['P-005', '2', '0'],
+                ['P-006', '3', '0'],
+                ['P-007', '5', '0'],
+                ['P-008', '6', '3'],
+                ['S-001', '2', '0'],
+                ['S-002', '8', '0'],
+            ], ['ReteFuente 2.5% (purchases)']],
         ],
         'services' => [
             [27, '10:00', '990000201', 30, '47', [['S-101', '12', '0'], ['S-105', '1', '0']], ['ReteFuente 4% (services)', 'ReteIVA 15%']],
@@ -105,6 +142,7 @@ final class DemoSeeder extends Seeder
             'to_number' => 995000000,
             'next_number' => 990000000,
             'resolution_number' => '18760000001',
+            'resolution_date' => '2019-01-19',
             'valid_from' => '2019-01-19',
             'valid_to' => '2030-01-19',
             'technical_key' => 'fc8eac422eba16e22ffd8c6f94b3f40a6e38162c',

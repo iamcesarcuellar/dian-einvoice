@@ -57,7 +57,7 @@ final class InvoiceXml
     private const string INVOICE_TYPE = '01';
 
     /** The DIAN as identification agency and as authorization provider (FAB20 to FAB35). */
-    private const string DIAN_AGENCY_ID = '195';
+    public const string DIAN_AGENCY_ID = '195';
 
     private const string DIAN_AGENCY_NAME = 'CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)';
 
@@ -73,8 +73,8 @@ final class InvoiceXml
 
     private const string COLOMBIA = 'CO';
 
-    /** Names of the tax schemes of a party (table 13.2.6.2). */
-    private const array PARTY_TAX_SCHEMES = [
+    /** Names of the tax schemes of a party (table 13.2.6.2); the AttachedDocument uses them too. */
+    public const array PARTY_TAX_SCHEMES = [
         '01' => 'IVA',
         '04' => 'INC',
         'ZA' => 'IVA e INC',

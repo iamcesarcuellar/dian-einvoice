@@ -83,6 +83,7 @@ final class TemporaryCompany
             'to_number' => 999999,
             'next_number' => 1,
             'resolution_number' => 'TEMP-'.$prefix,
+            'resolution_date' => $today->copy()->subDay()->toDateString(),
             'valid_from' => $today->copy()->subDay()->toDateString(),
             'valid_to' => $today->copy()->addYear()->toDateString(),
             'technical_key' => Str::random(40),

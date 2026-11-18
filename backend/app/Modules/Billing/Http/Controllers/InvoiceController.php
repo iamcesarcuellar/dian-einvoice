@@ -95,7 +95,8 @@ final class InvoiceController
 
     /**
      * An invoice with its lines, totals, timeline and electronic document: the state of its chain,
-     * the current attempt, the time of the next one and the answer of the local simulator.
+     * the current attempt, the time of the next one and the answer of the local simulator; and its
+     * delivery to the customer: status, recipient, attempts and files.
      */
     public function show(Document $invoice): DocumentResource
     {
@@ -186,6 +187,6 @@ final class InvoiceController
 
     private function withDetails(Document $document): Document
     {
-        return $document->load(['lines.item', 'taxes', 'withholdings', 'events.actor', 'contact.municipality.department', 'transmissions']);
+        return $document->load(Document::DETAILS);
     }
 }

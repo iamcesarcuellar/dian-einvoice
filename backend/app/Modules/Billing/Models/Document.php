@@ -2,10 +2,14 @@
 
 namespace App\Modules\Billing\Models;
 
+use App\Modules\Billing\Enums\DeliveryStatus;
+use App\Modules\Billing\Enums\DeliveryStep;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Catalog\Models\Contact;
+use App\Modules\Delivery\Models\DeliveryAttempt;
+use App\Modules\Delivery\Models\DocumentFile;
 use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Identity\Tenancy\BelongsToCompany;
 use App\Modules\Reference\Enums\PaymentForm;
@@ -20,7 +24,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * once issued it is numbered, its copies of the company, customer and numbering are frozen, it
  * gets its CUFE and it can no longer change. Its UBL XML is built from those copies only, by the
  * electronic document chain (see ElectronicStatus), which also sends it to the DIAN: in this
- * project, always the local simulator.
+ * project, always the local simulator. Once accepted, the customer delivery (see DeliveryStatus)
+ * builds its AttachedDocument and PDF and emails them, always to the local development mailbox.
  */
 class Document extends Model
 {
@@ -40,6 +45,9 @@ class Document extends Model
         'withholding_total',
         'amount_due',
     ];
+
+    /** Relations the API loads to show one document: lines, totals, timeline, transmissions and delivered files. */
+    public const array DETAILS = ['lines.item', 'taxes', 'withholdings', 'events.actor', 'contact.municipality.department', 'transmissions', 'files'];
 
     /** The last answer of the DIAN web service (the local simulator), cleared on Resend. */
     public const array DIAN_RESULT = [
@@ -93,6 +101,16 @@ class Document extends Model
         'dian_zip_file_name',
         'dian_xml_file_name',
         ...self::DIAN_RESULT,
+        'delivery_status',
+        'delivery_step',
+        'delivery_status_at',
+        'delivery_run',
+        'delivery_attempt',
+        'delivery_next_attempt_at',
+        'delivery_recipient',
+        'delivered_at',
+        'delivery_error',
+        'delivery_file_base',
         'created_by',
     ];
 
@@ -132,6 +150,13 @@ class Document extends Model
             'xml_signed_at' => 'datetime',
             'dian_messages' => 'array',
             'dian_responded_at' => 'datetime',
+            'delivery_status' => DeliveryStatus::class,
+            'delivery_step' => DeliveryStep::class,
+            'delivery_status_at' => 'datetime',
+            'delivery_run' => 'integer',
+            'delivery_attempt' => 'integer',
+            'delivery_next_attempt_at' => 'datetime',
+            'delivered_at' => 'datetime',
         ];
     }
 
@@ -181,6 +206,26 @@ class Document extends Model
     public function transmissions(): HasMany
     {
         return $this->hasMany(DianTransmission::class)->orderBy('started_at')->orderBy('id');
+    }
+
+    /**
+     * Files delivered to the customer: AttachedDocument, PDF and the zip with both.
+     *
+     * @return HasMany<DocumentFile, $this>
+     */
+    public function files(): HasMany
+    {
+        return $this->hasMany(DocumentFile::class);
+    }
+
+    /**
+     * Email attempts to the customer, oldest first.
+     *
+     * @return HasMany<DeliveryAttempt, $this>
+     */
+    public function deliveryAttempts(): HasMany
+    {
+        return $this->hasMany(DeliveryAttempt::class)->orderBy('started_at')->orderBy('id');
     }
 
     /**

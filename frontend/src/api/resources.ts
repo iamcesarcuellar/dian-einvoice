@@ -1,4 +1,4 @@
-import { request, requestText } from './client'
+import { request, requestBlob, requestText } from './client'
 import type {
   Calculation,
   Contact,
@@ -82,5 +82,30 @@ export const invoicesApi = {
   /** After a rejection: the chain runs again from the generation of the XML. */
   async resend(id: string): Promise<Invoice> {
     return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/resend`)).data
+  },
+
+  /** The PDF, the graphic representation of an accepted invoice. */
+  pdf(id: string): Promise<Blob> {
+    return requestBlob(`/invoices/${id}/pdf`)
+  },
+
+  /** The signed AttachedDocument, with the signed invoice and the response of the local simulator. */
+  attachedDocument(id: string): Promise<Blob> {
+    return requestBlob(`/invoices/${id}/attached-document`)
+  },
+
+  /** The zip the email carries: the AttachedDocument and the PDF. */
+  package(id: string): Promise<Blob> {
+    return requestBlob(`/invoices/${id}/package`)
+  },
+
+  /** Send again, to the current recipient or to another address; it lands in the local mailbox. */
+  async deliver(id: string, email: string | null): Promise<Invoice> {
+    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/deliver`, email ? { email } : {})).data
+  },
+
+  /** After the PDF failed: a new delivery run from the PDF. */
+  async regeneratePdf(id: string): Promise<Invoice> {
+    return (await request<DataEnvelope<Invoice>>('POST', `/invoices/${id}/pdf/regenerate`)).data
   },
 }
