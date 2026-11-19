@@ -1,6 +1,7 @@
 import type { ListParams, Paginated, QueryParams } from '@/api/types'
 import { useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -12,11 +13,16 @@ interface ListOptions<T> {
   refetchInterval?: (rows: T[]) => number | false
 }
 
-/** Page, search and filter state of a tenant list, with its query; pair it with DataTable. */
+/**
+ * Page, search and filter state of a tenant list, with its query; pair it with DataTable, which
+ * shows its loading, empty and error states (retry calls refetch).
+ */
 export function useListQuery<T>(resource: string, list: (params: ListParams) => Promise<Paginated<T>>, options: ListOptions<T> = {}) {
   const session = useSessionStore()
   const page = ref(1)
-  const search = ref('')
+  // A list opened from the command palette (See all) starts with its search: ?search=.
+  const initial = useRoute().query.search
+  const search = ref(typeof initial === 'string' ? initial : '')
   const filters = computed(() => options.filters?.() ?? {})
 
   // A new search, other filters or another company start again from the first page.
@@ -52,5 +58,7 @@ export function useListQuery<T>(resource: string, list: (params: ListParams) => 
     rows: computed(() => query.data.value?.data ?? []),
     meta: computed(() => query.data.value?.meta),
     isLoading: computed(() => query.isPending.value),
+    error: computed(() => query.error.value),
+    refetch: () => query.refetch(),
   }
 }

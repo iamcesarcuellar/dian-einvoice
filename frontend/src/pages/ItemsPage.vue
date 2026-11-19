@@ -17,6 +17,7 @@ import { useListQuery } from '@/composables/useListQuery'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
 import { formatMoney } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant } from '@/lib/query'
 
 const { t } = useI18n()
@@ -25,7 +26,7 @@ const { label } = useReference()
 
 const canManage = computed(() => can('manage-catalog'))
 
-const { page, search, rows, meta, isLoading } = useListQuery('items', itemsApi.list)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('items', itemsApi.list)
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'code', label: t('items.columns.code') },
@@ -52,7 +53,11 @@ function openEdit(item: Item): void {
 
 const toggle = useMutation({
   mutationFn: (item: Item) => itemsApi.update(item.id, { is_active: !item.is_active }),
-  onSuccess: () => invalidateTenant('items'),
+  onSuccess: async (item) => {
+    await invalidateTenant('items')
+    notify.success(t(item.is_active ? 'items.activated' : 'items.deactivated', { name: item.name }))
+  },
+  onError: (failure) => notify.error(t('errors.actionFailed'), failure.message),
 })
 
 const confirmOpen = ref(false)
@@ -60,9 +65,10 @@ const pendingDelete = ref<Item | null>(null)
 
 const remove = useMutation({
   mutationFn: (item: Item) => itemsApi.remove(item.id),
-  onSuccess: async () => {
+  onSuccess: async (_, item) => {
     await invalidateTenant('items')
     confirmOpen.value = false
+    notify.success(t('items.deleted', { name: item.name }))
   },
 })
 
@@ -105,10 +111,12 @@ function actions(item: Item): RowAction[] {
       :rows="rows"
       :meta="meta"
       :loading="isLoading"
+      :error="error"
       :search-placeholder="t('items.searchPlaceholder')"
       :empty-title="t('items.empty.title')"
       :empty-description="t('items.empty.description')"
       :actions="canManage"
+      @retry="refetch"
     >
       <template #cell-code="{ row }">
         <span class="font-medium whitespace-nowrap tabular-nums">{{ row.code }}</span>
@@ -133,7 +141,7 @@ function actions(item: Item): RowAction[] {
         <span v-else class="whitespace-nowrap text-muted-foreground">{{ t('items.excluded') }}</span>
       </template>
       <template #cell-status="{ row }">
-        <StatusBadge :active="row.is_active" />
+        <StatusBadge domain="record" :status="row.is_active ? 'active' : 'inactive'" />
       </template>
       <template #actions="{ row }">
         <RowActions :actions="actions(row)" />

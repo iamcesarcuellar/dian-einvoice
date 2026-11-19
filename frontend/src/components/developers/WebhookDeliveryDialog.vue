@@ -5,6 +5,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { webhooksApi } from '@/api/developers'
 import FormError from '@/components/FormError.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,10 +16,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatDateTime } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant, tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 import CodeBlock from './CodeBlock.vue'
-import DeliveryStatusBadge from './DeliveryStatusBadge.vue'
 
 /** One delivery: the request sent (URL, headers and body) and every attempt with its answer; Redeliver. */
 const props = defineProps<{
@@ -56,6 +57,7 @@ const redeliver = useMutation({
   onSuccess: async () => {
     await invalidateTenant('webhook-deliveries', 'webhooks')
     await refetch()
+    notify.success(t('developers.deliveries.redelivered'))
   },
 })
 </script>
@@ -66,7 +68,7 @@ const redeliver = useMutation({
       <DialogHeader>
         <DialogTitle class="flex flex-wrap items-center gap-2">
           <span class="font-mono">{{ delivery?.event_type ?? t('developers.deliveries.detailTitle') }}</span>
-          <DeliveryStatusBadge v-if="delivery" :status="delivery.status" />
+          <StatusBadge v-if="delivery" domain="webhookDelivery" :status="delivery.status" />
         </DialogTitle>
         <DialogDescription>
           <span v-if="delivery" class="font-mono">{{ delivery.event_id }}</span>

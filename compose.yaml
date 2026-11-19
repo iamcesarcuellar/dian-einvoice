@@ -52,7 +52,9 @@ services:
       context: ./frontend
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart: "no"
-    mem_limit: 1g
+    # The dev server pre-bundles the chart library (Unovis and its d3, map and graph modules) on
+    # first use, which needs more than 1 GB.
+    mem_limit: 2g
     init: true
     environment:
       API_URL: http://api:8000

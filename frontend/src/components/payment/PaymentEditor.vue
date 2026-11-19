@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { Contact, OpenInvoice, PaymentInput } from '@/api/types'
+import type { DataTableColumn } from '@/components/data-table/types'
 import { useMutation, useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { fieldErrors } from '@/api/client'
 import { contactsApi, paymentsApi } from '@/api/resources'
+import DataTable from '@/components/data-table/DataTable.vue'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import FormSection from '@/components/FormSection.vue'
@@ -13,22 +15,16 @@ import MoneyInput from '@/components/MoneyInput.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
 import SelectInput from '@/components/SelectInput.vue'
-import { Badge } from '@/components/ui/badge'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { useReference } from '@/composables/useReference'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { ALL_DOCUMENT_RESOURCES } from '@/lib/documents'
 import { formatDate, formatMoney, todayInColombia } from '@/lib/format'
 import { fromCents, toCents } from '@/lib/money'
+import { notify } from '@/lib/notify'
 import { invalidateTenant, tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -52,6 +48,29 @@ const means = ref<string | null>('47')
 const reference = ref('')
 const notes = ref('')
 const amounts = ref<Record<string, string>>({})
+
+// What the user typed; amounts set by Pay in full or the ?invoice= preset count too.
+const unsaved = useUnsavedChanges(() => ({
+  contact: contact.value?.id ?? null,
+  reference: reference.value,
+  notes: notes.value,
+  amounts: Object.values(amounts.value).filter((value) => value.trim() !== ''),
+}))
+
+const crumbs = computed(() => [
+  { label: t('nav.sales') },
+  { label: t('nav.payments'), to: { name: 'payments' } },
+  { label: t('payments.editor.title') },
+])
+
+const invoiceColumns = computed<DataTableColumn[]>(() => [
+  { key: 'number', label: t('payments.editor.columns.invoice') },
+  { key: 'issue_date', label: t('payments.editor.columns.date') },
+  { key: 'due_date', label: t('payments.editor.columns.due') },
+  { key: 'balance', label: t('payments.editor.columns.balance'), align: 'right' },
+  { key: 'apply', label: t('payments.editor.columns.apply'), class: 'w-44' },
+  { key: 'pay', label: t('payments.editor.payInFull') },
+])
 
 const contactsKey = computed(() => tenantKey(companyId.value, 'contacts', 'search'))
 
@@ -140,7 +159,9 @@ const recording = useMutation({
     return paymentsApi.create(input)
   },
   onSuccess: async (payment) => {
-    await invalidateTenant('payments', 'receivables', 'open-invoices', ...ALL_DOCUMENT_RESOURCES)
+    unsaved.reset()
+    await invalidateTenant('payments', 'receivables', 'open-invoices', 'dashboard', ...ALL_DOCUMENT_RESOURCES)
+    notify.success(t('payments.editor.recorded', { number: payment.full_number, amount: formatMoney(payment.amount) }))
     await router.replace({ name: 'payment', params: { id: payment.id } })
   },
 })
@@ -157,7 +178,7 @@ function apiRowError(invoice: OpenInvoice): string | undefined {
 
 <template>
   <div class="grid gap-6">
-    <PageHeader :title="t('payments.editor.title')" :description="t('payments.editor.description')" :back="{ name: 'payments' }">
+    <PageHeader :title="t('payments.editor.title')" :description="t('payments.editor.description')" :breadcrumbs="crumbs">
       <Button :disabled="!ready || recording.isPending.value" @click="recording.mutate()">
         {{ recording.isPending.value ? t('payments.editor.recording') : t('payments.editor.record', { amount: formatMoney(fromCents(total)) }) }}
       </Button>
@@ -193,51 +214,41 @@ function apiRowError(invoice: OpenInvoice): string | undefined {
 
         <FormSection :title="t('payments.editor.invoices')" :description="t('payments.editor.invoicesDescription')">
           <p v-if="contact === null" class="text-sm text-muted-foreground">{{ t('payments.editor.chooseCustomer') }}</p>
-          <p v-else-if="isFetching && invoices.length === 0" class="text-sm text-muted-foreground">{{ t('common.loading') }}</p>
-          <p v-else-if="invoices.length === 0" class="text-sm text-muted-foreground">{{ t('payments.editor.noInvoices') }}</p>
           <div v-else class="grid gap-3">
             <p v-if="errors.allocations" class="text-xs text-destructive">{{ errors.allocations[0] }}</p>
-            <div class="-mx-6 overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow class="hover:bg-transparent">
-                    <TableHead class="pl-6">{{ t('payments.editor.columns.invoice') }}</TableHead>
-                    <TableHead>{{ t('payments.editor.columns.date') }}</TableHead>
-                    <TableHead>{{ t('payments.editor.columns.due') }}</TableHead>
-                    <TableHead class="text-right">{{ t('payments.editor.columns.balance') }}</TableHead>
-                    <TableHead class="w-44">{{ t('payments.editor.columns.apply') }}</TableHead>
-                    <TableHead class="pr-6" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="invoice in invoices" :key="invoice.id">
-                    <TableCell class="pl-6 whitespace-nowrap">
-                      <RouterLink :to="{ name: 'invoice', params: { id: invoice.id } }" class="font-medium tabular-nums hover:underline">{{ invoice.number }}</RouterLink>
-                      <Badge v-if="invoice.overdue" variant="destructive" class="ml-2">{{ t('invoices.paymentStatus.overdue') }}</Badge>
-                    </TableCell>
-                    <TableCell class="whitespace-nowrap tabular-nums">{{ formatDate(invoice.issue_date) }}</TableCell>
-                    <TableCell class="whitespace-nowrap tabular-nums" :class="invoice.overdue ? 'text-destructive' : ''">{{ formatDate(invoice.due_date ?? invoice.issue_date) }}</TableCell>
-                    <TableCell class="text-right whitespace-nowrap tabular-nums">{{ formatMoney(invoice.balance) }}</TableCell>
-                    <TableCell>
-                      <div class="grid gap-1">
-                        <MoneyInput
-                          :id="`apply-${invoice.id}`"
-                          :model-value="amounts[invoice.id] ?? ''"
-                          :scale="2"
-                          :invalid="!!rowError(invoice) || !!apiRowError(invoice)"
-                          :aria-label="t('payments.editor.amountFor', { number: invoice.number })"
-                          @update:model-value="(value: string) => amounts = { ...amounts, [invoice.id]: value }"
-                        />
-                        <p v-if="rowError(invoice) ?? apiRowError(invoice)" class="text-xs text-destructive">{{ rowError(invoice) ?? apiRowError(invoice) }}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell class="pr-6">
-                      <Button variant="outline" size="sm" @click="payInFull(invoice)">{{ t('payments.editor.payInFull') }}</Button>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable :columns="invoiceColumns" :rows="invoices" :loading="isFetching" :empty-title="t('payments.editor.noInvoices')" :skeleton-rows="2">
+              <template #cell-number="{ row }">
+                <span class="inline-flex items-center gap-2 whitespace-nowrap">
+                  <RouterLink :to="{ name: 'invoice', params: { id: row.id } }" class="font-medium tabular-nums hover:underline">{{ row.number }}</RouterLink>
+                  <StatusBadge v-if="row.overdue" domain="invoicePayment" status="overdue" />
+                </span>
+              </template>
+              <template #cell-issue_date="{ row }">
+                <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.issue_date) }}</span>
+              </template>
+              <template #cell-due_date="{ row }">
+                <span class="whitespace-nowrap tabular-nums" :class="row.overdue ? 'text-destructive' : ''">{{ formatDate(row.due_date ?? row.issue_date) }}</span>
+              </template>
+              <template #cell-balance="{ row }">
+                <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.balance) }}</span>
+              </template>
+              <template #cell-apply="{ row }">
+                <div class="grid gap-1">
+                  <MoneyInput
+                    :id="`apply-${row.id}`"
+                    :model-value="amounts[row.id] ?? ''"
+                    :scale="2"
+                    :invalid="!!rowError(row) || !!apiRowError(row)"
+                    :aria-label="t('payments.editor.amountFor', { number: row.number })"
+                    @update:model-value="(value: string) => amounts = { ...amounts, [row.id]: value }"
+                  />
+                  <p v-if="rowError(row) ?? apiRowError(row)" class="text-xs text-destructive">{{ rowError(row) ?? apiRowError(row) }}</p>
+                </div>
+              </template>
+              <template #cell-pay="{ row }">
+                <Button variant="outline" size="sm" :aria-label="t('payments.editor.payInFullFor', { number: row.number })" @click="payInFull(row)">{{ t('payments.editor.payInFull') }}</Button>
+              </template>
+            </DataTable>
             <p v-if="credits.length > 0" class="text-xs text-muted-foreground">
               {{ t('payments.editor.credits', { invoices: credits.map((credit) => credit.number).join(', ') }) }}
             </p>

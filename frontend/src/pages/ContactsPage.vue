@@ -12,10 +12,12 @@ import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
+import { notify } from '@/lib/notify'
 import { invalidateTenant } from '@/lib/query'
 import { formatNit } from '@/lib/utils'
 
@@ -26,7 +28,7 @@ const { label } = useReference()
 
 const canManage = computed(() => can('manage-catalog'))
 
-const { page, search, rows, meta, isLoading } = useListQuery('contacts', contactsApi.list)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('contacts', contactsApi.list)
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'name', label: t('contacts.columns.name') },
@@ -53,7 +55,11 @@ function city(contact: Contact): string {
 
 const toggle = useMutation({
   mutationFn: (contact: Contact) => contactsApi.update(contact.id, { is_active: !contact.is_active }),
-  onSuccess: () => invalidateTenant('contacts'),
+  onSuccess: async (contact) => {
+    await invalidateTenant('contacts')
+    notify.success(t(contact.is_active ? 'contacts.activated' : 'contacts.deactivated', { name: contact.legal_name }))
+  },
+  onError: (failure) => notify.error(t('errors.actionFailed'), failure.message),
 })
 
 const confirmOpen = ref(false)
@@ -61,9 +67,10 @@ const pendingDelete = ref<Contact | null>(null)
 
 const remove = useMutation({
   mutationFn: (contact: Contact) => contactsApi.remove(contact.id),
-  onSuccess: async () => {
+  onSuccess: async (_, contact) => {
     await invalidateTenant('contacts')
     confirmOpen.value = false
+    notify.success(t('contacts.deleted', { name: contact.legal_name }))
   },
 })
 
@@ -111,10 +118,12 @@ function actions(contact: Contact): RowAction[] {
       :rows="rows"
       :meta="meta"
       :loading="isLoading"
+      :error="error"
       :search-placeholder="t('contacts.searchPlaceholder')"
       :empty-title="t('contacts.empty.title')"
       :empty-description="t('contacts.empty.description')"
       actions
+      @retry="refetch"
     >
       <template #cell-name="{ row }">
         <div class="grid min-w-0 max-w-72">
@@ -138,10 +147,21 @@ function actions(contact: Contact): RowAction[] {
         <span class="text-muted-foreground">{{ row.email ?? '—' }}</span>
       </template>
       <template #cell-status="{ row }">
-        <StatusBadge :active="row.is_active" :system="row.is_system" />
+        <span class="inline-flex flex-wrap items-center gap-1.5">
+          <StatusBadge domain="record" :status="row.is_active ? 'active' : 'inactive'" />
+          <Badge v-if="row.is_system" variant="outline">{{ t('common.system') }}</Badge>
+        </span>
       </template>
       <template #actions="{ row }">
         <RowActions :actions="actions(row)" />
+      </template>
+      <template v-if="canManage" #empty-action>
+        <Button variant="outline" size="sm" as-child>
+          <RouterLink :to="{ name: 'contact-new' }">
+            <PlusIcon />
+            {{ t('contacts.new') }}
+          </RouterLink>
+        </Button>
       </template>
     </DataTable>
 

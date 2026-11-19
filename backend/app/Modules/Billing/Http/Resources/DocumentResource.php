@@ -13,6 +13,7 @@ use App\Modules\Delivery\Http\DeliveryPresenter;
 use App\Modules\Dian\Http\Resources\DianTransmissionResource;
 use App\Modules\Dian\Pipeline\ElectronicDocumentPipeline;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -20,6 +21,26 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class DocumentResource extends JsonResource
 {
+    /**
+     * A row of a list: it leaves out the frozen copies of the company, the customer and the numbering,
+     * and the nested contact, which only the detail shows.
+     */
+    private bool $summary = false;
+
+    /**
+     * The rows of a list, each one as a summary, so a page of 25 documents does not carry 75 frozen copies.
+     */
+    public static function summaries(mixed $resource): AnonymousResourceCollection
+    {
+        $collection = self::collection($resource);
+
+        $collection->collection->each(function (self $row): void {
+            $row->summary = true;
+        });
+
+        return $collection;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -36,7 +57,8 @@ final class DocumentResource extends JsonResource
             'number' => $this->number,
             'full_number' => $this->full_number,
             'contact_id' => $this->contact_id,
-            'contact' => $this->whenLoaded('contact', fn () => $this->contact ? ContactResource::make($this->contact) : null),
+            // On the detail only; a list row loads its contact just for the name of a draft.
+            'contact' => $this->when(! $this->summary && $this->resource->relationLoaded('contact'), fn () => $this->contact ? ContactResource::make($this->contact) : null),
             // The customer as issued, or as it is now while the invoice is a draft.
             'customer_name' => $this->customer_snapshot['legal_name']
                 ?? ($this->relationLoaded('contact') ? $this->contact?->legal_name : null),
@@ -67,9 +89,10 @@ final class DocumentResource extends JsonResource
             'withholdings' => DocumentWithholdingResource::collection($this->whenLoaded('withholdings')),
             'lines' => DocumentLineResource::collection($this->whenLoaded('lines')),
             'events' => DocumentEventResource::collection($this->whenLoaded('events')),
-            'company_snapshot' => $this->company_snapshot,
-            'customer_snapshot' => $this->customer_snapshot,
-            'numbering_snapshot' => $this->numbering_snapshot,
+            // The copies frozen on issue, on the detail only.
+            'company_snapshot' => $this->when(! $this->summary, fn () => $this->company_snapshot),
+            'customer_snapshot' => $this->when(! $this->summary, fn () => $this->customer_snapshot),
+            'numbering_snapshot' => $this->when(! $this->summary, fn () => $this->numbering_snapshot),
             // Set on issue: the CUFE of an invoice or the CUDE of a note (key_name says which), the
             // DIAN verification URL drawn as the QR code and the environment (always 2, habilitación).
             'cufe' => $this->cufe,

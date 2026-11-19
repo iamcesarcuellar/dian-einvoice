@@ -1,29 +1,21 @@
 <script setup lang="ts">
 import type { Contact, DocumentEvent, Invoice, PartySnapshot } from '@/api/types'
+import type { DataTableColumn } from '@/components/data-table/types'
 import { ArrowUpRightIcon } from '@lucide/vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DataTable from '@/components/data-table/DataTable.vue'
 import FormSection from '@/components/FormSection.vue'
 import BalanceCard from '@/components/invoice/BalanceCard.vue'
-import BalanceStatusBadge from '@/components/invoice/BalanceStatusBadge.vue'
 import DeliveryCard from '@/components/invoice/DeliveryCard.vue'
-import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
 import ElectronicDocumentCard from '@/components/invoice/ElectronicDocumentCard.vue'
 import ElectronicProgress from '@/components/invoice/ElectronicProgress.vue'
-import InvoicePaymentBadges from '@/components/invoice/InvoicePaymentBadges.vue'
 import InvoicePaymentsCard from '@/components/invoice/InvoicePaymentsCard.vue'
 import TotalsPanel from '@/components/invoice/TotalsPanel.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { useReference } from '@/composables/useReference'
-import { DOCUMENT_ROUTES } from '@/lib/documents'
+import { documentCrumbs } from '@/lib/documents'
 import { formatDate, formatDateTime, formatDecimal, formatInteger, formatMoney, formatPercent, formatTime } from '@/lib/format'
 import { formatNit } from '@/lib/utils'
 
@@ -301,19 +293,34 @@ function eventTone(event: DocumentEvent): 'error' | 'warning' | 'success' | 'def
 
 const toneClass = {
   error: 'bg-destructive',
-  warning: 'bg-amber-500',
-  success: 'bg-emerald-600',
+  warning: 'bg-warning',
+  success: 'bg-success',
   default: 'bg-primary',
 }
+
+const crumbs = computed(() => documentCrumbs(props.invoice.type, props.invoice.full_number ?? t('invoices.draft'), t))
+
+const lineColumns = computed<DataTableColumn[]>(() => [
+  { key: 'description', label: t('invoices.editor.lineDescription') },
+  { key: 'quantity', label: t('invoices.editor.quantity'), align: 'right' },
+  { key: 'unit', label: t('invoices.editor.unit') },
+  { key: 'unit_price', label: t('invoices.editor.unitPrice'), align: 'right' },
+  { key: 'discount', label: t('invoices.editor.discount'), align: 'right' },
+  { key: 'tax', label: t('invoices.editor.tax') },
+  { key: 'total', label: t('invoices.editor.lineTotal'), align: 'right' },
+])
 </script>
 
 <template>
   <div class="grid gap-6">
-    <PageHeader :title="invoice.full_number ?? t('invoices.draft')" :description="subtitle" :back="{ name: DOCUMENT_ROUTES[invoice.type].list }">
+    <PageHeader :title="invoice.full_number ?? t('invoices.draft')" :description="subtitle" :breadcrumbs="crumbs">
       <template #badge>
-        <DocumentStatusBadge :status="invoice.status" />
-        <BalanceStatusBadge v-if="invoice.balance_status && invoice.balance_status !== 'open'" :status="invoice.balance_status" />
-        <InvoicePaymentBadges v-if="invoice.type === 'invoice' && invoice.electronic?.status === 'accepted'" :invoice="invoice" />
+        <StatusBadge domain="document" :status="invoice.status" />
+        <StatusBadge v-if="invoice.balance_status && invoice.balance_status !== 'open'" domain="balance" :status="invoice.balance_status" />
+        <template v-if="invoice.type === 'invoice' && invoice.electronic?.status === 'accepted'">
+          <StatusBadge v-if="invoice.payment_status === 'paid' || invoice.payment_status === 'partially_paid'" domain="invoicePayment" :status="invoice.payment_status" />
+          <StatusBadge v-if="invoice.overdue" domain="invoicePayment" status="overdue" />
+        </template>
       </template>
     </PageHeader>
 
@@ -408,37 +415,32 @@ const toneClass = {
         <DeliveryCard v-if="invoice.status === 'issued'" :invoice="invoice" />
 
         <FormSection :title="t('invoices.view.lines')">
-          <div class="-mx-6 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow class="hover:bg-transparent">
-                  <TableHead class="pl-6">{{ t('invoices.editor.lineDescription') }}</TableHead>
-                  <TableHead class="text-right">{{ t('invoices.editor.quantity') }}</TableHead>
-                  <TableHead>{{ t('invoices.editor.unit') }}</TableHead>
-                  <TableHead class="text-right">{{ t('invoices.editor.unitPrice') }}</TableHead>
-                  <TableHead class="text-right">{{ t('invoices.editor.discount') }}</TableHead>
-                  <TableHead>{{ t('invoices.editor.tax') }}</TableHead>
-                  <TableHead class="pr-6 text-right">{{ t('invoices.editor.lineTotal') }}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow v-for="line in invoice.lines ?? []" :key="line.id">
-                  <TableCell class="pl-6">
-                    <span class="grid min-w-40">
-                      <span>{{ line.description }}</span>
-                      <span v-if="line.code" class="text-xs text-muted-foreground">{{ line.code }}</span>
-                    </span>
-                  </TableCell>
-                  <TableCell class="text-right tabular-nums">{{ formatDecimal(line.quantity) }}</TableCell>
-                  <TableCell class="text-muted-foreground">{{ label('units', line.unit_code) }}</TableCell>
-                  <TableCell class="text-right whitespace-nowrap tabular-nums">{{ formatMoney(line.unit_price) }}</TableCell>
-                  <TableCell class="text-right tabular-nums">{{ formatDecimal(line.discount_rate) === '0' ? '—' : formatPercent(line.discount_rate) }}</TableCell>
-                  <TableCell class="whitespace-nowrap">{{ line.tax_name ?? t('items.excluded') }}</TableCell>
-                  <TableCell class="pr-6 text-right whitespace-nowrap tabular-nums">{{ formatMoney(line.line_extension_amount) }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable :columns="lineColumns" :rows="invoice.lines ?? []" :empty-title="t('invoices.view.noLines')">
+            <template #cell-description="{ row }">
+              <span class="grid min-w-40">
+                <span>{{ row.description }}</span>
+                <span v-if="row.code" class="text-xs text-muted-foreground">{{ row.code }}</span>
+              </span>
+            </template>
+            <template #cell-quantity="{ row }">
+              <span class="tabular-nums">{{ formatDecimal(row.quantity) }}</span>
+            </template>
+            <template #cell-unit="{ row }">
+              <span class="text-muted-foreground">{{ label('units', row.unit_code) }}</span>
+            </template>
+            <template #cell-unit_price="{ row }">
+              <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.unit_price) }}</span>
+            </template>
+            <template #cell-discount="{ row }">
+              <span class="tabular-nums">{{ formatDecimal(row.discount_rate) === '0' ? '—' : formatPercent(row.discount_rate) }}</span>
+            </template>
+            <template #cell-tax="{ row }">
+              <span class="whitespace-nowrap">{{ row.tax_name ?? t('items.excluded') }}</span>
+            </template>
+            <template #cell-total="{ row }">
+              <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.line_extension_amount) }}</span>
+            </template>
+          </DataTable>
         </FormSection>
 
         <FormSection v-if="invoice.notes" :title="t('invoices.view.notes')">

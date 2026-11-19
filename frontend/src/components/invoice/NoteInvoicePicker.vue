@@ -8,7 +8,7 @@ import FormField from '@/components/FormField.vue'
 import FormSection from '@/components/FormSection.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
-import { DOCUMENT_ROUTES } from '@/lib/documents'
+import { documentCrumbs, DOCUMENT_ROUTES } from '@/lib/documents'
 import { formatDate, formatMoney } from '@/lib/format'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
@@ -35,6 +35,8 @@ async function search(term: string): Promise<Invoice[]> {
   return page.data.filter((invoice) => invoice.balance_status !== 'voided')
 }
 
+const crumbs = computed(() => documentCrumbs(props.kind, t(`notes.editor.newTitle.${props.kind}`), t))
+
 watch(chosen, (invoice) => {
   if (invoice) {
     void router.replace({ name: DOCUMENT_ROUTES[props.kind].create, query: { invoice: invoice.id } })
@@ -44,7 +46,7 @@ watch(chosen, (invoice) => {
 
 <template>
   <div class="grid gap-6">
-    <PageHeader :title="t(`notes.editor.newTitle.${kind}`)" :description="t(`notes.editor.description.${kind}`)" :back="{ name: DOCUMENT_ROUTES[kind].list }" />
+    <PageHeader :title="t(`notes.editor.newTitle.${kind}`)" :description="t(`notes.editor.description.${kind}`)" :breadcrumbs="crumbs" />
 
     <FormSection :title="t('notes.pick.title')" :description="t('notes.pick.description')">
       <FormField id="note-invoice" :label="t('notes.pick.label')">

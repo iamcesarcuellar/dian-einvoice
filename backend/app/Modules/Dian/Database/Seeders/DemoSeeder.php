@@ -24,8 +24,11 @@ final class DemoSeeder extends Seeder
         '990000002' => ['00000000-0000-4000-8000-0000000d1a02', '20202', '00000000-0000-4000-8000-00000075e702'],
     ];
 
-    /** The demo invoices go back about four months; the test certificates start earlier. */
-    private const int CERTIFICATE_DAYS_BACK = 150;
+    /**
+     * The demo invoices go back six months (168 days, the oldest); the test certificates start a
+     * month before and, valid for two years, still have more than a year left today.
+     */
+    private const int CERTIFICATE_DAYS_BACK = 200;
 
     public function run(SigningCertificates $certificates): void
     {

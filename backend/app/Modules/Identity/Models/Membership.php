@@ -33,4 +33,12 @@ class Membership extends Pivot
     {
         return $this->belongsTo(Company::class);
     }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

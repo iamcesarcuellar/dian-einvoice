@@ -39,6 +39,7 @@ const email = ref('')
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => documentsApi(props.invoice.type).deliver(props.invoice.id, email.value.trim() || null),
+  success: () => t('invoices.delivery.sending', { email: email.value.trim() || props.invoice.delivery?.customer_email || '' }),
   onSuccess: (invoice) => {
     emit('sent', invoice)
     open.value = false

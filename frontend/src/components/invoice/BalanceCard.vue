@@ -1,26 +1,20 @@
 <script setup lang="ts">
 import type { Invoice, RelatedNote } from '@/api/types'
+import type { DataTableColumn } from '@/components/data-table/types'
 import { BanIcon, FileMinusIcon, FilePlusIcon } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DataTable from '@/components/data-table/DataTable.vue'
 import FormSection from '@/components/FormSection.vue'
-import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
-import ElectronicStatusBadge from '@/components/invoice/ElectronicStatusBadge.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
 import { DOCUMENT_ROUTES } from '@/lib/documents'
 import { formatMoney } from '@/lib/format'
+import { electronicGroup } from '@/lib/status'
 
 /**
  * Balance and related documents of an accepted invoice: total, credited, debited and balance, all
@@ -33,6 +27,13 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+
+const noteColumns = computed<DataTableColumn[]>(() => [
+  { key: 'number', label: t('notes.balance.columns.number') },
+  { key: 'concept', label: t('notes.balance.columns.concept') },
+  { key: 'total', label: t('notes.balance.columns.total'), align: 'right' },
+  { key: 'status', label: t('notes.balance.columns.status') },
+])
 const router = useRouter()
 const { can } = useSession()
 const { label } = useReference()
@@ -93,39 +94,26 @@ function create(type: 'credit_note' | 'debit_note', voidInvoice = false): void {
 
       <div class="grid gap-2">
         <p class="text-sm font-medium">{{ t('notes.balance.notes') }}</p>
-        <p v-if="notes.length === 0" class="text-sm text-muted-foreground">{{ t('notes.balance.noNotes') }}</p>
-        <div v-else class="-mx-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow class="hover:bg-transparent">
-                <TableHead class="pl-6">{{ t('notes.balance.columns.number') }}</TableHead>
-                <TableHead>{{ t('notes.balance.columns.concept') }}</TableHead>
-                <TableHead class="text-right">{{ t('notes.balance.columns.total') }}</TableHead>
-                <TableHead class="pr-6">{{ t('notes.balance.columns.status') }}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="note in notes" :key="note.id">
-                <TableCell class="pl-6 whitespace-nowrap">
-                  <RouterLink :to="{ name: DOCUMENT_ROUTES[note.type].detail, params: { id: note.id } }" class="font-medium tabular-nums hover:underline">
-                    {{ note.full_number ?? t('invoices.draft') }}
-                  </RouterLink>
-                  <span class="block text-xs text-muted-foreground">{{ t(`notes.one.${note.type}`) }}</span>
-                </TableCell>
-                <TableCell>
-                  <span class="block max-w-64 truncate">{{ conceptOf(note) }}</span>
-                </TableCell>
-                <TableCell class="text-right whitespace-nowrap tabular-nums">
-                  {{ note.type === 'credit_note' ? '−' : '+' }} {{ formatMoney(note.payable_amount) }}
-                </TableCell>
-                <TableCell class="pr-6">
-                  <ElectronicStatusBadge v-if="note.electronic_status" :status="note.electronic_status" />
-                  <DocumentStatusBadge v-else :status="note.status" />
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable :columns="noteColumns" :rows="notes" :empty-title="t('notes.balance.noNotes')">
+          <template #cell-number="{ row }">
+            <span class="whitespace-nowrap">
+              <RouterLink :to="{ name: DOCUMENT_ROUTES[row.type].detail, params: { id: row.id } }" class="font-medium tabular-nums hover:underline">
+                {{ row.full_number ?? t('invoices.draft') }}
+              </RouterLink>
+              <span class="block text-xs text-muted-foreground">{{ t(`notes.one.${row.type}`) }}</span>
+            </span>
+          </template>
+          <template #cell-concept="{ row }">
+            <span class="block max-w-64 truncate">{{ conceptOf(row) }}</span>
+          </template>
+          <template #cell-total="{ row }">
+            <span class="whitespace-nowrap tabular-nums">{{ row.type === 'credit_note' ? '−' : '+' }} {{ formatMoney(row.payable_amount) }}</span>
+          </template>
+          <template #cell-status="{ row }">
+            <StatusBadge v-if="row.electronic_status" domain="electronic" :status="electronicGroup(row.electronic_status)" />
+            <StatusBadge v-else domain="document" :status="row.status" />
+          </template>
+        </DataTable>
       </div>
 
       <div v-if="canCorrect" class="flex flex-wrap gap-2">

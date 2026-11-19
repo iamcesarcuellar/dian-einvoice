@@ -20,7 +20,8 @@ const session = useSessionStore()
 
 const { data: contacts } = useQuery({
   queryKey: computed(() => tenantKey(session.currentCompanyId, 'contacts', 'quick-start')),
-  queryFn: () => contactsApi.list({ per_page: 25 }),
+  // The example needs one customer: the first two active contacts always include one besides the final consumer.
+  queryFn: () => contactsApi.list({ active: 1, per_page: 2 }),
 })
 
 const { data: items } = useQuery({

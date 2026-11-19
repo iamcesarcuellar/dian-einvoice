@@ -1,4 +1,7 @@
-// Colombian number formatting done on strings: money, quantities and rates never become floats.
+import { i18n } from '@/i18n'
+
+// The one formatter of the app: amounts, numbers and dates are shown only through these functions.
+// Colombian number formatting is done on strings: money, quantities and rates never become floats.
 
 const THOUSANDS = '.'
 const DECIMALS = ','
@@ -150,4 +153,42 @@ export function toEditableDecimal(value: string): string {
   const fraction = decimal.fraction.replace(/0+$/, '')
 
   return `${decimal.negative ? '-' : ''}${decimal.integer}${fraction ? DECIMALS + fraction : ''}`
+}
+
+/** The language of the interface, for month and day names. */
+function interfaceLocale(): string {
+  return String(i18n.global.locale.value)
+}
+
+/** "2026-06" becomes "Jun" (short) or "June 2026" (long), in the language of the interface. */
+export function formatMonth(month: string, style: 'short' | 'long' = 'short'): string {
+  const [year = 1970, number = 1] = month.split('-').map(Number)
+  const options: Intl.DateTimeFormatOptions = style === 'short'
+    ? { month: 'short', timeZone: 'UTC' }
+    : { month: 'long', year: 'numeric', timeZone: 'UTC' }
+
+  return new Intl.DateTimeFormat(interfaceLocale(), options).format(new Date(Date.UTC(year, number - 1, 1)))
+}
+
+/** "2026-10-01" to "2026-10-19" becomes "Oct 1–19", calendar dates without time zones. */
+export function formatDateRange(from: string, to: string): string {
+  const toDate = (value: string) => {
+    const [year = 1970, month = 1, day = 1] = value.split('-').map(Number)
+
+    return new Date(Date.UTC(year, month - 1, day))
+  }
+
+  return new Intl.DateTimeFormat(interfaceLocale(), { month: 'short', day: 'numeric', timeZone: 'UTC' }).formatRange(toDate(from), toDate(to))
+}
+
+/** An amount for the axis of a chart, in Colombian compact notation: "$ 12 M", "$ 450 mil". */
+export function formatCompactMoney(value: number): string {
+  return `$ ${new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}`
+}
+
+/** A percent change as the API sends it ("-12.5") with its sign: "−12,5 %", "+3 %". */
+export function formatChange(value: string): string {
+  const negative = value.startsWith('-')
+
+  return `${negative ? '−' : '+'}${formatPercent(negative ? value.slice(1) : value)}`
 }

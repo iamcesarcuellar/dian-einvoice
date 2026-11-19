@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { WebhookSubscription, WebhookSubscriptionStatus, WebhookSubscriptionWithSecret } from '@/api/types'
+import type { WebhookSubscription, WebhookSubscriptionWithSecret } from '@/api/types'
 import type { DataTableColumn, RowAction } from '@/components/data-table/types'
 import { HistoryIcon, KeyRoundIcon, PencilIcon, PlusIcon, PowerIcon, SendIcon, Trash2Icon } from '@lucide/vue'
 import { useMutation } from '@tanstack/vue-query'
@@ -9,12 +9,12 @@ import { webhooksApi } from '@/api/developers'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
-import FormError from '@/components/FormError.vue'
 import FormSection from '@/components/FormSection.vue'
-import { Badge } from '@/components/ui/badge'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
 import { formatDateTime } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant } from '@/lib/query'
 import SecretDialog from './SecretDialog.vue'
 import WebhookDeliveriesDialog from './WebhookDeliveriesDialog.vue'
@@ -31,7 +31,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const { page, search, rows, meta, isLoading } = useListQuery('webhooks', webhooksApi.list, {
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('webhooks', webhooksApi.list, {
   refetchInterval: () => 10_000,
 })
 
@@ -41,12 +41,6 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: 'status', label: t('developers.webhooks.columns.status') },
   { key: 'last_delivery', label: t('developers.webhooks.columns.lastDelivery') },
 ])
-
-const statusVariant: Record<WebhookSubscriptionStatus, 'secondary' | 'outline' | 'destructive'> = {
-  active: 'secondary',
-  inactive: 'outline',
-  disabled: 'destructive',
-}
 
 const dialogOpen = ref(false)
 const editing = ref<WebhookSubscription | null>(null)
@@ -71,26 +65,22 @@ function showSecret(subscription: WebhookSubscriptionWithSecret, title: string):
   secretOpen.value = true
 }
 
-const notice = ref<string | null>(null)
-let noticeTimer: ReturnType<typeof setTimeout> | undefined
-
-function announce(message: string): void {
-  notice.value = message
-  clearTimeout(noticeTimer)
-  noticeTimer = setTimeout(() => (notice.value = null), 5000)
-}
-
 const toggle = useMutation({
   mutationFn: (subscription: WebhookSubscription) => webhooksApi.update(subscription.id, { is_active: !subscription.is_active }),
-  onSuccess: () => invalidateTenant('webhooks'),
+  onSuccess: async (subscription) => {
+    await invalidateTenant('webhooks')
+    notify.success(t(subscription.is_active ? 'developers.webhooks.activated' : 'developers.webhooks.deactivated'))
+  },
+  onError: (failure) => notify.error(t('errors.actionFailed'), failure.message),
 })
 
 const test = useMutation({
   mutationFn: (subscription: WebhookSubscription) => webhooksApi.sendTest(subscription.id),
   onSuccess: async () => {
-    announce(t('developers.webhooks.testSent'))
+    notify.success(t('developers.webhooks.testSent'))
     await invalidateTenant('webhooks', 'webhook-deliveries', 'webhook-receiver')
   },
+  onError: (failure) => notify.error(t('errors.actionFailed'), failure.message),
 })
 
 const rotateOpen = ref(false)
@@ -111,6 +101,7 @@ const remove = useMutation({
   onSuccess: async () => {
     deleteOpen.value = false
     await invalidateTenant('webhooks')
+    notify.success(t('developers.webhooks.deleted'))
   },
 })
 
@@ -135,9 +126,6 @@ function eventsLabel(subscription: WebhookSubscription): string {
 <template>
   <FormSection :title="t('developers.webhooks.title')" :description="t('developers.webhooks.description')">
     <div class="grid gap-3">
-      <FormError :error="toggle.error.value ?? test.error.value" />
-      <p v-if="notice" class="text-sm text-muted-foreground" role="status">{{ notice }}</p>
-
       <DataTable
         v-model:search="search"
         v-model:page="page"
@@ -145,10 +133,12 @@ function eventsLabel(subscription: WebhookSubscription): string {
         :rows="rows"
         :meta="meta"
         :loading="isLoading"
+        :error="error"
         :search-placeholder="t('developers.webhooks.searchPlaceholder')"
         :empty-title="t('developers.webhooks.empty.title')"
         :empty-description="t('developers.webhooks.empty.description')"
         actions
+        @retry="refetch"
       >
         <template #toolbar>
           <Button @click="openCreate">
@@ -167,15 +157,16 @@ function eventsLabel(subscription: WebhookSubscription): string {
         </template>
         <template #cell-status="{ row }">
           <span class="grid gap-1">
-            <Badge :variant="statusVariant[row.status]">{{ t(`developers.webhooks.status.${row.status}`) }}</Badge>
+            <StatusBadge domain="subscription" :status="row.status" />
             <span v-if="row.disabled_reason" class="max-w-56 text-xs text-destructive">{{ row.disabled_reason }}</span>
             <span v-else-if="row.consecutive_failures > 0" class="text-xs text-muted-foreground">{{ t('developers.webhooks.failuresInARow', { count: row.consecutive_failures }) }}</span>
           </span>
         </template>
         <template #cell-last_delivery="{ row }">
           <span v-if="row.last_delivery" class="grid gap-0.5 whitespace-nowrap">
-            <span :class="row.last_delivery.status === 'failed' ? 'text-destructive' : ''">
-              {{ t(`developers.webhooks.lastStatus.${row.last_delivery.status}`) }}<template v-if="row.last_delivery.response_code"> · HTTP {{ row.last_delivery.response_code }}</template>
+            <span class="inline-flex items-center gap-1.5">
+              <StatusBadge domain="webhookDelivery" :status="row.last_delivery.status" />
+              <span v-if="row.last_delivery.response_code" class="text-xs text-muted-foreground tabular-nums">HTTP {{ row.last_delivery.response_code }}</span>
             </span>
             <span class="text-xs text-muted-foreground tabular-nums">{{ formatDateTime(row.last_delivery.at) }}</span>
           </span>
@@ -183,6 +174,12 @@ function eventsLabel(subscription: WebhookSubscription): string {
         </template>
         <template #actions="{ row }">
           <RowActions :actions="actions(row)" />
+        </template>
+        <template #empty-action>
+          <Button variant="outline" size="sm" @click="openCreate">
+            <PlusIcon />
+            {{ t('developers.webhooks.new') }}
+          </Button>
         </template>
       </DataTable>
     </div>

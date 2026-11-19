@@ -9,18 +9,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { documentsApi } from '@/api/resources'
 import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
-import BalanceStatusBadge from '@/components/invoice/BalanceStatusBadge.vue'
-import DeliveryStatusBadge from '@/components/invoice/DeliveryStatusBadge.vue'
-import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
-import ElectronicStatusBadge from '@/components/invoice/ElectronicStatusBadge.vue'
-import InvoicePaymentBadges from '@/components/invoice/InvoicePaymentBadges.vue'
 import SelectInput from '@/components/SelectInput.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
 import { DOCUMENT_RESOURCES, DOCUMENT_ROUTES } from '@/lib/documents'
 import { formatDate, formatMoney } from '@/lib/format'
+import { electronicGroup, statusKey } from '@/lib/status'
 
 /**
  * The list of one tab of the Invoices section: invoices, credit notes or debit notes, with search
@@ -57,31 +54,30 @@ const contactName = computed(() => (typeof route.query.customer === 'string' ? r
 
 const statusOptions = computed<Option[]>(() => [
   { value: ALL, label: t('invoices.filters.all') },
-  { value: 'draft', label: t('invoices.status.draft') },
-  { value: 'issued', label: t('invoices.status.issued') },
+  ...['draft', 'issued'].map((value) => ({ value, label: t(statusKey('document', value)) })),
 ])
 
 // Processing groups pending, generated, signed and sending; the API filters by it too.
 const electronicOptions = computed<Option[]>(() => [
   { value: ALL, label: t('invoices.filters.allElectronic') },
-  ...['processing', 'accepted', 'rejected', 'failed'].map((value) => ({ value, label: t(`invoices.electronic.${value}`) })),
+  ...['processing', 'accepted', 'rejected', 'failed'].map((value) => ({ value, label: t(statusKey('electronic', value)) })),
 ])
 
 const balanceOptions = computed<Option[]>(() => [
   { value: ALL, label: t('notes.filters.allBalance') },
-  ...['open', 'partially_credited', 'credited', 'voided'].map((value) => ({ value, label: t(`notes.balanceStatus.${value}`) })),
+  ...['open', 'partially_credited', 'credited', 'voided'].map((value) => ({ value, label: t(statusKey('balance', value)) })),
 ])
 
 const paymentOptions = computed<Option[]>(() => [
   { value: ALL, label: t('invoices.filters.allPayment') },
-  ...['unpaid', 'partially_paid', 'paid', 'overdue'].map((value) => ({ value, label: t(`invoices.paymentStatus.${value}`) })),
+  ...['unpaid', 'partially_paid', 'paid', 'overdue'].map((value) => ({ value, label: t(statusKey('invoicePayment', value)) })),
 ])
 
 function filterValue(value: string | null): string | undefined {
   return value === ALL || value === null ? undefined : value
 }
 
-const { page, search, rows, meta, isLoading } = useListQuery(DOCUMENT_RESOURCES[props.kind], documentsApi(props.kind).list, {
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery(DOCUMENT_RESOURCES[props.kind], documentsApi(props.kind).list, {
   filters: () => ({
     status: filterValue(status.value),
     electronic_status: filterValue(electronic.value),
@@ -131,24 +127,26 @@ function actions(document: Invoice): RowAction[] {
     :rows="rows"
     :meta="meta"
     :loading="isLoading"
+    :error="error"
     :search-placeholder="isNote ? t('notes.searchPlaceholder') : t('invoices.searchPlaceholder')"
     :empty-title="isNote ? t(`notes.empty.title.${kind}`) : t('invoices.empty.title')"
     :empty-description="isNote ? t('notes.empty.description') : t('invoices.empty.description')"
     actions
+    @retry="refetch"
   >
     <template #toolbar>
       <div class="flex flex-wrap gap-2">
         <div class="w-44">
-          <SelectInput v-model="status" :options="statusOptions" :placeholder="t('invoices.filters.status')" />
+          <SelectInput v-model="status" :options="statusOptions" :placeholder="t('invoices.filters.status')" :label="t('invoices.filters.status')" />
         </div>
         <div class="w-52">
-          <SelectInput v-model="electronic" :options="electronicOptions" :placeholder="t('invoices.filters.electronic')" />
+          <SelectInput v-model="electronic" :options="electronicOptions" :placeholder="t('invoices.filters.electronic')" :label="t('invoices.filters.electronic')" />
         </div>
         <div v-if="!isNote" class="w-48">
-          <SelectInput v-model="balance" :options="balanceOptions" :placeholder="t('notes.filters.balance')" />
+          <SelectInput v-model="balance" :options="balanceOptions" :placeholder="t('notes.filters.balance')" :label="t('notes.filters.balance')" />
         </div>
         <div v-if="!isNote" class="w-48">
-          <SelectInput v-model="payment" :options="paymentOptions" :placeholder="t('invoices.filters.payment')" />
+          <SelectInput v-model="payment" :options="paymentOptions" :placeholder="t('invoices.filters.payment')" :label="t('invoices.filters.payment')" />
         </div>
         <RouterLink
           v-if="contactId"
@@ -166,7 +164,7 @@ function actions(document: Invoice): RowAction[] {
         <RouterLink :to="{ name: routes.detail, params: { id: row.id } }" class="font-medium whitespace-nowrap text-foreground tabular-nums hover:underline">
           {{ row.full_number ?? t('invoices.draft') }}
         </RouterLink>
-        <BalanceStatusBadge v-if="row.balance_status === 'voided'" :status="row.balance_status" />
+        <StatusBadge v-if="row.balance_status === 'voided'" domain="balance" status="voided" />
       </span>
     </template>
     <template #cell-related="{ row }">
@@ -191,24 +189,27 @@ function actions(document: Invoice): RowAction[] {
       <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.totals.payable_amount) || '$ 0' }}</span>
     </template>
     <template #cell-balance="{ row }">
-      <span v-if="row.receivable_amount !== null && row.electronic?.status === 'accepted'" class="whitespace-nowrap tabular-nums" :class="row.receivable_amount.startsWith('-') ? 'text-emerald-700 dark:text-emerald-400' : ''">
+      <span v-if="row.receivable_amount !== null && row.electronic?.status === 'accepted'" class="whitespace-nowrap tabular-nums" :class="row.receivable_amount.startsWith('-') ? 'text-success' : ''">
         {{ row.receivable_amount.startsWith('-') ? t('invoices.payments.creditShort', { amount: formatMoney(row.receivable_amount.slice(1)) }) : formatMoney(row.receivable_amount) }}
       </span>
       <span v-else class="text-muted-foreground">—</span>
     </template>
     <template #cell-status="{ row }">
       <span class="inline-flex flex-wrap gap-1">
-        <DocumentStatusBadge :status="row.status" />
-        <BalanceStatusBadge v-if="row.balance_status === 'partially_credited' || row.balance_status === 'credited'" :status="row.balance_status" />
-        <InvoicePaymentBadges v-if="!isNote && row.electronic?.status === 'accepted'" :invoice="row" />
+        <StatusBadge domain="document" :status="row.status" />
+        <StatusBadge v-if="row.balance_status === 'partially_credited' || row.balance_status === 'credited'" domain="balance" :status="row.balance_status" />
+        <template v-if="!isNote && row.electronic?.status === 'accepted'">
+          <StatusBadge v-if="row.payment_status === 'paid' || row.payment_status === 'partially_paid'" domain="invoicePayment" :status="row.payment_status" />
+          <StatusBadge v-if="row.overdue" domain="invoicePayment" status="overdue" />
+        </template>
       </span>
     </template>
     <template #cell-electronic="{ row }">
-      <ElectronicStatusBadge v-if="row.electronic" :status="row.electronic.status" />
+      <StatusBadge v-if="row.electronic" domain="electronic" :status="electronicGroup(row.electronic.status)" :hint="t('invoices.electronic.bySimulator')" />
       <span v-else class="text-muted-foreground">—</span>
     </template>
     <template #cell-delivery="{ row }">
-      <DeliveryStatusBadge v-if="row.delivery && row.electronic?.status === 'accepted'" :status="row.delivery.status" compact />
+      <StatusBadge v-if="row.delivery && row.electronic?.status === 'accepted'" domain="delivery" :status="row.delivery.status ?? 'waiting'" :hint="t(`invoices.delivery.statusTitle.${row.delivery.status ?? 'waiting'}`)" compact />
       <span v-else class="text-muted-foreground">—</span>
     </template>
     <template #actions="{ row }">

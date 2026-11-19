@@ -2,7 +2,7 @@
 import type { Me } from '@/api/types'
 import { InfoIcon } from '@lucide/vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { companiesApi } from '@/api/companies'
 import CompanyFields from '@/components/company/CompanyFields.vue'
@@ -11,8 +11,10 @@ import FormError from '@/components/FormError.vue'
 import FormSection from '@/components/FormSection.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { useSession } from '@/composables/useSession'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { queryKeys } from '@/lib/query'
 
 const { t } = useI18n()
@@ -31,20 +33,18 @@ const { data: company } = useQuery({
 const form = ref(emptyCompanyForm())
 const canEdit = computed(() => company.value?.permissions?.includes('manage-settings') ?? false)
 
-const saved = ref(false)
-let savedTimer: ReturnType<typeof setTimeout> | undefined
+const unsaved = useUnsavedChanges(form, canEdit)
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => companiesApi.update(companyId.value, toCompanyInput(form.value)),
+  success: t('settings.company.saved'),
   onSuccess: (updated) => {
     queryClient.setQueryData(queryKeys.company(updated.id), updated)
     queryClient.setQueryData<Me | null>(queryKeys.me, (me) =>
       me ? { ...me, companies: me.companies.map((item) => (item.id === updated.id ? updated : item)) } : me,
     )
-
-    saved.value = true
-    clearTimeout(savedTimer)
-    savedTimer = setTimeout(() => (saved.value = false), 4000)
+    form.value = companyFormFrom(updated)
+    unsaved.reset()
   },
 })
 
@@ -52,20 +52,22 @@ const { submit, isPending, error, errors, reset } = useFormMutation({
 watch(company, (value) => {
   if (value) {
     form.value = companyFormFrom(value)
+    unsaved.reset()
   }
 }, { immediate: true })
 
 watch(companyId, () => {
   reset()
-  saved.value = false
 })
-
-onBeforeUnmount(() => clearTimeout(savedTimer))
 </script>
 
 <template>
   <div class="grid max-w-3xl gap-6">
-    <p v-if="!company" class="text-muted-foreground">{{ t('common.loading') }}</p>
+    <div v-if="!company" class="grid gap-4" aria-busy="true">
+      <span class="sr-only">{{ t('common.loading') }}</span>
+      <Skeleton class="h-56 rounded-xl" />
+      <Skeleton class="h-40 rounded-xl" />
+    </div>
 
     <form v-else class="grid gap-6" novalidate @submit.prevent="submit">
       <Alert v-if="!canEdit">
@@ -94,7 +96,6 @@ onBeforeUnmount(() => clearTimeout(savedTimer))
         />
 
         <template v-if="canEdit" #footer>
-          <p v-if="saved" class="text-sm text-muted-foreground" role="status">{{ t('common.saved') }}</p>
           <Button type="submit" :disabled="isPending">
             {{ isPending ? t('common.saving') : t('common.save') }}
           </Button>

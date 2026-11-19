@@ -3,13 +3,22 @@ import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
+import product from './src/config/product.json'
 
 // The browser only talks to this dev server. API, CSRF cookie and API docs requests are
 // forwarded to the backend, so the session cookie lives on a single origin.
 const apiTarget = process.env.API_URL ?? 'http://localhost:8600'
 
 export default defineConfig({
-  plugins: [vue(), tailwindcss()],
+  plugins: [
+    vue(),
+    tailwindcss(),
+    // The browser title of index.html comes from the product config, like every other place.
+    {
+      name: 'product-name',
+      transformIndexHtml: (html: string) => html.replaceAll('%PRODUCT_NAME%', product.name),
+    },
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

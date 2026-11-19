@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { CertificateStatus, SigningCertificate } from '@/api/types'
-import { FlaskConicalIcon, KeyRoundIcon, ShieldCheckIcon, Trash2Icon, TriangleAlertIcon, UploadIcon } from '@lucide/vue'
+import type { SigningCertificate } from '@/api/types'
+import { FlaskConicalIcon, KeyRoundIcon, Trash2Icon, UploadIcon } from '@lucide/vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -9,10 +9,13 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import UploadCertificateDialog from '@/components/dian/UploadCertificateDialog.vue'
 import FormError from '@/components/FormError.vue'
 import FormSection from '@/components/FormSection.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -31,13 +34,6 @@ const { data: certificate, isLoading } = useQuery({
   queryFn: () => signingCertificateApi.get(),
 })
 
-const statusVariant: Record<CertificateStatus, 'secondary' | 'outline' | 'destructive'> = {
-  valid: 'secondary',
-  expiring_soon: 'outline',
-  expired: 'destructive',
-  not_yet_valid: 'outline',
-}
-
 function store(value: SigningCertificate | null): void {
   queryClient.setQueryData(queryKey.value, value)
 }
@@ -51,6 +47,7 @@ const generate = useMutation({
   onSuccess: (value) => {
     store(value)
     generateOpen.value = false
+    notify.success(t('settings.dian.certificate.generated'))
   },
 })
 
@@ -59,6 +56,7 @@ const remove = useMutation({
   onSuccess: () => {
     store(null)
     removeOpen.value = false
+    notify.success(t('settings.dian.certificate.removed'))
   },
 })
 
@@ -82,15 +80,15 @@ function askRemove(): void {
 <template>
   <FormSection :title="t('settings.dian.certificate.title')" :description="t('settings.dian.certificate.description')">
     <div class="grid gap-4">
-      <p v-if="isLoading" class="text-muted-foreground">{{ t('common.loading') }}</p>
+      <div v-if="isLoading" class="grid gap-2" aria-busy="true">
+        <Skeleton class="h-5 w-32" />
+        <Skeleton class="h-4 w-full" />
+        <Skeleton class="h-4 w-2/3" />
+      </div>
 
       <template v-else-if="certificate">
         <div class="flex flex-wrap items-center gap-2">
-          <Badge :variant="statusVariant[certificate.status]">
-            <ShieldCheckIcon v-if="certificate.status === 'valid'" />
-            <TriangleAlertIcon v-else />
-            {{ t(`settings.dian.certificate.status.${certificate.status}`) }}
-          </Badge>
+          <StatusBadge domain="certificate" :status="certificate.status" />
           <Badge v-if="certificate.is_test" variant="outline">
             <FlaskConicalIcon />
             {{ t('settings.dian.certificate.test') }}

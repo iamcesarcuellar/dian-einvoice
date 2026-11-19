@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { webhooksApi } from '@/api/developers'
-import FormError from '@/components/FormError.vue'
-import { Button } from '@/components/ui/button'
+import DataTable from '@/components/data-table/DataTable.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import {
   Dialog,
   DialogContent,
@@ -14,19 +14,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatInteger } from '@/lib/format'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
-import DeliveryStatusBadge from './DeliveryStatusBadge.vue'
 import WebhookDeliveryDialog from './WebhookDeliveryDialog.vue'
 
 /** The deliveries of one subscription, newest first: event, status, attempts, last code and time. */
@@ -44,7 +34,7 @@ watch(() => props.subscription?.id, () => {
   page.value = 1
 })
 
-const { data, error, isPending } = useQuery({
+const { data, error, isPending, refetch } = useQuery({
   queryKey: computed(() => tenantKey(session.currentCompanyId, 'webhook-deliveries', 'list', props.subscription?.id, page.value)),
   queryFn: () => webhooksApi.deliveries(props.subscription?.id ?? '', { page: page.value, per_page: 15 }),
   enabled: computed(() => open.value && props.subscription !== null),
@@ -76,40 +66,33 @@ function openDetail(delivery: WebhookDelivery): void {
         <DialogDescription class="font-mono break-all">{{ subscription?.url }}</DialogDescription>
       </DialogHeader>
 
-      <FormError :error="error" />
-
-      <div class="-mx-6 max-h-[60vh] overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow class="hover:bg-transparent">
-              <TableHead v-for="(column, index) in columns" :key="column.key" :class="[column.align === 'right' ? 'text-right' : '', index === 0 ? 'pl-6' : '', index === columns.length - 1 ? 'pr-6' : '']">
-                {{ column.label }}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="data && data.data.length > 0">
-              <TableRow v-for="delivery in data.data" :key="delivery.id" class="cursor-pointer" @click="openDetail(delivery)">
-                <TableCell class="pl-6">
-                  <button type="button" class="font-mono text-xs underline-offset-4 hover:underline" @click.stop="openDetail(delivery)">{{ delivery.event_type }}</button>
-                </TableCell>
-                <TableCell><DeliveryStatusBadge :status="delivery.status" /></TableCell>
-                <TableCell class="text-right tabular-nums">{{ delivery.attempts }}</TableCell>
-                <TableCell class="font-mono text-xs">{{ delivery.last_status_code ?? '—' }}</TableCell>
-                <TableCell class="pr-6 whitespace-nowrap tabular-nums">{{ formatDateTime(delivery.last_attempt_at ?? delivery.created_at) }}</TableCell>
-              </TableRow>
-            </template>
-            <TableEmpty v-else :colspan="columns.length">
-              <p class="text-muted-foreground">{{ isPending ? t('common.loading') : t('developers.deliveries.empty') }}</p>
-            </TableEmpty>
-          </TableBody>
-        </Table>
-      </div>
-
-      <div v-if="data && data.meta.last_page > 1" class="flex items-center justify-end gap-2">
-        <span class="text-xs text-muted-foreground tabular-nums">{{ t('developers.deliveries.page', { page: data.meta.current_page, pages: data.meta.last_page }) }}</span>
-        <Button variant="outline" size="sm" :disabled="page <= 1" @click="page--">{{ t('table.previous') }}</Button>
-        <Button variant="outline" size="sm" :disabled="page >= data.meta.last_page" @click="page++">{{ t('table.next') }}</Button>
+      <div class="max-h-[60vh] overflow-auto">
+        <DataTable
+          v-model:page="page"
+          :columns="columns"
+          :rows="data?.data ?? []"
+          :meta="data?.meta"
+          :loading="isPending"
+          :error="error"
+          :empty-title="t('developers.deliveries.empty')"
+          @retry="refetch()"
+        >
+          <template #cell-event="{ row }">
+            <button type="button" class="font-mono text-xs underline-offset-4 hover:underline" @click="openDetail(row)">{{ row.event_type }}</button>
+          </template>
+          <template #cell-status="{ row }">
+            <StatusBadge domain="webhookDelivery" :status="row.status" />
+          </template>
+          <template #cell-attempts="{ row }">
+            <span class="tabular-nums">{{ formatInteger(row.attempts) }}</span>
+          </template>
+          <template #cell-code="{ row }">
+            <span class="font-mono text-xs">{{ row.last_status_code ?? '—' }}</span>
+          </template>
+          <template #cell-time="{ row }">
+            <span class="whitespace-nowrap tabular-nums">{{ formatDateTime(row.last_attempt_at ?? row.created_at) }}</span>
+          </template>
+        </DataTable>
       </div>
 
       <WebhookDeliveryDialog v-model:open="detailOpen" :delivery-id="selected" />

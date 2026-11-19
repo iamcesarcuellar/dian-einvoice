@@ -2,7 +2,7 @@
 import type { DianSettings, DianSettingsInput } from '@/api/types'
 import { FlaskConicalIcon, InfoIcon } from '@lucide/vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { dianSettingsApi } from '@/api/dian'
 import { orNull } from '@/components/company/companyForm'
@@ -16,9 +16,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { useSession } from '@/composables/useSession'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { tenantKey } from '@/lib/query'
+import { TONE_BADGE } from '@/lib/status'
 import { useSessionStore } from '@/stores/session'
 
 /**
@@ -70,33 +73,29 @@ function toInput(): DianSettingsInput {
   return input
 }
 
-const saved = ref(false)
-let savedTimer: ReturnType<typeof setTimeout> | undefined
+const unsaved = useUnsavedChanges(form, canManage)
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => dianSettingsApi.update(toInput()),
+  success: t('settings.dian.saved'),
   onSuccess: (updated) => {
     queryClient.setQueryData(queryKey.value, updated)
     form.value = formFrom(updated)
-
-    saved.value = true
-    clearTimeout(savedTimer)
-    savedTimer = setTimeout(() => (saved.value = false), 4000)
+    unsaved.reset()
   },
 })
 
 watch(settings, (value) => {
   form.value = formFrom(value)
+  unsaved.reset()
 }, { immediate: true })
 
 watch(() => session.currentCompanyId, () => {
   reset()
-  saved.value = false
 })
 
 const pinHint = computed(() => (settings.value?.software_pin_set ? t('settings.dian.pinStored') : t('settings.dian.pinHint')))
 
-onBeforeUnmount(() => clearTimeout(savedTimer))
 </script>
 
 <template>
@@ -106,7 +105,11 @@ onBeforeUnmount(() => clearTimeout(savedTimer))
       <AlertDescription>{{ t('settings.dian.restricted') }}</AlertDescription>
     </Alert>
 
-    <p v-else-if="!settings" class="text-muted-foreground">{{ t('common.loading') }}</p>
+    <div v-else-if="!settings" class="grid gap-4" aria-busy="true">
+      <span class="sr-only">{{ t('common.loading') }}</span>
+      <Skeleton class="h-32 rounded-xl" />
+      <Skeleton class="h-64 rounded-xl" />
+    </div>
 
     <form v-else class="grid gap-6" novalidate @submit.prevent="submit">
       <FormError :error="error" />
@@ -114,7 +117,7 @@ onBeforeUnmount(() => clearTimeout(savedTimer))
       <FormSection :title="t('settings.dian.environment')" :description="t('settings.dian.environmentDescription')">
         <div class="grid gap-3">
           <div class="flex items-center gap-2">
-            <Badge variant="secondary">
+            <Badge variant="outline" :class="TONE_BADGE.warning">
               <FlaskConicalIcon />
               {{ t('settings.dian.test') }}
             </Badge>
@@ -164,7 +167,6 @@ onBeforeUnmount(() => clearTimeout(savedTimer))
         </div>
 
         <template #footer>
-          <p v-if="saved" class="text-sm text-muted-foreground" role="status">{{ t('common.saved') }}</p>
           <Button type="submit" :disabled="isPending">
             {{ isPending ? t('common.saving') : t('common.save') }}
           </Button>

@@ -1,22 +1,16 @@
 <script setup lang="ts">
 import type { Payment, PaymentEvent } from '@/api/types'
+import type { DataTableColumn } from '@/components/data-table/types'
 import { BanIcon } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DataTable from '@/components/data-table/DataTable.vue'
 import FormSection from '@/components/FormSection.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import PaymentStatusBadge from '@/components/payment/PaymentStatusBadge.vue'
 import VoidPaymentDialog from '@/components/payment/VoidPaymentDialog.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
 import { formatDate, formatDateTime, formatMoney } from '@/lib/format'
@@ -34,6 +28,20 @@ const { can } = useSession()
 const { label } = useReference()
 
 const voidOpen = ref(false)
+
+const crumbs = computed(() => [
+  { label: t('nav.sales') },
+  { label: t('nav.payments'), to: { name: 'payments' } },
+  { label: props.payment.full_number },
+])
+
+const allocationColumns = computed<DataTableColumn[]>(() => [
+  { key: 'invoice', label: t('payments.editor.columns.invoice') },
+  { key: 'date', label: t('payments.editor.columns.date') },
+  { key: 'due', label: t('payments.editor.columns.due') },
+  { key: 'amount', label: t('payments.view.applied'), align: 'right' },
+  { key: 'balance_after', label: t('payments.view.balanceAfter'), align: 'right' },
+])
 const canVoid = computed(() => can('void-payments') && props.payment.status === 'recorded')
 
 function eventLabel(event: PaymentEvent): string {
@@ -52,9 +60,9 @@ function eventDetail(event: PaymentEvent): string | null {
 
 <template>
   <div class="grid gap-6">
-    <PageHeader :title="payment.full_number" :description="t('payments.view.subtitle', { date: formatDate(payment.payment_date), customer: payment.customer_name })" :back="{ name: 'payments' }">
+    <PageHeader :title="payment.full_number" :description="t('payments.view.subtitle', { date: formatDate(payment.payment_date), customer: payment.customer_name })" :breadcrumbs="crumbs">
       <template #badge>
-        <PaymentStatusBadge :status="payment.status" />
+        <StatusBadge domain="payment" :status="payment.status" />
       </template>
 
       <Button v-if="canVoid" variant="outline" @click="voidOpen = true">
@@ -106,36 +114,29 @@ function eventDetail(event: PaymentEvent): string | null {
         </FormSection>
 
         <FormSection :title="t('payments.view.invoices')" :description="payment.status === 'voided' ? t('payments.view.invoicesVoided') : t('payments.view.invoicesDescription')">
-          <div class="-mx-6 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow class="hover:bg-transparent">
-                  <TableHead class="pl-6">{{ t('payments.editor.columns.invoice') }}</TableHead>
-                  <TableHead>{{ t('payments.editor.columns.date') }}</TableHead>
-                  <TableHead>{{ t('payments.editor.columns.due') }}</TableHead>
-                  <TableHead class="text-right">{{ t('payments.view.applied') }}</TableHead>
-                  <TableHead class="pr-6 text-right">{{ t('payments.view.balanceAfter') }}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow v-for="allocation in payment.allocations ?? []" :key="allocation.id">
-                  <TableCell class="pl-6 whitespace-nowrap">
-                    <RouterLink :to="{ name: 'invoice', params: { id: allocation.document_id } }" class="font-medium tabular-nums hover:underline">{{ allocation.document_number }}</RouterLink>
-                  </TableCell>
-                  <TableCell class="whitespace-nowrap tabular-nums">{{ formatDate(allocation.document_issue_date) || '—' }}</TableCell>
-                  <TableCell class="whitespace-nowrap tabular-nums">{{ formatDate(allocation.document_due_date ?? allocation.document_issue_date) || '—' }}</TableCell>
-                  <TableCell class="text-right whitespace-nowrap tabular-nums" :class="payment.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{ formatMoney(allocation.amount) }}</TableCell>
-                  <TableCell class="pr-6 text-right whitespace-nowrap text-muted-foreground tabular-nums">{{ formatMoney(allocation.balance_after) }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable :columns="allocationColumns" :rows="payment.allocations ?? []" :empty-title="t('payments.view.noInvoices')">
+            <template #cell-invoice="{ row }">
+              <RouterLink :to="{ name: 'invoice', params: { id: row.document_id } }" class="font-medium whitespace-nowrap tabular-nums hover:underline">{{ row.document_number }}</RouterLink>
+            </template>
+            <template #cell-date="{ row }">
+              <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.document_issue_date) || '—' }}</span>
+            </template>
+            <template #cell-due="{ row }">
+              <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.document_due_date ?? row.document_issue_date) || '—' }}</span>
+            </template>
+            <template #cell-amount="{ row }">
+              <span class="whitespace-nowrap tabular-nums" :class="payment.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{ formatMoney(row.amount) }}</span>
+            </template>
+            <template #cell-balance_after="{ row }">
+              <span class="whitespace-nowrap text-muted-foreground tabular-nums">{{ formatMoney(row.balance_after) }}</span>
+            </template>
+          </DataTable>
         </FormSection>
 
         <FormSection :title="t('invoices.view.timeline')">
           <ol class="grid gap-4">
             <li v-for="event in payment.events ?? []" :key="event.id" class="flex gap-3">
-              <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="event.type === 'voided' ? 'bg-destructive' : 'bg-emerald-600'" aria-hidden="true" />
+              <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="event.type === 'voided' ? 'bg-destructive' : 'bg-success'" aria-hidden="true" />
               <div class="grid min-w-0 gap-0.5">
                 <p class="font-medium">{{ eventLabel(event) }}</p>
                 <p v-if="eventDetail(event)" class="text-xs break-words text-muted-foreground">{{ eventDetail(event) }}</p>

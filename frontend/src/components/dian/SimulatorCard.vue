@@ -3,9 +3,11 @@ import type { SimulatorModeInput, SimulatorModeName, SimulatorSettings } from '@
 import type { Option } from '@/lib/options'
 import { FlaskConicalIcon, RefreshCwIcon } from '@lucide/vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import type { DataTableColumn } from '@/components/data-table/types'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { simulatorApi } from '@/api/dian'
+import DataTable from '@/components/data-table/DataTable.vue'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import FormSection from '@/components/FormSection.vue'
@@ -13,17 +15,9 @@ import SelectInput from '@/components/SelectInput.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFormMutation } from '@/composables/useFormMutation'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatInteger } from '@/lib/format'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -44,7 +38,7 @@ const { data: settings, error: settingsError } = useQuery({
   queryFn: () => simulatorApi.settings(),
 })
 
-const { data: requests, error: requestsError, refetch, isFetching } = useQuery({
+const { data: requests, error: requestsError, refetch, isFetching, isPending: requestsPending } = useQuery({
   queryKey: requestsKey,
   queryFn: () => simulatorApi.requests(30),
   refetchInterval: 5000,
@@ -134,31 +128,33 @@ function toInput(): SimulatorModeInput {
   }
 }
 
-const applied = ref(false)
-let appliedTimer: ReturnType<typeof setTimeout> | undefined
+const requestRows = computed(() => (requests.value ?? []).map((request, index) => ({ ...request, id: `${request.at}-${index}` })))
+
+const requestColumns = computed<DataTableColumn[]>(() => [
+  { key: 'at', label: t('settings.dian.simulator.columns.time') },
+  { key: 'operation', label: t('settings.dian.simulator.columns.operation') },
+  { key: 'document', label: t('settings.dian.simulator.columns.document') },
+  { key: 'result', label: t('settings.dian.simulator.columns.result') },
+  { key: 'duration', label: t('settings.dian.simulator.columns.duration'), align: 'right' },
+])
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => simulatorApi.setMode(toInput()),
+  success: t('settings.dian.simulator.applied'),
   onSuccess: (mode) => {
     queryClient.setQueryData(settingsKey.value, settings.value ? { ...settings.value, mode } : settings.value)
-    applied.value = true
-    clearTimeout(appliedTimer)
-    appliedTimer = setTimeout(() => (applied.value = false), 4000)
   },
 })
 
 watch(() => session.currentCompanyId, () => {
   reset()
-  applied.value = false
 })
-
-onBeforeUnmount(() => clearTimeout(appliedTimer))
 </script>
 
 <template>
   <FormSection :title="t('settings.dian.simulator.title')" :description="t('settings.dian.simulator.description')">
     <div class="grid gap-6">
-      <FormError :error="settingsError ?? requestsError" />
+      <FormError :error="settingsError" />
 
       <form v-if="settings" class="grid gap-4" novalidate @submit.prevent="submit">
         <div class="flex flex-wrap items-center gap-2">
@@ -194,14 +190,16 @@ onBeforeUnmount(() => clearTimeout(appliedTimer))
         </div>
 
         <div class="flex items-center justify-end gap-3">
-          <p v-if="applied" class="text-sm text-muted-foreground" role="status">{{ t('settings.dian.simulator.applied') }}</p>
           <Button type="submit" :disabled="isPending || !form.mode">
             {{ isPending ? t('settings.dian.simulator.applying') : t('settings.dian.simulator.apply') }}
           </Button>
         </div>
       </form>
 
-      <p v-else-if="!settingsError" class="text-muted-foreground">{{ t('common.loading') }}</p>
+      <div v-else-if="!settingsError" class="grid gap-2" aria-busy="true">
+        <Skeleton class="h-5 w-40" />
+        <Skeleton class="h-9 w-full" />
+      </div>
 
       <div class="grid gap-3">
         <div class="flex flex-wrap items-start justify-between gap-3">
@@ -215,40 +213,36 @@ onBeforeUnmount(() => clearTimeout(appliedTimer))
           </Button>
         </div>
 
-        <div class="-mx-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow class="hover:bg-transparent">
-                <TableHead class="pl-6">{{ t('settings.dian.simulator.columns.time') }}</TableHead>
-                <TableHead>{{ t('settings.dian.simulator.columns.operation') }}</TableHead>
-                <TableHead>{{ t('settings.dian.simulator.columns.document') }}</TableHead>
-                <TableHead>{{ t('settings.dian.simulator.columns.result') }}</TableHead>
-                <TableHead class="pr-6 text-right">{{ t('settings.dian.simulator.columns.duration') }}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <template v-if="requests && requests.length > 0">
-                <TableRow v-for="(request, index) in requests" :key="`${request.at}-${index}`">
-                  <TableCell class="pl-6 whitespace-nowrap tabular-nums">{{ formatDateTime(request.at) }}</TableCell>
-                  <TableCell class="whitespace-nowrap">{{ request.operation }}</TableCell>
-                  <TableCell class="whitespace-nowrap tabular-nums">{{ request.document ?? '—' }}</TableCell>
-                  <TableCell>
-                    <span class="grid gap-0.5">
-                      <span>{{ request.result }}</span>
-                      <span v-if="request.mode || request.rules.length > 0" class="text-xs text-muted-foreground">
-                        {{ [request.mode, request.rules.join(', ')].filter(Boolean).join(' · ') }}
-                      </span>
-                    </span>
-                  </TableCell>
-                  <TableCell class="pr-6 text-right whitespace-nowrap tabular-nums">{{ t('settings.dian.simulator.duration', { ms: request.duration_ms }) }}</TableCell>
-                </TableRow>
-              </template>
-              <TableEmpty v-else :colspan="5">
-                <p class="text-muted-foreground">{{ requests ? t('settings.dian.simulator.activityEmpty') : t('common.loading') }}</p>
-              </TableEmpty>
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          :columns="requestColumns"
+          :rows="requestRows"
+          :loading="requestsPending"
+          :error="requestsError"
+          :empty-title="t('settings.dian.simulator.activityEmpty')"
+          :skeleton-rows="3"
+          @retry="refetch()"
+        >
+          <template #cell-at="{ row }">
+            <span class="whitespace-nowrap tabular-nums">{{ formatDateTime(row.at) }}</span>
+          </template>
+          <template #cell-operation="{ row }">
+            <span class="whitespace-nowrap">{{ row.operation }}</span>
+          </template>
+          <template #cell-document="{ row }">
+            <span class="whitespace-nowrap tabular-nums">{{ row.document ?? '—' }}</span>
+          </template>
+          <template #cell-result="{ row }">
+            <span class="grid gap-0.5">
+              <span>{{ row.result }}</span>
+              <span v-if="row.mode || row.rules.length > 0" class="text-xs text-muted-foreground">
+                {{ [row.mode, row.rules.join(', ')].filter(Boolean).join(' · ') }}
+              </span>
+            </span>
+          </template>
+          <template #cell-duration="{ row }">
+            <span class="whitespace-nowrap tabular-nums">{{ t('settings.dian.simulator.duration', { ms: formatInteger(row.duration_ms) }) }}</span>
+          </template>
+        </DataTable>
       </div>
     </div>
   </FormSection>

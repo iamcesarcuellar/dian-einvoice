@@ -7,6 +7,8 @@ withDefaults(defineProps<{
   id?: string
   options: Option[]
   placeholder?: string
+  /** Accessible name when there is no visible label, as in the filters of a list. */
+  label?: string
   disabled?: boolean
   invalid?: boolean
 }>(), {
@@ -25,7 +27,7 @@ function update(value: unknown): void {
 
 <template>
   <Select :model-value="model ?? undefined" :disabled="disabled" @update:model-value="update">
-    <SelectTrigger :id="id" class="w-full" :aria-invalid="invalid || undefined">
+    <SelectTrigger :id="id" class="w-full" :aria-invalid="invalid || undefined" :aria-label="label">
       <SelectValue :placeholder="placeholder ?? t('common.choose')" />
     </SelectTrigger>
     <SelectContent position="popper" class="max-h-72">

@@ -1,43 +1,37 @@
 <script setup lang="ts">
+import type { PageTab } from '@/components/PageTabs.vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
-import { cn } from '@/lib/utils'
+import PageTabs from '@/components/PageTabs.vue'
+import { useSession } from '@/composables/useSession'
 
+/** Settings of the current company, one tab per page; Team only for owners and admins. */
 const { t } = useI18n()
+const route = useRoute()
+const { can } = useSession()
 
-const tabs = [
+const tabs = computed<PageTab[]>(() => [
   { name: 'company-settings', label: 'settings.tabs.company' },
   { name: 'taxes', label: 'settings.tabs.taxes' },
   { name: 'withholdings', label: 'settings.tabs.withholdings' },
   { name: 'numbering', label: 'settings.tabs.numbering' },
   { name: 'dian-settings', label: 'settings.tabs.dian' },
+  ...(can('manage-team') ? [{ name: 'team', label: 'settings.tabs.team' }] : []),
   { name: 'developers', label: 'settings.tabs.developers' },
-]
+].map((tab) => ({ key: tab.name, label: t(tab.label), to: { name: tab.name }, active: route.name === tab.name })))
 </script>
 
 <template>
   <div class="grid gap-6">
     <PageHeader :title="t('settings.title')" :description="t('settings.description')" />
 
-    <nav class="flex gap-1 overflow-x-auto border-b" :aria-label="t('settings.nav')">
-      <RouterLink v-for="tab in tabs" :key="tab.name" v-slot="{ href, navigate, isActive }" :to="{ name: tab.name }" custom>
-        <a
-          :href="href"
-          :aria-current="isActive ? 'page' : undefined"
-          :class="cn(
-            '-mb-px border-b-2 px-3 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors',
-            isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
-          )"
-          @click="navigate"
-        >
-          {{ t(tab.label) }}
-        </a>
-      </RouterLink>
-    </nav>
+    <PageTabs :tabs="tabs" :label="t('settings.nav')" />
 
     <!-- Taxes and withholdings share a page component: the key gives each its own instance. -->
-    <RouterView v-slot="{ Component, route }">
-      <component :is="Component" :key="String(route.name)" />
+    <RouterView v-slot="{ Component, route: current }">
+      <component :is="Component" :key="String(current.name)" />
     </RouterView>
   </div>
 </template>

@@ -6,19 +6,22 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveTextFile } from '@/api/client'
 import { documentsApi } from '@/api/resources'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import FormError from '@/components/FormError.vue'
 import FormSection from '@/components/FormSection.vue'
 import DianResponseDialog from '@/components/invoice/DianResponseDialog.vue'
-import ElectronicStatusBadge from '@/components/invoice/ElectronicStatusBadge.vue'
 import QrCode from '@/components/invoice/QrCode.vue'
 import XmlDialog from '@/components/invoice/XmlDialog.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { useSession } from '@/composables/useSession'
 import { ALL_DOCUMENT_RESOURCES, DOCUMENT_RESOURCES } from '@/lib/documents'
 import { formatDateTime, formatInteger } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant, tenantKey } from '@/lib/query'
+import { electronicGroup, TONE_BADGE } from '@/lib/status'
 import { useSessionStore } from '@/stores/session'
 
 /**
@@ -118,15 +121,30 @@ async function store(updated: Invoice): Promise<void> {
 
 const retry = useMutation({
   mutationFn: () => documentsApi(props.invoice.type).retry(props.invoice.id),
-  onSuccess: store,
+  onSuccess: async (updated) => {
+    await store(updated)
+    notify.success(t('invoices.dian.retried', { number: updated.full_number ?? '' }))
+  },
 })
+
+// Resend generates the XML again, so the CUFE may change: it asks first.
+const resendOpen = ref(false)
 
 const resend = useMutation({
   mutationFn: () => documentsApi(props.invoice.type).resend(props.invoice.id),
-  onSuccess: store,
+  onSuccess: async (updated) => {
+    resendOpen.value = false
+    await store(updated)
+    notify.success(t('invoices.dian.resent', { number: updated.full_number ?? '' }))
+  },
 })
 
-const error = computed(() => retry.error.value ?? resend.error.value ?? downloadXml.error.value ?? downloadResponse.error.value)
+function askResend(): void {
+  resend.reset()
+  resendOpen.value = true
+}
+
+const error = computed(() => retry.error.value ?? downloadXml.error.value ?? downloadResponse.error.value)
 
 onBeforeUnmount(() => clearTimeout(copiedTimer))
 </script>
@@ -137,9 +155,9 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
       <div class="grid items-start gap-5 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div class="grid min-w-0 gap-4">
           <div class="flex flex-wrap items-center gap-2">
-            <ElectronicStatusBadge v-if="electronic" :status="electronic.status" />
+            <StatusBadge v-if="electronic" domain="electronic" :status="electronicGroup(electronic.status)" />
             <span class="text-xs text-muted-foreground">{{ t('invoices.dian.bySimulator') }}</span>
-            <Badge variant="secondary">
+            <Badge variant="outline" :class="TONE_BADGE.warning">
               <FlaskConicalIcon />
               {{ t('invoices.dian.testEnvironment') }}
             </Badge>
@@ -216,7 +234,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
               <RefreshCwIcon />
               {{ retry.isPending.value ? t('invoices.dian.retrying') : t('invoices.dian.retryNow') }}
             </Button>
-            <Button v-if="canManage && electronic?.can_resend" size="sm" :disabled="resend.isPending.value" @click="resend.mutate()">
+            <Button v-if="canManage && electronic?.can_resend" size="sm" :disabled="resend.isPending.value" @click="askResend">
               <SendIcon />
               {{ resend.isPending.value ? t('invoices.dian.resending') : t('invoices.dian.resend') }}
             </Button>
@@ -255,5 +273,15 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
 
     <XmlDialog v-model:open="xmlOpen" :invoice="invoice" @download="downloadXml.mutate()" />
     <DianResponseDialog v-model:open="responseOpen" :invoice="invoice" @download="downloadResponse.mutate()" />
+    <ConfirmDialog
+      v-model:open="resendOpen"
+      :title="t('invoices.dian.resendTitle', { number: invoice.full_number ?? '' })"
+      :description="t('invoices.dian.resendDescription')"
+      :confirm-label="t('invoices.dian.resend')"
+      variant="default"
+      :pending="resend.isPending.value"
+      :error="resend.error.value"
+      @confirm="resend.mutate()"
+    />
   </FormSection>
 </template>

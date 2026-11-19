@@ -19,4 +19,14 @@ export const authApi = {
   async me(): Promise<Me> {
     return (await request<DataEnvelope<Me>>('GET', '/auth/me')).data
   },
+
+  /** Changes the name of the signed-in user. */
+  async updateProfile(input: { name: string }): Promise<Me> {
+    return (await request<DataEnvelope<Me>>('PATCH', '/auth/me', input)).data
+  },
+
+  /** Changes the password; the current one is asked again. */
+  changePassword(input: { current_password: string, password: string, password_confirmation: string }): Promise<void> {
+    return request<void>('PUT', '/auth/password', input)
+  },
 }

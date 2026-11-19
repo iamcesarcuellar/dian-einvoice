@@ -1,3 +1,4 @@
+import type { RouteLocationRaw } from 'vue-router'
 import type { DocumentType } from '@/api/types'
 
 /** Route names of each document type: its list tab, its page and its editor for a new one. */
@@ -26,3 +27,16 @@ export const VOID_CONCEPT = '2'
 
 /** Every document resource: a change on a note changes the balance of its invoice. */
 export const ALL_DOCUMENT_RESOURCES = Object.values(DOCUMENT_RESOURCES)
+
+/**
+ * The breadcrumbs of a page of a document: Sales, Invoices, the tab of a note (Credit notes or
+ * Debit notes), then the page itself.
+ */
+export function documentCrumbs(type: DocumentType, current: string, t: (key: string) => string): Array<{ label: string, to?: RouteLocationRaw }> {
+  return [
+    { label: t('nav.sales') },
+    { label: t('nav.invoices'), to: { name: DOCUMENT_ROUTES.invoice.list } },
+    ...(type === 'invoice' ? [] : [{ label: t(`notes.tabs.${DOCUMENT_KEYS[type]}s`), to: { name: DOCUMENT_ROUTES[type].list } }]),
+    { label: current },
+  ]
+}

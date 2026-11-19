@@ -9,6 +9,7 @@ import { creditNotesApi, debitNotesApi, documentsApi } from '@/api/resources'
 import InvoiceEditor from '@/components/invoice/InvoiceEditor.vue'
 import InvoiceView from '@/components/invoice/InvoiceView.vue'
 import NoteInvoicePicker from '@/components/invoice/NoteInvoicePicker.vue'
+import PageSkeleton from '@/components/PageSkeleton.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/composables/useSession'
@@ -101,7 +102,7 @@ watch(() => session.currentCompanyId, () => {
     </Alert>
     <template v-else-if="isNote && kind !== 'invoice'">
       <NoteInvoicePicker v-if="sourceInvoiceId === null" :kind="kind" />
-      <p v-else-if="prefill.isPending.value" class="text-muted-foreground">{{ t('common.loading') }}</p>
+      <PageSkeleton v-else-if="prefill.isPending.value" />
       <div v-else-if="prefill.isError.value" class="grid gap-4">
         <Alert variant="destructive">
           <CircleAlertIcon />
@@ -117,7 +118,7 @@ watch(() => session.currentCompanyId, () => {
     </template>
     <InvoiceEditor v-else :invoice="null" />
   </template>
-  <p v-else-if="!invoice" class="text-muted-foreground">{{ t('common.loading') }}</p>
+  <PageSkeleton v-else-if="!invoice" />
   <InvoiceEditor v-else-if="invoice.status === 'draft' && canManage" :key="invoice.id" :invoice="invoice" />
   <InvoiceView v-else :invoice="invoice" />
 </template>

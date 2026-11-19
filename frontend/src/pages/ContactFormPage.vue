@@ -18,9 +18,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { invalidateTenant, tenantKey } from '@/lib/query'
 import { cn, nitCheckDigit } from '@/lib/utils'
 import { useSessionStore } from '@/stores/session'
@@ -42,10 +44,12 @@ const { data: contact } = useQuery({
 })
 
 const form = ref(emptyContactForm())
+const unsaved = useUnsavedChanges(form)
 
 watch(contact, (value) => {
   if (value) {
     form.value = contactFormFrom(value)
+    unsaved.reset()
   }
 }, { immediate: true })
 
@@ -72,11 +76,19 @@ const checkDigit = computed(() => (isNit.value ? nitCheckDigit(form.value.identi
 
 const title = computed(() => (isNew.value ? t('contacts.newTitle') : (contact.value?.legal_name ?? t('common.loading'))))
 
+const crumbs = computed(() => [
+  { label: t('nav.catalog') },
+  { label: t('nav.contacts'), to: { name: 'contacts' } },
+  { label: title.value },
+])
+
 const { submit, isPending, error, errors } = useFormMutation({
   mutationFn: () => (contactId.value
     ? contactsApi.update(contactId.value, toContactInput(form.value))
     : contactsApi.create(toContactInput(form.value))),
+  success: (saved) => t(isNew.value ? 'contacts.created' : 'contacts.saved', { name: saved.legal_name }),
   onSuccess: async () => {
+    unsaved.reset()
     await invalidateTenant('contacts')
     await router.push({ name: 'contacts' })
   },
@@ -85,13 +97,17 @@ const { submit, isPending, error, errors } = useFormMutation({
 
 <template>
   <div class="grid max-w-3xl gap-6">
-    <PageHeader :title="title" :description="isNew ? t('contacts.form.newDescription') : undefined" :back="{ name: 'contacts' }">
+    <PageHeader :title="title" :description="isNew ? t('contacts.form.newDescription') : undefined" :breadcrumbs="crumbs">
       <template #badge>
         <Badge v-if="contact?.is_system" variant="outline">{{ t('common.system') }}</Badge>
       </template>
     </PageHeader>
 
-    <p v-if="!isNew && !contact" class="text-muted-foreground">{{ t('common.loading') }}</p>
+    <div v-if="!isNew && !contact" class="grid gap-4" aria-busy="true">
+      <span class="sr-only">{{ t('common.loading') }}</span>
+      <Skeleton class="h-64 rounded-xl" />
+      <Skeleton class="h-48 rounded-xl" />
+    </div>
 
     <form v-else class="grid gap-6" novalidate @submit.prevent="submit">
       <Alert v-if="readOnlyReason">

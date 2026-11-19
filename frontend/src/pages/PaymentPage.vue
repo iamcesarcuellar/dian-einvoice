@@ -7,6 +7,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { paymentsApi } from '@/api/resources'
 import PaymentEditor from '@/components/payment/PaymentEditor.vue'
 import PaymentView from '@/components/payment/PaymentView.vue'
+import PageSkeleton from '@/components/PageSkeleton.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSession } from '@/composables/useSession'
 import { tenantKey } from '@/lib/query'
@@ -41,6 +42,6 @@ watch(() => session.currentCompanyId, () => {
       <AlertDescription>{{ t('payments.editor.readOnly') }}</AlertDescription>
     </Alert>
   </template>
-  <p v-else-if="!payment" class="text-muted-foreground">{{ t('common.loading') }}</p>
+  <PageSkeleton v-else-if="!payment" />
   <PaymentView v-else :payment="payment" />
 </template>

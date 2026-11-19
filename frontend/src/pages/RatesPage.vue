@@ -11,11 +11,13 @@ import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
 import RateDialog from '@/components/rate/RateDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
 import { formatPercent } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant } from '@/lib/query'
 
 type Rate = Tax & Partial<Pick<Withholding, 'base'>>
@@ -34,7 +36,7 @@ const isWithholding = props.kind === 'withholdings'
 const api = isWithholding ? withholdingsApi : taxesApi
 const typeGroup = isWithholding ? 'withholdingTypes' : 'taxTypes'
 
-const { page, search, rows, meta, isLoading } = useListQuery<Rate>(
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery<Rate>(
   props.kind,
   (params: ListParams) => api.list(params) as Promise<Paginated<Rate>>,
 )
@@ -62,7 +64,11 @@ function openEdit(rate: Rate): void {
 
 const toggle = useMutation({
   mutationFn: (rate: Rate) => api.update(rate.id, { is_active: !rate.is_active }),
-  onSuccess: () => invalidateTenant(props.kind, 'items'),
+  onSuccess: async (rate) => {
+    await invalidateTenant(props.kind, 'items')
+    notify.success(t(rate.is_active ? 'rates.activated' : 'rates.deactivated', { name: rate.name }))
+  },
+  onError: (failure) => notify.error(t('errors.actionFailed'), failure.message),
 })
 
 const confirmOpen = ref(false)
@@ -70,9 +76,10 @@ const pendingDelete = ref<Rate | null>(null)
 
 const remove = useMutation({
   mutationFn: (rate: Rate) => api.remove(rate.id),
-  onSuccess: async () => {
+  onSuccess: async (_, rate) => {
     await invalidateTenant(props.kind, 'items')
     confirmOpen.value = false
+    notify.success(t('rates.deleted', { name: rate.name }))
   },
 })
 
@@ -116,10 +123,12 @@ function actions(rate: Rate): RowAction[] {
       :rows="rows"
       :meta="meta"
       :loading="isLoading"
+      :error="error"
       :search-placeholder="t(`${kind}.searchPlaceholder`)"
       :empty-title="t(`${kind}.empty.title`)"
       :empty-description="t(`${kind}.empty.description`)"
       :actions="canManage"
+      @retry="refetch"
     >
       <template #toolbar>
         <Button v-if="canManage" @click="openCreate">
@@ -140,10 +149,19 @@ function actions(rate: Rate): RowAction[] {
         <span class="text-muted-foreground">{{ row.base ? t(`rates.baseShort.${row.base}`) : '' }}</span>
       </template>
       <template #cell-status="{ row }">
-        <StatusBadge :active="row.is_active" :system="row.is_system" />
+        <span class="inline-flex flex-wrap items-center gap-1.5">
+          <StatusBadge domain="record" :status="row.is_active ? 'active' : 'inactive'" />
+          <Badge v-if="row.is_system" variant="outline">{{ t('common.system') }}</Badge>
+        </span>
       </template>
       <template #actions="{ row }">
         <RowActions :actions="actions(row)" />
+      </template>
+      <template v-if="canManage" #empty-action>
+        <Button variant="outline" size="sm" @click="openCreate">
+          <PlusIcon />
+          {{ t(`${kind}.new`) }}
+        </Button>
       </template>
     </DataTable>
 

@@ -3,7 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dian-einvoice</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>%PRODUCT_NAME%</title>
+    <script>
+      // Applies the saved theme before the app starts, so a dark page never flashes white.
+      // The key and the values are those of useTheme (src/composables/useTheme.ts).
+      try {
+        var mode = localStorage.getItem('dian-einvoice.theme') || 'auto'
+        if (mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (error) {
+        // Storage can be unavailable, as in private windows: the system theme applies.
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -30,6 +30,7 @@ const form = ref(emptyCompanyForm())
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => companiesApi.create(toCompanyInput(form.value)),
+  success: (company) => t('companies.new.created', { name: company.name }),
   onSuccess: (company) => {
     queryClient.setQueryData<Me | null>(queryKeys.me, (me) =>
       me ? { ...me, companies: [...me.companies, company].sort((a, b) => a.name.localeCompare(b.name)) } : me,

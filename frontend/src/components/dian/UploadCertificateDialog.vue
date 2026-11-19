@@ -41,6 +41,7 @@ function chooseFile(event: Event): void {
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => signingCertificateApi.upload(file.value as File, password.value),
+  success: t('settings.dian.certificate.uploaded'),
   onSuccess: (certificate) => {
     emit('uploaded', certificate)
     open.value = false

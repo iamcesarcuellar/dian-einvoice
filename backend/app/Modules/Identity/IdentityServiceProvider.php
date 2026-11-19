@@ -12,7 +12,9 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Identity module: users, sign-in, companies and memberships, plus the tenancy building blocks.
+ * Identity module: users, sign-in and profile, companies, memberships and the team of each company
+ * (roles and email invitations), plus the tenancy building blocks. Its Blade templates render only
+ * the invitation email; the backend serves no HTML.
  */
 final class IdentityServiceProvider extends ServiceProvider
 {
@@ -24,6 +26,8 @@ final class IdentityServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+        $this->loadTranslationsFrom(__DIR__.'/Lang', 'identity');
+        $this->loadViewsFrom(__DIR__.'/Views', 'identity');
 
         Gate::policy(Company::class, CompanyPolicy::class);
 

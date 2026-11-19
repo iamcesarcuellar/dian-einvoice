@@ -9,13 +9,14 @@ import { useRouter } from 'vue-router'
 import { paymentsApi } from '@/api/resources'
 import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
-import PaymentStatusBadge from '@/components/payment/PaymentStatusBadge.vue'
 import SelectInput from '@/components/SelectInput.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
 import { formatDate, formatMoney } from '@/lib/format'
+import { statusKey } from '@/lib/status'
 
 /** Payments received, newest first, with search, status and payment means filters. */
 const ALL = 'all'
@@ -30,8 +31,7 @@ const means = ref<string | null>(ALL)
 
 const statusOptions = computed<Option[]>(() => [
   { value: ALL, label: t('payments.filters.allStatuses') },
-  { value: 'recorded', label: t('payments.status.recorded') },
-  { value: 'voided', label: t('payments.status.voided') },
+  ...['recorded', 'voided'].map((value) => ({ value, label: t(statusKey('payment', value)) })),
 ])
 
 const meansOptions = computed<Option[]>(() => [{ value: ALL, label: t('payments.filters.allMeans') }, ...paymentMeans.value])
@@ -40,7 +40,7 @@ function filterValue(value: string | null): string | undefined {
   return value === ALL || value === null ? undefined : value
 }
 
-const { page, search, rows, meta, isLoading } = useListQuery('payments', paymentsApi.list, {
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('payments', paymentsApi.list, {
   filters: () => ({ status: filterValue(status.value), payment_means_code: filterValue(means.value) }),
 })
 
@@ -66,18 +66,20 @@ function actions(payment: Payment): RowAction[] {
     :rows="rows"
     :meta="meta"
     :loading="isLoading"
+    :error="error"
     :search-placeholder="t('payments.searchPlaceholder')"
     :empty-title="t('payments.empty.title')"
     :empty-description="t('payments.empty.description')"
     actions
+    @retry="refetch"
   >
     <template #toolbar>
       <div class="flex flex-wrap gap-2">
         <div class="w-44">
-          <SelectInput v-model="status" :options="statusOptions" :placeholder="t('payments.filters.status')" />
+          <SelectInput v-model="status" :options="statusOptions" :placeholder="t('payments.filters.status')" :label="t('payments.filters.status')" />
         </div>
         <div class="w-52">
-          <SelectInput v-model="means" :options="meansOptions" :placeholder="t('payments.filters.means')" />
+          <SelectInput v-model="means" :options="meansOptions" :placeholder="t('payments.filters.means')" :label="t('payments.filters.means')" />
         </div>
       </div>
     </template>
@@ -99,7 +101,7 @@ function actions(payment: Payment): RowAction[] {
       <span class="whitespace-nowrap tabular-nums" :class="row.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{ formatMoney(row.amount) }}</span>
     </template>
     <template #cell-status="{ row }">
-      <PaymentStatusBadge :status="row.status" />
+      <StatusBadge domain="payment" :status="row.status" />
     </template>
     <template #actions="{ row }">
       <RowActions :actions="actions(row)" />

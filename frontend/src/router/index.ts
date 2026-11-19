@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { Me } from '@/api/types'
+import { product } from '@/config/product'
 import { i18n } from '@/i18n'
 import { meQuery, queryClient } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
@@ -8,6 +9,8 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** Pages for visitors without a session, such as sign in. */
     guest?: boolean
+    /** Pages for everyone, with or without a session, such as the link of an invitation. */
+    public?: boolean
     /** i18n key of the page title. */
     title?: string
   }
@@ -27,6 +30,12 @@ export const router = createRouter({
       name: 'register',
       component: () => import('@/pages/RegisterPage.vue'),
       meta: { guest: true, title: 'auth.register.title' },
+    },
+    {
+      path: '/invitations/:token',
+      name: 'invitation',
+      component: () => import('@/pages/InvitationPage.vue'),
+      meta: { public: true, title: 'invitation.title' },
     },
     {
       path: '/',
@@ -164,6 +173,12 @@ export const router = createRouter({
           meta: { title: 'items.title' },
         },
         {
+          path: 'profile',
+          name: 'profile',
+          component: () => import('@/pages/ProfilePage.vue'),
+          meta: { title: 'profile.title' },
+        },
+        {
           path: 'settings',
           component: () => import('@/layouts/SettingsLayout.vue'),
           redirect: { name: 'company-settings' },
@@ -201,6 +216,12 @@ export const router = createRouter({
               meta: { title: 'settings.tabs.dian' },
             },
             {
+              path: 'team',
+              name: 'team',
+              component: () => import('@/pages/TeamPage.vue'),
+              meta: { title: 'settings.tabs.team' },
+            },
+            {
               path: 'developers',
               name: 'developers',
               component: () => import('@/pages/DevelopersPage.vue'),
@@ -231,6 +252,10 @@ router.beforeEach(async (to) => {
     useSessionStore().syncCompanies(me.companies)
   }
 
+  if (to.meta.public) {
+    return true
+  }
+
   if (to.meta.guest) {
     return me ? { name: 'dashboard' } : true
   }
@@ -243,7 +268,5 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  const appName = i18n.global.t('app.name')
-
-  document.title = to.meta.title ? `${i18n.global.t(to.meta.title)} · ${appName}` : appName
+  document.title = to.meta.title ? `${i18n.global.t(to.meta.title)} · ${product.name}` : product.name
 })

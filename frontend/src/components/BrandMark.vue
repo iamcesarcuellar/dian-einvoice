@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { ReceiptTextIcon } from '@lucide/vue'
-import { useI18n } from 'vue-i18n'
+import { product } from '@/config/product'
 
-const { t } = useI18n()
+/** The product mark and name; the name hides when the sidebar folds to icons. */
 </script>
 
 <template>
-  <div class="flex items-center gap-2.5">
-    <span class="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+  <span class="flex items-center gap-2.5">
+    <span class="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
       <ReceiptTextIcon class="size-4" aria-hidden="true" />
     </span>
-    <span class="text-[15px] font-semibold tracking-tight text-foreground">{{ t('app.name') }}</span>
-  </div>
+    <span class="truncate text-[15px] font-semibold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">{{ product.name }}</span>
+  </span>
 </template>

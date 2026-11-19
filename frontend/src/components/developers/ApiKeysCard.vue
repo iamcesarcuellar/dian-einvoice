@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ApiKey, ApiKeyStatus, CreatedApiKey } from '@/api/types'
+import type { ApiKey, CreatedApiKey } from '@/api/types'
 import type { DataTableColumn, RowAction } from '@/components/data-table/types'
 import { BanIcon, KeyRoundIcon, PlusIcon } from '@lucide/vue'
 import { useMutation } from '@tanstack/vue-query'
@@ -10,10 +10,12 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
 import FormSection from '@/components/FormSection.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
 import { formatDateTime } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant } from '@/lib/query'
 import CreateApiKeyDialog from './CreateApiKeyDialog.vue'
 import SecretDialog from './SecretDialog.vue'
@@ -21,7 +23,7 @@ import SecretDialog from './SecretDialog.vue'
 /** API keys of the company: the table, Create key (shown once) and Revoke. */
 const { t } = useI18n()
 
-const { page, search, rows, meta, isLoading } = useListQuery('api-keys', apiKeysApi.list)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('api-keys', apiKeysApi.list)
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'name', label: t('developers.keys.columns.name') },
@@ -31,12 +33,6 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: 'expires_at', label: t('developers.keys.columns.expires') },
   { key: 'status', label: t('developers.keys.columns.status') },
 ])
-
-const statusVariant: Record<ApiKeyStatus, 'secondary' | 'outline' | 'destructive'> = {
-  active: 'secondary',
-  expired: 'outline',
-  revoked: 'destructive',
-}
 
 const createOpen = ref(false)
 const created = ref<CreatedApiKey | null>(null)
@@ -52,9 +48,10 @@ const pendingRevoke = ref<ApiKey | null>(null)
 
 const revoke = useMutation({
   mutationFn: (key: ApiKey) => apiKeysApi.revoke(key.id),
-  onSuccess: async () => {
+  onSuccess: async (_, key) => {
     await invalidateTenant('api-keys')
     confirmOpen.value = false
+    notify.success(t('developers.keys.revoked', { name: key.name }))
   },
 })
 
@@ -80,10 +77,12 @@ function askRevoke(key: ApiKey): void {
       :rows="rows"
       :meta="meta"
       :loading="isLoading"
+      :error="error"
       :search-placeholder="t('developers.keys.searchPlaceholder')"
       :empty-title="t('developers.keys.empty.title')"
       :empty-description="t('developers.keys.empty.description')"
       actions
+      @retry="refetch"
     >
       <template #toolbar>
         <Button @click="createOpen = true">
@@ -113,10 +112,16 @@ function askRevoke(key: ApiKey): void {
         <span class="whitespace-nowrap tabular-nums" :class="row.expires_at ? '' : 'text-muted-foreground'">{{ row.expires_at ? formatDateTime(row.expires_at) : t('developers.keys.noExpiration') }}</span>
       </template>
       <template #cell-status="{ row }">
-        <Badge :variant="statusVariant[row.status]">{{ t(`developers.keys.status.${row.status}`) }}</Badge>
+        <StatusBadge domain="apiKey" :status="row.status" />
       </template>
       <template #actions="{ row }">
         <RowActions :actions="actions(row)" />
+      </template>
+      <template #empty-action>
+        <Button variant="outline" size="sm" @click="createOpen = true">
+          <PlusIcon />
+          {{ t('developers.keys.new') }}
+        </Button>
       </template>
     </DataTable>
 

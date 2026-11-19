@@ -5,7 +5,7 @@ import type { Option } from '@/lib/options'
 import { ArrowUpRightIcon, CircleAlertIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { fieldErrors } from '@/api/client'
@@ -15,7 +15,6 @@ import DecimalInput from '@/components/DecimalInput.vue'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import FormSection from '@/components/FormSection.vue'
-import DocumentStatusBadge from '@/components/invoice/DocumentStatusBadge.vue'
 import IssueDialog from '@/components/invoice/IssueDialog.vue'
 import {
   CREDIT,
@@ -32,14 +31,17 @@ import MoneyInput from '@/components/MoneyInput.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
 import SelectInput from '@/components/SelectInput.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useReference } from '@/composables/useReference'
-import { ALL_DOCUMENT_RESOURCES, DOCUMENT_RESOURCES, DOCUMENT_ROUTES, VOID_CONCEPT } from '@/lib/documents'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { ALL_DOCUMENT_RESOURCES, documentCrumbs, DOCUMENT_RESOURCES, DOCUMENT_ROUTES, VOID_CONCEPT } from '@/lib/documents'
 import { addDays, formatDate, formatInteger, formatMoney, todayInColombia } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant, tenantKey } from '@/lib/query'
 import { formatNit } from '@/lib/utils'
 import { useSessionStore } from '@/stores/session'
@@ -211,8 +213,18 @@ function identificationOf(contact: Contact): string {
 // Saving, issuing and deleting.
 const savedId = ref<string | null>(props.invoice?.id ?? null)
 const submittedKeys = ref<string[]>([])
-const saved = ref(false)
-let savedTimer: ReturnType<typeof setTimeout> | undefined
+
+// Leaving with changes asks first. The defaults a new draft takes (numbering, tax) are not changes:
+// the baseline is taken once they are in.
+const unsaved = useUnsavedChanges(form)
+let baselineTaken = false
+
+watch([templates, taxes], ([loadedTemplates, loadedTaxes]) => {
+  if (!baselineTaken && loadedTemplates && loadedTaxes) {
+    baselineTaken = true
+    void nextTick(() => unsaved.reset())
+  }
+}, { immediate: true })
 
 async function persist(): Promise<Invoice> {
   const { input, keys } = toInvoiceInput(form.value, type.value)
@@ -230,18 +242,14 @@ async function persist(): Promise<Invoice> {
 const saving = useMutation({
   mutationFn: persist,
   onSuccess: async (invoice) => {
+    unsaved.reset()
     await invalidateTenant(...ALL_DOCUMENT_RESOURCES)
+    notify.success(t('invoices.editor.draftSaved'))
 
     // A new draft gets its own address.
     if (props.invoice === null) {
       await router.replace({ name: routes.value.detail, params: { id: invoice.id } })
-
-      return
     }
-
-    saved.value = true
-    clearTimeout(savedTimer)
-    savedTimer = setTimeout(() => (saved.value = false), 4000)
   },
 })
 
@@ -251,8 +259,10 @@ const issuing = useMutation({
   // The draft is saved first, so the API issues exactly what is on screen.
   mutationFn: async () => api.value.issue((await persist()).id),
   onSuccess: async (invoice) => {
-    await invalidateTenant(...ALL_DOCUMENT_RESOURCES, 'number-templates')
+    unsaved.reset()
+    await invalidateTenant(...ALL_DOCUMENT_RESOURCES, 'number-templates', 'dashboard')
     issueOpen.value = false
+    notify.success(t('invoices.editor.issued', { number: invoice.full_number ?? '' }), t('invoices.editor.issuedHint'))
     await router.replace({ name: routes.value.detail, params: { id: invoice.id } })
   },
 })
@@ -262,7 +272,9 @@ const deleteOpen = ref(false)
 const removing = useMutation({
   mutationFn: () => api.value.remove(savedId.value as string),
   onSuccess: async () => {
+    unsaved.reset()
     await invalidateTenant(...ALL_DOCUMENT_RESOURCES)
+    notify.success(t('invoices.editor.draftDeleted'))
     await router.replace(related.value ? { name: 'invoice', params: { id: related.value.id } } : { name: routes.value.list })
   },
 })
@@ -371,7 +383,7 @@ function toggleWithholding(id: string, checked: boolean): void {
     : form.value.withholding_ids.filter((value) => value !== id)
 }
 
-onBeforeUnmount(() => clearTimeout(savedTimer))
+const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_number ?? t(titleKey.value), t))
 </script>
 
 <template>
@@ -379,10 +391,10 @@ onBeforeUnmount(() => clearTimeout(savedTimer))
     <PageHeader
       :title="t(titleKey)"
       :description="isNote ? t(`notes.editor.description.${type}`) : t('invoices.editor.description')"
-      :back="related ? { name: 'invoice', params: { id: related.id } } : { name: routes.list }"
+      :breadcrumbs="crumbs"
     >
       <template #badge>
-        <DocumentStatusBadge status="draft" />
+        <StatusBadge domain="document" status="draft" />
       </template>
 
       <Button v-if="savedId" variant="ghost" @click="deleteOpen = true">
@@ -397,7 +409,6 @@ onBeforeUnmount(() => clearTimeout(savedTimer))
       </Button>
     </PageHeader>
 
-    <p v-if="saved" class="-mt-3 text-sm text-muted-foreground" role="status">{{ t('invoices.editor.draftSaved') }}</p>
 
     <FormError :error="error" />
 

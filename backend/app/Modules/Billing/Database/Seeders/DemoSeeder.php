@@ -17,6 +17,7 @@ use App\Modules\Dian\Pipeline\InlineChain;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Modules\Identity\Models\Company;
+use App\Modules\Identity\Models\Membership;
 use App\Modules\Identity\Models\User;
 use App\Modules\Payments\Ports\InvoiceLedger;
 use App\Modules\Payments\Ports\OpenInvoice;
@@ -33,10 +34,14 @@ use LogicException;
  * (prefix SETP, resolution 18760000001 and its technical key); the note ranges are synthetic, and
  * the receipt range (RC) is the one every company gets.
  *
- * The SYNTHETIC invoices are issued with the real issue service, so their numbers are consecutive
- * and their copies coherent. To spread them over the last four months the clock is moved to each
- * moment of issue (Carbon test time) and restored at the end. The oldest have short terms, so the
- * receivables fill every aging bucket.
+ * Six months of SYNTHETIC history, set in Medellín, so the dashboard has a story to tell: 45 invoices
+ * in Demo Comercial (a quiet July, a strong August and a busy November) and 15 in Demo Servicios.
+ * They are issued with the real issue service, so their numbers are consecutive and their copies
+ * coherent. To spread them over the last six months the clock is moved to each moment of issue
+ * (Carbon test time) and restored at the end. Dates count back from the day the seeder runs, so the
+ * calendar months shift with it. In Demo Comercial the invoices and notes are issued by its owner,
+ * its admin and its member, and the payments recorded by the owner and the admin; a user that does
+ * not exist, or is not a member of the company, is replaced by the owner.
  *
  * Each issued invoice then runs the real electronic document chain in line (InlineChain): XML,
  * signature, transmission to the local DIAN simulator and its answer, with retries moving the
@@ -45,40 +50,101 @@ use LogicException;
  * so it fails once the attempts run out. The simulator is left in normal mode.
  *
  * Every accepted invoice then goes through the customer delivery in line too: AttachedDocument,
- * PDF and the email with both in a zip, caught by the local mailbox. The one to the final consumer
- * has no email, so its delivery ends as not applicable; one invoice has thirty lines.
+ * PDF and the email with both in a zip, caught by the local mailbox. Invoices to the final consumer
+ * have no email, so their delivery ends as not applicable; one invoice has thirty lines.
  *
  * Then what happens after the invoices, in the order of its dates and through the real services:
- * SYNTHETIC credit and debit notes (chain and delivery included) and payments. In Demo Comercial a
- * partial return on an invoice paid before (a credit in favor of the customer), the void of a whole
- * invoice, interest on an invoice paid late, a credit note left as a draft, invoices paid in full,
- * one paid in part, one payment split between two invoices, one voided, and overdue invoices of
- * three customers. In Demo Servicios a partial rebate, two payments and one overdue invoice.
+ * the payments each invoice plan asks for (in full or in part, some days after the issue), and the
+ * SYNTHETIC notes (chain and delivery included) and payments of TIMELINE. In Demo Comercial: a
+ * discount, a partial return on an invoice paid before (a credit in favor of the customer), the void
+ * of a whole invoice, interest on an invoice paid late, a credit note left as a draft, a payment
+ * split between two invoices, a check that bounced (its payment voided), invoices paid in part, and
+ * overdue invoices of three customers in every aging bucket. In Demo Servicios: a monthly
+ * bookkeeping retainer, a service not fully delivered, a rebate and one overdue invoice.
  */
 final class DemoSeeder extends Seeder
 {
+    /** Who acts, by the keys the plans use. */
+    private const array USERS = [
+        'owner' => 'demo@example.com',
+        'admin' => 'admin@example.com',
+        'member' => 'member@example.com',
+    ];
+
+    private const string RETE_FUENTE_PURCHASES = 'ReteFuente 2.5% (purchases)';
+
+    private const string RETE_FUENTE_SERVICES = 'ReteFuente 4% (services)';
+
+    private const string RETE_IVA = 'ReteIVA 15%';
+
     /**
-     * Days before today and Colombian time of issue (null for drafts), customer identification,
-     * credit days (null for cash), payment means, lines [item code, quantity, discount %] or free
-     * lines [null, quantity, discount %, description, unit price], and withholding names.
+     * The invoices of each company, oldest first so their numbers follow their dates, then the
+     * drafts. Each row: days before today and Colombian time of issue (null for drafts), customer
+     * identification, credit days (null for cash), payment means, lines [item code, quantity,
+     * discount %] or free lines [null, quantity, discount %, description, unit price], withholding
+     * names, who issues it, and its settlement: null leaves it to TIMELINE or open, [days] is a
+     * payment in full that many days after the issue, [days, share] one of that share of its balance.
+     *
+     * Demo Comercial sells to 990000101 Cordillera Plata, 990000102 Tamarindo Azul (it withholds
+     * IVA too), 990000103 Arenal Norte (a slow payer), 990000104 Faro Andino, three people who pay at
+     * the counter (9990000105 to 9990000107), the final consumer (222222222222) and US4400000108,
+     * a customer abroad. Demo Servicios to 990000201 Valle Alto, 990000202 Quebrada Clara (a monthly
+     * bookkeeping retainer), 990000203 Pradera Dorada, 990000204 Sabana Fría, two people (9990000205
+     * and 9990000206) and 990000208, a hotel. Planned for a run on November 19, so the month names
+     * below are those of that day.
      */
     private const array INVOICES = [
         'commerce' => [
-            // Older invoices with short terms: more than 90, 61 to 90 and 31 to 60 days past due.
-            [118, '10:30', '990000103', 15, '47', [['P-008', '6', '0'], ['P-002', '8', '0']], ['ReteFuente 2.5% (purchases)']],
-            [82, '14:15', '990000102', 15, '42', [['P-004', '4', '0'], ['P-007', '2', '0']], []],
-            [50, '09:50', '990000101', 10, '47', [['P-005', '4', '0']], ['ReteFuente 2.5% (purchases)']],
-            [40, '11:30', '990000104', 15, '42', [['P-001', '1', '0'], ['S-002', '2', '0']], ['ReteFuente 2.5% (purchases)']],
-            [29, '09:20', '990000101', 30, '42', [['P-001', '4', '5'], ['P-002', '20', '0']], ['ReteFuente 2.5% (purchases)']],
-            [26, '11:05', '222222222222', null, '10', [['P-003', '3', '0'], ['P-004', '5', '0'], ['P-007', '2', '0']], []],
-            [23, '15:40', '990000102', 15, '47', [['P-005', '10', '10'], ['P-008', '12', '0']], ['ReteFuente 2.5% (purchases)', 'ReteIVA 15%']],
-            [19, '10:10', '9990000105', null, '48', [['P-006', '1', '0'], ['S-001', '1', '0']], []],
-            [15, '16:25', '990000104', 30, '42', [['P-001', '2', '0'], ['P-006', '2', '7.5'], ['S-001', '1', '0']], ['ReteFuente 2.5% (purchases)']],
-            [11, '12:00', '9990000106', null, '10', [['S-002', '4', '0'], ['P-003', '1', '0']], []],
-            [6, '09:45', '990000103', 30, '47', [['P-008', '24', '3'], ['P-002', '10', '0']], ['ReteFuente 2.5% (purchases)']],
-            [2, '14:30', '9990000107', null, '49', [['P-005', '2', '0'], ['P-007', '3', '0']], []],
-            [null, null, '990000101', 30, '42', [['P-001', '10', '10']], ['ReteFuente 2.5% (purchases)']],
-            [null, null, 'US4400000108', null, '47', [[null, '1', '0', 'Export documentation handling', '350000'], ['P-006', '5', '0']], []],
+            // June: the oldest invoice of Arenal Norte is still unpaid, more than 90 days past due.
+            [168, '09:40', '990000101', 30, '42', [['P-001', '4', '0'], ['P-002', '30', '0'], ['P-008', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [28]],
+            [163, '11:15', '990000103', 30, '47', [['P-008', '20', '0'], ['P-002', '15', '0']], [self::RETE_FUENTE_PURCHASES], 'admin', null],
+            [157, '15:30', '990000104', 30, '42', [['P-006', '6', '0'], ['P-001', '2', '5']], [self::RETE_FUENTE_PURCHASES], 'owner', [30]],
+            [151, '10:05', '222222222222', null, '10', [['P-003', '2', '0'], ['P-007', '1', '0']], [], 'member', [0]],
+            [146, '14:20', '990000102', 15, '47', [['P-005', '12', '0'], ['P-008', '8', '0']], [self::RETE_FUENTE_PURCHASES, self::RETE_IVA], 'admin', [15]],
+            [143, '09:55', '9990000105', null, '48', [['P-006', '1', '0'], ['P-003', '3', '0']], [], 'member', [0]],
+            // July, a quiet month: Tamarindo Azul paid 40% of its invoice and owes the rest.
+            [136, '10:30', '990000101', 30, '47', [['P-002', '40', '0'], ['P-005', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [31]],
+            [128, '16:10', '9990000106', null, '10', [['S-002', '6', '0'], ['P-003', '1', '0']], [], 'member', [0]],
+            [122, '11:45', '990000102', 15, '47', [['P-004', '40', '0'], ['P-007', '10', '0'], ['P-005', '6', '0']], [self::RETE_FUENTE_PURCHASES, self::RETE_IVA], 'admin', [20, '0.40']],
+            [115, '09:20', '990000104', 30, '42', [['P-001', '3', '0'], ['S-001', '1', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [30]],
+            // August, the strongest month, with the largest order of the half year.
+            [109, '10:00', '990000101', 30, '42', [['P-001', '12', '8'], ['P-006', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [30]],
+            [106, '15:45', '990000103', 30, '47', [['P-008', '30', '0'], ['P-002', '20', '0']], [self::RETE_FUENTE_PURCHASES], 'admin', [35]],
+            [104, '11:10', '990000104', 30, '42', [['P-001', '6', '5'], ['P-006', '4', '0'], ['S-001', '2', '0']], [self::RETE_FUENTE_PURCHASES], 'member', [30]],
+            [101, '09:35', '9990000107', null, '49', [['P-005', '2', '0'], ['P-007', '3', '0']], [], 'member', [0]],
+            [97, '14:05', '990000102', 15, '47', [['P-005', '20', '0'], ['P-008', '15', '0']], [self::RETE_FUENTE_PURCHASES, self::RETE_IVA], 'admin', null],
+            [94, '10:50', '990000101', 30, '47', [['P-002', '50', '0'], ['P-003', '20', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [28]],
+            [90, '16:30', '222222222222', null, '10', [['S-002', '4', '0'], ['P-004', '5', '0']], [], 'member', [0]],
+            [88, '09:15', '990000104', 30, '42', [['P-006', '8', '0'], ['P-002', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [29]],
+            [85, '13:40', '9990000105', null, '48', [['P-001', '1', '0']], [], 'member', [0]],
+            [82, '11:25', '990000103', 30, '47', [['P-005', '8', '0'], ['P-008', '12', '0']], [self::RETE_FUENTE_PURCHASES], 'admin', [30, '0.50']],
+            // September.
+            [78, '10:20', '990000101', 30, '42', [['P-001', '5', '0'], ['P-002', '25', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [30]],
+            [74, '15:10', '990000102', 15, '47', [['P-004', '30', '0'], ['P-005', '8', '0']], [self::RETE_FUENTE_PURCHASES, self::RETE_IVA], 'admin', [16]],
+            [70, '09:45', '990000104', 30, '42', [['P-006', '3', '0'], ['S-001', '1', '0'], ['P-008', '6', '0']], [self::RETE_FUENTE_PURCHASES], 'member', [31]],
+            [66, '11:55', '9990000106', null, '10', [['S-002', '8', '0']], [], 'member', [0]],
+            [63, '14:35', '990000103', 30, '47', [['P-008', '25', '0'], ['P-002', '12', '0'], ['S-001', '1', '0']], [self::RETE_FUENTE_PURCHASES], 'admin', null],
+            [57, '10:15', '990000101', 30, '47', [['P-005', '15', '0'], ['P-003', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [29]],
+            [53, '16:00', '9990000107', null, '49', [['P-006', '2', '0'], ['P-007', '2', '0']], [], 'member', [0]],
+            // October; the first five fall within the same days of the month as November so far.
+            [48, '09:30', '990000104', 30, '42', [['P-001', '2', '0'], ['P-006', '2', '7.5'], ['S-001', '1', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', null],
+            [45, '11:40', '990000101', 30, '42', [['P-001', '4', '5'], ['P-002', '20', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [25, '0.40']],
+            [41, '14:15', '990000102', 15, '47', [['P-005', '10', '10'], ['P-008', '12', '0']], [self::RETE_FUENTE_PURCHASES, self::RETE_IVA], 'admin', [25]],
+            [37, '10:25', '9990000105', null, '48', [['P-006', '1', '0'], ['S-001', '1', '0']], [], 'member', null],
+            [33, '15:50', '990000101', 30, '42', [['P-001', '3', '5'], ['P-002', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', [2]],
+            [28, '09:10', '990000103', 30, '47', [['P-008', '10', '0'], ['P-005', '6', '0']], [self::RETE_FUENTE_PURCHASES], 'admin', null],
+            [24, '11:00', '222222222222', null, '10', [['P-003', '3', '0'], ['P-004', '5', '0'], ['P-007', '2', '0']], [], 'member', [0]],
+            [21, '16:20', '990000102', 15, '47', [['P-004', '25', '0'], ['P-007', '8', '0'], ['P-008', '6', '0']], [self::RETE_FUENTE_PURCHASES, self::RETE_IVA], 'member', null],
+            // November so far, with the rejected invoice (12 days ago, issued again 3 days ago) and the failed one.
+            [18, '09:05', '990000104', 30, '42', [['P-001', '3', '0'], ['P-006', '4', '0'], ['P-002', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', null],
+            [16, '10:40', '990000101', 30, '47', [['P-002', '30', '0'], ['P-008', '20', '0'], ['P-005', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'member', null],
+            [14, '15:25', '9990000106', null, '10', [['S-002', '4', '0'], ['P-003', '1', '0']], [], 'member', [0]],
+            [12, '11:30', '990000103', 30, '47', [['P-008', '24', '3'], ['P-002', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'admin', null],
+            [10, '09:50', '990000101', 30, '42', [['P-001', '4', '5'], ['P-002', '20', '0']], [self::RETE_FUENTE_PURCHASES], 'owner', null],
+            [8, '14:30', '9990000107', null, '49', [['P-005', '2', '0'], ['P-007', '3', '0']], [], 'member', null],
+            [7, '10:10', '990000102', 15, '47', [['P-005', '10', '0'], ['P-008', '10', '0']], [self::RETE_FUENTE_PURCHASES, self::RETE_IVA], 'admin', null],
+            [5, '16:15', '222222222222', null, '10', [['S-002', '3', '0'], ['P-003', '2', '0']], [], 'member', [0]],
+            [3, '11:20', '990000103', 30, '47', [['P-008', '24', '3'], ['P-002', '10', '0']], [self::RETE_FUENTE_PURCHASES], 'admin', null],
             // Thirty lines, so its PDF runs over two pages with the table header repeated.
             [1, '11:15', '990000104', 30, '42', [
                 ['P-001', '1', '0'],
@@ -111,17 +177,35 @@ final class DemoSeeder extends Seeder
                 ['P-008', '6', '3'],
                 ['S-001', '2', '0'],
                 ['S-002', '8', '0'],
-            ], ['ReteFuente 2.5% (purchases)']],
+            ], [self::RETE_FUENTE_PURCHASES], 'owner', null],
+            // Drafts.
+            [null, null, '990000101', 30, '42', [['P-001', '10', '10']], [self::RETE_FUENTE_PURCHASES], 'owner', null],
+            [null, null, 'US4400000108', null, '47', [[null, '1', '0', 'Export documentation handling', '350000'], ['P-006', '5', '0']], [], 'owner', null],
         ],
         'services' => [
-            // Due 33 days ago and never paid.
-            [48, '10:20', '990000203', 15, '47', [['S-104', '1', '0'], ['S-106', '1', '0']], ['ReteFuente 4% (services)']],
-            [27, '10:00', '990000201', 30, '47', [['S-101', '12', '0'], ['S-105', '1', '0']], ['ReteFuente 4% (services)', 'ReteIVA 15%']],
-            [20, '09:30', '990000202', 30, '42', [['S-102', '1', '0'], ['S-103', '1', '5']], ['ReteFuente 4% (services)']],
-            [13, '15:15', '9990000205', null, '48', [['S-106', '2', '0'], ['S-107', '3', '0']], []],
-            [8, '11:45', '990000208', 15, '47', [['S-108', '40', '5'], ['P-101', '5', '0']], ['ReteFuente 4% (services)']],
-            [3, '16:00', '990000203', 30, '42', [['S-104', '1', '0'], ['P-102', '10', '0']], ['ReteFuente 4% (services)', 'ReteIVA 15%']],
-            [null, null, '990000204', 30, '42', [['S-105', '2', '10'], ['S-101', '4', '0']], []],
+            // June.
+            [165, '10:00', '990000202', 30, '47', [['S-102', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [30]],
+            [150, '11:30', '990000201', 30, '47', [['S-101', '10', '0'], ['S-105', '1', '0']], [self::RETE_FUENTE_SERVICES, self::RETE_IVA], 'owner', [30]],
+            // July.
+            [135, '10:00', '990000202', 30, '47', [['S-102', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [28]],
+            [118, '15:15', '9990000205', null, '48', [['S-106', '2', '0']], [], 'owner', [0]],
+            // August.
+            [104, '10:00', '990000202', 30, '47', [['S-102', '1', '0'], ['S-103', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [30]],
+            [96, '09:30', '990000203', 15, '47', [['S-104', '1', '0'], ['S-106', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [20]],
+            // September: Pradera Dorada never paid its second support plan.
+            [74, '10:00', '990000202', 30, '47', [['S-102', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [30]],
+            [68, '11:45', '990000208', 15, '47', [['S-108', '40', '5'], ['P-101', '5', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [15]],
+            [62, '09:30', '990000203', 15, '47', [['S-104', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', null],
+            // October.
+            [45, '10:00', '990000202', 30, '47', [['S-102', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [29]],
+            [38, '10:00', '990000201', 30, '47', [['S-101', '12', '0'], ['S-105', '1', '0']], [self::RETE_FUENTE_SERVICES, self::RETE_IVA], 'owner', [28]],
+            [26, '15:15', '9990000206', null, '48', [['S-106', '2', '0'], ['S-107', '3', '0']], [], 'owner', [0]],
+            // November so far, not due yet.
+            [16, '10:00', '990000202', 30, '47', [['S-102', '1', '0'], ['S-103', '1', '5']], [self::RETE_FUENTE_SERVICES], 'owner', null],
+            [9, '11:45', '990000208', 15, '47', [['S-108', '40', '5'], ['P-101', '5', '0']], [self::RETE_FUENTE_SERVICES], 'owner', null],
+            [4, '16:00', '990000203', 30, '42', [['S-104', '1', '0'], ['P-102', '10', '0']], [self::RETE_FUENTE_SERVICES, self::RETE_IVA], 'owner', null],
+            // Draft.
+            [null, null, '990000204', 30, '42', [['S-105', '2', '10'], ['S-101', '4', '0']], [], 'owner', null],
         ],
     ];
 
@@ -131,40 +215,36 @@ final class DemoSeeder extends Seeder
      */
     private const array OUTCOMES = [
         'commerce' => [
-            10 => ['mode' => 'reject', 'rule' => 'FAB27b', 'count' => 1],
-            11 => ['mode' => 'error_500', 'count' => 0],
+            38 => ['mode' => 'reject', 'rule' => 'FAB27b', 'count' => 1],
+            40 => ['mode' => 'error_500', 'count' => 0],
         ],
     ];
 
     /**
-     * What happens after the invoices, in the order of its dates (a balance depends on what came
-     * before it). Notes: ['note', position of the invoice, type, days before today and Colombian
-     * time (null for a draft), concept, description, lines], lines being 'all' for every line of the
+     * What happens after the invoices besides their settlements; both run together in the order of
+     * their moments (a balance depends on what came before it). Every row starts with the days
+     * before today and the Colombian time (null for a draft). Notes: [..., 'note', position of the
+     * invoice, type, concept, description, lines, author], lines being 'all' for every line of the
      * invoice, [item code, quantity, price factor] copying that invoice line with another quantity
      * (and a share of its price), or [null, quantity, description, unit price] for a free line
-     * without tax; a note takes the withholdings of its invoice. Payments: ['payment', key, days
-     * before today, time, payment means, reference, [[position of the invoice, 'full' or a share of
-     * its balance], ...]]. Voids: ['void', key of the payment, days before today, time, reason].
+     * without tax; a note takes the withholdings of its invoice. Payments: [..., 'payment', key,
+     * payment means, reference, [[position of the invoice, 'full' or a share of its balance], ...],
+     * author]. Voids: [..., 'void', key of the payment, reason, author].
      */
     private const array TIMELINE = [
         'commerce' => [
-            ['payment', 'partial', 60, '10:00', '47', 'TRF-0099412', [[1, '0.40']]],
-            ['payment', 'paid-before-return', 27, '15:00', '42', 'DEP-5512094', [[4, 'full']]],
-            ['payment', 'consumer', 26, '11:12', '10', null, [[5, 'full']]],
-            ['note', 4, 'credit_note', 25, '10:30', '1', 'Return of one office chair and five packs of paper that arrived damaged.', [['P-001', '1', '1'], ['P-002', '5', '1']]],
-            ['note', 7, 'credit_note', 17, '09:15', '2', 'The invoice was issued to the wrong customer, so it is voided in full.', 'all'],
-            ['payment', 'cash', 11, '12:05', '10', null, [[9, 'full']]],
-            ['payment', 'split', 5, '09:30', '47', 'TRF-0101877', [[3, 'full'], [8, 'full']]],
-            ['payment', 'late', 2, '10:00', '47', 'TRF-0102530', [[6, 'full']]],
-            ['note', 6, 'debit_note', 2, '15:20', '1', 'Late payment interest: the invoice was paid six days after its due date.', [[null, '1', 'Late payment interest, six days past the due date', '42350']]],
-            ['payment', 'returned', 1, '16:30', '20', 'CHK-0004471', [[14, 'full']]],
-            ['void', 'returned', 1, '18:10', 'The bank returned the check for insufficient funds.'],
-            ['note', 9, 'credit_note', null, null, '1', 'Return of one hour of technical support that was not delivered.', [['S-002', '1', '1']]],
+            [70, '10:30', 'note', 20, 'credit_note', '3', 'Discount of 10% on the twenty-five packs of paper, agreed for a late delivery.', [['P-002', '25', '0.10']], 'owner'],
+            [35, '09:15', 'note', 30, 'credit_note', '2', 'The invoice was issued to the wrong customer, so it is voided in full.', 'all', 'member'],
+            [29, '10:30', 'note', 31, 'credit_note', '1', 'Return of one office chair and five packs of paper that arrived damaged.', [['P-001', '1', '1'], ['P-002', '5', '1']], 'owner'],
+            [15, '15:20', 'note', 29, 'debit_note', '1', 'Late payment interest: the invoice was paid ten days after its due date.', [[null, '1', 'Late payment interest, ten days past the due date', '38500']], 'admin'],
+            [9, '16:30', 'payment', 'returned', '20', 'CHK-0004471', [[27, 'full']], 'admin'],
+            [8, '18:10', 'void', 'returned', 'The bank returned the check for insufficient funds.', 'owner'],
+            [4, '10:00', 'payment', 'split', '47', 'TRF-0101877', [[28, 'full'], [36, 'full']], 'admin'],
+            [null, null, 'note', 39, 'credit_note', '1', 'Return of one office chair that the customer did not accept on delivery.', [['P-001', '1', '1']], 'member'],
         ],
         'services' => [
-            ['note', 1, 'credit_note', 24, '11:40', '3', 'Rebate of 10% on the consulting hours, agreed after the review of the project.', [['S-101', '12', '0.10']]],
-            ['payment', 'transfer', 20, '10:00', '47', 'TRF-2200317', [[1, 'full']]],
-            ['payment', 'card', 13, '15:20', '48', null, [[3, 'full']]],
+            [66, '16:20', 'note', 7, 'credit_note', '1', 'Five fewer guests than the forty invoiced attended the corporate lunch.', [['S-108', '5', '1']], 'owner'],
+            [35, '11:40', 'note', 10, 'credit_note', '3', 'Rebate of 10% on the consulting hours, agreed after the review of the project.', [['S-101', '12', '0.10']], 'owner'],
         ],
     ];
 
@@ -179,20 +259,19 @@ final class DemoSeeder extends Seeder
 
     public function run(DocumentDrafts $drafts, IssueDocument $issue): void
     {
-        $user = User::query()->where('email', 'demo@example.com')->firstOrFail();
-
-        IdentityDemoSeeder::eachCompany(function (Company $company) use ($drafts, $issue, $user): void {
+        IdentityDemoSeeder::eachCompany(function (Company $company) use ($drafts, $issue): void {
             $this->createNumbering();
 
             $set = $company->identification_number === IdentityDemoSeeder::NITS[0] ? 'commerce' : 'services';
+            $users = $this->users($company);
 
             try {
-                $invoices = $this->createInvoices(self::INVOICES[$set], self::OUTCOMES[$set] ?? [], $company, $drafts, $issue, $user);
+                $invoices = $this->createInvoices(self::INVOICES[$set], self::OUTCOMES[$set] ?? [], $company, $drafts, $issue, $users);
             } finally {
                 $this->simulator->setMode($company->identification_number, ['mode' => 'normal']);
             }
 
-            $this->runTimeline(self::TIMELINE[$set] ?? [], $invoices, $drafts, $issue, $user);
+            $this->runTimeline($this->timeline($set), $invoices, $drafts, $issue, $users);
         });
     }
 
@@ -225,20 +304,40 @@ final class DemoSeeder extends Seeder
     }
 
     /**
+     * The users who act in the company, by the keys of USERS. One that does not exist, or is not a
+     * member of the company, is replaced by the owner.
+     *
+     * @return array<string, User>
+     */
+    private function users(Company $company): array
+    {
+        $owner = User::query()->where('email', self::USERS['owner'])->firstOrFail();
+        $members = User::query()
+            ->whereIn('email', array_values(self::USERS))
+            ->whereIn('id', Membership::query()->where('company_id', $company->getKey())->select('user_id'))
+            ->get()
+            ->keyBy('email');
+
+        return array_map(fn (string $email): User => $members->get($email) ?? $owner, self::USERS);
+    }
+
+    /**
      * @param  list<array<int, mixed>>  $plan
      * @param  array<int, array<string, mixed>>  $outcomes
+     * @param  array<string, User>  $users
      * @return array<int, string> The id of each invoice, by position in the plan.
      */
-    private function createInvoices(array $plan, array $outcomes, Company $company, DocumentDrafts $drafts, IssueDocument $issue, User $user): array
+    private function createInvoices(array $plan, array $outcomes, Company $company, DocumentDrafts $drafts, IssueDocument $issue, array $users): array
     {
         $created = [];
         $contacts = Contact::query()->pluck('id', 'identification_number');
         $items = Item::query()->pluck('id', 'code');
         $withholdings = Withholding::query()->pluck('id', 'name');
-        $today = Carbon::now(NumberTemplate::TIMEZONE)->startOfDay();
+        $today = $this->today();
 
-        foreach ($plan as $position => [$daysAgo, $time, $customer, $creditDays, $means, $lines, $withholdingNames]) {
+        foreach ($plan as $position => [$daysAgo, $time, $customer, $creditDays, $means, $lines, $withholdingNames, $issuer]) {
             $issuedAt = $daysAgo === null ? null : $this->at($today, $daysAgo, $time);
+            $user = $users[$issuer];
 
             // Each draft is written a few minutes before it is issued.
             Carbon::setTestNow($issuedAt?->copy()->subMinutes(12));
@@ -279,19 +378,56 @@ final class DemoSeeder extends Seeder
     }
 
     /**
-     * @param  list<array<int, mixed>>  $timeline
-     * @param  array<int, string>  $invoices
+     * The steps after the invoices, in the order of their moments: the settlement of each invoice of
+     * the plan, as a payment two hours after its time of issue that many days later (recorded by the
+     * owner or the admin, in turns), and the steps of TIMELINE. Drafts go last.
+     *
+     * @return list<array{0: ?Carbon, 1: list<mixed>}>
      */
-    private function runTimeline(array $timeline, array $invoices, DocumentDrafts $drafts, IssueDocument $issue, User $user): void
+    private function timeline(string $set): array
     {
-        $today = Carbon::now(NumberTemplate::TIMEZONE)->startOfDay();
+        $today = $this->today();
+        $steps = [];
+
+        foreach (self::INVOICES[$set] as $position => [$daysAgo, $time, , , $means, , , , $settlement]) {
+            if ($settlement === null) {
+                continue;
+            }
+
+            $at = $this->at($today, $daysAgo, $time)->addDays($settlement[0])->addHours(2);
+
+            if ($at->isFuture()) {
+                throw new LogicException("The demo plan pays invoice {$position} after now.");
+            }
+
+            $steps[] = [$at, ['payment', "invoice-{$position}", $means, $this->reference($set, $means, $position), [[$position, $settlement[1] ?? 'full']], $position % 2 === 0 ? 'owner' : 'admin']];
+        }
+
+        foreach (self::TIMELINE[$set] ?? [] as $row) {
+            [$daysAgo, $time] = $row;
+            $steps[] = [$daysAgo === null ? null : $this->at($today, $daysAgo, $time), array_slice($row, 2)];
+        }
+
+        // Dated steps first, oldest first; steps at the same moment keep their order.
+        usort($steps, fn (array $a, array $b): int => [$a[0] === null, $a[0]?->getTimestamp()] <=> [$b[0] === null, $b[0]?->getTimestamp()]);
+
+        return $steps;
+    }
+
+    /**
+     * @param  list<array{0: ?Carbon, 1: list<mixed>}>  $steps
+     * @param  array<int, string>  $invoices
+     * @param  array<string, User>  $users
+     */
+    private function runTimeline(array $steps, array $invoices, DocumentDrafts $drafts, IssueDocument $issue, array $users): void
+    {
         $payments = [];
 
-        foreach ($timeline as $step) {
+        foreach ($steps as [$at, $step]) {
             match ($step[0]) {
-                'note' => $this->createNote($step, $invoices, $today, $drafts, $issue, $user),
-                'payment' => $payments[$step[1]] = $this->recordPayment($step, $invoices, $today, $user),
-                'void' => $this->voidPayment($step, $payments, $today, $user),
+                'note' => $this->createNote($at, $step, $invoices, $drafts, $issue, $users),
+                'payment' => $payments[$step[1]] = $this->recordPayment($at, $step, $invoices, $users),
+                'void' => $this->voidPayment($at, $step, $payments, $users),
             };
         }
 
@@ -299,16 +435,17 @@ final class DemoSeeder extends Seeder
     }
 
     /**
-     * @param  array<int, mixed>  $step
+     * @param  list<mixed>  $step
      * @param  array<int, string>  $invoices
+     * @param  array<string, User>  $users
      */
-    private function createNote(array $step, array $invoices, Carbon $today, DocumentDrafts $drafts, IssueDocument $issue, User $user): void
+    private function createNote(?Carbon $issuedAt, array $step, array $invoices, DocumentDrafts $drafts, IssueDocument $issue, array $users): void
     {
-        [, $position, $type, $daysAgo, $time, $concept, $description, $lines] = $step;
+        [, $position, $type, $concept, $description, $lines, $author] = $step;
 
+        $user = $users[$author];
         $items = Item::query()->pluck('id', 'code');
         $invoice = Document::query()->with(['lines', 'withholdings'])->findOrFail($invoices[$position]);
-        $issuedAt = $daysAgo === null ? null : $this->at($today, $daysAgo, $time);
 
         // A draft is written a few hours ago; an issued note a few minutes before it is issued.
         Carbon::setTestNow($issuedAt?->copy()->subMinutes(9) ?? Carbon::now()->subHours(3));
@@ -338,15 +475,15 @@ final class DemoSeeder extends Seeder
      * Records a payment through the payments module, for the balance its invoices have at that
      * moment ('full') or a share of it, rounded to whole pesos.
      *
-     * @param  array<int, mixed>  $step
+     * @param  list<mixed>  $step
      * @param  array<int, string>  $invoices
+     * @param  array<string, User>  $users
      * @return string The id of the payment.
      */
-    private function recordPayment(array $step, array $invoices, Carbon $today, User $user): string
+    private function recordPayment(Carbon $at, array $step, array $invoices, array $users): string
     {
-        [, , $daysAgo, $time, $means, $reference, $allocations] = $step;
+        [, , $means, $reference, $allocations, $author] = $step;
 
-        $at = $this->at($today, $daysAgo, $time);
         Carbon::setTestNow($at);
 
         $contactId = (string) Document::query()->whereKey($invoices[$allocations[0][0]])->value('contact_id');
@@ -373,7 +510,7 @@ final class DemoSeeder extends Seeder
             'reference' => $reference,
             'notes' => null,
             'allocations' => $lines,
-        ], $user);
+        ], $users[$author]);
 
         Carbon::setTestNow();
 
@@ -381,16 +518,36 @@ final class DemoSeeder extends Seeder
     }
 
     /**
-     * @param  array<int, mixed>  $step
+     * @param  list<mixed>  $step
      * @param  array<string, string>  $payments
+     * @param  array<string, User>  $users
      */
-    private function voidPayment(array $step, array $payments, Carbon $today, User $user): void
+    private function voidPayment(Carbon $at, array $step, array $payments, array $users): void
     {
-        [, $key, $daysAgo, $time, $reason] = $step;
+        [, $key, $reason, $author] = $step;
 
-        Carbon::setTestNow($this->at($today, $daysAgo, $time));
-        ($this->voidPayment)($payments[$key], $reason, $user);
+        Carbon::setTestNow($at);
+        ($this->voidPayment)($payments[$key], $reason, $users[$author]);
         Carbon::setTestNow();
+    }
+
+    /** A SYNTHETIC bank reference for a settlement: transfers, deposits and checks carry one. */
+    private function reference(string $set, string $means, int $position): ?string
+    {
+        $prefix = match ($means) {
+            '47' => 'TRF',
+            '42' => 'DEP',
+            '20' => 'CHK',
+            default => null,
+        };
+
+        return $prefix === null ? null : sprintf('%s-%s%05d', $prefix, $set === 'commerce' ? '41' : '22', 10000 + $position * 731);
+    }
+
+    /** The start of today in Colombia. */
+    private function today(): Carbon
+    {
+        return Carbon::now(NumberTemplate::TIMEZONE)->startOfDay();
     }
 
     /** A Colombian day and time before today, as an instant in UTC. */

@@ -12,7 +12,7 @@ CONCURRENCY ?= 20
 # Size of make chaos.
 CHAOS_INVOICES ?= 40
 
-.PHONY: up down logs ps seed demo stress chaos dian-check delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi
+.PHONY: up down logs ps seed demo stress chaos dian-check delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check
 
 # Build images if needed, start the stack, wait for the database, Redis and the local mailbox, install missing dependencies,
 # generate the key, migrate, and start the queue workers and the outbox relay with the current code.
@@ -80,6 +80,11 @@ payments-check:
 # webhook retried after two HTTP 500, and the rate limit answering 429 with Retry-After.
 api-check:
 	$(COMPOSE) exec api php artisan api:check
+
+# Type-check and build the web app for production (into /tmp of its container), then sign in over HTTP as the synthetic demo user and check that GET /dashboard and GET /search?q=SETP of Demo Comercial SAS return data.
+ui-check:
+	$(COMPOSE) exec -T web sh -c 'pnpm exec vue-tsc --noEmit && pnpm exec vite build --outDir /tmp/ui-check-dist --emptyOutDir'
+	$(COMPOSE) exec -T api php artisan ui:check
 
 # Export the public API reference (Scramble) to openapi.json at the root of the repository.
 openapi:

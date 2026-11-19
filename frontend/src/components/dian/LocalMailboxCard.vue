@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ExternalLinkIcon, InboxIcon, InfoIcon } from '@lucide/vue'
+import { ExternalLinkIcon, InfoIcon } from '@lucide/vue'
 import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { localMailboxApi } from '@/api/delivery'
 import FormError from '@/components/FormError.vue'
 import FormSection from '@/components/FormSection.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -34,10 +35,7 @@ const { data: mailbox, error } = useQuery({
 
       <div v-if="mailbox" class="grid gap-3">
         <div class="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">
-            <InboxIcon />
-            {{ mailbox.reachable ? t('settings.dian.mailbox.reachable') : t('settings.dian.mailbox.unreachable') }}
-          </Badge>
+          <StatusBadge domain="service" :status="mailbox.reachable ? 'reachable' : 'unreachable'" />
           <span v-if="mailbox.reachable && mailbox.messages !== null" class="text-sm text-muted-foreground tabular-nums">
             {{ t('settings.dian.mailbox.messages', { count: mailbox.messages }) }}
           </span>
@@ -59,7 +57,11 @@ const { data: mailbox, error } = useQuery({
           </Button>
         </div>
       </div>
-      <p v-else-if="!error" class="text-muted-foreground">{{ t('common.loading') }}</p>
+      <div v-else-if="!error" class="grid gap-2" aria-busy="true">
+        <span class="sr-only">{{ t('common.loading') }}</span>
+        <Skeleton class="h-5 w-40" />
+        <Skeleton class="h-4 w-64" />
+      </div>
 
       <Alert>
         <InfoIcon />

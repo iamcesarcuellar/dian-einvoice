@@ -20,6 +20,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { ALL_DOCUMENT_RESOURCES } from '@/lib/documents'
 import { formatMoney } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant, tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -46,8 +47,9 @@ const voiding = useMutation({
   mutationFn: () => paymentsApi.void(props.payment.id, reason.value.trim()),
   onSuccess: async (updated) => {
     queryClient.setQueryData(tenantKey(session.currentCompanyId, 'payments', 'detail', updated.id), updated)
-    await invalidateTenant('payments', 'receivables', 'open-invoices', ...ALL_DOCUMENT_RESOURCES)
+    await invalidateTenant('payments', 'receivables', 'open-invoices', 'dashboard', ...ALL_DOCUMENT_RESOURCES)
     open.value = false
+    notify.success(t('payments.void.done', { number: updated.full_number }))
   },
 })
 

@@ -21,4 +21,7 @@ enum Permission: string
 
     /** Void a recorded payment, which gives its invoices their balance back. */
     case VoidPayments = 'void-payments';
+
+    /** The members of the company, their roles and the invitations to join it. */
+    case ManageTeam = 'manage-team';
 }

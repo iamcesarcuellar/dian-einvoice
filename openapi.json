@@ -1151,7 +1151,7 @@
         "/credit-notes": {
             "get": {
                 "operationId": "credit-notes.index",
-                "summary": "Drafts first, then issued documents from the newest number down. ?status=draft|issued,\n?electronic_status=pending|generated|signed|sending|accepted|rejected|failed, or processing\nfor the first four, ?from= and ?to= (dates of issue, or of creation for drafts), ?search=\n(number or customer; for notes also the number of the invoice), ?balance_status= for\ninvoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one\ncustomer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted\ninvoices with something left to collect after their due date, or their issue date for cash)",
+                "summary": "Drafts first, then issued documents from the newest number down. ?status=draft|issued,\n?electronic_status=pending|generated|signed|sending|accepted|rejected|failed, or processing\nfor the first four, ?from= and ?to= (dates of issue, or of creation for drafts), ?search=\n(number or customer; for notes also the number of the invoice), ?balance_status= for\ninvoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one\ncustomer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted\ninvoices with something left to collect after their due date, or their issue date for cash).\nRows are summaries: the frozen copies of the company, customer and numbering, and the nested\ncontact, come only with the detail",
                 "tags": [
                     "Credit notes"
                 ],
@@ -1594,7 +1594,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -2229,7 +2228,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -2429,7 +2427,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -3401,7 +3398,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -3711,7 +3707,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -4021,7 +4016,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -4907,7 +4901,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -5160,7 +5153,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -5423,7 +5415,7 @@
         "/debit-notes": {
             "get": {
                 "operationId": "debit-notes.index",
-                "summary": "Drafts first, then issued documents from the newest number down. ?status=draft|issued,\n?electronic_status=pending|generated|signed|sending|accepted|rejected|failed, or processing\nfor the first four, ?from= and ?to= (dates of issue, or of creation for drafts), ?search=\n(number or customer; for notes also the number of the invoice), ?balance_status= for\ninvoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one\ncustomer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted\ninvoices with something left to collect after their due date, or their issue date for cash)",
+                "summary": "Drafts first, then issued documents from the newest number down. ?status=draft|issued,\n?electronic_status=pending|generated|signed|sending|accepted|rejected|failed, or processing\nfor the first four, ?from= and ?to= (dates of issue, or of creation for drafts), ?search=\n(number or customer; for notes also the number of the invoice), ?balance_status= for\ninvoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one\ncustomer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted\ninvoices with something left to collect after their due date, or their issue date for cash).\nRows are summaries: the frozen copies of the company, customer and numbering, and the nested\ncontact, come only with the detail",
                 "tags": [
                     "Debit notes"
                 ],
@@ -5866,7 +5858,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -6501,7 +6492,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -6701,7 +6691,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -7673,7 +7662,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -7983,7 +7971,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -8293,7 +8280,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -9179,7 +9165,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -9432,7 +9417,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -9748,7 +9732,7 @@
         "/invoices": {
             "get": {
                 "operationId": "invoices.index",
-                "summary": "Drafts first, then issued documents from the newest number down. ?status=draft|issued,\n?electronic_status=pending|generated|signed|sending|accepted|rejected|failed, or processing\nfor the first four, ?from= and ?to= (dates of issue, or of creation for drafts), ?search=\n(number or customer; for notes also the number of the invoice), ?balance_status= for\ninvoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one\ncustomer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted\ninvoices with something left to collect after their due date, or their issue date for cash)",
+                "summary": "Drafts first, then issued documents from the newest number down. ?status=draft|issued,\n?electronic_status=pending|generated|signed|sending|accepted|rejected|failed, or processing\nfor the first four, ?from= and ?to= (dates of issue, or of creation for drafts), ?search=\n(number or customer; for notes also the number of the invoice), ?balance_status= for\ninvoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one\ncustomer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted\ninvoices with something left to collect after their due date, or their issue date for cash).\nRows are summaries: the frozen copies of the company, customer and numbering, and the nested\ncontact, come only with the detail",
                 "tags": [
                     "Invoices"
                 ],
@@ -10191,7 +10175,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -10433,7 +10416,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -10633,7 +10615,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -11605,7 +11586,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -11915,7 +11895,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -12225,7 +12204,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -13111,7 +13089,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -13364,7 +13341,6 @@
                                                 {
                                                     "type": "object",
                                                     "required": [
-                                                        "contact",
                                                         "taxes",
                                                         "withholdings",
                                                         "lines",
@@ -20582,6 +20558,7 @@
                             {
                                 "anyOf": [
                                     {
+                                        "description": "On the detail only; a list row loads its contact just for the name of a draft.",
                                         "$ref": "#/components/schemas/ContactResource"
                                     },
                                     {
@@ -21004,6 +20981,7 @@
                             "array",
                             "null"
                         ],
+                        "description": "The copies frozen on issue, on the detail only.",
                         "items": {}
                     },
                     "customer_snapshot": {
@@ -21593,9 +21571,6 @@
                     "overdue",
                     "days_past_due",
                     "totals",
-                    "company_snapshot",
-                    "customer_snapshot",
-                    "numbering_snapshot",
                     "cufe",
                     "key_name",
                     "qr_url",

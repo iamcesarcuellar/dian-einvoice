@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NumberingStatus, NumberTemplate } from '@/api/types'
+import type { NumberTemplate } from '@/api/types'
 import type { DataTableColumn, RowAction } from '@/components/data-table/types'
 import { PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
 import { useMutation } from '@tanstack/vue-query'
@@ -10,11 +10,13 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DataTable from '@/components/data-table/DataTable.vue'
 import RowActions from '@/components/data-table/RowActions.vue'
 import NumberTemplateDialog from '@/components/numbering/NumberTemplateDialog.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
 import { useSession } from '@/composables/useSession'
-import { formatDate, formatInteger } from '@/lib/format'
+import { formatDate, formatInteger, formatPercent } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant } from '@/lib/query'
 
 const { t } = useI18n()
@@ -22,7 +24,7 @@ const { can } = useSession()
 
 const canManage = computed(() => can('manage-settings'))
 
-const { page, search, rows, meta, isLoading } = useListQuery('number-templates', numberTemplatesApi.list)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('number-templates', numberTemplatesApi.list)
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'document_type', label: t('numbering.columns.type') },
@@ -33,13 +35,6 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: 'status', label: t('numbering.columns.status') },
   { key: 'usage', label: t('numbering.columns.usage'), class: 'w-40' },
 ])
-
-const statusVariant: Record<NumberingStatus, 'secondary' | 'outline' | 'destructive'> = {
-  active: 'secondary',
-  upcoming: 'outline',
-  expired: 'destructive',
-  exhausted: 'destructive',
-}
 
 /** Share of the range already used, in whole percent. */
 function usagePercent(template: NumberTemplate): number {
@@ -69,6 +64,7 @@ const remove = useMutation({
   onSuccess: async () => {
     await invalidateTenant('number-templates')
     confirmOpen.value = false
+    notify.success(t('numbering.deleted'))
   },
 })
 
@@ -101,10 +97,12 @@ function actions(template: NumberTemplate): RowAction[] {
       :rows="rows"
       :meta="meta"
       :loading="isLoading"
+      :error="error"
       :search-placeholder="t('numbering.searchPlaceholder')"
       :empty-title="t('numbering.empty.title')"
       :empty-description="t('numbering.empty.description')"
       :actions="canManage"
+      @retry="refetch"
     >
       <template #toolbar>
         <Button v-if="canManage" @click="openCreate">
@@ -135,8 +133,8 @@ function actions(template: NumberTemplate): RowAction[] {
       </template>
       <template #cell-status="{ row }">
         <span class="inline-flex flex-wrap items-center gap-1.5">
-          <Badge :variant="statusVariant[row.status]">{{ t(`numbering.status.${row.status}`) }}</Badge>
-          <Badge v-if="!row.is_active" variant="outline" class="text-muted-foreground">{{ t('common.inactive') }}</Badge>
+          <StatusBadge domain="numbering" :status="row.status" />
+          <StatusBadge v-if="!row.is_active" domain="record" status="inactive" />
         </span>
       </template>
       <template #cell-usage="{ row }">
@@ -144,11 +142,17 @@ function actions(template: NumberTemplate): RowAction[] {
           <div class="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
             <div class="h-full rounded-full bg-primary" :style="{ width: `${usagePercent(row)}%` }" />
           </div>
-          <span class="text-xs text-muted-foreground tabular-nums">{{ usagePercent(row) }}%</span>
+          <span class="text-xs text-muted-foreground tabular-nums">{{ formatPercent(String(usagePercent(row))) }}</span>
         </div>
       </template>
       <template #actions="{ row }">
         <RowActions :actions="actions(row)" />
+      </template>
+      <template v-if="canManage" #empty-action>
+        <Button variant="outline" size="sm" @click="openCreate">
+          <PlusIcon />
+          {{ t('numbering.new') }}
+        </Button>
       </template>
     </DataTable>
 

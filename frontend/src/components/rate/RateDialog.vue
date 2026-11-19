@@ -64,6 +64,7 @@ function toInput(): RateInput {
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => (props.rate ? api.value.update(props.rate.id, toInput()) : api.value.create(toInput())),
+  success: (rate) => t(props.rate ? 'rates.saved' : 'rates.created', { name: rate.name }),
   onSuccess: async () => {
     // Items show the name of their tax.
     await invalidateTenant(props.kind, 'items')

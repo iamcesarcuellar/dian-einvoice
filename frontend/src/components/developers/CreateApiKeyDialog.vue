@@ -50,6 +50,7 @@ function toInput(): ApiKeyInput {
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => apiKeysApi.create(toInput()),
+  success: (created) => t('developers.keys.created', { name: created.name }),
   onSuccess: async (created) => {
     await invalidateTenant('api-keys')
     open.value = false

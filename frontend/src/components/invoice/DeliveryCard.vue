@@ -8,15 +8,16 @@ import { saveBlob } from '@/api/client'
 import { documentsApi } from '@/api/resources'
 import FormError from '@/components/FormError.vue'
 import FormSection from '@/components/FormSection.vue'
-import DeliveryStatusBadge from '@/components/invoice/DeliveryStatusBadge.vue'
 import PdfDialog from '@/components/invoice/PdfDialog.vue'
 import SendAgainDialog from '@/components/invoice/SendAgainDialog.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { useSession } from '@/composables/useSession'
 import { ALL_DOCUMENT_RESOURCES, DOCUMENT_RESOURCES } from '@/lib/documents'
 import { formatDateTime, formatInteger } from '@/lib/format'
+import { notify } from '@/lib/notify'
 import { invalidateTenant, tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -121,7 +122,10 @@ async function store(updated: Invoice): Promise<void> {
 
 const regenerate = useMutation({
   mutationFn: () => documentsApi(props.invoice.type).regeneratePdf(props.invoice.id),
-  onSuccess: store,
+  onSuccess: async (updated) => {
+    await store(updated)
+    notify.success(t('invoices.delivery.regenerated'))
+  },
 })
 
 const error = computed(() => downloadPdf.error.value ?? downloadPackage.error.value ?? regenerate.error.value)
@@ -131,7 +135,7 @@ const error = computed(() => downloadPdf.error.value ?? downloadPackage.error.va
   <FormSection :title="t('invoices.delivery.title')" :description="t('invoices.delivery.description')">
     <div class="grid gap-5">
       <div class="flex flex-wrap items-center gap-2">
-        <DeliveryStatusBadge :status="delivery?.status ?? null" />
+        <StatusBadge domain="delivery" :status="delivery?.status ?? 'waiting'" :hint="t(`invoices.delivery.statusTitle.${delivery?.status ?? 'waiting'}`)" />
         <Badge variant="secondary">
           <InboxIcon />
           {{ t('invoices.delivery.localMailbox') }}

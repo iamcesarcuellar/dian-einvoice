@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { LogOutIcon } from '@lucide/vue'
+import type { ThemeChoice } from '@/composables/useTheme'
+import { InfoIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon, UserRoundIcon } from '@lucide/vue'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
+import AboutDialog from '@/components/AboutDialog.vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,18 +14,31 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useSession } from '@/composables/useSession'
+import { useTheme } from '@/composables/useTheme'
 import { queryKeys } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
+/** The account menu: profile, theme (saved in this browser), About and sign out. */
 const { t } = useI18n()
 const router = useRouter()
 const queryClient = useQueryClient()
 const session = useSessionStore()
 const { user } = useSession()
+const { choice } = useTheme()
+
+const themes: Array<{ value: ThemeChoice, icon: typeof SunIcon }> = [
+  { value: 'light', icon: SunIcon },
+  { value: 'dark', icon: MoonIcon },
+  { value: 'auto', icon: MonitorIcon },
+]
+
+const aboutOpen = ref(false)
 
 const initials = computed(() =>
   (user.value?.name ?? '')
@@ -33,6 +48,12 @@ const initials = computed(() =>
     .map((part) => part.charAt(0).toUpperCase())
     .join(''),
 )
+
+function setTheme(value: unknown): void {
+  if (value === 'light' || value === 'dark' || value === 'auto') {
+    choice.value = value
+  }
+}
 
 const { mutate: logout, isPending } = useMutation({
   mutationFn: () => authApi.logout(),
@@ -62,10 +83,29 @@ const { mutate: logout, isPending } = useMutation({
         <span class="truncate text-xs font-normal text-muted-foreground">{{ user?.email }}</span>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
+      <DropdownMenuItem @select="router.push({ name: 'profile' })">
+        <UserRoundIcon />
+        {{ t('user.profile') }}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">{{ t('user.theme') }}</DropdownMenuLabel>
+      <DropdownMenuRadioGroup :model-value="choice" @update:model-value="setTheme">
+        <DropdownMenuRadioItem v-for="theme in themes" :key="theme.value" :value="theme.value">
+          <component :is="theme.icon" class="text-muted-foreground" aria-hidden="true" />
+          {{ t(`user.themes.${theme.value}`) }}
+        </DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem @select="aboutOpen = true">
+        <InfoIcon />
+        {{ t('user.about') }}
+      </DropdownMenuItem>
       <DropdownMenuItem :disabled="isPending" @select="logout()">
         <LogOutIcon />
         {{ t('user.logout') }}
       </DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>
+
+  <AboutDialog v-model:open="aboutOpen" />
 </template>

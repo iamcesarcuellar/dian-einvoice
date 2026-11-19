@@ -107,6 +107,7 @@ const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => (props.template
     ? numberTemplatesApi.update(props.template.id, toInput())
     : numberTemplatesApi.create(toInput())),
+  success: () => t(props.template ? 'numbering.saved' : 'numbering.created'),
   onSuccess: async () => {
     await invalidateTenant('number-templates')
     open.value = false

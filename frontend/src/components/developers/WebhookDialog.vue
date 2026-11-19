@@ -85,6 +85,7 @@ const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: async () => (props.subscription
     ? { updated: await webhooksApi.update(props.subscription.id, toInput()), created: null }
     : { updated: null, created: await webhooksApi.create(toInput()) }),
+  success: ({ created }) => t(created ? 'developers.webhooks.created' : 'developers.webhooks.saved'),
   onSuccess: async ({ created }) => {
     await invalidateTenant('webhooks')
     open.value = false

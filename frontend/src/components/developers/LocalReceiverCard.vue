@@ -3,7 +3,8 @@ import type { ReceiverModeInput, ReceiverModeName } from '@/api/types'
 import type { Option } from '@/lib/options'
 import { FlaskConicalIcon, InfoIcon, RefreshCwIcon } from '@lucide/vue'
 import { useQueryClient } from '@tanstack/vue-query'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import type { DataTableColumn } from '@/components/data-table/types'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { webhookReceiverApi } from '@/api/developers'
 import FormError from '@/components/FormError.vue'
@@ -14,18 +15,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import DataTable from '@/components/data-table/DataTable.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { useWebhookReceiver } from '@/composables/useWebhookReceiver'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatInteger } from '@/lib/format'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 import CopyButton from './CopyButton.vue'
@@ -81,18 +76,23 @@ function toInput(): ReceiverModeInput {
   }
 }
 
-const applied = ref(false)
-let appliedTimer: ReturnType<typeof setTimeout> | undefined
-
 const { submit, isPending, error, errors } = useFormMutation({
   mutationFn: () => webhookReceiverApi.setMode(toInput()),
+  success: t('developers.receiver.applied'),
   onSuccess: async () => {
-    applied.value = true
-    clearTimeout(appliedTimer)
-    appliedTimer = setTimeout(() => (applied.value = false), 4000)
     await queryClient.invalidateQueries({ queryKey: tenantKey(session.currentCompanyId, 'webhook-receiver') })
   },
 })
+
+const receivedColumns = computed<DataTableColumn[]>(() => [
+  { key: 'received_at', label: t('developers.receiver.columns.time') },
+  { key: 'event_type', label: t('developers.receiver.columns.event') },
+  { key: 'verification', label: t('developers.receiver.columns.signature') },
+  { key: 'response_status', label: t('developers.receiver.columns.answer') },
+  { key: 'webhook_id', label: t('developers.receiver.columns.webhookId') },
+])
+
+const receivedRows = computed(() => (receiver.value?.received ?? []).map((hook, index) => ({ ...hook, id: `${hook.received_at}-${index}` })))
 
 // The form follows the mode of the receiver, unless a change is being applied.
 watch(() => receiver.value?.mode, (mode) => {
@@ -101,9 +101,7 @@ watch(() => receiver.value?.mode, (mode) => {
   }
 }, { immediate: true })
 
-const verificationVariant = (verified: boolean): 'secondary' | 'destructive' => (verified ? 'secondary' : 'destructive')
 
-onBeforeUnmount(() => clearTimeout(appliedTimer))
 </script>
 
 <template>
@@ -147,7 +145,6 @@ onBeforeUnmount(() => clearTimeout(appliedTimer))
           </div>
 
           <div class="flex items-center justify-end gap-3">
-            <p v-if="applied" class="text-sm text-muted-foreground" role="status">{{ t('developers.receiver.applied') }}</p>
             <Button type="submit" :disabled="isPending || !form.mode">
               {{ isPending ? t('developers.receiver.applying') : t('developers.receiver.apply') }}
             </Button>
@@ -166,41 +163,33 @@ onBeforeUnmount(() => clearTimeout(appliedTimer))
             </Button>
           </div>
 
-          <div class="-mx-6 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow class="hover:bg-transparent">
-                  <TableHead class="pl-6">{{ t('developers.receiver.columns.time') }}</TableHead>
-                  <TableHead>{{ t('developers.receiver.columns.event') }}</TableHead>
-                  <TableHead>{{ t('developers.receiver.columns.signature') }}</TableHead>
-                  <TableHead>{{ t('developers.receiver.columns.answer') }}</TableHead>
-                  <TableHead class="pr-6">{{ t('developers.receiver.columns.webhookId') }}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <template v-if="receiver.received.length > 0">
-                  <TableRow v-for="(hook, index) in receiver.received" :key="`${hook.received_at}-${index}`">
-                    <TableCell class="pl-6 whitespace-nowrap tabular-nums">{{ formatDateTime(hook.received_at) }}</TableCell>
-                    <TableCell class="font-mono text-xs whitespace-nowrap">{{ hook.event_type ?? '—' }}</TableCell>
-                    <TableCell>
-                      <Badge :variant="verificationVariant(hook.verified)">{{ t(`developers.receiver.verification.${hook.verification}`) }}</Badge>
-                    </TableCell>
-                    <TableCell class="whitespace-nowrap">
-                      <span class="font-mono text-xs">HTTP {{ hook.response_status }}</span>
-                      <span v-if="hook.mode === 'slow'" class="text-xs text-muted-foreground"> · {{ t('developers.receiver.after', { ms: hook.delay_ms }) }}</span>
-                    </TableCell>
-                    <TableCell class="pr-6 font-mono text-xs whitespace-nowrap">{{ hook.webhook_id ?? '—' }}</TableCell>
-                  </TableRow>
-                </template>
-                <TableEmpty v-else :colspan="5">
-                  <p class="text-muted-foreground">{{ t('developers.receiver.empty') }}</p>
-                </TableEmpty>
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable :columns="receivedColumns" :rows="receivedRows" :empty-title="t('developers.receiver.empty')">
+            <template #cell-received_at="{ row }">
+              <span class="whitespace-nowrap tabular-nums">{{ formatDateTime(row.received_at) }}</span>
+            </template>
+            <template #cell-event_type="{ row }">
+              <span class="font-mono text-xs whitespace-nowrap">{{ row.event_type ?? '—' }}</span>
+            </template>
+            <template #cell-verification="{ row }">
+              <StatusBadge domain="signature" :status="row.verification" />
+            </template>
+            <template #cell-response_status="{ row }">
+              <span class="whitespace-nowrap">
+                <span class="font-mono text-xs">HTTP {{ row.response_status }}</span>
+                <span v-if="row.mode === 'slow'" class="text-xs text-muted-foreground"> · {{ t('developers.receiver.after', { ms: formatInteger(row.delay_ms ?? 0) }) }}</span>
+              </span>
+            </template>
+            <template #cell-webhook_id="{ row }">
+              <span class="font-mono text-xs whitespace-nowrap">{{ row.webhook_id ?? '—' }}</span>
+            </template>
+          </DataTable>
         </div>
       </template>
-      <p v-else-if="!receiverError" class="text-muted-foreground">{{ t('common.loading') }}</p>
+      <div v-else-if="!receiverError" class="grid gap-2" aria-busy="true">
+        <span class="sr-only">{{ t('common.loading') }}</span>
+        <Skeleton class="h-9 w-full" />
+        <Skeleton class="h-32 w-full" />
+      </div>
 
       <Alert>
         <InfoIcon />

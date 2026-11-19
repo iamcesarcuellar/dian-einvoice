@@ -1,22 +1,23 @@
 <script setup lang="ts">
+import type { PageTab } from '@/components/PageTabs.vue'
 import { PlusIcon } from '@lucide/vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import PageTabs from '@/components/PageTabs.vue'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/composables/useSession'
-import { cn } from '@/lib/utils'
 
 /** The Payments section: the payments received, and the receivables by customer and age. */
 const { t } = useI18n()
 const route = useRoute()
 const { can } = useSession()
 
-const tabs = [
-  { name: 'payments', label: 'payments.tabs.payments' },
-  { name: 'receivables', label: 'payments.tabs.receivables' },
-]
+const tabs = computed<PageTab[]>(() => [
+  { name: 'payments', label: t('payments.tabs.payments') },
+  { name: 'receivables', label: t('payments.tabs.receivables') },
+].map((tab) => ({ key: tab.name, label: tab.label, to: { name: tab.name }, active: route.name === tab.name })))
 
 const description = computed(() => (route.name === 'receivables' ? t('receivables.description') : t('payments.description')))
 </script>
@@ -32,21 +33,7 @@ const description = computed(() => (route.name === 'receivables' ? t('receivable
       </Button>
     </PageHeader>
 
-    <nav class="flex gap-1 overflow-x-auto border-b" :aria-label="t('payments.tabs.label')">
-      <RouterLink v-for="tab in tabs" :key="tab.name" v-slot="{ href, navigate, isExactActive }" :to="{ name: tab.name }" custom>
-        <a
-          :href="href"
-          :aria-current="isExactActive ? 'page' : undefined"
-          :class="cn(
-            '-mb-px border-b-2 px-3 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors',
-            isExactActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
-          )"
-          @click="navigate"
-        >
-          {{ t(tab.label) }}
-        </a>
-      </RouterLink>
-    </nav>
+    <PageTabs :tabs="tabs" :label="t('payments.tabs.label')" />
 
     <RouterView v-slot="{ Component, route: current }">
       <component :is="Component" :key="String(current.name)" />

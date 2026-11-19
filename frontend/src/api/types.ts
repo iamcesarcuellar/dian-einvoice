@@ -9,9 +9,9 @@ export interface TimelineActor {
 
 /**
  * manage-catalog: contacts and items. manage-documents: drafts and issuing.
- * manage-settings: taxes, withholdings, numbering and the company.
+ * manage-settings: taxes, withholdings, numbering and the company. manage-team: members and invitations.
  */
-export type Permission = 'manage-catalog' | 'manage-documents' | 'manage-settings' | 'record-payments' | 'void-payments'
+export type Permission = 'manage-catalog' | 'manage-documents' | 'manage-settings' | 'manage-team' | 'record-payments' | 'void-payments'
 
 export interface Municipality {
   code: string

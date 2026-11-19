@@ -48,6 +48,8 @@ final class DocumentController
      * invoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one
      * customer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted
      * invoices with something left to collect after their due date, or their issue date for cash).
+     * Rows are summaries: the frozen copies of the company, customer and numbering, and the nested
+     * contact, come only with the detail.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -67,7 +69,8 @@ final class DocumentController
 
         $query = Document::query()
             ->where('type', $type)
-            ->with($type->isNote() ? ['contact', 'relatedDocument'] : ['contact'])
+            // The contact only names a draft, which has no frozen copy of its customer yet.
+            ->with($type->isNote() ? ['contact:id,legal_name', 'relatedDocument'] : ['contact:id,legal_name'])
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($filters['electronic_status'] ?? null, fn (Builder $query, string $state) => $state === self::PROCESSING
                 ? $query->whereIn('electronic_status', ElectronicStatus::processing())
@@ -87,7 +90,7 @@ final class DocumentController
             ->orderByDesc('number')
             ->orderByDesc('created_at');
 
-        return DocumentResource::collection(Listing::paginate($query, $request, [], function (Builder $query, string $pattern) use ($type): void {
+        return DocumentResource::summaries(Listing::paginate($query, $request, [], function (Builder $query, string $pattern) use ($type): void {
             $query->where('full_number', 'like', $pattern)
                 ->orWhereHas('contact', fn (Builder $contact) => $contact->where(fn (Builder $match) => $match
                     ->where('legal_name', 'like', $pattern)

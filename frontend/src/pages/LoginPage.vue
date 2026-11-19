@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { FlaskConicalIcon } from '@lucide/vue'
 import { useQueryClient } from '@tanstack/vue-query'
 import { reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -8,6 +9,7 @@ import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { product } from '@/config/product'
 import { useFormMutation } from '@/composables/useFormMutation'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { queryKeys } from '@/lib/query'
@@ -19,7 +21,8 @@ const router = useRouter()
 const queryClient = useQueryClient()
 const session = useSessionStore()
 
-const form = reactive({ email: '', password: '' })
+// An invitation sends its address along (?email=), so the user only types the password.
+const form = reactive({ email: typeof route.query.email === 'string' ? route.query.email : '', password: '' })
 
 const { submit, isPending, error, errors } = useFormMutation({
   mutationFn: () => authApi.login({ ...form }),
@@ -34,6 +37,14 @@ const { submit, isPending, error, errors } = useFormMutation({
     await router.replace(target)
   },
 })
+
+/** Only on the local development server: fills in the synthetic account of make demo. */
+function useDemoAccount(): void {
+  if (product.localDemo) {
+    form.email = product.localDemo.email
+    form.password = product.localDemo.password
+  }
+}
 </script>
 
 <template>
@@ -66,6 +77,19 @@ const { submit, isPending, error, errors } = useFormMutation({
       <Button type="submit" class="mt-2 w-full" :disabled="isPending">
         {{ isPending ? t('auth.login.submitting') : t('auth.login.submit') }}
       </Button>
+
+      <template v-if="product.localDemo">
+        <div class="flex items-center gap-3 text-xs text-muted-foreground">
+          <span class="h-px flex-1 bg-border" />
+          {{ t('auth.login.localOnly') }}
+          <span class="h-px flex-1 bg-border" />
+        </div>
+        <Button type="button" variant="outline" class="w-full" @click="useDemoAccount">
+          <FlaskConicalIcon />
+          {{ t('auth.login.demo') }}
+        </Button>
+        <p class="text-center text-xs text-muted-foreground">{{ t('auth.login.demoHint', { email: product.localDemo.email }) }}</p>
+      </template>
     </form>
 
     <template #footer>
