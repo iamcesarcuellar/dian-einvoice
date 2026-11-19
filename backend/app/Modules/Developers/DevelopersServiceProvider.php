@@ -10,6 +10,7 @@ use App\Modules\Developers\Http\Middleware\RejectApiKeys;
 use App\Modules\Developers\Idempotency\PruneIdempotencyKeys;
 use App\Modules\Developers\Models\ApiKey;
 use App\Modules\Developers\Receiver\LocalWebhookReceiver;
+use App\Modules\Developers\Retention\PruneWebhookDeliveries;
 use App\Modules\Developers\Webhooks\DeliverWebhook;
 use App\Modules\Developers\Webhooks\PublishWebhookEvent;
 use App\Modules\Developers\Webhooks\StalledWebhookSweeper;
@@ -17,6 +18,7 @@ use App\Modules\Developers\Webhooks\WebhookEventTypes;
 use App\Modules\Developers\Webhooks\WebhookPublisher;
 use App\Support\Outbox\OutboxSubscribers;
 use App\Support\Outbox\Sweeper;
+use App\Support\Retention\Pruner;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -41,6 +43,7 @@ final class DevelopersServiceProvider extends ServiceProvider
         ));
 
         $this->app->tag([StalledWebhookSweeper::class, PruneIdempotencyKeys::class], Sweeper::class);
+        $this->app->tag([PruneWebhookDeliveries::class], Pruner::class);
     }
 
     public function boot(): void

@@ -11,6 +11,7 @@ use App\Modules\Billing\Tools\TemporaryCompany;
 use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Dian\Transmission\TransmissionOutcome;
+use App\Support\Console\LocalOnly;
 use App\Support\Json;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -38,6 +39,12 @@ final class DianChaosCommand extends Command
 
     public function handle(DocumentDrafts $drafts, IssueDocument $issue, DianSimulator $simulator): int
     {
+        if (($refusal = LocalOnly::refusal($this->getName() ?? 'This command')) !== null) {
+            $this->error($refusal);
+
+            return self::FAILURE;
+        }
+
         return match ($this->argument('action')) {
             'start' => $this->start($drafts, $issue),
             'finish' => $this->finish($simulator),

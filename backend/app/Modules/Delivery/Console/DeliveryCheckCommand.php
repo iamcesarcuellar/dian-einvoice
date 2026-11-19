@@ -18,9 +18,11 @@ use App\Modules\Identity\Enums\Role;
 use App\Modules\Identity\Models\Membership;
 use App\Modules\Identity\Tenancy\CompanyScope;
 use App\Modules\Identity\Tenancy\CurrentCompany;
+use App\Support\Console\LocalOnly;
 use App\Support\Json;
 use App\Support\Storage\DocumentStorage;
-use DOMDocument;
+use App\Support\Xml\SafeXml;
+use App\Support\Xml\XmlRefused;
 use DOMXPath;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -52,6 +54,12 @@ final class DeliveryCheckCommand extends Command
 
     public function handle(CurrentCompany $currentCompany, DocumentFiles $files, DocumentStorage $storage, XsdValidator $validator, LocalMailbox $mailbox): int
     {
+        if (($refusal = LocalOnly::refusal($this->getName() ?? 'This command')) !== null) {
+            $this->error($refusal);
+
+            return self::FAILURE;
+        }
+
         $this->summary();
 
         $document = $this->deliveredInvoice($currentCompany);
@@ -154,9 +162,7 @@ final class DeliveryCheckCommand extends Command
             $this->line('   - '.$error);
         }
 
-        $dom = new DOMDocument;
-        $dom->loadXML($xml, LIBXML_NONET);
-        $xpath = new DOMXPath($dom);
+        $xpath = new DOMXPath(SafeXml::load($xml));
         $xpath->registerNamespace('a', AttachedDocumentXml::NS_ATTACHED);
         $xpath->registerNamespace('cbc', UblDocumentXml::NS_CBC);
         $xpath->registerNamespace('cac', UblDocumentXml::NS_CAC);
@@ -191,9 +197,13 @@ final class DeliveryCheckCommand extends Command
      */
     private function embedded(string $xml, string $root, Document $document): ?string
     {
-        $dom = new DOMDocument;
+        try {
+            $dom = SafeXml::load($xml);
+        } catch (XmlRefused) {
+            return null;
+        }
 
-        if ($xml === '' || ! @$dom->loadXML($xml, LIBXML_NONET) || $dom->documentElement?->localName !== $root) {
+        if ($dom->documentElement?->localName !== $root) {
             return null;
         }
 

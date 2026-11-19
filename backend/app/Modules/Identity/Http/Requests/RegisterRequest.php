@@ -4,7 +4,6 @@ namespace App\Modules\Identity\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 final class RegisterRequest extends FormRequest
@@ -16,10 +15,12 @@ final class RegisterRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')],
+            // Whether the email or the NIT is already registered is checked on create, with one
+            // answer for both (AuthController::register), so the form tells no field apart.
+            'email' => ['required', 'string', 'email', 'max:255'],
             'password' => ['required', 'string', Password::defaults()],
             'company' => ['required', 'array'],
-            ...CompanyRules::rules(prefix: 'company.'),
+            ...CompanyRules::rules(prefix: 'company.', unique: false),
         ];
     }
 

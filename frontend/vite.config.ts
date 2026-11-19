@@ -5,8 +5,10 @@ import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 import product from './src/config/product.json' with { type: 'json' }
 
-// The browser only talks to this dev server. API, CSRF cookie and API docs requests are
-// forwarded to the backend, so the session cookie lives on a single origin.
+// The browser only talks to this dev server. API and CSRF cookie requests are forwarded to the
+// backend, so the session cookie lives on a single origin. The API reference is not forwarded: it
+// loads Stoplight Elements from a CDN, so it stays on the origin of the API (product.apiUrl), which
+// no browser session uses.
 const apiTarget = process.env.API_URL ?? 'http://localhost:8600'
 
 export default defineConfig({
@@ -31,7 +33,6 @@ export default defineConfig({
     proxy: {
       '/api': apiTarget,
       '/sanctum': apiTarget,
-      '/docs': apiTarget,
     },
   },
 })

@@ -29,4 +29,14 @@ export const authApi = {
   changePassword(input: { current_password: string; password: string; password_confirmation: string }): Promise<void> {
     return request<void>('PUT', '/auth/password', input)
   },
+
+  /** Asks for a link to choose a new password; the answer is the same whether or not the address has an account. */
+  async forgotPassword(email: string): Promise<string> {
+    return (await request<DataEnvelope<{ message: string }>>('POST', '/auth/forgot-password', { email })).data.message
+  },
+
+  /** Sets a new password with the token of the link; every session of the account ends. */
+  async resetPassword(input: { token: string; email: string; password: string; password_confirmation: string }): Promise<string> {
+    return (await request<DataEnvelope<{ message: string }>>('POST', '/auth/reset-password', input)).data.message
+  },
 }

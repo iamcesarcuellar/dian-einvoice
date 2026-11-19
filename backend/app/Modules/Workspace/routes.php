@@ -9,5 +9,5 @@ use Illuminate\Support\Facades\Route;
 // session only (API keys get 403); every role, viewers included, reads them.
 Route::middleware(ApiMiddleware::PANEL)->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::get('search', SearchController::class)->name('search');
+    Route::get('search', SearchController::class)->middleware('throttle:search')->name('search');
 });

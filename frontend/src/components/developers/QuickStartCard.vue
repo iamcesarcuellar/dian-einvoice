@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { contactsApi, itemsApi } from '@/api/resources'
 import FormSection from '@/components/FormSection.vue'
 import { Button } from '@/components/ui/button'
+import { product } from '@/config/product'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 import CodeBlock from './CodeBlock.vue'
@@ -34,7 +35,7 @@ const contactId = computed(
 )
 const itemId = computed(() => items.value?.data[0]?.id ?? 'ITEM_ID')
 const idempotencyKey = ref(crypto.randomUUID())
-const apiBase = 'http://localhost:8600/api/v1'
+const apiBase = `${product.apiUrl}/api/v1`
 
 const curl = computed(() =>
   [
@@ -149,7 +150,7 @@ const language = ref<'node' | 'php'>('node')
 
       <div class="flex flex-wrap items-center gap-3">
         <Button as-child variant="outline" size="sm">
-          <a href="/docs/api" target="_blank" rel="noopener noreferrer">
+          <a :href="product.apiReferenceUrl" target="_blank" rel="noopener noreferrer">
             <ExternalLinkIcon />
             {{ t('developers.quickStart.reference') }}
           </a>

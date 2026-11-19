@@ -2,6 +2,7 @@
 
 namespace App\Http;
 
+use App\Http\Middleware\AssignRequestId;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -33,6 +34,13 @@ final class ProblemDetails
         }
 
         $problem['instance'] = request()->getPathInfo();
+
+        // The id the logs carry for this request, so an answer can be traced without internal details.
+        $requestId = AssignRequestId::current();
+
+        if ($requestId !== null) {
+            $problem['request_id'] = $requestId;
+        }
 
         return new JsonResponse($problem + $extensions, $status, ['Content-Type' => self::CONTENT_TYPE] + $headers);
     }

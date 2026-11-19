@@ -85,7 +85,9 @@ export function schemaErrors(xml: string, schema: string): Promise<string[]> {
 /**
  * Whether xmlsec1 verifies the XML signature (references and signature value) with the key of the
  * certificate it carries. --insecure skips the certificate chain: the validity and the issuer of
- * the certificate are checked apart.
+ * the certificate are checked apart. --enabled-reference-uris keeps the references inside the
+ * document (URI="" and #id, all a XAdES signature of the DIAN uses), so a reference to a file or a
+ * URL is never read; external entities stay off (no --xxe), and parseXml already refused any DTD.
  */
 export function signatureVerifies(xml: string, certificatePem: string): Promise<{ ok: boolean, detail: string }> {
   return limiter.run(() => inTemporaryDirectory(async (directory) => {
@@ -94,7 +96,7 @@ export function signatureVerifies(xml: string, certificatePem: string): Promise<
     await writeFile(file, xml, 'utf8')
     await writeFile(certificate, certificatePem, 'utf8')
 
-    const result = await run('xmlsec1', ['--verify', '--insecure', '--trusted-pem', certificate, file])
+    const result = await run('xmlsec1', ['--verify', '--insecure', '--enabled-reference-uris', 'empty,same-doc', '--trusted-pem', certificate, file])
     const detail = result.output.split('\n').map((line) => line.trim()).filter(Boolean).slice(-2).join(' ')
 
     return { ok: result.code === 0, detail: detail.replaceAll(file, 'document') }

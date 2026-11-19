@@ -9,6 +9,7 @@ use App\Modules\Identity\Tenancy\CompanyScope;
 use DateTimeInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use SensitiveParameter;
 
 /**
  * API keys of the current company: created with a random secret shown once, found by their public
@@ -50,7 +51,7 @@ final class ApiKeys
      * The key a plaintext names, of any company, whatever its status; null when it is not a key of
      * this platform. The comparison runs in constant time, even when no key has that public id.
      */
-    public function find(string $plaintext): ?ApiKey
+    public function find(#[SensitiveParameter] string $plaintext): ?ApiKey
     {
         $prefix = preg_quote((string) config('developers.api_keys.prefix'), '/');
 
@@ -78,7 +79,7 @@ final class ApiKeys
         return $key;
     }
 
-    private static function hash(string $plaintext): string
+    private static function hash(#[SensitiveParameter] string $plaintext): string
     {
         return hash('sha256', $plaintext);
     }

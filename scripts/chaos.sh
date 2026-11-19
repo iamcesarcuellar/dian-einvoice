@@ -6,7 +6,7 @@
 set -eu
 
 invoices="${1:-40}"
-compose="docker compose"
+compose="docker compose --env-file backend/.env"
 company=""
 finished=0
 

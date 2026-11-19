@@ -1,5 +1,6 @@
 # Continuous integration: every job runs the same make targets as the local stack, in the containers of
-# compose.yaml. No secrets and no paid services: the DIAN is the local simulator, email goes to the local mailbox.
+# compose.yaml. No secrets and no paid services: the DIAN is the local simulator, email goes to the local mailbox,
+# and the secrets of the stack are random values make env writes to backend/.env on each runner.
 name: CI
 
 on:
@@ -72,6 +73,23 @@ jobs:
       - name: Rules, failure modes and webhook receiver (make test-simulator)
         run: make test-simulator
 
+  security:
+    name: Dependencies, licenses and secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # The whole history, for the secret scan.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/prepare
+        with:
+          images: api web simulator-dev
+          backend: "true"
+          frontend: "true"
+      - name: Vulnerabilities, licenses and secrets (make security)
+        run: make security
+
   stack:
     name: End-to-end test and checks
     runs-on: ubuntu-24.04
@@ -96,7 +114,7 @@ jobs:
         run: make api-check
       - name: Logs of the stack
         if: failure()
-        run: docker compose logs --no-color --tail=300
+        run: docker compose --env-file backend/.env logs --no-color --tail=300
       - name: Traces of the end-to-end test
         if: failure()
         uses: actions/upload-artifact@v4

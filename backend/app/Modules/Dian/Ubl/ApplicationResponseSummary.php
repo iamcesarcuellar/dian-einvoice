@@ -2,7 +2,7 @@
 
 namespace App\Modules\Dian\Ubl;
 
-use DOMDocument;
+use App\Support\Xml\SafeXml;
 use DOMNode;
 use DOMXPath;
 use Illuminate\Support\Carbon;
@@ -29,13 +29,8 @@ final readonly class ApplicationResponseSummary
 
     public static function fromXml(string $xml): self
     {
-        $dom = new DOMDocument;
-
-        if (! $dom->loadXML($xml, LIBXML_NONET)) {
-            throw new RuntimeException('The ApplicationResponse is not well formed.');
-        }
-
-        $xpath = new DOMXPath($dom);
+        // XmlRefused when it is not well formed or declares a DTD.
+        $xpath = new DOMXPath(SafeXml::load($xml));
         $xpath->registerNamespace('cbc', self::NS_CBC);
         $xpath->registerNamespace('cac', self::NS_CAC);
 

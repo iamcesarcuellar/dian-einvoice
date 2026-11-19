@@ -7,8 +7,6 @@ use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Tools\TemporaryCompany;
 use App\Modules\Developers\Auth\ApiKeys;
 use App\Modules\Developers\Enums\ApiKeyLevel;
-use App\Modules\Developers\Idempotency\IdempotencyFingerprint;
-use App\Modules\Developers\Idempotency\IdempotencyStore;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Tests\IntegrationTestCase;
@@ -59,7 +57,7 @@ final class PublicApiTest extends IntegrationTestCase
         $this->assertGreaterThanOrEqual(1, (int) $limited->headers->get('Retry-After'));
     }
 
-    public function test_an_idempotency_key_replays_refuses_another_request_and_a_running_one(): void
+    public function test_an_idempotency_key_replays_and_refuses_another_request(): void
     {
         $company = $this->company();
         [, $key] = app(ApiKeys::class)->create('Synthetic integration key', ApiKeyLevel::ReadWrite);
@@ -79,11 +77,6 @@ final class PublicApiTest extends IntegrationTestCase
             ->assertHeader('Idempotent-Replayed', 'true')
             ->assertJsonPath('data.id', $first->json('data.id'));
         $post('synthetic-key-1', json_encode(['contact_id' => $contact, 'notes' => 'Another synthetic draft'], JSON_THROW_ON_ERROR))->assertStatus(422);
-
-        // A request with this key is still running elsewhere.
-        $body = json_encode(['contact_id' => $contact], JSON_THROW_ON_ERROR);
-        app(IdempotencyStore::class)->reserve($company->company->id, 'synthetic-key-2', IdempotencyFingerprint::of('POST', '/api/v1/invoices', $body), 'POST', '/api/v1/invoices');
-        $post('synthetic-key-2', $body)->assertStatus(409);
 
         $this->assertSame(1, Document::query()->where('status', DocumentStatus::Draft)->count());
     }

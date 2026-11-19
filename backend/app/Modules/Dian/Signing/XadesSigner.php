@@ -2,6 +2,7 @@
 
 namespace App\Modules\Dian\Signing;
 
+use App\Support\Xml\SafeXml;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -72,12 +73,8 @@ final class XadesSigner
         $certificate = X509::der($credentials->certificatePem);
         $chain = array_map(fn (string $pem): string => X509::der($pem), $credentials->chainPems);
 
-        $this->dom = new DOMDocument;
-        $this->dom->preserveWhiteSpace = true;
-
-        if (! $this->dom->loadXML($xml, LIBXML_NONET)) {
-            throw new RuntimeException('The XML to sign is not well formed.');
-        }
+        // Well-formed and without a DTD, or XmlRefused.
+        $this->dom = SafeXml::load($xml);
 
         $id = 'xmldsig-'.$this->uuid();
         $keyInfoId = 'xmldsig-'.$this->uuid().'-keyinfo';

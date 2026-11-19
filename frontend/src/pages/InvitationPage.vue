@@ -45,7 +45,7 @@ const { data: me } = useQuery(meQuery)
 
 const notFound = computed(() => error.value instanceof ApiError && error.value.status === 404)
 const pending = computed(() => invitation.value?.status === 'pending')
-const signedInAsInvited = computed(() => !!me.value && !!invitation.value && me.value.email.toLowerCase() === invitation.value.email.toLowerCase())
+const signedInAsInvited = computed(() => !!me.value && !!invitation.value?.email && me.value.email.toLowerCase() === invitation.value.email.toLowerCase())
 
 const title = computed(() => (invitation.value ? t('invitation.join', { company: invitation.value.company.name }) : t('invitation.title')))
 const description = computed(() => {
@@ -82,7 +82,7 @@ const logout = useMutation({
 })
 
 function signIn(): void {
-  void router.push({ name: 'login', query: { redirect: route.fullPath, email: invitation.value?.email } })
+  void router.push({ name: 'login', query: { redirect: route.fullPath, email: invitation.value?.email ?? undefined } })
 }
 </script>
 
@@ -127,7 +127,7 @@ function signIn(): void {
       <template v-else-if="me">
         <Alert>
           <CircleAlertIcon />
-          <AlertDescription>{{ t('invitation.otherUser', { current: me.email, invited: invitation.email }) }}</AlertDescription>
+          <AlertDescription>{{ t('invitation.otherUser', { current: me.email, invited: invitation.email ?? '' }) }}</AlertDescription>
         </Alert>
         <Button variant="outline" class="w-full" :disabled="logout.isPending.value" @click="logout.mutate()">
           <LogOutIcon />
@@ -137,7 +137,7 @@ function signIn(): void {
 
       <Button v-else class="w-full" @click="signIn">
         <LogInIcon />
-        {{ t('invitation.signIn', { email: invitation.email }) }}
+        {{ t('invitation.signIn', { email: invitation.email ?? '' }) }}
       </Button>
     </template>
 
@@ -145,7 +145,7 @@ function signIn(): void {
       <FormError :error="accept.error.value" />
 
       <FormField id="invitation-email" :label="t('fields.email')" :hint="t('invitation.emailHint')">
-        <Input id="invitation-email" :model-value="invitation.email" type="email" disabled />
+        <Input id="invitation-email" :model-value="invitation.email ?? ''" type="email" disabled />
       </FormField>
 
       <FormField id="invitation-name" :label="t('fields.name')" :error="accept.errors.value.name?.[0]">

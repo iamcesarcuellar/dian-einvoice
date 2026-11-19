@@ -21,6 +21,19 @@ final class Actor
     }
 
     /**
+     * Who to count a per-user rate limit against: the API key, the signed-in user, or the address
+     * (IP) when there is neither.
+     */
+    public static function limitKey(Request $request): string
+    {
+        return match (true) {
+            self::apiKey($request) !== null => 'key:'.self::apiKey($request)->id,
+            self::user($request) !== null => 'user:'.self::user($request)->id,
+            default => 'ip:'.$request->ip(),
+        };
+    }
+
+    /**
      * The API key the request signs with, or null for a session. Asked of the api-key guard itself:
      * after "auth" it holds the key of a request with a bearer token, and finds none without one.
      */

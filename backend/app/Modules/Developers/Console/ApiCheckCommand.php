@@ -15,6 +15,7 @@ use App\Modules\Developers\Receiver\ReceiverUnavailable;
 use App\Modules\Developers\Webhooks\WebhookEventTypes;
 use App\Modules\Developers\Webhooks\WebhookSubscriptions;
 use App\Modules\Identity\Tenancy\CompanyScope;
+use App\Support\Console\LocalOnly;
 use App\Support\Json;
 use Closure;
 use Illuminate\Console\Command;
@@ -50,6 +51,12 @@ final class ApiCheckCommand extends Command
 
     public function handle(ApiKeys $keys, WebhookSubscriptions $subscriptions, LocalWebhookReceiver $receiver): int
     {
+        if (($refusal = LocalOnly::refusal($this->getName() ?? 'This command')) !== null) {
+            $this->error($refusal);
+
+            return self::FAILURE;
+        }
+
         $this->base = rtrim((string) config('developers.api_check_url'), '/');
         $temporary = TemporaryCompany::create('API Check', 'APIC');
         $companyId = $temporary->company->id;

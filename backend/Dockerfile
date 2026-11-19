@@ -9,8 +9,10 @@
 # batches; billing:stress and payments:check also use it to fork, and are development tools.
 FROM dunglas/frankenphp:1-php8.5-alpine AS production
 
+# expose_php off: answers do not name the PHP version (X-Powered-By).
 RUN install-php-extensions pdo_mysql intl zip pcntl redis \
     && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && printf 'expose_php = Off\n' > "$PHP_INI_DIR/conf.d/zz-security.ini" \
     && chmod -R a+rwX /config /data
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer

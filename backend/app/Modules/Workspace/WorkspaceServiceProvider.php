@@ -2,7 +2,11 @@
 
 namespace App\Modules\Workspace;
 
+use App\Modules\Identity\Tenancy\Actor;
 use App\Modules\Workspace\Console\UiCheckCommand;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -16,6 +20,9 @@ final class WorkspaceServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
+        // The search of the command palette asks as the user types: 120 searches a minute per user.
+        RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(120)->by('search|'.Actor::limitKey($request)));
+
         if ($this->app->runningInConsole()) {
             $this->commands([UiCheckCommand::class]);
         }

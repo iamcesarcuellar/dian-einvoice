@@ -36,9 +36,11 @@ final class CompanyRules
      *
      * @param  Company|null  $company  The company being updated, or null when creating one.
      * @param  string  $prefix  Key prefix when the company is nested, such as "company.".
+     * @param  bool  $unique  Whether a NIT already registered fails validation on its field. Sign-up
+     *                        checks it itself, with an answer that does not tell which field it was.
      * @return array<string, array<int, mixed>>
      */
-    public static function rules(?Company $company = null, string $prefix = ''): array
+    public static function rules(?Company $company = null, string $prefix = '', bool $unique = true): array
     {
         $required = $company === null ? ['required'] : ['sometimes', 'required'];
 
@@ -49,7 +51,7 @@ final class CompanyRules
                 ...$required,
                 'string',
                 'regex:/^\d{5,15}$/',
-                Rule::unique('companies', 'identification_number')->ignore($company?->getKey()),
+                ...($unique ? [Rule::unique('companies', 'identification_number')->ignore($company?->getKey())] : []),
             ],
             $prefix.'check_digit' => [
                 'nullable',

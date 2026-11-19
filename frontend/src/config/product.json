@@ -1,7 +1,9 @@
 {
   "name": "dian-einvoice",
+  "apiUrl": "http://localhost:8600",
   "localDemo": {
     "email": "demo@example.com",
-    "password": "password"
+    "password": "password",
+    "mailboxUrl": "http://localhost:8603"
   }
 }

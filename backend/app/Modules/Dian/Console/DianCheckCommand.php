@@ -18,6 +18,7 @@ use App\Modules\Identity\Enums\Role;
 use App\Modules\Identity\Models\Membership;
 use App\Modules\Identity\Tenancy\CompanyScope;
 use App\Modules\Identity\Tenancy\CurrentCompany;
+use App\Support\Console\LocalOnly;
 use App\Support\Storage\DocumentStorage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -57,6 +58,12 @@ final class DianCheckCommand extends Command
 
     public function handle(UblDocumentXml $builder, XsdValidator $validator, CurrentCompany $currentCompany, XadesSigner $signer, SigningCertificates $certificates, DocumentStorage $storage): int
     {
+        if (($refusal = LocalOnly::refusal($this->getName() ?? 'This command')) !== null) {
+            $this->error($refusal);
+
+            return self::FAILURE;
+        }
+
         $results = [$this->checkCufe()];
 
         $document = $this->demoInvoice($currentCompany);

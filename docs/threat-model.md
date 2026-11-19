@@ -1,0 +1,67 @@
+# Threat model
+
+The platform as it runs here: a Laravel API, a Vue web app, MySQL, Redis, queue workers and an outbox relay, a local simulator of the DIAN and a local mailbox. Production hosting is out of scope until Infrastructure; where a mitigation depends on it, this page says so. The known gaps are in [limitations.md](limitations.md).
+
+## Assets
+
+| Asset | Where it lives | How it is kept |
+| --- | --- | --- |
+| Signing keys of each company (PKCS#12 and its password) | key_store_entries | Encrypted with APP_KEY; never returned by the API |
+| Software PIN and technical keys | dian_settings, number_templates | Encrypted with APP_KEY; only the last four characters of a technical key are shown |
+| API keys | api_keys | SHA-256 of a 40-character random secret, compared in constant time; shown once |
+| Webhook secrets | webhook_subscriptions | Encrypted with APP_KEY; shown once, on creation and rotation |
+| Passwords and sessions | users, Redis | bcrypt; sessions in Redis behind an HttpOnly, SameSite=Lax cookie, Secure in production |
+| Invitation and password reset links | team_invitations, password_reset_tokens | Only a hash of the token is stored; the token travels in the email |
+| Invoices, notes, payments and customer data (names, identification numbers, emails, addresses) | MySQL, document storage | Scoped to a company on every query; files served only by the API after authorization |
+| Integrity of numbering, documents and balances | MySQL | Row locks, gap-free numbering, signed XML with its SHA-256, accepted documents immutable |
+| APP_KEY, Redis password, simulator admin token | backend/.env | Never committed; the Redis password and the token are random per checkout |
+
+## Actors
+
+An anonymous visitor of the API or the web app; a signed-in user of another company; a member with a low role (viewer, member); the holder of an API key (read-only or read-write); the owner of a webhook endpoint; customer data typed into documents (names, notes); the DIAN web service, whose answers are trusted only after parsing; a compromised dependency or CDN.
+
+## Trust boundaries
+
+1. **Browser and web app → API.** Same origin through the dev server (/api and /sanctum only). Session cookie plus CSRF token, accepted only from the stateful origins.
+2. **Integrations → API.** Bearer API keys of one company; no cookies. Panel routes (users, keys, webhooks, certificates, DIAN settings, development tools) refuse keys.
+3. **API, workers and relay → MySQL and Redis.** Internal network of compose; Redis needs its password and publishes no port.
+4. **Workers → DIAN.** SOAP over HTTP to the simulator here; HTTPS and WS-Security in production (not built).
+5. **Workers → webhook endpoints.** Outbound calls to URLs that tenants choose.
+6. **Workers → mail server.** SMTP to the local mailbox here.
+7. **API → simulator admin API and webhook receiver.** A token from configuration; development tools only.
+8. **Development tools on 127.0.0.1.** The local mailbox, the simulator and its receiver: no authentication beyond loopback.
+
+## Threats and mitigations
+
+| Threat | Mitigation | Tests |
+| --- | --- | --- |
+| Account takeover by guessing or spraying passwords | Five failures a minute per email and address, twenty sign-ins a minute per address, failed sign-ins take the same time whether or not the email exists, 12-character minimum, a new session id on sign-in | AccountsTest |
+| A stolen session outliving a password change | Changing or resetting the password ends every other session (Sanctum compares the password hash); sign-out invalidates the session | AccountsTest |
+| Enumerating accounts and tenants | Sign-up answers one message for a taken email or NIT; the reset link answers the same for any address and is sent from the queue; an old or used invitation link shows nothing about the person | AccountsTest, InvitationLinksTest |
+| Password reset and invitation links abused | Single use, 60 minutes for a reset and 7 days for an invitation, a resent invitation replaces the earlier link even in a queued email, limits per address | AccountsTest, InvitationLinksTest |
+| Reading or changing another company's data | The company middleware runs before route bindings; every tenant model has a global scope that fails closed without a company; a record of another company answers 404 | TenantIsolationTest |
+| A route left without authentication | Deny by default: every route but a short public list answers 401 without credentials | RouteAuthenticationTest |
+| A role or a key doing more than allowed | permission middleware on every route that changes data, owner rules in the team services, key levels, panel routes refuse keys | RolesTest, PublicApiTest |
+| Cross-site request forgery and session riding | SameSite=Lax cookies, CSRF token, stateful origins checked by Origin and Referer; the API reference, with its third-party script, is not served on the origin of the session | AccountsTest |
+| Script injection | Vue escapes text and no user content is inserted as HTML; JSON answers carry a Content-Security-Policy that allows nothing; Blade escapes every field of the PDF and the emails | HostileInputTest |
+| Server-side request forgery through webhooks | Private, loopback, link-local, shared, reserved and multicast addresses refused, IPv4 and IPv6, on the resolved address, which the call is pinned to; no redirects; https only in production; answers read up to 64 KB | PrivateTargetsTest, WebhookTargetsTest |
+| XML external entities, entity expansion and zip bombs | No DTD is accepted anywhere (SafeXml in the backend, parseXml in the simulator, before xmllint and xmlsec1); xmlsec1 follows only same-document references; zips limited in size, entries, declared size and names | SafeXmlTest, hostile-input.test.ts |
+| SQL and email header injection | Bindings in every query, $fillable in every model; subjects cleaned of line breaks, recipients validated, Symfony encodes headers | HostileInputTest |
+| Secrets leaking through the database, logs or traces | Hashes and encrypted casts as above; secret parameters marked #[SensitiveParameter]; no request headers logged; X-Request-Id in every answer and log line instead of request data | SecretsInLogsTest, ErrorsAndHeadersTest |
+| Errors revealing internals | Every error, inside and outside /api/v1, is problem+json without traces when APP_DEBUG is off; expose_php off | ErrorsAndHeadersTest |
+| Uploads that are not what they claim | Certificates: 100 KB, .p12 or .pfx, opened with OpenSSL, RSA key matching its certificate; the password never comes back | HostileInputTest |
+| A repeated or simultaneous request acting twice | Idempotency-Key committed with the effect in one transaction, its row lock marking a running request; outbox delivery at least once with idempotent consumers; gap-free numbering under locks; rule 90 and GetStatus before resending | IdempotencyTest, IssueTest, ChainTest |
+| Tampering with issued documents | XAdES signature verified independently, SHA-256 of the stored XML, accepted documents never change | ConformanceTest, ChainTest |
+| Denial of service | Limits per key, user and address; body and upload limits; timeouts on every outbound call; pruning of operational records | AccountsTest, OperationsTest |
+| Development tools reaching real data | Stress, chaos, the checks and the demo seeder refuse to run outside local and testing; the simulator refuses to start without its token | ErrorsAndHeadersTest, hostile-input.test.ts |
+| A vulnerable or incompatible dependency, a committed secret | Lock files, the security job of CI (high and critical advisories, GPL or AGPL in production dependencies, gitleaks over the history), Dependabot, pinned images | make security |
+
+## Risks that remain
+
+- No second factor: a password guessed or phished slowly enough is enough.
+- Sign-up has no email verification (a decision): a refusal still tells that the email or the NIT exists, mitigated by one message for both and ten attempts an hour per address.
+- APP_KEY protects every encrypted secret and cannot be rotated without re-encrypting them; a copy of backend/.env and the database together exposes them.
+- Webhook endpoints are chosen by tenants: a public endpoint that answers slowly or with a lot of data costs a worker up to 5 seconds per attempt.
+- The API reference loads a third-party script without Subresource Integrity on the origin of the API.
+- Until Infrastructure: no TLS between services, no WS-Security toward the DIAN, no security headers on the static web app, fixed local database credentials, and no metrics or alerts.
+- The DIAN side is simulated: answers, failures and rules of the real service may differ.

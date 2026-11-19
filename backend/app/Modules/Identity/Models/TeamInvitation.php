@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use SensitiveParameter;
 
 /**
  * An invitation to join a company with a role, sent by email. Only the SHA-256 of its token is
@@ -54,7 +55,7 @@ class TeamInvitation extends Model
     }
 
     /** What is stored of a token: its SHA-256, in hexadecimal. */
-    public static function hashToken(string $token): string
+    public static function hashToken(#[SensitiveParameter] string $token): string
     {
         return hash('sha256', $token);
     }

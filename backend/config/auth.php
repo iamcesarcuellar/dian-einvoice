@@ -13,6 +13,9 @@ return [
         ],
     ],
 
+    // A failed sign-in takes at least this long, whether or not the email has an account (LoginRequest).
+    'login_timebox_microseconds' => (int) env('LOGIN_TIMEBOX_MICROSECONDS', 400_000),
+
     'providers' => [
         'users' => [
             'driver' => 'eloquent',

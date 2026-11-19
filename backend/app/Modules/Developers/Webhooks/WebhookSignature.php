@@ -3,6 +3,7 @@
 namespace App\Modules\Developers\Webhooks;
 
 use InvalidArgumentException;
+use SensitiveParameter;
 
 /**
  * Signatures of the Standard Webhooks specification (standardwebhooks.com): the secret is whsec_
@@ -19,13 +20,13 @@ final class WebhookSignature
     }
 
     /** The value of the webhook-signature header. */
-    public static function sign(string $secret, string $messageId, int $timestamp, string $body): string
+    public static function sign(#[SensitiveParameter] string $secret, string $messageId, int $timestamp, string $body): string
     {
         return 'v1,'.base64_encode(hash_hmac('sha256', "{$messageId}.{$timestamp}.{$body}", self::key($secret), true));
     }
 
     /** Whether any v1 signature of the header matches, compared in constant time. */
-    public static function verify(string $secret, string $messageId, int $timestamp, string $body, string $header): bool
+    public static function verify(#[SensitiveParameter] string $secret, string $messageId, int $timestamp, string $body, string $header): bool
     {
         $expected = self::sign($secret, $messageId, $timestamp, $body);
 
@@ -39,12 +40,12 @@ final class WebhookSignature
     }
 
     /** The last characters of a secret, enough to recognize it. */
-    public static function hint(string $secret): string
+    public static function hint(#[SensitiveParameter] string $secret): string
     {
         return self::SECRET_PREFIX.'…'.substr($secret, -4);
     }
 
-    private static function key(string $secret): string
+    private static function key(#[SensitiveParameter] string $secret): string
     {
         $encoded = str_starts_with($secret, self::SECRET_PREFIX) ? substr($secret, strlen(self::SECRET_PREFIX)) : $secret;
         $key = base64_decode($encoded, true);

@@ -6,6 +6,7 @@ use App\Support\Json;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use SensitiveParameter;
 use Throwable;
 
 /**
@@ -73,7 +74,7 @@ final class LocalWebhookReceiver
     }
 
     /** Tells the receiver the secret of a subscription, so it can verify what that one signs. */
-    public function registerSecret(string $companyId, string $subscriptionId, string $secret): void
+    public function registerSecret(string $companyId, string $subscriptionId, #[SensitiveParameter] string $secret): void
     {
         $this->json('put', "/admin/webhook-receiver/{$companyId}/secrets/{$subscriptionId}", ['secret' => $secret]);
     }

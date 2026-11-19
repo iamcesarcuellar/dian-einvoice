@@ -10,6 +10,7 @@ use App\Modules\Developers\Database\Seeders\DemoSeeder as DevelopersDemoSeeder;
 use App\Modules\Dian\Database\Seeders\DemoSeeder as DianDemoSeeder;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
+use App\Support\Console\LocalOnly;
 use App\Support\Storage\DocumentStorage;
 use Illuminate\Contracts\Queue\ClearableQueue;
 use Illuminate\Database\Seeder;
@@ -27,6 +28,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(DocumentStorage $storage, DianSimulator $simulator, LocalMailbox $mailbox): void
     {
+        // Synthetic users with a known password and test certificates: never outside local development.
+        LocalOnly::ensure('The demo seeder');
+
         // make seed has just recreated the database, so every stored file is an orphan. The guard
         // keeps the files of a database that still has documents.
         if (DB::table('documents')->doesntExist()) {

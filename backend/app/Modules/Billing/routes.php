@@ -27,7 +27,7 @@ Route::middleware(ApiMiddleware::TENANT)->group(function (): void {
         // Members, admins, owners and read_write keys write drafts, issue them and act on their
         // electronic document chain.
         Route::middleware('permission:manage-documents')->group(function () use ($path): void {
-            Route::post("{$path}/preview", [DocumentController::class, 'preview'])->name("{$path}.preview");
+            Route::post("{$path}/preview", [DocumentController::class, 'preview'])->middleware('throttle:preview')->name("{$path}.preview");
             Route::post($path, [DocumentController::class, 'store'])->name("{$path}.store");
             Route::patch("{$path}/{document}", [DocumentController::class, 'update'])->name("{$path}.update");
             Route::delete("{$path}/{document}", [DocumentController::class, 'destroy'])->name("{$path}.destroy");

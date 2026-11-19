@@ -15,6 +15,7 @@ use App\Modules\Payments\Models\Payment;
 use App\Modules\Payments\Models\PaymentAllocation;
 use App\Modules\Payments\Ports\InvoiceLedger;
 use App\Modules\Payments\Services\RecordPayment;
+use App\Support\Console\LocalOnly;
 use Brick\Math\BigDecimal;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -57,6 +58,12 @@ final class PaymentsCheckCommand extends Command
 
     public function handle(DocumentDrafts $drafts, IssueDocument $issue, InvoiceLedger $ledger, RecordPayment $record): int
     {
+        if (($refusal = LocalOnly::refusal($this->getName() ?? 'This command')) !== null) {
+            $this->error($refusal);
+
+            return self::FAILURE;
+        }
+
         if (! function_exists('pcntl_fork')) {
             $this->error('The pcntl extension is missing; rebuild the api image with make up.');
 

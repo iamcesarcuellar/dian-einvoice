@@ -7,6 +7,7 @@ use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Illuminate\Support\Timebox;
 use Illuminate\Validation\ValidationException;
 
 final class LoginRequest extends FormRequest
@@ -42,7 +43,19 @@ final class LoginRequest extends FormRequest
             );
         }
 
-        if (! Auth::guard('web')->attempt($this->only('email', 'password'))) {
+        // A failed attempt always takes the same time, so an unknown email (no hash to check) does not
+        // answer sooner than a wrong password; a sign-in that works returns at once.
+        $signedIn = (new Timebox)->call(function (Timebox $timebox): bool {
+            $signedIn = Auth::guard('web')->attempt($this->only('email', 'password'));
+
+            if ($signedIn) {
+                $timebox->returnEarly();
+            }
+
+            return $signedIn;
+        }, max(0, config()->integer('auth.login_timebox_microseconds', 400_000))) === true;
+
+        if (! $signedIn) {
             RateLimiter::hit($key, self::DECAY_SECONDS);
 
             throw ValidationException::withMessages(['email' => __('auth.failed')]);

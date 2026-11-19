@@ -66,13 +66,17 @@ runs:
         path: backend/vendor
         key: vendor-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
 
-    - name: Install the backend dependencies and its environment file
+    # backend/.env from the example, with random secrets for the stack (Redis password, simulator token).
+    - name: Environment file of the stack
+      shell: bash
+      run: make env
+
+    - name: Install the backend dependencies and its application key
       if: inputs.backend == 'true'
       shell: bash
       run: |
-        test -f backend/.env || cp backend/.env.example backend/.env
-        docker compose run --rm --no-deps -T api composer install --no-interaction --no-progress
-        grep -Eq '^APP_KEY=.+' backend/.env || docker compose run --rm --no-deps -T api php artisan key:generate --no-interaction
+        docker compose --env-file backend/.env run --rm --no-deps -T api composer install --no-interaction --no-progress
+        grep -Eq '^APP_KEY=.+' backend/.env || docker compose --env-file backend/.env run --rm --no-deps -T api php artisan key:generate --no-interaction
 
     - name: Cache the web app dependencies
       if: inputs.frontend == 'true'
@@ -84,4 +88,4 @@ runs:
     - name: Install the web app dependencies
       if: inputs.frontend == 'true'
       shell: bash
-      run: docker compose run --rm --no-deps -T web pnpm install --frozen-lockfile
+      run: docker compose --env-file backend/.env run --rm --no-deps -T web pnpm install --frozen-lockfile

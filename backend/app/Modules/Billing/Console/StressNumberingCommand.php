@@ -12,6 +12,7 @@ use App\Modules\Billing\Services\IssueDocument;
 use App\Modules\Billing\Tools\TemporaryCompany;
 use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Identity\Models\User;
+use App\Support\Console\LocalOnly;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -35,6 +36,12 @@ final class StressNumberingCommand extends Command
 
     public function handle(DocumentDrafts $drafts, IssueDocument $issue): int
     {
+        if (($refusal = LocalOnly::refusal($this->getName() ?? 'This command')) !== null) {
+            $this->error($refusal);
+
+            return self::FAILURE;
+        }
+
         if (! function_exists('pcntl_fork')) {
             $this->error('The pcntl extension is missing; rebuild the api image with make up.');
 

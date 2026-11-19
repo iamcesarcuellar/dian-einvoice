@@ -16,6 +16,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use SensitiveParameter;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Throwable;
@@ -154,7 +155,7 @@ final class TeamInvitations
     }
 
     /** The invitation of a link, of any company, with its company and inviter; null when no invitation has that token. */
-    public function findByToken(string $token): ?TeamInvitation
+    public function findByToken(#[SensitiveParameter] string $token): ?TeamInvitation
     {
         if ($token === '' || strlen($token) > 255) {
             return null;
@@ -213,7 +214,7 @@ final class TeamInvitations
     }
 
     /** An address without an account: its user is created with the name and password given, and joins the company. */
-    public function acceptAsNewUser(TeamInvitation $invitation, string $name, string $password): User
+    public function acceptAsNewUser(TeamInvitation $invitation, string $name, #[SensitiveParameter] string $password): User
     {
         return DB::transaction(function () use ($invitation, $name, $password): User {
             $invitation = $this->lockPending($invitation);
@@ -237,13 +238,14 @@ final class TeamInvitations
     }
 
     /**
-     * Queues the email with the link, once the invitation is committed; the job records when the
+     * Queues the email with the link, once the invitation is committed (after the outer transaction
+     * too, when the request runs inside one, as with an Idempotency-Key); the job records when the
      * mail server took it (last_sent_at). A failure to queue is reported and returns false.
      */
-    private function send(TeamInvitation $invitation, string $token): bool
+    private function send(TeamInvitation $invitation, #[SensitiveParameter] string $token): bool
     {
         try {
-            SendTeamInvitation::dispatch($invitation->id, $token);
+            SendTeamInvitation::dispatch($invitation->id, $token)->afterCommit();
         } catch (Throwable $exception) {
             report($exception);
 

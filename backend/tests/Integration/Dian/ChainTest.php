@@ -10,6 +10,7 @@ use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Dian\Pipeline\ElectronicDocumentActions;
 use App\Modules\Dian\Pipeline\StalledChainSweeper;
 use App\Modules\Dian\Services\IssueDateRefresh;
+use App\Modules\Dian\Services\SigningCertificates;
 use App\Modules\Dian\Transmission\DianGateway;
 use App\Modules\Dian\Transmission\TransmissionOutcome;
 use App\Modules\Reference\Enums\PaymentForm;
@@ -198,6 +199,54 @@ final class ChainTest extends IntegrationTestCase
             $this->assertSame($cufe, $unchanged->cufe);
             $this->assertSame($today->copy()->addDays(2)->toDateString(), $unchanged->issue_date?->toDateString());
         }
+    }
+
+    public function test_a_certificate_that_expires_between_issue_and_signing_stops_the_chain_before_anything_is_sent(): void
+    {
+        $company = $this->company();
+        $this->actingIn($company);
+        // A synthetic certificate that is valid for one more hour.
+        app(SigningCertificates::class)->generateTest($company->company, Carbon::now()->subYears(2)->addHour());
+        $issued = $this->issue($company, $this->draftInvoice($company));
+
+        // The worker gets to the signature two hours later.
+        Carbon::setTestNow(Carbon::now()->addHours(2));
+        $invoice = $this->runChain($issued);
+
+        $this->assertSame(ElectronicStatus::Failed, $invoice->electronic_status);
+        $this->assertSame('sign', $invoice->electronic_failed_step);
+        $failure = DocumentEvent::query()->where('document_id', $invoice->id)->where('type', DocumentEventType::XmlFailed)->sole();
+        $this->assertStringContainsString('expired', $this->text($failure->payload['reason'] ?? null));
+        $this->assertNull($invoice->xml_signed_at);
+        $this->assertSame([], $this->calls($invoice), 'An invoice signed with an expired certificate reached the DIAN.');
+        $this->assertSame($issued->full_number, $invoice->full_number);
+    }
+
+    public function test_the_file_counters_start_again_on_january_1_in_colombian_time(): void
+    {
+        $newYear = Carbon::now('America/Bogota')->startOfYear()->addYear();
+        $company = $this->company();
+        $this->actingIn($company);
+        // Valid from yesterday: the simulator, as the DIAN, also checks it against its own clock.
+        app(SigningCertificates::class)->generateTest($company->company, Carbon::now()->subDay());
+        $nit = str_pad($company->company->identification_number, 10, '0', STR_PAD_LEFT);
+        $names = [];
+
+        // Half an hour before and after midnight in Colombia: already the new year in UTC both times.
+        foreach ([$newYear->copy()->subMinutes(30), $newYear->copy()->addMinutes(30), $newYear->copy()->addMinutes(40)] as $moment) {
+            Carbon::setTestNow($moment);
+            $invoice = $this->acceptedInvoice($company);
+            $this->assertSame(ElectronicStatus::Accepted, $invoice->electronic_status);
+            $names[] = [$invoice->dian_zip_file_name, $invoice->dian_xml_file_name];
+        }
+
+        $last = substr((string) ($newYear->year - 1), -2);
+        $next = substr((string) $newYear->year, -2);
+        $this->assertSame([
+            ["z{$nit}000{$last}00000001.zip", "fv{$nit}000{$last}00000001.xml"],
+            ["z{$nit}000{$next}00000001.zip", "fv{$nit}000{$next}00000001.xml"],
+            ["z{$nit}000{$next}00000002.zip", "fv{$nit}000{$next}00000002.xml"],
+        ], $names);
     }
 
     /**

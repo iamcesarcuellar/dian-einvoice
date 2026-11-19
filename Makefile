@@ -3,7 +3,9 @@
 export HOST_UID := $(shell id -u)
 export HOST_GID := $(shell id -g)
 
-COMPOSE := docker compose
+# Compose reads the secrets of the stack (Redis password, simulator admin token) from the environment file
+# of the backend, the same file Laravel reads; make env creates it and fills them in.
+COMPOSE := docker compose --env-file backend/.env
 
 # Size of make stress.
 INVOICES ?= 60
@@ -16,14 +18,23 @@ CHAOS_INVOICES ?= 40
 # cache and sets BUILD empty, so compose uses them as they are.
 BUILD ?= --build
 
-.PHONY: up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator e2e checks
+TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator e2e checks security
+
+.PHONY: env $(TARGETS)
+
+# Every target runs compose with backend/.env: it is created and its secrets filled in first.
+$(filter-out screenshots,$(TARGETS)): env
+
+# backend/.env from backend/.env.example when missing, with a random Redis password and simulator admin
+# token when they are empty (scripts/env.sh). Never committed; values already set are kept.
+env:
+	@sh scripts/env.sh backend/.env
 
 # Build images if needed, start the stack, wait for the database, Redis and the local mailbox, install missing dependencies,
 # generate the key, migrate, and start the queue workers and the outbox relay with the current code.
 up:
 	$(if $(BUILD),$(COMPOSE) build)
 	$(COMPOSE) up -d --wait db redis mail
-	test -f backend/.env || cp backend/.env.example backend/.env
 	test -d backend/vendor || $(COMPOSE) run --rm --no-deps api composer install --no-interaction
 	grep -Eq '^APP_KEY=.+' backend/.env || $(COMPOSE) run --rm --no-deps api php artisan key:generate --no-interaction
 	test -d frontend/node_modules || $(COMPOSE) run --rm --no-deps web pnpm install --frozen-lockfile
@@ -40,7 +51,7 @@ down:
 logs:
 	$(COMPOSE) logs -f --tail=100
 
-# Show the state of this project's containers.
+# Show the state of this project's containers, with the result of the healthcheck of each service.
 ps:
 	$(COMPOSE) ps
 
@@ -144,6 +155,23 @@ fix:
 	$(COMPOSE) run --rm --no-deps -T api vendor/bin/pint
 	$(COMPOSE) run --rm --no-deps -T web pnpm fix
 	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm run fix
+
+# Security of the dependencies and the repository, also a job of CI. Known vulnerabilities of the backend, the
+# web app, the simulator and the end-to-end test: high and critical ones fail. Production dependencies whose
+# license is only GPL or AGPL fail (scripts/security/licenses.mjs). Secrets in the git history and in the
+# changes not committed yet fail (gitleaks, profile security, rules in .gitleaks.toml). Each step runs in a
+# container; the audits ask the public advisory databases of Packagist and npm.
+security:
+	$(COMPOSE) run --rm --no-deps -T api composer audit --locked --no-interaction --abandoned=report --ignore-severity=low --ignore-severity=medium
+	$(COMPOSE) run --rm --no-deps -T web pnpm audit --audit-level high
+	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev sh -c 'cd /workspace && npm audit --audit-level=high'
+	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/e2e:/e2e:ro web sh -c 'cd /e2e && npm audit --audit-level=high --package-lock-only'
+	$(COMPOSE) run --rm --no-deps -T api composer licenses --no-dev --format=json | $(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/scripts/security:/security:ro web node /security/licenses.mjs composer backend
+	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/scripts/security:/security:ro web sh -c 'pnpm licenses list --prod --json | node /security/licenses.mjs pnpm web-app'
+	$(COMPOSE) --profile tools run --rm -T -v $(CURDIR)/scripts/security:/security:ro simulator-dev sh -c 'cd /workspace && npm ls --omit=dev --all --parseable | node /security/licenses.mjs npm simulator'
+	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner
+	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner --pre-commit
+	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner --pre-commit --staged
 
 # Every test that needs no browser: backend, web app and simulator.
 test: test-backend test-frontend test-simulator

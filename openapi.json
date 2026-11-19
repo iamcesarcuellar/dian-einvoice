@@ -3,7 +3,7 @@
     "info": {
         "title": "dian-einvoice",
         "version": "1.0.0",
-        "description": "The API of dian-einvoice, the same one its web app uses: contacts, items, invoices, credit and debit notes, their electronic document chain (UBL 2.1 XML, CUFE or CUDE, XAdES signature, transmission and the answer), the delivery to the customer, and payments. In this project the DIAN is always a local simulator and every email lands in a local mailbox: nothing reaches the DIAN.\n\n## Authentication\n\nSend an API key of the company in the `Authorization` header: `Authorization: Bearer dei_...`. Owners and admins create keys in **Settings \u2192 Developers**; a key is shown once, only its hash is stored, and it can expire or be revoked.\n\n- The company is the company of the key: `X-Company-Id` is not needed and, when sent, must be that company (403 otherwise).\n- `read_only` keys read everything below. `read_write` keys also write contacts, items, invoices, notes and payments and run their actions (issue, retry, resend, send again, void a payment).\n- No key manages users, API keys, webhooks, certificates, DIAN settings or the simulator: those belong to the web app session, and keys get 403.\n- In timelines, the actor of an action done with a key is the key, with its name.\n\n## Idempotency\n\nAny `POST` may carry an `Idempotency-Key` header (1 to 255 visible ASCII characters, such as a UUID). Keys are per company and kept 24 hours with the answer and a fingerprint of the request (method, path and body).\n\n- The same key with the same request returns the first answer, status and body, with `Idempotent-Replayed: true`, and runs nothing.\n- The same key with another request answers **422**; while the first request is still running, **409**.\n- Reserving a key is atomic, so two simultaneous requests with one key never both run. A 5xx answer is not kept: the request can be repeated with the same key.\n\n## Rate limits\n\nEach key may make 120 requests per minute unless it has a limit of its own. Every answer to a key carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` (Unix time), plus `RateLimit-Policy` and `RateLimit` of the IETF draft. Above the limit the API answers **429** with `Retry-After` in seconds.\n\n## Pagination and search\n\nLists answer `data`, `links` and `meta` (`current_page`, `last_page`, `per_page`, `total`). Use `?page=` and `?per_page=` (1 to 100, 25 by default); most lists also take `?search=` and their own filters.\n\n## Money and dates\n\nAmounts, quantities and rates are decimal strings, such as `\"1190000.00\"`, never floats. Dates of documents are Colombian dates (`YYYY-MM-DD`); instants are ISO 8601 in UTC.\n\n## Errors\n\nEvery error is `application/problem+json` (RFC 9457): `type` (always `about:blank`), `title`, `status`, `detail` and `instance`; validation errors (422) add `errors`, the messages of each field. 401: no valid credentials. 403: the key level or the role does not allow it. 404: not found in the company. 409: the state does not allow it, such as issuing twice. 503: a local service, such as the DIAN simulator, is not answering.\n\n## Webhooks\n\nOwners and admins subscribe URLs in **Settings \u2192 Developers** to these events: `invoice.issued`, `invoice.accepted`, `invoice.rejected`, `invoice.failed`, `invoice.delivered`, `invoice.paid`, `invoice.voided`; `credit_note.issued`, `credit_note.accepted`, `credit_note.rejected`, `credit_note.delivered`, and the same four for `debit_note`; `payment.recorded` and `payment.voided`. \"Send test event\" sends `webhook.test`.\n\nThe body is `{\"id\": \"evt_...\", \"type\": \"invoice.accepted\", \"created_at\": \"...\", \"company_id\": \"...\", \"data\": {\"object\": {...}}}`, where `data.object` is the same resource this API returns for that document or payment.\n\nDeliveries follow the [Standard Webhooks](https://www.standardwebhooks.com) specification: headers `webhook-id` (the event id, the same on every retry), `webhook-timestamp` (Unix seconds) and `webhook-signature` (`v1,` and the base64 HMAC-SHA256 of `{webhook-id}.{webhook-timestamp}.{body}` with the secret, the base64 after `whsec_` decoded). Verify the signature over the raw body, reject old timestamps, and answer 2xx within 5 seconds.\n\nDelivery is at least once and in no particular order: deduplicate by `webhook-id`. A failed attempt is retried after 2, 5, 15, 45 and 120 seconds; then the delivery fails and can be sent again by hand. A subscription is switched off after 20 failed deliveries in a row."
+        "description": "The API of dian-einvoice, the same one its web app uses: contacts, items, invoices, credit and debit notes, their electronic document chain (UBL 2.1 XML, CUFE or CUDE, XAdES signature, transmission and the answer), the delivery to the customer, and payments. In this project the DIAN is always a local simulator and every email lands in a local mailbox: nothing reaches the DIAN.\n\n## Authentication\n\nSend an API key of the company in the `Authorization` header: `Authorization: Bearer dei_...`. Owners and admins create keys in **Settings \u2192 Developers**; a key is shown once, only its hash is stored, and it can expire or be revoked.\n\n- The company is the company of the key: `X-Company-Id` is not needed and, when sent, must be that company (403 otherwise).\n- `read_only` keys read everything below. `read_write` keys also write contacts, items, invoices, notes and payments and run their actions (issue, retry, resend, send again, void a payment).\n- No key manages users, API keys, webhooks, certificates, DIAN settings or the simulator: those belong to the web app session, and keys get 403.\n- In timelines, the actor of an action done with a key is the key, with its name.\n\n## Idempotency\n\nAny `POST` may carry an `Idempotency-Key` header (1 to 255 visible ASCII characters, such as a UUID). Keys are per company and kept 24 hours with the answer and a fingerprint of the request (method, path and body).\n\n- The same key with the same request returns the first answer, status and body, with `Idempotent-Replayed: true`, and runs nothing.\n- The same key with another request answers **422**; while the first request is still running, **409**.\n- Reserving a key is atomic, so two simultaneous requests with one key never both run. A 5xx answer is not kept: the request can be repeated with the same key.\n\n## Rate limits\n\nEach key may make 120 requests per minute unless it has a limit of its own. Every answer to a key carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` (Unix time), plus `RateLimit-Policy` and `RateLimit` of the IETF draft. Above the limit the API answers **429** with `Retry-After` in seconds.\n\n## Pagination and search\n\nLists answer `data`, `links` and `meta` (`current_page`, `last_page`, `per_page`, `total`). Use `?page=` and `?per_page=` (1 to 100, 25 by default); most lists also take `?search=` and their own filters.\n\n## Money and dates\n\nAmounts, quantities and rates are decimal strings, such as `\"1190000.00\"`, never floats. Dates of documents are Colombian dates (`YYYY-MM-DD`); instants are ISO 8601 in UTC.\n\n## Errors\n\nEvery error is `application/problem+json` (RFC 9457): `type` (always `about:blank`), `title`, `status`, `detail`, `instance` and `request_id`; validation errors (422) add `errors`, the messages of each field. Every answer carries an `X-Request-Id` header with the same id, which is also in the logs: quote it when asking about a request. 401: no valid credentials. 403: the key level or the role does not allow it. 404: not found in the company. 409: the state does not allow it, such as issuing twice. 503: a local service, such as the DIAN simulator, is not answering.\n\n## Webhooks\n\nOwners and admins subscribe URLs in **Settings \u2192 Developers** to these events: `invoice.issued`, `invoice.accepted`, `invoice.rejected`, `invoice.failed`, `invoice.delivered`, `invoice.paid`, `invoice.voided`; `credit_note.issued`, `credit_note.accepted`, `credit_note.rejected`, `credit_note.delivered`, and the same four for `debit_note`; `payment.recorded` and `payment.voided`. \"Send test event\" sends `webhook.test`.\n\nThe body is `{\"id\": \"evt_...\", \"type\": \"invoice.accepted\", \"created_at\": \"...\", \"company_id\": \"...\", \"data\": {\"object\": {...}}}`, where `data.object` is the same resource this API returns for that document or payment.\n\nDeliveries follow the [Standard Webhooks](https://www.standardwebhooks.com) specification: headers `webhook-id` (the event id, the same on every retry), `webhook-timestamp` (Unix seconds) and `webhook-signature` (`v1,` and the base64 HMAC-SHA256 of `{webhook-id}.{webhook-timestamp}.{body}` with the secret, the base64 after `whsec_` decoded). Verify the signature over the raw body, reject old timestamps, and answer 2xx within 5 seconds.\n\nDelivery is at least once and in no particular order: deduplicate by `webhook-id`. A failed attempt is retried after 2, 5, 15, 45 and 120 seconds; then the delivery fails and can be sent again by hand. A subscription is switched off after 20 failed deliveries in a row."
     },
     "servers": [
         {
@@ -1868,7 +1868,12 @@
                                                                 "null"
                                                             ]
                                                         },
-                                                        "customer_name": {},
+                                                        "customer_name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "currency": {
                                                             "type": "string"
                                                         },
@@ -1925,7 +1930,12 @@
                                                         }
                                                     ]
                                                 },
-                                                "customer_name": {},
+                                                "customer_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "currency": {
                                                     "type": "string"
                                                 },
@@ -3166,6 +3176,81 @@
                             }
                         }
                     },
+                    "429": {
+                        "description": "Too many requests for this API key: wait the seconds of Retry-After",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "type": {
+                                            "type": "string",
+                                            "description": "Always about:blank: status and title say what happened.",
+                                            "examples": [
+                                                "about:blank"
+                                            ]
+                                        },
+                                        "title": {
+                                            "type": "string",
+                                            "description": "The HTTP status text.",
+                                            "examples": [
+                                                "Too Many Requests"
+                                            ]
+                                        },
+                                        "status": {
+                                            "type": "integer",
+                                            "examples": [
+                                                429
+                                            ]
+                                        },
+                                        "detail": {
+                                            "type": "string",
+                                            "description": "What went wrong, in a sentence for people."
+                                        },
+                                        "instance": {
+                                            "type": "string",
+                                            "description": "The path of the request.",
+                                            "examples": [
+                                                "/api/v1/invoices"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "title",
+                                        "status",
+                                        "instance"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds until the window of the limit resets.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Requests per minute of the key.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests left in the current window: 0.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Reset": {
+                                "description": "Unix time when the window resets.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
                     "401": {
                         "$ref": "#/components/responses/ProblemAuthenticationException"
                     },
@@ -3266,81 +3351,6 @@
                                         "status",
                                         "instance"
                                     ]
-                                }
-                            }
-                        }
-                    },
-                    "429": {
-                        "description": "Too many requests for this API key: wait the seconds of Retry-After",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {
-                                            "type": "string",
-                                            "description": "Always about:blank: status and title say what happened.",
-                                            "examples": [
-                                                "about:blank"
-                                            ]
-                                        },
-                                        "title": {
-                                            "type": "string",
-                                            "description": "The HTTP status text.",
-                                            "examples": [
-                                                "Too Many Requests"
-                                            ]
-                                        },
-                                        "status": {
-                                            "type": "integer",
-                                            "examples": [
-                                                429
-                                            ]
-                                        },
-                                        "detail": {
-                                            "type": "string",
-                                            "description": "What went wrong, in a sentence for people."
-                                        },
-                                        "instance": {
-                                            "type": "string",
-                                            "description": "The path of the request.",
-                                            "examples": [
-                                                "/api/v1/invoices"
-                                            ]
-                                        }
-                                    },
-                                    "required": [
-                                        "type",
-                                        "title",
-                                        "status",
-                                        "instance"
-                                    ]
-                                }
-                            }
-                        },
-                        "headers": {
-                            "Retry-After": {
-                                "description": "Seconds until the window of the limit resets.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Limit": {
-                                "description": "Requests per minute of the key.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Remaining": {
-                                "description": "Requests left in the current window: 0.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Reset": {
-                                "description": "Unix time when the window resets.",
-                                "schema": {
-                                    "type": "integer"
                                 }
                             }
                         }
@@ -6132,7 +6142,12 @@
                                                                 "null"
                                                             ]
                                                         },
-                                                        "customer_name": {},
+                                                        "customer_name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "currency": {
                                                             "type": "string"
                                                         },
@@ -6189,7 +6204,12 @@
                                                         }
                                                     ]
                                                 },
-                                                "customer_name": {},
+                                                "customer_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "currency": {
                                                     "type": "string"
                                                 },
@@ -7430,6 +7450,81 @@
                             }
                         }
                     },
+                    "429": {
+                        "description": "Too many requests for this API key: wait the seconds of Retry-After",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "type": {
+                                            "type": "string",
+                                            "description": "Always about:blank: status and title say what happened.",
+                                            "examples": [
+                                                "about:blank"
+                                            ]
+                                        },
+                                        "title": {
+                                            "type": "string",
+                                            "description": "The HTTP status text.",
+                                            "examples": [
+                                                "Too Many Requests"
+                                            ]
+                                        },
+                                        "status": {
+                                            "type": "integer",
+                                            "examples": [
+                                                429
+                                            ]
+                                        },
+                                        "detail": {
+                                            "type": "string",
+                                            "description": "What went wrong, in a sentence for people."
+                                        },
+                                        "instance": {
+                                            "type": "string",
+                                            "description": "The path of the request.",
+                                            "examples": [
+                                                "/api/v1/invoices"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "title",
+                                        "status",
+                                        "instance"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds until the window of the limit resets.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Requests per minute of the key.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests left in the current window: 0.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Reset": {
+                                "description": "Unix time when the window resets.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
                     "401": {
                         "$ref": "#/components/responses/ProblemAuthenticationException"
                     },
@@ -7530,81 +7625,6 @@
                                         "status",
                                         "instance"
                                     ]
-                                }
-                            }
-                        }
-                    },
-                    "429": {
-                        "description": "Too many requests for this API key: wait the seconds of Retry-After",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {
-                                            "type": "string",
-                                            "description": "Always about:blank: status and title say what happened.",
-                                            "examples": [
-                                                "about:blank"
-                                            ]
-                                        },
-                                        "title": {
-                                            "type": "string",
-                                            "description": "The HTTP status text.",
-                                            "examples": [
-                                                "Too Many Requests"
-                                            ]
-                                        },
-                                        "status": {
-                                            "type": "integer",
-                                            "examples": [
-                                                429
-                                            ]
-                                        },
-                                        "detail": {
-                                            "type": "string",
-                                            "description": "What went wrong, in a sentence for people."
-                                        },
-                                        "instance": {
-                                            "type": "string",
-                                            "description": "The path of the request.",
-                                            "examples": [
-                                                "/api/v1/invoices"
-                                            ]
-                                        }
-                                    },
-                                    "required": [
-                                        "type",
-                                        "title",
-                                        "status",
-                                        "instance"
-                                    ]
-                                }
-                            }
-                        },
-                        "headers": {
-                            "Retry-After": {
-                                "description": "Seconds until the window of the limit resets.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Limit": {
-                                "description": "Requests per minute of the key.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Remaining": {
-                                "description": "Requests left in the current window: 0.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Reset": {
-                                "description": "Unix time when the window resets.",
-                                "schema": {
-                                    "type": "integer"
                                 }
                             }
                         }
@@ -9699,11 +9719,16 @@
                                             "properties": {
                                                 "database": {
                                                     "type": "string",
-                                                    "const": "ok"
+                                                    "const": "down"
+                                                },
+                                                "redis": {
+                                                    "type": "string",
+                                                    "const": "down"
                                                 }
                                             },
                                             "required": [
-                                                "database"
+                                                "database",
+                                                "redis"
                                             ]
                                         }
                                     },
@@ -11354,6 +11379,81 @@
                             }
                         }
                     },
+                    "429": {
+                        "description": "Too many requests for this API key: wait the seconds of Retry-After",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "type": {
+                                            "type": "string",
+                                            "description": "Always about:blank: status and title say what happened.",
+                                            "examples": [
+                                                "about:blank"
+                                            ]
+                                        },
+                                        "title": {
+                                            "type": "string",
+                                            "description": "The HTTP status text.",
+                                            "examples": [
+                                                "Too Many Requests"
+                                            ]
+                                        },
+                                        "status": {
+                                            "type": "integer",
+                                            "examples": [
+                                                429
+                                            ]
+                                        },
+                                        "detail": {
+                                            "type": "string",
+                                            "description": "What went wrong, in a sentence for people."
+                                        },
+                                        "instance": {
+                                            "type": "string",
+                                            "description": "The path of the request.",
+                                            "examples": [
+                                                "/api/v1/invoices"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "title",
+                                        "status",
+                                        "instance"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds until the window of the limit resets.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Requests per minute of the key.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests left in the current window: 0.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Reset": {
+                                "description": "Unix time when the window resets.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
                     "401": {
                         "$ref": "#/components/responses/ProblemAuthenticationException"
                     },
@@ -11454,81 +11554,6 @@
                                         "status",
                                         "instance"
                                     ]
-                                }
-                            }
-                        }
-                    },
-                    "429": {
-                        "description": "Too many requests for this API key: wait the seconds of Retry-After",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {
-                                            "type": "string",
-                                            "description": "Always about:blank: status and title say what happened.",
-                                            "examples": [
-                                                "about:blank"
-                                            ]
-                                        },
-                                        "title": {
-                                            "type": "string",
-                                            "description": "The HTTP status text.",
-                                            "examples": [
-                                                "Too Many Requests"
-                                            ]
-                                        },
-                                        "status": {
-                                            "type": "integer",
-                                            "examples": [
-                                                429
-                                            ]
-                                        },
-                                        "detail": {
-                                            "type": "string",
-                                            "description": "What went wrong, in a sentence for people."
-                                        },
-                                        "instance": {
-                                            "type": "string",
-                                            "description": "The path of the request.",
-                                            "examples": [
-                                                "/api/v1/invoices"
-                                            ]
-                                        }
-                                    },
-                                    "required": [
-                                        "type",
-                                        "title",
-                                        "status",
-                                        "instance"
-                                    ]
-                                }
-                            }
-                        },
-                        "headers": {
-                            "Retry-After": {
-                                "description": "Seconds until the window of the limit resets.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Limit": {
-                                "description": "Requests per minute of the key.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Remaining": {
-                                "description": "Requests left in the current window: 0.",
-                                "schema": {
-                                    "type": "integer"
-                                }
-                            },
-                            "X-RateLimit-Reset": {
-                                "description": "Unix time when the window resets.",
-                                "schema": {
-                                    "type": "integer"
                                 }
                             }
                         }
@@ -16971,14 +16996,14 @@
                             }
                         }
                     },
+                    "422": {
+                        "$ref": "#/components/responses/ProblemValidationException"
+                    },
                     "404": {
                         "$ref": "#/components/responses/ProblemModelNotFoundException"
                     },
                     "401": {
                         "$ref": "#/components/responses/ProblemAuthenticationException"
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ProblemValidationException"
                     },
                     "403": {
                         "description": "Forbidden: not a member of the company, a role or API key level that does not allow it, or a key of another company",
@@ -19876,7 +19901,9 @@
                     },
                     "fiscal_responsibilities": {
                         "type": "array",
-                        "items": {}
+                        "items": {
+                            "type": "string"
+                        }
                     },
                     "email": {
                         "type": [
@@ -20203,7 +20230,7 @@
             },
             "DocumentEventType": {
                 "type": "string",
-                "description": "Entries of a document timeline. Those of the transmission always refer to the local DIAN simulator, which is the only DIAN this project talks to.\n| |\n|---|\n| `created` <br/>  |\n| `issued` <br/>  |\n| `xml_generated` <br/>  |\n| `xml_signed` <br/>  |\n| `issue_date_moved` <br/> FAD09e, CAD09e and DAD09e: the chain generated or signed the XML on a later day in Colombia, so the issue date and time moved to that moment and the CUFE or CUDE was calculated again. Payload: run, step, previous_issue_date, previous_issue_time, previous_key, issue_date, issue_time and key. |\n| `xml_failed` <br/> Generation or signing failed; payload: step and reason. |\n| `transmission_attempt` <br/> One call of an attempt: SendBillSync, or GetStatus when an earlier send may have arrived. Payload: run, attempt, operation, outcome, duration_ms, http_status, status_code, error, and retry_in and next_attempt_at when a retry was scheduled. |\n| `accepted` <br/> Accepted by the local simulator; payload: status_code and notifications. |\n| `rejected` <br/> Rejected by the rules of the local simulator; payload: status_code and rules. |\n| `transmission_failed` <br/> Every transmission attempt failed; payload: attempts and reason. |\n| `retry_requested` <br/> Retry now, by a user; payload: step and whether it was waiting or failed. |\n| `resend_requested` <br/> Resend after a rejection, by a user; payload: whether the CUFE changed. |\n| `attached_document_built` <br/> The AttachedDocument was built and signed; payload: run, file_name, sha256 and size. |\n| `pdf_generated` <br/> The PDF was generated; payload: run, file_name, pages, sha256 and size. |\n| `email_attempt` <br/> One email attempt to the customer, always caught by the local mailbox. Payload: run, attempt, max_attempts, recipient, outcome (sent or failed), error, message_id, package, and retry_in and next_attempt_at when a retry was scheduled. |\n| `delivery_not_applicable` <br/> The customer has no email address, so nothing was sent; payload: run and package. |\n| `delivery_failed` <br/> A delivery step failed, or every email attempt did; payload: step, reason and attempts. |\n| `delivery_requested` <br/> Send again, by a user; payload: run, recipient, previous_recipient and the step it starts from. |\n| `pdf_regeneration_requested` <br/> Regenerate the PDF after it failed, by a user; payload: run and the step it starts from. |\n| `note_accepted` <br/> On an invoice: the local simulator accepted one of its credit or debit notes. Payload: note_id, note_type, number, amount, voided and the balance_status it left. |\n| `payment_applied` <br/> On an invoice: a payment was applied to it. Payload: payment_id, number, amount and balance. |\n| `payment_released` <br/> On an invoice: a voided payment gave its amount back. Payload: payment_id, number, amount and balance. |",
+                "description": "Entries of a document timeline. Those of the transmission always refer to the local DIAN simulator, which is the only DIAN this project talks to.\n| |\n|---|\n| `created` <br/>  |\n| `issued` <br/>  |\n| `xml_generated` <br/>  |\n| `xml_signed` <br/>  |\n| `issue_date_moved` <br/> FAD09e, CAD09e and DAD09e: the chain generated or signed the XML on a later day in Colombia, so the issue date and time moved to that moment, the due date by the same days, and the CUFE or CUDE was calculated again. Payload: run, step, previous_issue_date, previous_issue_time, previous_due_date, previous_key, issue_date, issue_time, due_date and key (the due date of a cash document is its issue date). |\n| `xml_failed` <br/> Generation or signing failed; payload: step and reason. |\n| `transmission_attempt` <br/> One call of an attempt: SendBillSync, or GetStatus when an earlier send may have arrived. Payload: run, attempt, operation, outcome, duration_ms, http_status, status_code, error, and retry_in and next_attempt_at when a retry was scheduled. |\n| `accepted` <br/> Accepted by the local simulator; payload: status_code and notifications. |\n| `rejected` <br/> Rejected by the rules of the local simulator; payload: status_code and rules. |\n| `transmission_failed` <br/> Every transmission attempt failed; payload: attempts and reason. |\n| `retry_requested` <br/> Retry now, by a user; payload: step and whether it was waiting or failed. |\n| `resend_requested` <br/> Resend after a rejection, by a user; payload: whether the CUFE changed. |\n| `attached_document_built` <br/> The AttachedDocument was built and signed; payload: run, file_name, sha256 and size. |\n| `pdf_generated` <br/> The PDF was generated; payload: run, file_name, pages, sha256 and size. |\n| `email_attempt` <br/> One email attempt to the customer, always caught by the local mailbox. Payload: run, attempt, max_attempts, recipient, outcome (sent or failed), error, message_id, package, and retry_in and next_attempt_at when a retry was scheduled. |\n| `delivery_not_applicable` <br/> The customer has no email address, so nothing was sent; payload: run and package. |\n| `delivery_failed` <br/> A delivery step failed, or every email attempt did; payload: step, reason and attempts. |\n| `delivery_requested` <br/> Send again, by a user; payload: run, recipient, previous_recipient and the step it starts from. |\n| `pdf_regeneration_requested` <br/> Regenerate the PDF after it failed, by a user; payload: run and the step it starts from. |\n| `note_accepted` <br/> On an invoice: the local simulator accepted one of its credit or debit notes. Payload: note_id, note_type, number, amount, voided and the balance_status it left. |\n| `payment_applied` <br/> On an invoice: a payment was applied to it. Payload: payment_id, number, amount and balance. |\n| `payment_released` <br/> On an invoice: a voided payment gave its amount back. Payload: payment_id, number, amount and balance. |",
                 "enum": [
                     "created",
                     "issued",
@@ -20573,6 +20600,10 @@
                     "customer_name": {
                         "anyOf": [
                             {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
                                 "description": "The customer as issued, or as it is now while the invoice is a draft."
                             },
                             {}
@@ -20716,14 +20747,27 @@
                                                 "type": "string",
                                                 "const": "invoice"
                                             },
-                                            "full_number": {},
-                                            "issue_date": {},
-                                            "cufe": {},
-                                            "customer_name": {},
+                                            "full_number": {
+                                                "type": "string"
+                                            },
+                                            "issue_date": {
+                                                "type": "string"
+                                            },
+                                            "cufe": {
+                                                "type": "string"
+                                            },
+                                            "customer_name": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            },
                                             "currency": {
                                                 "type": "string"
                                             },
-                                            "payable_amount": {}
+                                            "payable_amount": {
+                                                "type": "string"
+                                            }
                                         },
                                         "required": [
                                             "id",
@@ -20761,7 +20805,12 @@
                                                     "null"
                                                 ]
                                             },
-                                            "customer_name": {},
+                                            "customer_name": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            },
                                             "currency": {
                                                 "type": "string"
                                             },
@@ -20979,25 +21028,22 @@
                     },
                     "company_snapshot": {
                         "type": [
-                            "array",
+                            "object",
                             "null"
                         ],
-                        "description": "The copies frozen on issue, on the detail only.",
-                        "items": {}
+                        "description": "The copies frozen on issue, on the detail only."
                     },
                     "customer_snapshot": {
                         "type": [
-                            "array",
+                            "object",
                             "null"
-                        ],
-                        "items": {}
+                        ]
                     },
                     "numbering_snapshot": {
                         "type": [
-                            "array",
+                            "object",
                             "null"
-                        ],
-                        "items": {}
+                        ]
                     },
                     "cufe": {
                         "type": [

@@ -29,14 +29,15 @@ export interface TeamInvitation {
 
 /** An invitation as its link shows it, before signing in. */
 export interface InvitationPreview {
-  email: string
+  /** Only while the invitation is pending: an old or used link tells nothing about the person. */
+  email: string | null
   role: Role
   status: InvitationStatus
   expires_at: string
   company: { id: string; name: string }
   invited_by: string | null
-  /** The email already has an account: it joins by signing in as that user. */
-  existing_user: boolean
+  /** Only while pending: the email already has an account, and it joins by signing in as that user. */
+  existing_user: boolean | null
 }
 
 interface SentInvitation {

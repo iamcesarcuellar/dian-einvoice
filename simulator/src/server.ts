@@ -5,6 +5,7 @@
 //   POST /webhook-receiver/{company}    the local webhook receiver, another development tool
 //   GET  /health
 //   /admin/...                          taxpayers, failure modes, activity, the webhook receiver (X-Simulator-Token)
+import { timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Socket } from 'node:net'
@@ -25,7 +26,13 @@ import { ReceiverError, admin as receiverAdmin, receive } from './webhook-receiv
 import { parseXml } from './xml.ts'
 
 const PORT = Number(process.env.PORT ?? 8602)
+/** The admin token: configuration only (compose passes DIAN_SIMULATOR_TOKEN of backend/.env). */
 const TOKEN = process.env.SIMULATOR_ADMIN_TOKEN ?? ''
+
+if (TOKEN === '') {
+  console.error('SIMULATOR_ADMIN_TOKEN is empty: the admin API would be open. Run make up, which writes a token to backend/.env.')
+  process.exit(1)
+}
 /** The official XSDs: the xsd folder of the image, or SIMULATOR_XSD_DIR. */
 const SCHEMAS = schemaPaths(process.env.SIMULATOR_XSD_DIR ?? join(import.meta.dirname, '..', 'xsd'))
 
@@ -36,6 +43,17 @@ const AUTHORIZED: Record<DocumentKind, string> = {
   debit_note: 'La Nota Débito electrónica',
 }
 const MAX_BODY = 20 * 1024 * 1024
+/**
+ * Limits of the zip of SendBillSync, which carries one document: its size, the size its entries
+ * declare once uncompressed (each one and all together, so a small zip cannot expand into gigabytes;
+ * fflate never writes past the declared size), how many entries it has, and plain entry names.
+ */
+const MAX_ZIP_BYTES = 10 * 1024 * 1024
+const MAX_ENTRY_BYTES = 10 * 1024 * 1024
+const MAX_UNZIPPED_BYTES = 20 * 1024 * 1024
+const MAX_ENTRIES = 10
+/** A name without folders: no slash, backslash, colon or "..", and no control characters. */
+const ENTRY_NAME = /^(?!.*\.\.)[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$/
 const REQUEST_LOG = 500
 /** How long a request in no_response mode is held open before the socket is dropped. */
 const HOLD_MS = 5 * 60 * 1000
@@ -83,6 +101,36 @@ function readBody(request: IncomingMessage): Promise<string> {
     request.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     request.on('error', reject)
   })
+}
+
+/**
+ * A JSON object, or nothing: an empty body or an empty list, which is how PHP encodes an empty array.
+ * Any other JSON (null, a list with items, a number, a string) is a 400.
+ */
+function jsonObject(text: string): Record<string, unknown> {
+  if (text.trim() === '') {
+    return {}
+  }
+
+  const parsed: unknown = JSON.parse(text)
+
+  if (Array.isArray(parsed) && parsed.length === 0) {
+    return {}
+  }
+
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new HttpError(400, 'The body must be a JSON object.')
+  }
+
+  return parsed as Record<string, unknown>
+}
+
+/** The admin token, compared in constant time. */
+function validToken(sent: string | string[] | undefined): boolean {
+  const offered = Buffer.from(typeof sent === 'string' ? sent : '', 'utf8')
+  const expected = Buffer.from(TOKEN, 'utf8')
+
+  return offered.length === expected.length && timingSafeEqual(offered, expected)
 }
 
 function json(response: ServerResponse, status: number, body: unknown): void {
@@ -182,16 +230,49 @@ function unreadable(messages: Finding[], documentKey: string | null = null): Dia
 async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<Answer> {
   const zip = Buffer.from(request.contentFile ?? '', 'base64')
 
+  const refuse = (message: string): Answer => ({ result: unreadable([{ code: null, kind: 'rejection', message }]), outcome: 'rejected', document: null, rules: [] })
+
   if (zip.length === 0) {
-    return { result: unreadable([{ code: null, kind: 'rejection', message: 'El archivo ZIP está vacío.' }]), outcome: 'rejected', document: null, rules: [] }
+    return refuse('El archivo ZIP está vacío.')
+  }
+
+  if (zip.length > MAX_ZIP_BYTES) {
+    return refuse(`El archivo ZIP supera ${MAX_ZIP_BYTES / 1024 / 1024} MB.`)
   }
 
   let entries: Record<string, Uint8Array>
+  let refusal: string | null = null
+  let count = 0
+  let unzipped = 0
 
   try {
-    entries = unzipSync(new Uint8Array(zip))
+    entries = unzipSync(new Uint8Array(zip), {
+      // Before anything is uncompressed: the count, the names and the declared sizes.
+      filter: (file) => {
+        count += 1
+        unzipped += file.originalSize
+
+        if (refusal !== null) {
+          return false
+        }
+
+        if (count > MAX_ENTRIES) {
+          refusal = `El archivo ZIP contiene más de ${MAX_ENTRIES} archivos.`
+        } else if (!ENTRY_NAME.test(file.name)) {
+          refusal = 'Un nombre de archivo dentro del ZIP no es válido: sin carpetas, rutas ni "..".'
+        } else if (file.originalSize > MAX_ENTRY_BYTES || unzipped > MAX_UNZIPPED_BYTES) {
+          refusal = `El contenido del ZIP supera ${MAX_ENTRY_BYTES / 1024 / 1024} MB por archivo o ${MAX_UNZIPPED_BYTES / 1024 / 1024} MB en total.`
+        }
+
+        return refusal === null
+      },
+    })
   } catch {
-    return { result: unreadable([{ code: null, kind: 'rejection', message: 'El archivo ZIP está corrupto.' }]), outcome: 'rejected', document: null, rules: [] }
+    return refuse('El archivo ZIP está corrupto.')
+  }
+
+  if (refusal !== null) {
+    return refuse(refusal)
   }
 
   const names = Object.keys(entries).filter((name) => name.toLowerCase().endsWith('.xml'))
@@ -476,14 +557,14 @@ function publicTaxpayer(taxpayer: Taxpayer): unknown {
 }
 
 async function admin(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-  if (TOKEN !== '' && request.headers['x-simulator-token'] !== TOKEN) {
+  if (!validToken(request.headers['x-simulator-token'])) {
     throw new HttpError(401, 'Send the admin token in X-Simulator-Token.')
   }
 
   const method = request.method ?? 'GET'
   const [, , resource, ...segments] = url.pathname.split('/')
   const id = segments[0]
-  const body = method === 'PUT' || method === 'POST' ? JSON.parse((await readBody(request)) || '{}') as Record<string, unknown> : {}
+  const body = method === 'PUT' || method === 'POST' ? jsonObject(await readBody(request)) : {}
 
   if (resource === 'webhook-receiver') {
     return json(response, 200, receiverAdmin(state, method, segments.filter((part) => part !== ''), url, body, () => store.save()))
@@ -623,7 +704,8 @@ const server = createServer((request, response) => {
     }
 
     if (!response.headersSent && !response.destroyed) {
-      json(response, status, { error: error instanceof Error ? error.message : 'Unexpected error.' })
+      // A 500 says nothing of the code; a 4xx says what to fix.
+      json(response, status, { error: status === 500 ? 'Unexpected error of the local DIAN simulator.' : (error instanceof Error ? error.message : 'Bad request.') })
     }
   })
 })

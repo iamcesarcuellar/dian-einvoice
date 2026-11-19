@@ -33,8 +33,17 @@ export interface XmlDocument {
 
 const ELEMENT_NODE = 1
 
-/** The parsed document, or null when the text is not well-formed XML. */
+/**
+ * The parsed document, or null when the text is not well-formed XML or declares a DTD. No document
+ * the simulator reads (SOAP 1.2 envelopes, UBL 2.1) may carry a DOCTYPE, so none reaches xmllint or
+ * xmlsec1 either: no external subset, no entity declared, nothing expanded. @xmldom/xmldom itself
+ * never loads anything from the network or the disk.
+ */
 export function parseXml(text: string): XmlDocument | null {
+  if (/<!DOCTYPE/i.test(text)) {
+    return null
+  }
+
   let failed = false
 
   try {
@@ -45,9 +54,9 @@ export function parseXml(text: string): XmlDocument | null {
         }
       },
     })
-    const document = parser.parseFromString(text, 'text/xml') as unknown as XmlDocument
+    const document = parser.parseFromString(text, 'text/xml') as unknown as XmlDocument & { doctype?: unknown }
 
-    return failed || !document?.documentElement ? null : document
+    return failed || !document?.documentElement || (document.doctype ?? null) !== null ? null : document
   } catch {
     return null
   }

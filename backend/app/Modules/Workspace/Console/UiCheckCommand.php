@@ -3,6 +3,7 @@
 namespace App\Modules\Workspace\Console;
 
 use App\Modules\Delivery\Support\ColombianFormat;
+use App\Support\Console\LocalOnly;
 use App\Support\Json;
 use Brick\Math\BigDecimal;
 use GuzzleHttp\Cookie\CookieJar;
@@ -49,6 +50,12 @@ final class UiCheckCommand extends Command
 
     public function handle(): int
     {
+        if (($refusal = LocalOnly::refusal($this->getName() ?? 'This command')) !== null) {
+            $this->error($refusal);
+
+            return self::FAILURE;
+        }
+
         $this->api = rtrim((string) config('developers.api_check_url'), '/');
         $this->origin = $this->originOf($this->api);
         $this->cookies = new CookieJar;

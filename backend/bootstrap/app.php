@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\ProblemDetails;
 use App\Modules\Developers\Http\Middleware\HandleIdempotency;
 use App\Modules\Developers\Http\Middleware\RateLimitApiKeys;
@@ -18,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Every answer, errors included: an X-Request-Id that the logs carry too, and the security headers.
+        $middleware->prepend(AssignRequestId::class);
+        $middleware->append(SecurityHeaders::class);
+
         // The web app signs in with Sanctum: a session in an httpOnly cookie plus a CSRF token.
         $middleware->statefulApi();
 
@@ -34,9 +40,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: HandleIdempotency::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        // Every API error, validation included, is answered as application/problem+json.
-        $exceptions->render(function (Throwable $e, Request $request) {
-            if (! $request->is('api/*') || $e instanceof HttpResponseException) {
+        // Every error, validation included and outside /api/v1 too (an unknown path, a wrong method),
+        // is answered as application/problem+json: the backend renders no HTML error pages.
+        $exceptions->render(function (Throwable $e) {
+            if ($e instanceof HttpResponseException) {
                 return null;
             }
 

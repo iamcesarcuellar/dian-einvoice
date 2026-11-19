@@ -1,0 +1,87 @@
+# Version and security updates, once a week (Monday morning, Colombian time), grouped per ecosystem: each
+# ecosystem opens one pull request with its version updates and one with its security updates, and never
+# more than two at a time, so they neither fill the repository nor spend the minutes of CI.
+version: 2
+
+updates:
+  - package-ecosystem: composer
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    open-pull-requests-limit: 2
+    groups:
+      composer:
+        applies-to: version-updates
+        patterns: ["*"]
+      composer-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # The web app (pnpm), the simulator and the end-to-end test: one pull request for the three.
+  - package-ecosystem: npm
+    directories: [/frontend, /simulator, /e2e]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    open-pull-requests-limit: 2
+    groups:
+      npm:
+        applies-to: version-updates
+        patterns: ["*"]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories: [/backend, /frontend, /simulator]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    open-pull-requests-limit: 2
+    groups:
+      docker:
+        applies-to: version-updates
+        patterns: ["*"]
+      docker-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    open-pull-requests-limit: 2
+    groups:
+      docker-compose:
+        applies-to: version-updates
+        patterns: ["*"]
+      docker-compose-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # The workflow and the composite action it uses.
+  - package-ecosystem: github-actions
+    directories: [/, /.github/actions/prepare]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns: ["*"]
+      github-actions-security:
+        applies-to: security-updates
+        patterns: ["*"]

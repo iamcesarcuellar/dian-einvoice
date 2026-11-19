@@ -8,6 +8,7 @@ use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use LogicException;
+use SensitiveParameter;
 
 /**
  * The email that invites someone to a company: who invites, the company, the role and until when
@@ -22,7 +23,7 @@ final class TeamInvitationMail extends Mailable
 
     public function __construct(
         private readonly TeamInvitation $invitation,
-        private readonly string $token,
+        #[SensitiveParameter] private readonly string $token,
     ) {}
 
     public function envelope(): Envelope

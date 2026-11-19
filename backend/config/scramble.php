@@ -46,7 +46,7 @@ Amounts, quantities and rates are decimal strings, such as `"1190000.00"`, never
 
 ## Errors
 
-Every error is `application/problem+json` (RFC 9457): `type` (always `about:blank`), `title`, `status`, `detail` and `instance`; validation errors (422) add `errors`, the messages of each field. 401: no valid credentials. 403: the key level or the role does not allow it. 404: not found in the company. 409: the state does not allow it, such as issuing twice. 503: a local service, such as the DIAN simulator, is not answering.
+Every error is `application/problem+json` (RFC 9457): `type` (always `about:blank`), `title`, `status`, `detail`, `instance` and `request_id`; validation errors (422) add `errors`, the messages of each field. Every answer carries an `X-Request-Id` header with the same id, which is also in the logs: quote it when asking about a request. 401: no valid credentials. 403: the key level or the role does not allow it. 404: not found in the company. 409: the state does not allow it, such as issuing twice. 503: a local service, such as the DIAN simulator, is not answering.
 
 ## Webhooks
 

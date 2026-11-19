@@ -2,6 +2,8 @@
 
 namespace App\Modules\Dian\Transmission;
 
+use App\Support\Xml\SafeXml;
+use App\Support\Xml\XmlRefused;
 use DOMDocument;
 use DOMElement;
 use DOMNameSpaceNode;
@@ -242,14 +244,11 @@ final class SoapDianGateway implements DianGateway
             return null;
         }
 
-        $dom = new DOMDocument;
-        $previous = libxml_use_internal_errors(true);
-
         try {
-            return $dom->loadXML($body, LIBXML_NONET) ? new DOMXPath($dom) : null;
-        } finally {
-            libxml_clear_errors();
-            libxml_use_internal_errors($previous);
+            return new DOMXPath(SafeXml::load($body));
+        } catch (XmlRefused) {
+            // Not well formed, or with a DTD: not an answer of the service.
+            return null;
         }
     }
 

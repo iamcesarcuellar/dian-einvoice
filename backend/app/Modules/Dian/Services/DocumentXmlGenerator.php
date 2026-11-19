@@ -40,12 +40,15 @@ final class DocumentXmlGenerator
 
         $certificate = $this->certificates->current()
             ?? throw new RuntimeException('The company has no signing certificate.');
-
-        if (! $certificate->status()->usable()) {
-            throw new RuntimeException("The signing certificate {$certificate->serial_number} is {$certificate->status()->value}.");
-        }
-
         $signedAt ??= Carbon::now();
+
+        // Valid at the instant of the signature: one that expired after the document was issued
+        // stops the chain here, before anything is signed or sent.
+        $status = $certificate->status($signedAt);
+
+        if (! $status->usable()) {
+            throw new RuntimeException("The signing certificate {$certificate->serial_number} is {$status->value} on {$signedAt->toDateString()}. Upload a valid certificate in the DIAN settings, then retry.");
+        }
         $signed = $this->signer->sign($xml, $this->certificates->credentials($certificate), $signedAt);
 
         return new SignedXml($this->storage->put($this->path($document), $signed), $signedAt, $certificate);

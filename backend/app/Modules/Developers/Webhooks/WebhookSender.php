@@ -3,24 +3,47 @@
 namespace App\Modules\Developers\Webhooks;
 
 use App\Modules\Developers\Enums\WebhookAttemptOutcome;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use SensitiveParameter;
 use Throwable;
 
 /**
  * One HTTP attempt of a webhook: POST of the stored body with the Standard Webhooks headers
  * (webhook-id, webhook-timestamp, webhook-signature), at most 5 seconds with the connection,
- * redirects not followed. Private destinations are refused unless allowed (local development).
+ * redirects not followed. In production only https endpoints are called (WEBHOOK_REQUIRE_HTTPS).
+ * Private destinations are refused unless allowed (local development): the host is resolved and
+ * checked here, and the connection goes to that address only. Of the answer, at most 64 KB are
+ * read into memory; the attempt keeps its first 1000 characters.
  */
 final class WebhookSender
 {
     private const int SNIPPET = 1000;
 
-    public function send(string $url, string $messageId, string $body, string $secret): SendResult
+    /** Bytes of the answer read into memory; the rest is discarded as it arrives. */
+    public const int MAX_ANSWER_BYTES = 64 * 1024;
+
+    public function send(string $url, string $messageId, string $body, #[SensitiveParameter] string $secret): SendResult
     {
-        if (! (bool) config('developers.webhooks.allow_private_targets', true) && ($reason = PrivateTargets::reason($url)) !== null) {
-            return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: $reason);
+        if ((bool) config('developers.webhooks.require_https', false) && strtolower((string) parse_url($url, PHP_URL_SCHEME)) !== 'https') {
+            return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: 'Only https endpoints receive webhooks here.');
+        }
+
+        $curl = [];
+
+        if (! (bool) config('developers.webhooks.allow_private_targets', false)) {
+            $target = PrivateTargets::inspect($url);
+            $address = $target['addresses'][0] ?? null;
+
+            if ($target['reason'] !== null || $address === null) {
+                return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: $target['reason'] ?? 'The URL has no public address.');
+            }
+
+            // The address just checked, and no new DNS answer.
+            $curl[CURLOPT_RESOLVE] = [PrivateTargets::pin($target['host'], $target['port'], $address)];
         }
 
         $timestamp = time();
@@ -38,6 +61,7 @@ final class WebhookSender
                 ->connectTimeout(min(3.0, $timeout))
                 ->timeout($timeout)
                 ->withoutRedirecting()
+                ->withOptions(['sink' => self::cappedSink(), 'curl' => $curl])
                 ->post($url);
         } catch (ConnectionException $exception) {
             $message = $exception->getMessage();
@@ -62,6 +86,29 @@ final class WebhookSender
             error: $succeeded ? null : sprintf('The endpoint answered HTTP %d.', $status),
             snippet: Str::limit($response->body(), self::SNIPPET, '…'),
         );
+    }
+
+    /**
+     * Where the answer is written: the first MAX_ANSWER_BYTES are kept, the rest is accepted and
+     * dropped, so a huge answer neither fills the memory of the worker nor fails the transfer.
+     */
+    private static function cappedSink(): FnStream
+    {
+        $kept = Utils::tryFopen('php://temp', 'w+b');
+        $stream = Utils::streamFor($kept);
+        $written = 0;
+
+        return FnStream::decorate($stream, [
+            'write' => function (string $data) use ($stream, &$written): int {
+                $room = self::MAX_ANSWER_BYTES - $written;
+
+                if ($room > 0) {
+                    $written += $stream->write(substr($data, 0, $room));
+                }
+
+                return strlen($data);
+            },
+        ]);
     }
 
     private static function elapsed(int $started): int

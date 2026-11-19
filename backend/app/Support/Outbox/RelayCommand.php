@@ -2,6 +2,7 @@
 
 namespace App\Support\Outbox;
 
+use App\Support\Health\Heartbeat;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,7 @@ final class RelayCommand extends Command
 
         while (! $this->stopping) {
             $published = 0;
+            Heartbeat::beat('relay');
 
             try {
                 $published = $relay->publishBatch();

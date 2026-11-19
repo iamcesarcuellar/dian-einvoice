@@ -11,6 +11,7 @@ use App\Modules\Dian\Pipeline\RegisterTaxpayer;
 use App\Modules\Dian\Pipeline\SignXml;
 use App\Modules\Dian\Pipeline\StalledChainSweeper;
 use App\Modules\Dian\Pipeline\TransmitDocument;
+use App\Modules\Dian\Retention\PruneDianTransmissions;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Dian\Simulator\SimulatorTaxpayerRegistry;
 use App\Modules\Dian\Simulator\TaxpayerRegistry;
@@ -18,6 +19,7 @@ use App\Modules\Dian\Transmission\DianGateway;
 use App\Modules\Dian\Transmission\SoapDianGateway;
 use App\Support\Outbox\OutboxSubscribers;
 use App\Support\Outbox\Sweeper;
+use App\Support\Retention\Pruner;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -45,6 +47,7 @@ final class DianServiceProvider extends ServiceProvider
         $this->app->bind(TaxpayerRegistry::class, SimulatorTaxpayerRegistry::class);
 
         $this->app->tag([StalledChainSweeper::class], Sweeper::class);
+        $this->app->tag([PruneDianTransmissions::class], Pruner::class);
     }
 
     public function boot(): void

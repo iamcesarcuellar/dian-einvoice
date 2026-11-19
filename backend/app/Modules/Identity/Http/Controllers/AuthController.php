@@ -7,13 +7,16 @@ use App\Modules\Identity\Http\Requests\CompanyRules;
 use App\Modules\Identity\Http\Requests\LoginRequest;
 use App\Modules\Identity\Http\Requests\RegisterRequest;
 use App\Modules\Identity\Http\Resources\UserResource;
+use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 /**
  * Session sign-in for the first-party web app: Sanctum with an httpOnly session cookie and a CSRF token.
@@ -21,20 +24,37 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
  */
 final class AuthController
 {
+    /** One answer when the email or the NIT is already registered, so neither can be probed here. */
+    public const string NOT_REGISTERED = 'We could not create an account with these details. If you already have an account, sign in or reset your password; if your company already uses this platform, ask one of its owners to invite you.';
+
     /**
-     * Register a user together with their first company, which they own.
+     * Register a user together with their first company, which they own. An email or a NIT that
+     * is already registered answers 422 with the same message for both, without naming the field.
+     * Ten attempts per hour from each address.
      */
     public function register(RegisterRequest $request, CreateCompany $createCompany): JsonResponse
     {
         $this->ensureSession($request);
 
-        $user = DB::transaction(function () use ($request, $createCompany): User {
-            $user = User::create($request->safe(['name', 'email', 'password']));
+        $email = $request->safe()->string('email')->toString();
+        /** @var array<string, mixed> $company */
+        $company = array_intersect_key($request->safe()->array('company'), array_flip(CompanyRules::FIELDS));
 
-            $createCompany($user, array_intersect_key($request->safe()->array('company'), array_flip(CompanyRules::FIELDS)));
+        try {
+            $user = DB::transaction(function () use ($request, $createCompany, $email, $company): User {
+                if (User::query()->where('email', $email)->exists() || Company::query()->where('identification_number', $company['identification_number'] ?? null)->exists()) {
+                    throw new UnprocessableEntityHttpException(self::NOT_REGISTERED);
+                }
 
-            return $user;
-        });
+                $user = User::create($request->safe(['name', 'email', 'password']));
+                $createCompany($user, $company);
+
+                return $user;
+            });
+        } catch (UniqueConstraintViolationException) {
+            // Someone registered the same email or NIT at the same moment.
+            throw new UnprocessableEntityHttpException(self::NOT_REGISTERED);
+        }
 
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
@@ -43,7 +63,8 @@ final class AuthController
     }
 
     /**
-     * Sign in. Five failed attempts per minute are allowed for each email and IP address.
+     * Sign in. Five failed attempts per minute are allowed for each email and IP address, and twenty
+     * attempts per minute from each address. The session gets a new id.
      */
     public function login(LoginRequest $request): UserResource
     {
@@ -59,7 +80,7 @@ final class AuthController
     }
 
     /**
-     * Sign out and invalidate the session.
+     * Sign out: the session is invalidated, so its cookie stops working, and the CSRF token changes.
      */
     public function logout(Request $request): Response
     {

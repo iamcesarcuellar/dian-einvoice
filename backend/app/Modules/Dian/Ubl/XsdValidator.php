@@ -3,6 +3,8 @@
 namespace App\Modules\Dian\Ubl;
 
 use App\Modules\Billing\Enums\DocumentType;
+use App\Support\Xml\SafeXml;
+use App\Support\Xml\XmlRefused;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -53,10 +55,10 @@ final class XsdValidator
         libxml_clear_errors();
 
         try {
-            $dom = new DOMDocument;
-
-            if (! $dom->loadXML($xml, LIBXML_NONET)) {
-                return new XsdResult($this->errors(), 0);
+            try {
+                $dom = SafeXml::load($xml);
+            } catch (XmlRefused $refused) {
+                return new XsdResult([...$this->errors(), $refused->getMessage()], 0);
             }
 
             $skipped = $this->detachEmptyExtensions($dom);

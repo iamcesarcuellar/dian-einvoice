@@ -39,7 +39,11 @@
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
         <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="LOGIN_TIMEBOX_MICROSECONDS" value="0" force="true"/>
         <env name="LOG_CHANNEL" value="single" force="true"/>
         <env name="LOG_LEVEL" value="warning" force="true"/>
+        <!-- Webhooks go to the local receiver on the internal network; the refusal of private
+             targets has a test of its own that turns it off. -->
+        <env name="WEBHOOK_ALLOW_PRIVATE_TARGETS" value="true" force="true"/>
     </php>
 </phpunit>

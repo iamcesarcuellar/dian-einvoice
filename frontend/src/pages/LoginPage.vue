@@ -60,6 +60,10 @@ function useDemoAccount(): void {
         <Input id="login-password" v-model="form.password" type="password" autocomplete="current-password" required :aria-invalid="!!errors.password" />
       </FormField>
 
+      <RouterLink :to="{ name: 'forgot-password', query: form.email ? { email: form.email } : {} }" class="-mt-2 w-fit text-sm text-primary hover:underline">
+        {{ t('auth.login.forgot') }}
+      </RouterLink>
+
       <Button type="submit" class="mt-2 w-full" :disabled="isPending">
         {{ isPending ? t('auth.login.submitting') : t('auth.login.submit') }}
       </Button>

@@ -6,8 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Idempotency-Key of POST requests, per company. The unique key reserves it atomically: the first
- * request inserts the row (processing), runs and stores its response for 24 hours (completed); a
- * repetition with the same fingerprint gets that response back without running anything.
+ * request inserts the row (processing), then runs in a transaction that locks it and stores its
+ * response for 24 hours (completed) together with what the request changed; a repetition with the
+ * same fingerprint gets that response back without running anything.
  */
 return new class extends Migration
 {
@@ -24,7 +25,6 @@ return new class extends Migration
             $table->unsignedSmallInteger('response_status')->nullable();
             $table->json('response_headers')->nullable();
             $table->longText('response_body')->nullable();
-            $table->timestamp('locked_until')->nullable()->comment('A processing row older than this was abandoned');
             $table->timestamp('expires_at');
             $table->timestamp('created_at');
             $table->timestamp('completed_at')->nullable();

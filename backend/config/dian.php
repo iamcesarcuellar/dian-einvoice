@@ -25,7 +25,9 @@ return [
     // Admin API of the local simulator: taxpayer registration, failure modes and recent activity.
     'simulator' => [
         'url' => env('DIAN_SIMULATOR_URL', 'http://simulator:8602'),
-        'token' => env('DIAN_SIMULATOR_TOKEN', 'local-simulator-token'),
+        // Configuration only, never a default in the code: make up writes a random one to backend/.env
+        // and compose hands the same one to the simulator.
+        'token' => (string) env('DIAN_SIMULATOR_TOKEN', ''),
         'timeout' => (float) env('DIAN_SIMULATOR_TIMEOUT', 3),
     ],
 

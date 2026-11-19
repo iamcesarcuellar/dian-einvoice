@@ -32,6 +32,19 @@ export const router = createRouter({
       meta: { guest: true, title: 'auth.register.title' },
     },
     {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/pages/ForgotPasswordPage.vue'),
+      meta: { guest: true, title: 'auth.forgot.title' },
+    },
+    {
+      // The link of the email works with or without a session: it never signs anyone in.
+      path: '/reset-password/:token',
+      name: 'reset-password',
+      component: () => import('@/pages/ResetPasswordPage.vue'),
+      meta: { public: true, title: 'auth.reset.title' },
+    },
+    {
       path: '/invitations/:token',
       name: 'invitation',
       component: () => import('@/pages/InvitationPage.vue'),

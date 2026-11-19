@@ -4,15 +4,19 @@ namespace Tests\Integration\Delivery;
 
 use App\Modules\Billing\Enums\DeliveryStatus;
 use App\Modules\Delivery\Enums\DocumentFileKind;
+use App\Modules\Delivery\Enums\EmailOutcome;
 use App\Modules\Delivery\Mail\DeliverySubject;
+use App\Modules\Delivery\Models\DeliveryAttempt;
 use App\Modules\Delivery\Services\DocumentFiles;
 use App\Modules\Dian\Ubl\XsdValidator;
 use Illuminate\Mail\Transport\ArrayTransport;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Process;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mime\Email;
 use Tests\IntegrationTestCase;
+use Tests\Support\ScriptedMailTransport;
 use ZipArchive;
 
 /**
@@ -77,6 +81,48 @@ final class DeliveryTest extends IntegrationTestCase
         $this->assertNotNull(app(DocumentFiles::class)->find($invoice, DocumentFileKind::AttachedDocument));
         $this->assertNotNull(app(DocumentFiles::class)->find($invoice, DocumentFileKind::Pdf));
         $this->assertCount(0, $this->transport()->messages());
+    }
+
+    public function test_a_temporary_smtp_failure_is_retried_and_a_permanent_reply_is_not(): void
+    {
+        Mail::extend('scripted', fn (): ScriptedMailTransport => new ScriptedMailTransport);
+        config(['mail.mailers.scripted' => ['transport' => 'scripted'], 'mail.default' => 'scripted']);
+        ScriptedMailTransport::$sent = [];
+        $company = $this->company();
+        $customer = $this->text($this->signedIn($company->user, $company)->postJson('/api/v1/contacts', [
+            'organization_type' => '1',
+            'identification_type' => '31',
+            'identification_number' => '900123456',
+            'legal_name' => 'Synthetic Customer SAS',
+            'tax_scheme' => '01',
+            'fiscal_responsibilities' => ['O-48'],
+            'email' => 'synthetic-customer@example.com',
+            'municipality_code' => '05001',
+        ])->assertCreated()->json('data.id'));
+
+        // 451 (try later) and a server that does not answer are retried; then it goes through.
+        ScriptedMailTransport::$script = [451, 0];
+        $delivered = $this->acceptedInvoice($company, header: ['contact_id' => $customer]);
+        $this->assertSame(DeliveryStatus::Delivered, $delivered->delivery_status);
+        $this->assertSame([EmailOutcome::Failed, EmailOutcome::Failed, EmailOutcome::Sent], $this->outcomes($delivered->id));
+        $this->assertCount(1, ScriptedMailTransport::$sent);
+
+        // 550 (no such mailbox) is final: one attempt, and the delivery fails.
+        ScriptedMailTransport::$script = [550];
+        $refused = $this->acceptedInvoice($company, header: ['contact_id' => $customer]);
+        $this->assertSame(DeliveryStatus::Failed, $refused->delivery_status);
+        $this->assertSame([EmailOutcome::Rejected], $this->outcomes($refused->id));
+        $this->assertStringContainsString('550', $this->text(DeliveryAttempt::query()->where('document_id', $refused->id)->value('error')));
+    }
+
+    /**
+     * The outcome of each email attempt of a document, oldest first.
+     *
+     * @return list<EmailOutcome|null>
+     */
+    private function outcomes(string $documentId): array
+    {
+        return array_values(DeliveryAttempt::query()->where('document_id', $documentId)->orderBy('attempt')->get()->map(fn (DeliveryAttempt $attempt): ?EmailOutcome => $attempt->outcome)->all());
     }
 
     private function transport(): ArrayTransport

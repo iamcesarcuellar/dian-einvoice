@@ -9,6 +9,7 @@ use App\Modules\Identity\Tenancy\CurrentCompany;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Facades\DB;
 use LogicException;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,7 +26,11 @@ use Throwable;
  * - the same key with another request answers 422;
  * - the same key while the first request is still running answers 409.
  *
- * A 5xx answer is not kept: the key is freed so the request can be tried again. Alias "idempotency".
+ * The request runs inside one database transaction that holds the row of its key and ends by
+ * writing the answer into it: what the request changed and the completed key are committed
+ * together. A request that dies before its commit leaves nothing behind but the row, which the
+ * next request with the key takes over; one that answers 5xx is rolled back, the key is freed and
+ * the request can be tried again. Alias "idempotency".
  */
 final class HandleIdempotency
 {
@@ -57,32 +62,63 @@ final class HandleIdempotency
 
         return match ($outcome) {
             'mismatch' => ProblemDetails::response(422, 'This Idempotency-Key was already used with another request (method, path or body). Use a new key for a new request.'),
-            'in_progress' => ProblemDetails::response(409, 'A request with this Idempotency-Key is still in progress. Wait for it to finish, then repeat it to get its answer.'),
+            'in_progress' => $this->inProgress(),
             'replay' => $this->replay($row ?? throw new LogicException('A kept answer has its stored row.')),
             default => $this->run($request, $next, $this->reservedId($row)),
         };
     }
 
     /**
+     * Runs the request in one transaction with the row of its key locked, and commits its effect
+     * with the answer, or nothing.
+     *
      * @param  Closure(Request): Response  $next
      */
     private function run(Request $request, Closure $next, string $id): Response
     {
+        DB::beginTransaction();
+
+        try {
+            $claim = $this->store->claim($id);
+        } catch (Throwable $exception) {
+            DB::rollBack();
+
+            throw $exception;
+        }
+
+        if ($claim !== 'claimed') {
+            DB::rollBack();
+            $row = $claim === 'completed' ? $this->store->find($id) : null;
+
+            return $row !== null ? $this->replay($row) : $this->inProgress();
+        }
+
         try {
             $response = $next($request);
+
+            if ($response->getStatusCode() < 500) {
+                $this->store->complete($id, $response);
+                DB::commit();
+
+                return $response;
+            }
         } catch (Throwable $exception) {
+            DB::rollBack();
             $this->store->release($id);
 
             throw $exception;
         }
 
-        if ($response->getStatusCode() >= 500) {
-            $this->store->release($id);
-        } else {
-            $this->store->complete($id, $response);
-        }
+        // A server error: nothing the request did stays, and the key can be used again.
+        DB::rollBack();
+        $this->store->release($id);
 
         return $response;
+    }
+
+    private function inProgress(): Response
+    {
+        return ProblemDetails::response(409, 'A request with this Idempotency-Key is still in progress. Wait for it to finish, then repeat it to get its answer.');
     }
 
     /** The id of the row a reservation stored; the columns of a row read as text. */

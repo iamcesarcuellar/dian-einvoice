@@ -37,7 +37,9 @@ const { t } = useI18n()
             <BookOpenIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>
               {{ t('about.reference') }}
-              <a href="/docs/api" target="_blank" rel="noopener" class="font-medium text-primary hover:underline">{{ t('about.referenceLink') }}</a>
+              <a :href="product.apiReferenceUrl" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:underline">{{
+                t('about.referenceLink')
+              }}</a>
             </span>
           </li>
         </ul>
