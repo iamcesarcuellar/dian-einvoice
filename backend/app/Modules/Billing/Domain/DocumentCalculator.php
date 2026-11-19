@@ -13,7 +13,12 @@ use Brick\Math\RoundingMode;
 final class DocumentCalculator
 {
     /**
-     * Rounding of every amount. Banker's rounding (half to even), to be confirmed against the DIAN annex.
+     * Rounding of every amount: half to even, the round-half-to-even of XPath that annex 1.9 adopts
+     * (section 5.2.1, NTC 3711). Each line is rounded to two decimals and the totals are exact sums
+     * of the lines, so the totals rules (FAU02, FAU04, FAU06, FAU14) hold exactly; a tax subtotal
+     * may differ from its base times its rate by half a cent per line, inside the tolerance of two
+     * pesos of section 5.2.1.1 for documents of up to 400 lines. The optional rounding of the IVA to
+     * the nearest ten pesos (5.2.1.2) is not applied.
      */
     public const RoundingMode ROUNDING = RoundingMode::HalfEven;
 

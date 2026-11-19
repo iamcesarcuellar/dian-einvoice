@@ -40,6 +40,7 @@ return [
     'subtotal' => 'Subtotal',
     'discounts' => 'Discounts',
     'on' => 'on :base',
+    'rate_on' => ':rate on :base',
     'total' => 'Total',
     'net' => 'Net to receive',
     'in_words' => 'Total in words',

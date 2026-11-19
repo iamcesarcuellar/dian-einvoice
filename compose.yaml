@@ -8,6 +8,8 @@ name: dian-einvoice
 x-backend: &backend
   build:
     context: ./backend
+    # The development target adds the tools of the local checks (xmlsec1, poppler-utils) to production.
+    target: development
   user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
   restart: "no"
   volumes:
@@ -69,6 +71,9 @@ services:
   simulator:
     build:
       context: ./simulator
+      # The official DIAN XSDs are kept once, in the backend; the image copies them from there.
+      additional_contexts:
+        dian-xsd: ./backend/resources/dian/xsd
     restart: "no"
     mem_limit: 384m
     init: true
@@ -104,6 +109,36 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # Optional (profile tools), only through make dian-schematron: the schematron of the DIAN toolbox over
+  # the demo documents. SaxonJS and SchXslt are downloaded once into the schematron-tools volume; nothing
+  # goes into the repo or an image. Read-only: the toolbox, the stored documents and the scripts.
+  schematron:
+    image: node:26-alpine
+    profiles: ["tools"]
+    restart: "no"
+    mem_limit: 1g
+    user: node
+    working_dir: /home/node
+    environment:
+      # The findings that do not fail the check, defined in the Makefile.
+      - DIAN_SCHEMATRON_OUTDATED
+    volumes:
+      - schematron-tools:/home/node
+      - ./scripts/dian-schematron:/check:ro
+      - type: bind
+        source: "./backend/storage/app/dian-toolbox/Caja de herramientas FE - V1.9 - (v2026-2)"
+        target: /toolbox
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./backend/storage/app/documents
+        target: /documents
+        read_only: true
+        bind:
+          create_host_path: false
+    command: ["sh", "/check/run.sh"]
 
   db:
     image: mysql:8.4
@@ -143,3 +178,4 @@ volumes:
   redis-data:
   simulator-data:
   mail-data:
+  schematron-tools:

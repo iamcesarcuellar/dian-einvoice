@@ -9,6 +9,8 @@ use App\Modules\Billing\Models\DocumentTax;
 use App\Modules\Billing\Models\DocumentWithholding;
 use App\Modules\Dian\Domain\Cude;
 use App\Modules\Dian\Domain\Cufe;
+use App\Modules\Reference\Enums\CreditNoteConcept;
+use App\Modules\Reference\Enums\DebitNoteConcept;
 use App\Modules\Reference\Enums\IdentificationType;
 use App\Modules\Reference\Enums\OrganizationType;
 use Brick\Math\BigDecimal;
@@ -106,6 +108,12 @@ final class UblDocumentXml
         '06' => 'ReteRenta',
         '07' => 'ReteICA',
     ];
+
+    /**
+     * Tributes whose rate is written per thousand with two decimals, so that TaxAmount is
+     * TaxableAmount * Percent / 100 / 10 (table 13.2.2, note ***): ICA and ReteICA.
+     */
+    private const array PER_THOUSAND = ['03', '07'];
 
     /** Product standards of table 13.3.5: scheme name => [@schemeID, @schemeAgencyID]. */
     private const array PRODUCT_STANDARDS = [
@@ -302,7 +310,9 @@ final class UblDocumentXml
             DocumentType::DebitNote => null,
         };
 
-        foreach ($this->chunks($document->notes, self::NOTE_LENGTH) as $note) {
+        // The free description of a correction goes first, since DiscrepancyResponse/Description
+        // carries the official name of its concept; then the notes of the document.
+        foreach ([...$this->chunks($document->isNote() ? $document->reason_text : null, self::NOTE_LENGTH), ...$this->chunks($document->notes, self::NOTE_LENGTH)] as $note) {
             $this->cbc($root, 'Note', $note);
         }
 
@@ -316,17 +326,20 @@ final class UblDocumentXml
 
     /**
      * CBF01 to CBF04 and CBG01 to CBG06 (DBF and DBG for a debit note): the concept of the
-     * correction with its description, and the invoice it corrects with its number, CUFE and date,
-     * from the copy frozen on issue.
+     * correction with the description of tables 13.2.4 and 13.2.5, which must correspond to the
+     * code (CBF04, DBF04), and the invoice it corrects with its number, CUFE and date, from the
+     * copy frozen on issue. The free text the user wrote goes into cbc:Note.
      */
     private function correction(DOMElement $root, Document $document): void
     {
         $invoice = $document->related_snapshot;
+        $code = (string) $document->reason_code;
+        $concept = $this->type === DocumentType::CreditNote ? CreditNoteConcept::tryFrom($code) : DebitNoteConcept::tryFrom($code);
 
         $discrepancy = $this->cac($root, 'DiscrepancyResponse');
         $this->cbc($discrepancy, 'ReferenceID', $invoice['full_number']);
-        $this->cbc($discrepancy, 'ResponseCode', (string) $document->reason_code);
-        $this->cbc($discrepancy, 'Description', trim((string) $document->reason_text));
+        $this->cbc($discrepancy, 'ResponseCode', $code);
+        $this->cbc($discrepancy, 'Description', $concept?->officialName() ?? throw new LogicException("Unknown concept {$code} of a {$this->type->value}."));
 
         $reference = $this->cac($this->cac($root, 'BillingReference'), 'InvoiceDocumentReference');
         $this->cbc($reference, 'ID', $invoice['full_number']);
@@ -361,16 +374,16 @@ final class UblDocumentXml
         $this->cbc($legalEntity, 'RegistrationName', $company['legal_name']);
         $this->companyId($legalEntity, $company);
 
-        if (filled($prefix) || filled($company['registration_number'])) {
-            $registration = $this->cac($legalEntity, 'CorporateRegistrationScheme');
+        // The group must exist (FAJ49, CAJ49, DAJ49), even for a numbering without prefix and a
+        // company without a commercial registration number.
+        $registration = $this->cac($legalEntity, 'CorporateRegistrationScheme');
 
-            if (filled($prefix)) {
-                $this->cbc($registration, 'ID', $prefix);
-            }
+        if (filled($prefix)) {
+            $this->cbc($registration, 'ID', $prefix);
+        }
 
-            if (filled($company['registration_number'])) {
-                $this->cbc($registration, 'Name', $company['registration_number']);
-            }
+        if (filled($company['registration_number'])) {
+            $this->cbc($registration, 'Name', $company['registration_number']);
         }
 
         $this->contact($party, $company);
@@ -562,7 +575,7 @@ final class UblDocumentXml
         $this->amount($subtotal, 'TaxableAmount', $taxable);
         $this->amount($subtotal, 'TaxAmount', $amount);
         $category = $this->cac($subtotal, 'TaxCategory');
-        $this->cbc($category, 'Percent', $this->decimal($rate));
+        $this->cbc($category, 'Percent', in_array($code, self::PER_THOUSAND, true) ? $this->decimal((string) BigDecimal::of($rate)->multipliedBy(10)) : $this->decimal($rate));
         $scheme = $this->cac($category, 'TaxScheme');
         $this->cbc($scheme, 'ID', $code);
         $this->cbc($scheme, 'Name', self::TRIBUTES[$code] ?? throw new LogicException("Unknown DIAN tribute code {$code}."));

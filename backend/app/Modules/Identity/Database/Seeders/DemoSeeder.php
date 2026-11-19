@@ -63,11 +63,12 @@ final class DemoSeeder extends Seeder
                 'password' => self::PASSWORD,
             ]);
 
-            // Legal entities under the IVA scheme, without special responsibilities, based in Medellín (Antioquia).
+            // Legal entities that charge IVA (responsibility O-48 of table 13.2.6.1, "Impuesto sobre
+            // las ventas"), without other responsibilities, based in Medellín (Antioquia).
             $taxProfile = [
                 'organization_type' => OrganizationType::LegalEntity->value,
                 'tax_scheme' => TaxScheme::Iva->value,
-                'fiscal_responsibilities' => [FiscalResponsibility::NotApplicable->value],
+                'fiscal_responsibilities' => [FiscalResponsibility::SalesTax->value],
                 'municipality_code' => '05001',
             ];
 

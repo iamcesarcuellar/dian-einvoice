@@ -3,7 +3,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Inter is bundled from @fontsource-variable/inter (imported in main.ts) and served by the app itself. */
+/* Inter is bundled from @fontsource-variable/inter (imported in main.ts) and served by the app itself.
+   components.json has no "font" on purpose: with one, the shadcn-vue CLI (2.9) adds a Google Fonts
+   @import to this file on every add. */
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 }

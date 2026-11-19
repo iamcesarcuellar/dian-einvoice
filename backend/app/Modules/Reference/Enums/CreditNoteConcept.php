@@ -3,12 +3,12 @@
 namespace App\Modules\Reference\Enums;
 
 use App\Modules\Reference\Enums\Concerns\CodeList;
-use App\Modules\Reference\Support\DianCodeList;
 
 /**
- * Concepts of a credit note (annex 1.9, table 13.2.4; the official list ConceptoNotaCredito-2.1
- * of the toolbox, copied in resources/dian/codelists). It goes into
- * cac:DiscrepancyResponse/cbc:ResponseCode.
+ * Concepts of a credit note (annex 1.9, table 13.2.4 of the toolbox,
+ * cac:DiscrepancyResponse/cbc:ResponseCode). Codes 5 and 6 are the prompt payment and the sales
+ * volume discounts of the table; the genericode list ConceptoNotaCredito-2.1 of the toolbox is
+ * older (its 5 is "Otros" and it has no 6), and the 2023 example of a note uses code 6.
  */
 enum CreditNoteConcept: string
 {
@@ -18,9 +18,8 @@ enum CreditNoteConcept: string
     case Void = '2';
     case Discount = '3';
     case PriceAdjustment = '4';
-    case Other = '5';
-
-    public const string LIST = 'ConceptoNotaCredito-2.1';
+    case PromptPaymentDiscount = '5';
+    case VolumeDiscount = '6';
 
     public function label(): string
     {
@@ -29,14 +28,25 @@ enum CreditNoteConcept: string
             self::Void => 'Void of the electronic invoice',
             self::Discount => 'Partial or total rebate or discount',
             self::PriceAdjustment => 'Price adjustment',
-            self::Other => 'Other',
+            self::PromptPaymentDiscount => 'Commercial discount for prompt payment',
+            self::VolumeDiscount => 'Commercial discount for sales volume',
         };
     }
 
-    /** The name in the official list of the DIAN. */
+    /**
+     * The description of table 13.2.4, as the DIAN writes it. It goes into
+     * cac:DiscrepancyResponse/cbc:Description, which must correspond to the code (rule CBF04).
+     */
     public function officialName(): string
     {
-        return DianCodeList::names(self::LIST)[$this->value] ?? $this->label();
+        return match ($this) {
+            self::PartialReturn => 'Devolución parcial de los bienes y/o no aceptación parcial del servicio',
+            self::Void => 'Anulación de factura electrónica',
+            self::Discount => 'Rebaja o descuento parcial o total',
+            self::PriceAdjustment => 'Ajuste de precio',
+            self::PromptPaymentDiscount => 'Descuento comercial por pronto pago',
+            self::VolumeDiscount => 'Descuento comercial por volumen de ventas',
+        };
     }
 
     /**

@@ -47,7 +47,11 @@ final class IssueDocument
     /** Attempts when the database reports a deadlock. */
     private const int ATTEMPTS = 5;
 
-    /** cbc:Description of a note's DiscrepancyResponse takes 20 to 5000 characters (CBF04, DBF04). */
+    /**
+     * Length of the description of a correction, written by the user. It goes into cbc:Note of the
+     * XML (5 to 5000 characters, CAD11 and DAD11), while DiscrepancyResponse/Description carries the
+     * official name of the concept (CBF04, DBF04); 20 keeps it a real explanation.
+     */
     private const int REASON_MIN = 20;
 
     private const int REASON_MAX = 5000;
@@ -276,7 +280,7 @@ final class IssueDocument
         $length = mb_strlen(trim((string) $note->reason_text));
 
         if ($length < self::REASON_MIN || $length > self::REASON_MAX) {
-            $errors['reason_text'][] = sprintf('Describe the correction in %d to %d characters (annex 1.9, rule %s).', self::REASON_MIN, self::REASON_MAX, $note->type === DocumentType::CreditNote ? 'CBF04' : 'DBF04');
+            $errors['reason_text'][] = sprintf('Describe the correction in %d to %d characters.', self::REASON_MIN, self::REASON_MAX);
         }
 
         return $errors;

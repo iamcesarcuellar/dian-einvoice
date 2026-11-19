@@ -10,9 +10,9 @@ use Illuminate\Mail\Mailables\Envelope;
 
 /**
  * The email that invites someone to a company: who invites, the company, the role and until when
- * the link works. The link to the web app carries the token, which is stored only as a hash, so
- * this email is sent right away by TeamInvitations and never queued. The invitation comes with its
- * company and inviter loaded.
+ * the link works. The link to the web app carries the token, which the database stores only as a
+ * hash; the email is sent by the queued job SendTeamInvitation, whose payload is encrypted. The
+ * invitation comes with its company and inviter loaded.
  */
 final class TeamInvitationMail extends Mailable
 {

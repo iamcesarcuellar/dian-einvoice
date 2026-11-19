@@ -5,7 +5,8 @@ namespace App\Modules\Reference\Enums;
 use App\Modules\Reference\Enums\Concerns\CodeList;
 
 /**
- * Payment means (DIAN technical annex 1.9).
+ * Payment means offered (annex 1.9, table 13.3.4.2 of the toolbox, cbc:PaymentMeansCode): a subset
+ * of the table, with English names of the official ones.
  */
 enum PaymentMeans: string
 {
@@ -25,7 +26,7 @@ enum PaymentMeans: string
             self::Cash => 'Cash',
             self::Check => 'Check',
             self::BankDeposit => 'Bank deposit',
-            self::BankTransfer => 'Bank transfer',
+            self::BankTransfer => 'Bank debit transfer',
             self::CreditCard => 'Credit card',
             self::DebitCard => 'Debit card',
             self::Other => 'Other',

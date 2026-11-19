@@ -8,11 +8,15 @@ use ZipArchive;
 
 /**
  * File names of annex 1.9 (6.5.7 and 6.5.8) and the zips that carry the files. What SendBillSync
- * receives (7.10.2) is a zip with a single signed XML, named z{NIT}{ppp}{aa}{dddddddd}.zip and
- * fv{NIT}{ppp}{aa}{dddddddd}.xml (nc for a credit note, nd for a debit note), where the NIT has ten digits padded with zeros, ppp is 000 (own
- * software), aa the last two digits of the year and dddddddd the hexadecimal consecutive of the
- * files of that prefix the company produced that year. The AttachedDocument delivered to the
- * customer is named ad{...}.xml with its own consecutive, and its zip z{...}.zip with the same one.
+ * receives (7.10.2) is a zip with a single signed XML, named fv{NIT}{ppp}{aa}{dddddddd}.xml (nc for
+ * a credit note, nd for a debit note) inside z{NIT}{ppp}{aa}{dddddddd}.zip, where the NIT has ten
+ * digits padded with zeros, ppp is 000 (own software), aa the last two digits of the year and
+ * dddddddd eight hexadecimal digits (uppercase, as the range 00000001 to FFFFFFFF of the annex
+ * writes them). Each file type counts on its own (fv, nc, nd, ad) and the zips sent to the DIAN
+ * have a consecutive of their own (z), so no two packages of a year share a name; every counter
+ * starts again at 1 on January 1 (Colombian time, decided by the caller). The AttachedDocument
+ * delivered to the customer is named ad{...}.xml with its own consecutive, and its zip z{...}.zip
+ * with the same one: section 9.1 leaves the names of that delivery to the parties.
  */
 final class DianPackage
 {
@@ -22,18 +26,25 @@ final class DianPackage
     /** Prefix of an AttachedDocument (6.5.7). */
     public const string ATTACHED_DOCUMENT = 'ad';
 
+    /** Counter of the zips sent to the DIAN (6.5.8: the consecutive of the packages sent). */
+    private const string PACKAGE = 'z';
+
     /** ppp of a company that issues with its own software (annex 1.9, 6.5.7). */
     private const string OWN_SOFTWARE = '000';
 
     /**
      * Names for the next document of a prefix (fv, nc or nd) the company sends to the DIAN in
-     * $year; takes the next consecutive of that prefix.
+     * $year: the XML takes the next consecutive of its prefix and the zip the next one of the
+     * packages.
      *
      * @return array{zip: string, xml: string}
      */
     public function nextNames(string $companyId, string $nit, int $year, string $prefix = self::INVOICE): array
     {
-        return self::names($nit, $year, $this->nextConsecutive($companyId, $year, $prefix), $prefix);
+        $xml = self::base($nit, $year, $this->nextConsecutive($companyId, $year, $prefix));
+        $zip = self::base($nit, $year, $this->nextConsecutive($companyId, $year, self::PACKAGE));
+
+        return ['zip' => "z{$zip}.zip", 'xml' => "{$prefix}{$xml}.xml"];
     }
 
     /**
@@ -45,22 +56,12 @@ final class DianPackage
         return self::base($nit, $year, $this->nextConsecutive($companyId, $year, $prefix));
     }
 
-    /**
-     * @return array{zip: string, xml: string}
-     */
-    public static function names(string $nit, int $year, int $consecutive, string $prefix = self::INVOICE): array
-    {
-        $base = self::base($nit, $year, $consecutive);
-
-        return ['zip' => "z{$base}.zip", 'xml' => "{$prefix}{$base}.xml"];
-    }
-
     public static function base(string $nit, int $year, int $consecutive): string
     {
         return str_pad($nit, 10, '0', STR_PAD_LEFT)
             .self::OWN_SOFTWARE
             .substr((string) $year, -2)
-            .str_pad(dechex($consecutive), 8, '0', STR_PAD_LEFT);
+            .str_pad(strtoupper(dechex($consecutive)), 8, '0', STR_PAD_LEFT);
     }
 
     /** The consecutive written in a base, as a decimal number. */

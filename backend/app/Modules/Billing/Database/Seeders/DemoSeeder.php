@@ -15,6 +15,7 @@ use App\Modules\Catalog\Models\Withholding;
 use App\Modules\Dian\Pipeline\ElectronicDocumentPipeline;
 use App\Modules\Dian\Pipeline\InlineChain;
 use App\Modules\Dian\Simulator\DianSimulator;
+use App\Modules\Catalog\Database\Seeders\DemoSeeder as CatalogDemoSeeder;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\Membership;
@@ -76,6 +77,8 @@ final class DemoSeeder extends Seeder
     private const string RETE_FUENTE_SERVICES = 'ReteFuente 4% (services)';
 
     private const string RETE_IVA = 'ReteIVA 15%';
+
+    private const string RETE_ICA = CatalogDemoSeeder::RETE_ICA;
 
     /**
      * The invoices of each company, oldest first so their numbers follow their dates, then the
@@ -184,13 +187,13 @@ final class DemoSeeder extends Seeder
         ],
         'services' => [
             // June.
-            [165, '10:00', '990000202', 30, '47', [['S-102', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [30]],
+            [165, '10:00', '990000202', 30, '47', [['S-102', '1', '0']], [self::RETE_FUENTE_SERVICES, self::RETE_ICA], 'owner', [30]],
             [150, '11:30', '990000201', 30, '47', [['S-101', '10', '0'], ['S-105', '1', '0']], [self::RETE_FUENTE_SERVICES, self::RETE_IVA], 'owner', [30]],
             // July.
             [135, '10:00', '990000202', 30, '47', [['S-102', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [28]],
             [118, '15:15', '9990000205', null, '48', [['S-106', '2', '0']], [], 'owner', [0]],
             // August.
-            [104, '10:00', '990000202', 30, '47', [['S-102', '1', '0'], ['S-103', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [30]],
+            [104, '10:00', '990000202', 30, '47', [['S-102', '1', '0'], ['S-103', '1', '0']], [self::RETE_FUENTE_SERVICES, self::RETE_ICA], 'owner', [30]],
             [96, '09:30', '990000203', 15, '47', [['S-104', '1', '0'], ['S-106', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [20]],
             // September: Pradera Dorada never paid its second support plan.
             [74, '10:00', '990000202', 30, '47', [['S-102', '1', '0']], [self::RETE_FUENTE_SERVICES], 'owner', [30]],

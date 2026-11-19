@@ -3,12 +3,10 @@
 namespace App\Modules\Reference\Enums;
 
 use App\Modules\Reference\Enums\Concerns\CodeList;
-use App\Modules\Reference\Support\DianCodeList;
 
 /**
- * Concepts of a debit note (annex 1.9, table 13.2.5; the official list ConceptoNotaDebito-2.1 of
- * the toolbox, copied in resources/dian/codelists). It goes into
- * cac:DiscrepancyResponse/cbc:ResponseCode.
+ * Concepts of a debit note (annex 1.9, table 13.2.5 of the toolbox,
+ * cac:DiscrepancyResponse/cbc:ResponseCode).
  */
 enum DebitNoteConcept: string
 {
@@ -18,8 +16,6 @@ enum DebitNoteConcept: string
     case Expenses = '2';
     case ValueChange = '3';
     case Other = '4';
-
-    public const string LIST = 'ConceptoNotaDebito-2.1';
 
     public function label(): string
     {
@@ -31,10 +27,18 @@ enum DebitNoteConcept: string
         };
     }
 
-    /** The name in the official list of the DIAN. */
+    /**
+     * The description of table 13.2.5, as the DIAN writes it. It goes into
+     * cac:DiscrepancyResponse/cbc:Description, which must correspond to the code (rule DBF04).
+     */
     public function officialName(): string
     {
-        return DianCodeList::names(self::LIST)[$this->value] ?? $this->label();
+        return match ($this) {
+            self::Interest => 'Intereses',
+            self::Expenses => 'Gastos por cobrar',
+            self::ValueChange => 'Cambio del valor',
+            self::Other => 'Otros',
+        };
     }
 
     /**

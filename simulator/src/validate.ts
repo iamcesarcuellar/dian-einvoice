@@ -2,8 +2,8 @@
 // message of its annex rule: schema, the taxpayer's software and its security code; for an invoice
 // the numbering range and its validity and the CUFE recalculated with the technical key; for a note
 // the CUDE recalculated with the PIN of the software and the invoice it corrects, which must be one
-// this simulator accepted for the same issuer; then the totals against the lines, and the signature
-// and its certificate.
+// this simulator accepted for the same issuer; then the totals against the lines, and the signature,
+// its certificate and its date, which must be the issue date (FAD09e, CAD09e, DAD09e).
 import { X509Certificate } from 'node:crypto'
 import type { DocumentData, DocumentKind } from './document.ts'
 import { cufeAmount, round, sha384 } from './money.ts'
@@ -34,7 +34,7 @@ export async function validateDocument(xml: string, document: DocumentData, stat
     ...software(document, kind, taxpayer),
     ...(kind === 'invoice' ? numbering(document, taxpayer) : [...cude(document, kind, taxpayer), ...reference(document, kind, state)]),
     ...totals(document, kind),
-    ...(await signature(xml, document)),
+    ...(await signature(xml, document, kind)),
   ]
 }
 
@@ -208,7 +208,14 @@ function totals(document: DocumentData, kind: DocumentKind): Finding[] {
   return findings
 }
 
-async function signature(xml: string, invoice: DocumentData): Promise<Finding[]> {
+/** The calendar day of an instant in Colombia (UTC-05:00, no daylight saving time); null when it cannot be read. */
+function colombianDay(dateTime: string | undefined): string | null {
+  const instant = dateTime === undefined ? Number.NaN : Date.parse(dateTime)
+
+  return Number.isNaN(instant) ? null : new Date(instant - 5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+async function signature(xml: string, invoice: DocumentData, kind: DocumentKind): Promise<Finding[]> {
   if (!invoice.signature || !invoice.certificate) {
     return [finding('ZD01')]
   }
@@ -241,6 +248,11 @@ async function signature(xml: string, invoice: DocumentData): Promise<Finding[]>
 
   if (certificate.checkIssued(certificate) && certificate.verify(certificate.publicKey)) {
     findings.push(finding('ZD05'))
+  }
+
+  // FAD09e, CAD09e and DAD09e: the document is signed on its issue date.
+  if (colombianDay(invoice.signingTime) !== invoice.issueDate) {
+    findings.push(finding(`${LETTER[kind]}AD09e`))
   }
 
   return findings

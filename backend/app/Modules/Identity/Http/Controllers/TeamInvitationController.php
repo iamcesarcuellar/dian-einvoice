@@ -13,8 +13,9 @@ use Illuminate\Http\Response;
 
 /**
  * Invitations to join the current company, for its owners and admins in the web app. The email
- * with the link is sent right away (here, to the local development mailbox); meta.email_sent says
- * whether the mail server took it, and an invitation whose email failed can be resent.
+ * with the link goes to the queue, which retries it (here it lands in the local development
+ * mailbox); meta.email_queued says whether it was queued, last_sent_at of the invitation when the
+ * mail server took it, and an invitation can always be resent.
  */
 final class TeamInvitationController
 {
@@ -38,7 +39,7 @@ final class TeamInvitationController
         [$invitation, $sent] = $invitations->invite((string) $request->validated('email'), $request->role(), $user);
 
         return TeamInvitationResource::make($invitation)
-            ->additional(['meta' => ['email_sent' => $sent]])
+            ->additional(['meta' => ['email_queued' => $sent]])
             ->response()
             ->setStatusCode(201);
     }
@@ -52,7 +53,7 @@ final class TeamInvitationController
         [$invitation, $sent] = $invitations->resend($invitation);
 
         return TeamInvitationResource::make($invitation)
-            ->additional(['meta' => ['email_sent' => $sent]])
+            ->additional(['meta' => ['email_queued' => $sent]])
             ->response();
     }
 

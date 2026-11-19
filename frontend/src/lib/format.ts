@@ -68,6 +68,24 @@ export function formatPercent(value: string | null | undefined): string {
   return formatted ? `${formatted} %` : ''
 }
 
+/**
+ * A percentage written per thousand, as ReteICA rates are usually given and as the DIAN writes them
+ * in the XML: "0.966" (percent) is "9,66 ‰".
+ */
+export function formatPerMil(value: string | null | undefined): string {
+  const percent = Number(value)
+
+  if (value === null || value === undefined || value === '' || !Number.isFinite(percent)) {
+    return ''
+  }
+
+  // Ten times the percentage, without floating point drift: shift the decimal point by one.
+  const [whole = '0', fraction = ''] = value.split('.')
+  const shifted = `${whole}${(fraction + '0').slice(0, 1)}.${fraction.slice(1)}`.replace(/^0+(?=\d)/, '')
+
+  return `${formatDecimal(shifted.endsWith('.') ? shifted.slice(0, -1) : shifted)} ‰`
+}
+
 /** "990000000" becomes "990.000.000". */
 export function formatInteger(value: number): string {
   return group(String(value))

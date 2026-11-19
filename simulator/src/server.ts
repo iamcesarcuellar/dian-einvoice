@@ -113,11 +113,43 @@ function log(entry: Omit<RequestLog, 'at'>): void {
 // ---------------------------------------------------------------------------------------------
 // SOAP: SendBillSync and GetStatus
 
-/** The NIT in a zip name of annex 1.9, 6.5.8: z + NIT in ten digits + ppp + aa + dddddddd. */
+/**
+ * Names of annex 1.9: the zip (6.5.8) is z + the NIT in ten digits + ppp (three digits) + aa (two
+ * digits of the year) + dddddddd (eight hexadecimal digits, 00000001 to FFFFFFFF); the XML inside
+ * (6.5.7) has the same parts after fv, nc or nd.
+ */
+const ZIP_NAME = /^z(\d{10})(\d{3})(\d{2})([0-9A-F]{8})\.zip$/
+const XML_NAME = /^(fv|nc|nd)(\d{10})(\d{3})(\d{2})([0-9A-F]{8})\.xml$/
+
+/** The prefix of 6.5.7 of each kind. */
+const FILE_PREFIX: Record<DocumentKind, string> = { invoice: 'fv', credit_note: 'nc', debit_note: 'nd' }
+
+/** The NIT in a zip name of annex 1.9, 6.5.8. */
 function nitFromFileName(fileName: string | undefined): string | null {
-  const match = /^z(\d{10})\d{3}\d{2}[0-9a-f]{8}\.zip$/i.exec(fileName ?? '')
+  const match = ZIP_NAME.exec(fileName ?? '')
 
   return match ? match[1].replace(/^0+/, '') : null
+}
+
+/**
+ * The zip and XML names against 6.5.8 and 6.5.7: their format, a consecutive above zero, the NIT
+ * of the issuer in both and the prefix of the kind of document. The annex gives these no rule code
+ * or message: the texts are the simulator's own.
+ */
+function nameFindings(zipName: string | undefined, xmlName: string, kind: DocumentKind, supplierNit: string): Finding[] {
+  const zip = ZIP_NAME.exec(zipName ?? '')
+  const xml = XML_NAME.exec(xmlName)
+  const nit = supplierNit.padStart(10, '0')
+
+  if (!zip || zip[4] === '00000000' || zip[1] !== nit) {
+    return [{ code: null, kind: 'rejection', message: `El nombre del archivo ZIP "${zipName ?? ''}" no sigue el numeral 6.5.8 del anexo técnico: z, NIT del facturador de diez dígitos, código de tres dígitos, año de dos dígitos y consecutivo de ocho dígitos hexadecimales (00000001 a FFFFFFFF).` }]
+  }
+
+  if (!xml || xml[5] === '00000000' || xml[2] !== nit || xml[1] !== FILE_PREFIX[kind]) {
+    return [{ code: null, kind: 'rejection', message: `El nombre del documento "${xmlName}" no sigue el numeral 6.5.7 del anexo técnico: ${FILE_PREFIX[kind]}, NIT del facturador de diez dígitos, código de tres dígitos, año de dos dígitos y consecutivo de ocho dígitos hexadecimales (00000001 a FFFFFFFF).` }]
+  }
+
+  return []
 }
 
 function resultOf(record: DocumentRecord): DianResult {
@@ -186,14 +218,21 @@ async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<An
     return { result: unreadable([finding('ZB01', 'CUFE or CUDE, number, issue date, issuer and customer are required, and UBLVersionID must be UBL 2.1')]), outcome: 'rejected', document: invoice.number ?? null, rules: ['ZB01'] }
   }
 
-  // The same document again: the earlier result, without validating it again.
+  const badNames = nameFindings(request.fileName, xmlFileName, kind, invoice.supplierNit)
+
+  if (badNames.length > 0) {
+    return { result: unreadable(badNames, key), outcome: 'rejected', document: invoice.number, rules: [] }
+  }
+
+  // The same document again (annex 1.9, rule 90: a number is transmitted only once per issuer):
+  // rejected, and the accepted one stays as it was; GetStatus with its CUFE or CUDE returns it.
   const previous = state.documents[key]
 
   if (previous?.status === 'accepted') {
     previous.submissions += 1
     store.save()
 
-    return { result: resultOf(previous), outcome: 'duplicate', document: previous.number, rules: previous.findings.flatMap((item) => (item.code ? [item.code] : [])) }
+    return { result: unreadable([finding('90')], key), outcome: 'duplicate', document: previous.number, rules: ['90'] }
   }
 
   // Another document of the same type with a number already accepted for this issuer.
@@ -205,14 +244,14 @@ async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<An
 
   const findings = await validateDocument(xml, invoice, state, SCHEMAS)
 
-  // A copy sent at the same time finished first: this one is a repetition of it.
+  // A copy sent at the same time finished first: this one is a repetition of it (rule 90).
   const meanwhile = state.documents[key]
 
   if (meanwhile !== undefined && meanwhile !== previous && meanwhile.status === 'accepted') {
     meanwhile.submissions += 1
     store.save()
 
-    return { result: resultOf(meanwhile), outcome: 'duplicate', document: meanwhile.number, rules: meanwhile.findings.flatMap((item) => (item.code ? [item.code] : [])) }
+    return { result: unreadable([finding('90')], key), outcome: 'duplicate', document: meanwhile.number, rules: ['90'] }
   }
 
   if (mode?.mode === 'reject' && mode.rule) {

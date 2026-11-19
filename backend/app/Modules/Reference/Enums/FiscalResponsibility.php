@@ -5,8 +5,10 @@ namespace App\Modules\Reference\Enums;
 use App\Modules\Reference\Enums\Concerns\CodeList;
 
 /**
- * Fiscal responsibilities (DIAN technical annex 1.9, table 13.2.6.1). English names of the official
- * ones: O-48 is "Impuesto sobre las ventas" and O-49 "No responsable de IVA".
+ * Fiscal responsibilities (annex 1.9, table 13.2.6.1 of the toolbox, cbc:TaxLevelCode, several
+ * joined with ";"). English names of the official ones: O-48 is "Impuesto sobre las ventas", O-49
+ * "No responsable de IVA" and R-99-PN "No aplica – Otros". The genericode list of the toolbox
+ * (TipoResponsabilidad-2.1) is older and lacks O-48, O-49 and R-99-PN.
  */
 enum FiscalResponsibility: string
 {

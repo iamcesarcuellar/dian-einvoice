@@ -45,6 +45,12 @@ final class ColombianFormat
         return self::decimal($value, 0, 4).' %';
     }
 
+    /** A percentage per thousand, as ReteICA rates are given: "0.9660" (percent) becomes "9,66 ‰". */
+    public static function perMil(string $value): string
+    {
+        return self::decimal((string) BigDecimal::of($value)->multipliedBy(10), 0, 3).' ‰';
+    }
+
     /** "990000001" with check digit 3 becomes "990.000.001-3". */
     public static function nit(string $number, int|string|null $checkDigit): string
     {

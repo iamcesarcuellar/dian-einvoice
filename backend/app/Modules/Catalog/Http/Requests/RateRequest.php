@@ -3,15 +3,20 @@
 namespace App\Modules\Catalog\Http\Requests;
 
 use App\Modules\Identity\Tenancy\CurrentCompany;
+use App\Modules\Reference\Enums\WithholdingType;
 use App\Rules\DecimalString;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
  * Creates (POST) or updates (PATCH, partial) a tax or withholding rate. Rates are percentages sent
- * as strings with up to 4 decimals. Company defaults can only be activated or deactivated.
+ * as strings with up to 4 decimals; a ReteICA rate takes up to 3, since the DIAN writes it per
+ * thousand with two decimals (table 13.2.2). Company defaults are common values offered as a
+ * starting point: their name, rate and status can be changed, their type cannot, and they cannot
+ * be deleted. Issued documents keep the rates they were issued with.
  */
 abstract class RateRequest extends FormRequest
 {
@@ -35,20 +40,12 @@ abstract class RateRequest extends FormRequest
     public function rules(): array
     {
         $record = $this->record();
-
-        if ($record?->getAttribute('is_system')) {
-            return [
-                'dian_code' => ['prohibited'],
-                'name' => ['prohibited'],
-                'rate' => ['prohibited'],
-                'is_active' => ['required', 'boolean'],
-            ];
-        }
-
         $required = $record === null ? ['required'] : ['sometimes', 'required'];
+        $code = $this->input('dian_code', $record?->getAttribute('dian_code') instanceof BackedEnum ? $record->getAttribute('dian_code')->value : $record?->getAttribute('dian_code'));
+        $scale = $code === WithholdingType::ReteIca->value && $this->codes() === WithholdingType::class ? 3 : 4;
 
         return [
-            'dian_code' => [...$required, Rule::enum($this->codes())],
+            'dian_code' => $record?->getAttribute('is_system') ? ['prohibited'] : [...$required, Rule::enum($this->codes())],
             'name' => [
                 ...$required,
                 'string',
@@ -57,7 +54,7 @@ abstract class RateRequest extends FormRequest
                     ->where('company_id', app(CurrentCompany::class)->id())
                     ->ignore($record?->getKey()),
             ],
-            'rate' => [...$required, new DecimalString(3, 4, max: '100')],
+            'rate' => [...$required, new DecimalString(3, $scale, max: '100')],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
@@ -75,12 +72,8 @@ abstract class RateRequest extends FormRequest
      */
     public function messages(): array
     {
-        $onlyToggle = $this->defaultsName().' can only be activated or deactivated.';
-
         return [
-            'dian_code.prohibited' => $onlyToggle,
-            'name.prohibited' => $onlyToggle,
-            'rate.prohibited' => $onlyToggle,
+            'dian_code.prohibited' => 'The type of one of the '.Str::lower($this->defaultsName()).' cannot be changed.',
             'name.unique' => 'Another rate already uses this name.',
         ];
     }

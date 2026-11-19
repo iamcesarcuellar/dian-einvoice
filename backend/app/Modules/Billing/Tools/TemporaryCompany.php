@@ -60,7 +60,7 @@ final class TemporaryCompany
                 'identification_number' => self::freeNit(),
                 'organization_type' => OrganizationType::LegalEntity->value,
                 'tax_scheme' => TaxScheme::Iva->value,
-                'fiscal_responsibilities' => [FiscalResponsibility::NotApplicable->value],
+                'fiscal_responsibilities' => [FiscalResponsibility::SalesTax->value],
                 'email' => 'temporary@example.com',
                 'address' => 'Carrera 1 # 1-01',
                 'municipality_code' => '05001',

@@ -5,7 +5,7 @@ namespace App\Modules\Reference\Enums;
 use App\Modules\Reference\Enums\Concerns\CodeList;
 
 /**
- * Payment forms (DIAN technical annex 1.9).
+ * Payment forms (annex 1.9, table 13.3.4.1 of the toolbox, cac:PaymentMeans/cbc:ID).
  */
 enum PaymentForm: string
 {

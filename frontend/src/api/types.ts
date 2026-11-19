@@ -410,6 +410,7 @@ export type DocumentEventType =
   | 'issued'
   | 'xml_generated'
   | 'xml_signed'
+  | 'issue_date_moved'
   | 'xml_failed'
   | 'transmission_attempt'
   | 'accepted'

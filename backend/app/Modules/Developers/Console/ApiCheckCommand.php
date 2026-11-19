@@ -215,6 +215,10 @@ final class ApiCheckCommand extends Command
         }
 
         // 7. Two answers 500 from the receiver, then a payment: payment.recorded arrives after the retries.
+        // The last event of the second invoice must have reached the receiver first: until the relay
+        // publishes it, it has no delivery yet, and it would take one of the two 500 answers.
+        $this->waitFor(fn (): ?bool => collect($receiver->status($companyId, 100)['received'])
+            ->contains(fn (array $hook): bool => ($hook['object_id'] ?? null) === $second['id'] && ($hook['event_type'] ?? null) === 'invoice.delivered' && ($hook['response_status'] ?? null) === 200) ?: null, self::WEBHOOK_TIMEOUT);
         $this->waitFor(fn (): ?bool => WebhookDelivery::query()->withoutGlobalScope(CompanyScope::class)
             ->where('subscription_id', $subscriptionId)
             ->where('status', WebhookDeliveryStatus::Pending)

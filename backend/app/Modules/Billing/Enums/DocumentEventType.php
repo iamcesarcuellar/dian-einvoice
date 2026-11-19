@@ -13,6 +13,15 @@ enum DocumentEventType: string
     case XmlGenerated = 'xml_generated';
     case XmlSigned = 'xml_signed';
 
+    /**
+     * FAD09e, CAD09e and DAD09e: the chain generated or signed the XML on a later day in Colombia,
+     * so the issue date and time moved to that moment, the due date by the same days, and the CUFE
+     * or CUDE was calculated again. Payload: run, step, previous_issue_date, previous_issue_time,
+     * previous_due_date, previous_key, issue_date, issue_time, due_date and key (the due date of a
+     * cash document is its issue date).
+     */
+    case IssueDateMoved = 'issue_date_moved';
+
     /** Generation or signing failed; payload: step and reason. */
     case XmlFailed = 'xml_failed';
 

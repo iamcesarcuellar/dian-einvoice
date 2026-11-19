@@ -6,17 +6,21 @@ use App\Modules\Catalog\Enums\ItemType;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\Tax;
+use App\Modules\Catalog\Models\Withholding;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Reference\Enums\IdentificationType;
 use App\Modules\Reference\Enums\OrganizationType;
+use App\Modules\Reference\Enums\WithholdingType;
 use Illuminate\Database\Seeder;
 
 /**
  * SYNTHETIC DEMO DATA for local development, set in Medellín and its metropolitan area. Every
  * contact, NIT, ID number, email, address and item below is fictitious; names are invented and do
  * not refer to real people or businesses, and phones follow the fictitious (604) 555 01NN pattern.
- * The final consumer and the default taxes and withholdings come from ProvisionCompanyCatalog.
+ * The final consumer and the default taxes and withholdings come from ProvisionCompanyCatalog;
+ * Demo Servicios also has a ReteICA, whose example rate of 9.66 per thousand is not the rate of
+ * any municipality.
  */
 final class DemoSeeder extends Seeder
 {
@@ -46,6 +50,9 @@ final class DemoSeeder extends Seeder
             ['31', '990000208', 'Hotel Mirador de las Garzas SAS', 'Mirador de las Garzas', '04', ['R-99-PN'], 'billing@mirador-garzas.example', '(604) 555 0118', 'Calle 9 # 37-50', '05001', '050022', 'CO'],
         ],
     ];
+
+    /** A ReteICA of Demo Servicios: its rate is stored as a percentage (9.66 per thousand). */
+    public const string RETE_ICA = 'ReteICA 9.66 per thousand (example)';
 
     /** Code, name, type, unit, unit price and tax name (null means excluded). */
     private const array ITEMS = [
@@ -98,6 +105,10 @@ final class DemoSeeder extends Seeder
                     'municipality_code' => $municipality,
                     'postal_code' => $postalCode,
                 ]);
+            }
+
+            if ($set === 'services') {
+                Withholding::create(['dian_code' => WithholdingType::ReteIca, 'name' => self::RETE_ICA, 'rate' => '0.966']);
             }
 
             $taxes = Tax::query()->pluck('id', 'name');

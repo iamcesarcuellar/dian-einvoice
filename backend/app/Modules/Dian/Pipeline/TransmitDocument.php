@@ -31,12 +31,19 @@ use Throwable;
  *    arrived (it went out and no answer came back), else SendBillSync with the zip.
  * 3. Record, in a transaction: the call result, its timeline entry and the next event. An answer
  *    (SendBillSync, or GetStatus that found the document) makes the response step due. GetStatus
- *    that did not find it sends right away, in the same attempt. A transient failure schedules the
+ *    that did not find it sends right away, in the same attempt. A SendBillSync answered with rule
+ *    90 (annex 1.9: "Documento procesado anteriormente", a number is transmitted only once) asks
+ *    GetStatus in the same attempt: if the DIAN knows this CUFE, its answer is the one kept (the
+ *    document had arrived before); if not, the number belongs to another document and the rule 90
+ *    rejection stands. A transient failure schedules the
  *    next attempt (2, 5, 15, 45 and 120 s plus jitter, configurable); after the last one the
  *    document fails and the job goes to the dead letter queue. A 4xx fails it at once.
  */
 final class TransmitDocument extends ChainStep
 {
+    /** Rule of annex 1.9 for a number already processed for the issuer. */
+    private const string PROCESSED_BEFORE = '90';
+
     public function step(): string
     {
         return 'transmit';
@@ -192,12 +199,60 @@ final class TransmitDocument extends ChainStep
 
         $payload = $this->payload($row, $pipeline);
 
+        $repeated = $call->outcome === TransmissionOutcome::NotFound ? $this->processedBefore($row) : null;
+
         return match (true) {
+            $call->outcome === TransmissionOutcome::Responded && $this->isProcessedBefore($call) => $this->askStatus($document, $payload, $pipeline, $gateway),
             $call->outcome === TransmissionOutcome::Responded, $call->outcome === TransmissionOutcome::Found => $this->answered($document, $row, $payload, $pipeline),
+            $repeated !== null => $this->answered($document, $repeated, $payload, $pipeline),
             $call->outcome === TransmissionOutcome::NotFound => $this->sendNow($document, $payload, $pipeline, $gateway),
             $call->outcome->isTransient() => $this->retryOrFail($document, $row, $payload, $pipeline),
             default => $this->failNow($document, $row, $payload, $pipeline),
         };
+    }
+
+    /**
+     * SendBillSync answered with rule 90: GetStatus, in this same attempt, decides whether this
+     * document had arrived before.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{0: DianTransmission, 1: null}
+     */
+    private function askStatus(Document $document, array $payload, ElectronicDocumentPipeline $pipeline, DianGateway $gateway): array
+    {
+        $pipeline->timeline($document, DocumentEventType::TransmissionAttempt, $payload);
+
+        return [$this->start($document, DianGateway::GET_STATUS, $gateway), null];
+    }
+
+    /** A rejection with rule 90 (annex 1.9, "Documento procesado anteriormente"). */
+    private function isProcessedBefore(GatewayCall $call): bool
+    {
+        return $call->operation === DianGateway::SEND_BILL_SYNC
+            && $call->answer !== null
+            && ! $call->answer->isValid
+            && in_array(self::PROCESSED_BEFORE, array_column($call->answer->messages, 'rule'), true);
+    }
+
+    /**
+     * The SendBillSync of this attempt answered with rule 90, when GetStatus then did not find the
+     * document: that rejection is the answer.
+     */
+    private function processedBefore(DianTransmission $getStatus): ?DianTransmission
+    {
+        $send = DianTransmission::query()
+            ->where('document_id', $getStatus->document_id)
+            ->where('run', $getStatus->run)
+            ->where('attempt', $getStatus->attempt)
+            ->where('operation', DianGateway::SEND_BILL_SYNC)
+            ->where('outcome', TransmissionOutcome::Responded)
+            ->orderByDesc('started_at')
+            ->orderByDesc('id')
+            ->first();
+
+        $rules = array_column($send->messages ?? [], 'rule');
+
+        return $send !== null && $send->is_valid === false && in_array(self::PROCESSED_BEFORE, $rules, true) ? $send : null;
     }
 
     /**

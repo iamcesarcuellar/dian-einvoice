@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils'
  */
 const props = defineProps<{
   label: string
+  /** What the amount includes, such as "Net of withholdings". */
+  hint?: string
   kpi: DashboardKpi
   /** "12 invoices". */
   countLabel: string
@@ -51,7 +53,10 @@ const icon = computed(() => (direction.value === 'up' ? TrendingUpIcon : directi
 <template>
   <Card class="gap-0 py-0">
     <CardContent class="grid gap-2 p-5">
-      <p class="text-sm font-medium text-muted-foreground">{{ label }}</p>
+      <p class="flex items-baseline justify-between gap-2 text-sm font-medium text-muted-foreground">
+        <span>{{ label }}</span>
+        <span v-if="hint" class="text-xs font-normal">{{ hint }}</span>
+      </p>
       <p class="truncate text-2xl font-semibold tracking-tight tabular-nums" :title="formatMoney(kpi.amount)">{{ formatMoney(kpi.amount) }}</p>
       <p class="text-xs text-muted-foreground">{{ countLabel }}</p>
       <p class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">

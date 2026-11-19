@@ -23,7 +23,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * What a user can do on the chain of an issued document. Retry now: the next transmission attempt
  * right away while one is scheduled, or a new run from the step that failed. Resend, after a
  * rejection: a new run from the generation, with the CUFE (or the CUDE of a note) and the software
- * security code calculated again from the current settings, in case they were the problem. A
+ * security code calculated again from the current settings, in case they were the problem; on a
+ * later day the generation also moves the issue date to that day (FAD09e, IssueDateRefresh). A
  * credit note sent again must still fit what is left to credit on its invoice, checked with the
  * invoice locked, as when it was issued.
  */

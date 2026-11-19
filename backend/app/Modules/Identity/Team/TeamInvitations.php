@@ -4,7 +4,6 @@ namespace App\Modules\Identity\Team;
 
 use App\Modules\Identity\Enums\InvitationStatus;
 use App\Modules\Identity\Enums\Role;
-use App\Modules\Identity\Mail\TeamInvitationMail;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\Membership;
 use App\Modules\Identity\Models\TeamInvitation;
@@ -15,7 +14,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -26,9 +24,10 @@ use Throwable;
  * Invitations to join the current company, by email. Inviting stores only the SHA-256 of a random
  * token and emails the token in a link to the web app (APP_URL/invitations/{token}); the link works
  * for seven days after the invitation is sent, and resending it replaces the token, so only the
- * newest link works. The email goes out right away through Laravel's mailer (the local mailbox
- * here), after the invitation is committed and never through the queue, so the token is never
- * stored anywhere; a failed send is reported and the invitation can be resent.
+ * newest link works. Once the invitation is committed, its email goes to the queue
+ * (SendTeamInvitation), which retries it and whose payload is encrypted, so the token is stored
+ * only encrypted while it waits; if it cannot be queued, the failure is reported and the
+ * invitation can be resent.
  *
  * Accepting happens from the link, without a current company: findByToken(), then acceptAs() for
  * an address that already has an account (signed in as it) or acceptAsNewUser() for one that does
@@ -62,7 +61,7 @@ final class TeamInvitations
      * a pending invitation, is refused on the email field; expired invitations to it give way to
      * the new one.
      *
-     * @return array{0: TeamInvitation, 1: bool} The invitation, and whether the mail server took its email.
+     * @return array{0: TeamInvitation, 1: bool} The invitation, and whether its email was queued.
      */
     public function invite(string $email, Role $role, User $inviter): array
     {
@@ -102,7 +101,7 @@ final class TeamInvitations
     /**
      * Sends a pending or expired invitation again, with a new token and seven more days.
      *
-     * @return array{0: TeamInvitation, 1: bool} The invitation, and whether the mail server took its email.
+     * @return array{0: TeamInvitation, 1: bool} The invitation, and whether its email was queued.
      */
     public function resend(TeamInvitation $invitation): array
     {
@@ -237,20 +236,19 @@ final class TeamInvitations
         });
     }
 
-    /** Emails the link, once the invitation is committed. A failure is reported and returns false. */
+    /**
+     * Queues the email with the link, once the invitation is committed; the job records when the
+     * mail server took it (last_sent_at). A failure to queue is reported and returns false.
+     */
     private function send(TeamInvitation $invitation, string $token): bool
     {
-        $invitation->loadMissing(['company', 'inviter']);
-
         try {
-            Mail::to($invitation->email)->send(new TeamInvitationMail($invitation, $token));
+            SendTeamInvitation::dispatch($invitation->getKey(), $token);
         } catch (Throwable $exception) {
             report($exception);
 
             return false;
         }
-
-        $invitation->fill(['last_sent_at' => Carbon::now()])->save();
 
         return true;
     }

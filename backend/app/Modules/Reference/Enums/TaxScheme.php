@@ -5,7 +5,9 @@ namespace App\Modules\Reference\Enums;
 use App\Modules\Reference\Enums\Concerns\CodeList;
 
 /**
- * Tax scheme of a party (DIAN technical annex 1.9).
+ * Tax scheme of a party (annex 1.9, table 13.2.6.2 of the toolbox, PartyTaxScheme/cac:TaxScheme).
+ * Annex 1.9 has no separate list of regimes: TaxLevelCode/@listName is optional and, when sent,
+ * "No aplica", so it is left out.
  */
 enum TaxScheme: string
 {

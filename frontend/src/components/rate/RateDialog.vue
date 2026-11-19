@@ -22,9 +22,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { useReference } from '@/composables/useReference'
+import { formatPerMil } from '@/lib/format'
 import { invalidateTenant } from '@/lib/query'
 
-/** Creates or edits a tax or a withholding. Company defaults can only be switched on or off. */
+/**
+ * Creates or edits a tax or a withholding. Company defaults are common values: their name, rate and
+ * status can be changed, not their type, and they cannot be deleted.
+ */
 const props = defineProps<{
   kind: 'taxes' | 'withholdings'
   /** The rate to edit, or null to create one. */
@@ -49,9 +53,17 @@ const baseHint = computed(() => {
   return props.kind === 'withholdings' && base ? t(`rates.base.${base}`) : undefined
 })
 
+// ReteICA rates are usually given per thousand; the app stores percentages, and the XML and the
+// PDF write the rate per thousand.
+const RETE_ICA = '07'
+const isReteIca = computed(() => props.kind === 'withholdings' && form.value.dian_code === RETE_ICA)
+const rateHint = computed(() => (isReteIca.value
+  ? t('rates.form.perMilHint', { perMil: formatPerMil(form.value.rate) || '—' })
+  : undefined))
+
 function toInput(): RateInput {
   if (isSystem.value) {
-    return { is_active: form.value.is_active }
+    return { name: form.value.name.trim(), rate: form.value.rate, is_active: form.value.is_active }
   }
 
   return {
@@ -112,12 +124,13 @@ const title = computed(() => {
 
         <div class="grid gap-4 sm:grid-cols-[1fr_9rem]">
           <FormField id="rate-name" :label="t('rates.form.name')" :error="errors.name?.[0]">
-            <Input id="rate-name" v-model="form.name" autocomplete="off" :disabled="isSystem" :aria-invalid="!!errors.name" />
+            <Input id="rate-name" v-model="form.name" autocomplete="off" :aria-invalid="!!errors.name" />
           </FormField>
           <FormField id="rate-rate" :label="t('rates.form.rate')" :error="errors.rate?.[0]">
-            <DecimalInput id="rate-rate" v-model="form.rate" :scale="4" suffix="%" :disabled="isSystem" :invalid="!!errors.rate" />
+            <DecimalInput id="rate-rate" v-model="form.rate" :scale="isReteIca ? 3 : 4" suffix="%" :invalid="!!errors.rate" />
           </FormField>
         </div>
+        <p v-if="rateHint" class="-mt-2 text-xs text-muted-foreground">{{ rateHint }}</p>
 
         <SwitchField id="rate-active" v-model="form.is_active" :label="t('fields.active')" :description="t('rates.form.activeHint')" />
       </form>

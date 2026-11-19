@@ -161,7 +161,7 @@ final class DianChaosCommand extends Command
         $checks = [
             sprintf('%d of %d invoices accepted by the local simulator (%s).', $accepted, $count, $this->states($byStatus)) => $count > 0 && $accepted === $count,
             sprintf('The simulator holds %d distinct accepted documents of NIT %s (%d distinct numbers, %d not ours, %d records in all).', $distinctCufes, $temporary->company->identification_number, $distinctNumbers, $foreign, $records->count()) => $distinctCufes === $count && $distinctNumbers === $count && $foreign === 0 && $records->count() === $count,
-            sprintf('No duplicates: %d repeated submissions answered with the earlier result, %d repeated numbers.', $repeatedSubmissions, $repeats) => $repeats === 0 && $simulatorAccepted->count() === $distinctCufes,
+            sprintf('No duplicates: %d repeated submissions answered with rule 90, %d repeated numbers.', $repeatedSubmissions, $repeats) => $repeats === 0 && $simulatorAccepted->count() === $distinctCufes,
             sprintf('Numbers %d to %d: %s.', $first, $numbers === [] ? 0 : max($numbers), $gaps === [] ? 'consecutive, no gaps' : 'gaps at '.implode(', ', array_slice($gaps, 0, 10))) => $gaps === [] && $first === 1,
             sprintf('No document stuck: %d still processing, %d calls left unfinished.', $stuck, $unfinished) => $stuck === 0 && $unfinished === 0,
         ];

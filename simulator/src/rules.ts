@@ -36,6 +36,7 @@ export const RULES: readonly Rule[] = [
   { code: 'FAD06', kind: 'rejection', message: 'Valor del CUFE no está calculado correctamente', check: 'The CUFE recalculated with the technical key of the range equals cbc:UUID.' },
   { code: 'FAD09a', kind: 'rejection', message: 'Fecha de emisión anterior a la fecha de inicio de la autorización de la numeración', check: 'The issue date is not before the validity of the range.' },
   { code: 'FAD09b', kind: 'rejection', message: 'Fecha de emisión posterior a la fecha final de la autorización de la numeración', check: 'The issue date is not after the validity of the range.' },
+  { code: 'FAD09e', kind: 'rejection', message: 'La fecha de generación de la factura es diferente a la fecha de firma de la factura', check: 'The issue date is the date of xades:SigningTime in Colombia (UTC-05:00).' },
   { code: 'FAU02', kind: 'rejection', message: 'El Valor Bruto antes de tributos no es igual a la suma de los valores de las líneas de la factura que contienen el valor comercial', check: 'LineExtensionAmount is the sum of the lines.' },
   { code: 'FAU04', kind: 'rejection', message: 'Base Imponible es distinto a la suma de los valores de las bases imponibles de todas líneas de detalle.', check: 'TaxExclusiveAmount is the sum of the taxable amounts of the lines.' },
   { code: 'FAU06', kind: 'rejection', message: 'Valor Bruto más tributos es diferente a Valor Bruto de la factura que contienen el valor comercial más la Suma de los Tributos de todas las líneas de detalle.', check: 'TaxInclusiveAmount is LineExtensionAmount plus the taxes.' },
@@ -43,6 +44,7 @@ export const RULES: readonly Rule[] = [
   { code: 'CAB24b', kind: 'rejection', message: 'Identificador del software asignado cuando el software se activa en el Sistema de Facturación Electrónica no corresponde a un software autorizado para este OFE', check: 'Credit note: the issuer NIT is registered and the software ID is its software.' },
   { code: 'CAB27b', kind: 'rejection', message: 'Huella no corresponde a un software autorizado para este OFE', check: 'Credit note: the software security code is SHA-384 of software ID, PIN and number.' },
   { code: 'CAD06', kind: 'rejection', message: 'Valor del CUDE No está calculado correctamente', check: 'Credit note: the CUDE recalculated with the PIN of the software equals cbc:UUID.' },
+  { code: 'CAD09e', kind: 'rejection', message: 'La fecha de generación de la NC es diferente a la fecha de firma de la NC', check: 'Credit note: the issue date is the date of xades:SigningTime in Colombia (UTC-05:00).' },
   { code: 'CBG01', kind: 'rejection', message: 'Nota tipo uno a uno y no se informa BillingReference', check: 'Credit note: it carries the BillingReference of the invoice it corrects.' },
   { code: 'CBG03', kind: 'rejection', message: 'ID de FE de referencia no relacionada', check: 'Credit note: the referenced ID is the number of the referenced invoice.' },
   { code: 'CBG04', kind: 'rejection', message: 'CUFE de FE de referenciada no existe', check: 'Credit note: the referenced CUFE is an invoice of the same issuer the simulator accepted.' },
@@ -55,6 +57,7 @@ export const RULES: readonly Rule[] = [
   { code: 'DAB24b', kind: 'rejection', message: 'Identificador del software asignado cuando el software se activa en el Sistema de Facturación Electrónica no corresponde a un software autorizado para este OFE', check: 'Debit note: the issuer NIT is registered and the software ID is its software.' },
   { code: 'DAB27b', kind: 'rejection', message: 'Huella no corresponde a un software autorizado para este OFE', check: 'Debit note: the software security code is SHA-384 of software ID, PIN and number.' },
   { code: 'DAD06', kind: 'rejection', message: 'Valor del CUDE no está calculado correctamente.', check: 'Debit note: the CUDE recalculated with the PIN of the software equals cbc:UUID.' },
+  { code: 'DAD09e', kind: 'rejection', message: 'La fecha de generación de la ND es diferente a la fecha de firma de la ND', check: 'Debit note: the issue date is the date of xades:SigningTime in Colombia (UTC-05:00).' },
   { code: 'DBG01', kind: 'rejection', message: 'No fue informado el grupo', check: 'Debit note: it carries the BillingReference of the invoice it corrects.' },
   { code: 'DBG03', kind: 'rejection', message: 'ID de ND de referencia no relacionada.', check: 'Debit note: the referenced ID is the number of the referenced invoice.' },
   { code: 'DBG04', kind: 'rejection', message: 'CUFE de Nota Débito referenciada no existe', check: 'Debit note: the referenced CUFE is an invoice of the same issuer the simulator accepted.' },
@@ -67,7 +70,7 @@ export const RULES: readonly Rule[] = [
   { code: 'ZE02', kind: 'rejection', message: 'Valor de la Firma inválido', check: 'xmlsec1 verifies the digests and the signature value.' },
   { code: 'ZD02', kind: 'rejection', message: 'Certificado de la Firma con data de validez inválida', check: 'The certificate is valid at the signing time and now.' },
   { code: 'ZD05', kind: 'notification', message: 'Cadena de confianza del certificado digital es incorrecta, certificado no fue emitido por una ECD avalada por la ONAC.', check: 'A self-signed test certificate: only a notification in this simulator.' },
-  { code: '90', kind: 'rejection', message: 'Documento procesado anteriormente', check: 'The number was already accepted for the issuer, in a document of the same type with another CUFE or CUDE.' },
+  { code: '90', kind: 'rejection', message: 'Documento procesado anteriormente', check: 'The number was already accepted for the issuer in a document of the same type: the same document sent again, or another one with that number. The accepted one is kept, and GetStatus with its CUFE or CUDE returns it.' },
 ]
 
 export function rule(code: string): Rule | undefined {

@@ -29,8 +29,11 @@ final class DocumentXmlGenerator
         $this->storage->put($this->unsignedPath($document), $this->builder->build($document));
     }
 
-    /** Signs the stored unsigned XML; if it is missing, such as after a cleanup, it is built again. */
-    public function sign(Document $document): SignedXml
+    /**
+     * Signs the stored unsigned XML at $signedAt (now by default); if it is missing, such as after a
+     * cleanup, it is built again.
+     */
+    public function sign(Document $document, ?Carbon $signedAt = null): SignedXml
     {
         $path = $this->unsignedPath($document);
         $xml = $this->storage->exists($path) ? $this->storage->get($path) : $this->builder->build($document);
@@ -42,7 +45,7 @@ final class DocumentXmlGenerator
             throw new RuntimeException("The signing certificate {$certificate->serial_number} is {$certificate->status()->value}.");
         }
 
-        $signedAt = Carbon::now();
+        $signedAt ??= Carbon::now();
         $signed = $this->signer->sign($xml, $this->certificates->credentials($certificate), $signedAt);
 
         return new SignedXml($this->storage->put($this->path($document), $signed), $signedAt, $certificate);

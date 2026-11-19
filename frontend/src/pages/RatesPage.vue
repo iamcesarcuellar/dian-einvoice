@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
-import { formatPercent } from '@/lib/format'
+import { formatPercent, formatPerMil } from '@/lib/format'
 import { notify } from '@/lib/notify'
 import { invalidateTenant } from '@/lib/query'
 
@@ -144,6 +144,8 @@ function actions(rate: Rate): RowAction[] {
       </template>
       <template #cell-rate="{ row }">
         <span class="whitespace-nowrap tabular-nums">{{ formatPercent(row.rate) }}</span>
+        <!-- ReteICA is usually given per thousand, as the XML and the PDF write it. -->
+        <span v-if="isWithholding && row.dian_code === '07'" class="block whitespace-nowrap text-xs text-muted-foreground tabular-nums">{{ formatPerMil(row.rate) }}</span>
       </template>
       <template #cell-base="{ row }">
         <span class="text-muted-foreground">{{ row.base ? t(`rates.baseShort.${row.base}`) : '' }}</span>
@@ -151,7 +153,7 @@ function actions(rate: Rate): RowAction[] {
       <template #cell-status="{ row }">
         <span class="inline-flex flex-wrap items-center gap-1.5">
           <StatusBadge domain="record" :status="row.is_active ? 'active' : 'inactive'" />
-          <Badge v-if="row.is_system" variant="outline">{{ t('common.system') }}</Badge>
+          <Badge v-if="row.is_system" variant="outline">{{ t('rates.commonValue') }}</Badge>
         </span>
       </template>
       <template #actions="{ row }">

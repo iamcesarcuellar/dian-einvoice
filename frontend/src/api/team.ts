@@ -41,7 +41,7 @@ export interface InvitationPreview {
 
 interface SentInvitation {
   data: TeamInvitation
-  meta: { email_sent: boolean }
+  meta: { email_queued: boolean }
 }
 
 /** Members and invitations of the current company; owners and admins only. */
@@ -62,7 +62,7 @@ export const teamApi = {
     return (await request<DataEnvelope<TeamInvitation[]>>('GET', '/team/invitations')).data
   },
 
-  /** The email goes to the local mailbox; email_sent tells whether it left. */
+  /** The email goes to the queue, which retries it; email_queued tells whether it was queued. */
   invite(email: string, role: Role): Promise<SentInvitation> {
     return request<SentInvitation>('POST', '/team/invitations', { email, role })
   },

@@ -14,6 +14,7 @@ use App\Modules\Dian\Ubl\ApplicationResponseSummary;
 use App\Modules\Reference\Enums\CreditNoteConcept;
 use App\Modules\Reference\Enums\DebitNoteConcept;
 use App\Modules\Reference\Enums\IdentificationType;
+use App\Modules\Reference\Enums\WithholdingType;
 use App\Support\Storage\DocumentStorage;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\Lang;
@@ -215,9 +216,14 @@ final class InvoiceRepresentationBuilder
 
         foreach ($document->withholdings as $withholding) {
             /** @var DocumentWithholding $withholding */
+            // ReteICA is written per thousand, as in the XML (table 13.2.2); the others in percent.
+            $rate = WithholdingType::tryFrom((string) $withholding->dian_code)?->perThousand()
+                ? ColombianFormat::perMil((string) $withholding->rate)
+                : ColombianFormat::percent((string) $withholding->rate);
+
             $rows[] = [
                 'label' => (string) $withholding->name,
-                'detail' => __('delivery::pdf.on', ['base' => ColombianFormat::money((string) $withholding->base_amount)]),
+                'detail' => __('delivery::pdf.rate_on', ['rate' => $rate, 'base' => ColombianFormat::money((string) $withholding->base_amount)]),
                 'value' => ColombianFormat::money((string) $withholding->amount),
                 'kind' => 'deduction',
             ];

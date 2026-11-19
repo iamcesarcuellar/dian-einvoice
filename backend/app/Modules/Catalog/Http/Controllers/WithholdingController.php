@@ -13,7 +13,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
 /**
- * Withholding rates of the current company. Defaults can be deactivated but not edited or deleted.
+ * Withholding rates of the current company. Defaults are common values: their name, rate and status can be changed, not their type, and they cannot be deleted.
  */
 final class WithholdingController
 {

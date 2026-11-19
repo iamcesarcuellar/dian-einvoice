@@ -179,6 +179,8 @@ function eventLabel(event: DocumentEvent): string {
       return t('invoices.view.events.xmlGenerated')
     case 'xml_signed':
       return t('invoices.view.events.xmlSigned')
+    case 'issue_date_moved':
+      return t('invoices.view.events.issueDateMoved', { date: formatDate(String(payload.issue_date ?? '')), time: formatTime(String(payload.issue_time ?? '')) })
     case 'xml_failed':
       return t('invoices.view.events.xmlFailed')
     case 'transmission_attempt':
@@ -224,6 +226,13 @@ function eventDetail(event: DocumentEvent): string | null {
   const reason = payload.reason
 
   switch (event.type) {
+    case 'issue_date_moved':
+      return t('invoices.view.events.issueDateMovedDetail', {
+        date: formatDate(String(payload.previous_issue_date ?? '')),
+        time: formatTime(String(payload.previous_issue_time ?? '')),
+        previousDue: formatDate(String(payload.previous_due_date ?? payload.previous_issue_date ?? '')),
+        due: formatDate(String(payload.due_date ?? payload.issue_date ?? '')),
+      })
     case 'xml_signed':
       return typeof payload.certificate_serial === 'string'
         ? t(payload.test_certificate === true ? 'invoices.view.events.signedWithTest' : 'invoices.view.events.signedWith', { serial: payload.certificate_serial })
@@ -281,6 +290,7 @@ function eventTone(event: DocumentEvent): 'error' | 'warning' | 'success' | 'def
     case 'payment_applied':
       return 'success'
     case 'payment_released':
+    case 'issue_date_moved':
       return 'warning'
     case 'email_attempt':
       return event.payload?.outcome === 'sent' ? 'success' : (event.payload?.outcome === 'rejected' ? 'error' : 'warning')

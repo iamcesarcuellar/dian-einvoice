@@ -5,7 +5,8 @@ namespace App\Modules\Reference\Enums;
 use App\Modules\Reference\Enums\Concerns\CodeList;
 
 /**
- * Tax types charged on documents (DIAN technical annex 1.9).
+ * Tax types charged on documents (annex 1.9, table 13.2.2 of the toolbox): IVA and INC, the two
+ * this product models.
  */
 enum TaxType: string
 {

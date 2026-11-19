@@ -6,14 +6,17 @@ use App\Modules\Billing\Enums\DocumentEventType;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Dian\Services\DocumentXmlGenerator;
+use App\Modules\Dian\Services\IssueDateRefresh;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
  * Step 1: pending → generated. Builds the UBL XML from the frozen copies of the document and stores
- * it unsigned; then the signing step is due. Started by the issued event of its type, Resend, or Retry now after
- * the generation failed.
+ * it unsigned; then the signing step is due. Started by the issued event of its type, Resend, or
+ * Retry now after the generation failed. On a calendar day in Colombia after the issue date, the
+ * issue date and time first move to this moment, with the CUFE or CUDE calculated again, since the
+ * DIAN asks the issue date to be the signing date (FAD09e, CAD09e, DAD09e).
  */
 final class GenerateXml extends ChainStep
 {
@@ -27,9 +30,9 @@ final class GenerateXml extends ChainStep
         return $document->electronic_status === ElectronicStatus::Pending;
     }
 
-    public function process(ElectronicDocumentPipeline $pipeline, DocumentXmlGenerator $generator): void
+    public function process(ElectronicDocumentPipeline $pipeline, DocumentXmlGenerator $generator, IssueDateRefresh $issueDate): void
     {
-        $failure = DB::transaction(function () use ($pipeline, $generator): ?Throwable {
+        $failure = DB::transaction(function () use ($pipeline, $generator, $issueDate): ?Throwable {
             $document = $pipeline->lock($this->documentId);
 
             if ($document === null || $document->electronic_run !== $this->run || ! $this->expects($document)) {
@@ -37,6 +40,12 @@ final class GenerateXml extends ChainStep
             }
 
             try {
+                $moved = $issueDate->refresh($document, Carbon::now());
+
+                if ($moved !== null) {
+                    $pipeline->timeline($document, DocumentEventType::IssueDateMoved, ['run' => $document->electronic_run, 'step' => 'generate', ...$moved]);
+                }
+
                 $generator->generate($document);
             } catch (Throwable $exception) {
                 report($exception);

@@ -20203,12 +20203,13 @@
             },
             "DocumentEventType": {
                 "type": "string",
-                "description": "Entries of a document timeline. Those of the transmission always refer to the local DIAN simulator, which is the only DIAN this project talks to.\n| |\n|---|\n| `created` <br/>  |\n| `issued` <br/>  |\n| `xml_generated` <br/>  |\n| `xml_signed` <br/>  |\n| `xml_failed` <br/> Generation or signing failed; payload: step and reason. |\n| `transmission_attempt` <br/> One call of an attempt: SendBillSync, or GetStatus when an earlier send may have arrived. Payload: run, attempt, operation, outcome, duration_ms, http_status, status_code, error, and retry_in and next_attempt_at when a retry was scheduled. |\n| `accepted` <br/> Accepted by the local simulator; payload: status_code and notifications. |\n| `rejected` <br/> Rejected by the rules of the local simulator; payload: status_code and rules. |\n| `transmission_failed` <br/> Every transmission attempt failed; payload: attempts and reason. |\n| `retry_requested` <br/> Retry now, by a user; payload: step and whether it was waiting or failed. |\n| `resend_requested` <br/> Resend after a rejection, by a user; payload: whether the CUFE changed. |\n| `attached_document_built` <br/> The AttachedDocument was built and signed; payload: run, file_name, sha256 and size. |\n| `pdf_generated` <br/> The PDF was generated; payload: run, file_name, pages, sha256 and size. |\n| `email_attempt` <br/> One email attempt to the customer, always caught by the local mailbox. Payload: run, attempt, max_attempts, recipient, outcome (sent or failed), error, message_id, package, and retry_in and next_attempt_at when a retry was scheduled. |\n| `delivery_not_applicable` <br/> The customer has no email address, so nothing was sent; payload: run and package. |\n| `delivery_failed` <br/> A delivery step failed, or every email attempt did; payload: step, reason and attempts. |\n| `delivery_requested` <br/> Send again, by a user; payload: run, recipient, previous_recipient and the step it starts from. |\n| `pdf_regeneration_requested` <br/> Regenerate the PDF after it failed, by a user; payload: run and the step it starts from. |\n| `note_accepted` <br/> On an invoice: the local simulator accepted one of its credit or debit notes. Payload: note_id, note_type, number, amount, voided and the balance_status it left. |\n| `payment_applied` <br/> On an invoice: a payment was applied to it. Payload: payment_id, number, amount and balance. |\n| `payment_released` <br/> On an invoice: a voided payment gave its amount back. Payload: payment_id, number, amount and balance. |",
+                "description": "Entries of a document timeline. Those of the transmission always refer to the local DIAN simulator, which is the only DIAN this project talks to.\n| |\n|---|\n| `created` <br/>  |\n| `issued` <br/>  |\n| `xml_generated` <br/>  |\n| `xml_signed` <br/>  |\n| `issue_date_moved` <br/> FAD09e, CAD09e and DAD09e: the chain generated or signed the XML on a later day in Colombia, so the issue date and time moved to that moment and the CUFE or CUDE was calculated again. Payload: run, step, previous_issue_date, previous_issue_time, previous_key, issue_date, issue_time and key. |\n| `xml_failed` <br/> Generation or signing failed; payload: step and reason. |\n| `transmission_attempt` <br/> One call of an attempt: SendBillSync, or GetStatus when an earlier send may have arrived. Payload: run, attempt, operation, outcome, duration_ms, http_status, status_code, error, and retry_in and next_attempt_at when a retry was scheduled. |\n| `accepted` <br/> Accepted by the local simulator; payload: status_code and notifications. |\n| `rejected` <br/> Rejected by the rules of the local simulator; payload: status_code and rules. |\n| `transmission_failed` <br/> Every transmission attempt failed; payload: attempts and reason. |\n| `retry_requested` <br/> Retry now, by a user; payload: step and whether it was waiting or failed. |\n| `resend_requested` <br/> Resend after a rejection, by a user; payload: whether the CUFE changed. |\n| `attached_document_built` <br/> The AttachedDocument was built and signed; payload: run, file_name, sha256 and size. |\n| `pdf_generated` <br/> The PDF was generated; payload: run, file_name, pages, sha256 and size. |\n| `email_attempt` <br/> One email attempt to the customer, always caught by the local mailbox. Payload: run, attempt, max_attempts, recipient, outcome (sent or failed), error, message_id, package, and retry_in and next_attempt_at when a retry was scheduled. |\n| `delivery_not_applicable` <br/> The customer has no email address, so nothing was sent; payload: run and package. |\n| `delivery_failed` <br/> A delivery step failed, or every email attempt did; payload: step, reason and attempts. |\n| `delivery_requested` <br/> Send again, by a user; payload: run, recipient, previous_recipient and the step it starts from. |\n| `pdf_regeneration_requested` <br/> Regenerate the PDF after it failed, by a user; payload: run and the step it starts from. |\n| `note_accepted` <br/> On an invoice: the local simulator accepted one of its credit or debit notes. Payload: note_id, note_type, number, amount, voided and the balance_status it left. |\n| `payment_applied` <br/> On an invoice: a payment was applied to it. Payload: payment_id, number, amount and balance. |\n| `payment_released` <br/> On an invoice: a voided payment gave its amount back. Payload: payment_id, number, amount and balance. |",
                 "enum": [
                     "created",
                     "issued",
                     "xml_generated",
                     "xml_signed",
+                    "issue_date_moved",
                     "xml_failed",
                     "transmission_attempt",
                     "accepted",
@@ -21681,8 +21682,9 @@
             },
             "IdentificationType": {
                 "type": "string",
-                "description": "Identity document types (DIAN technical annex 1.9).\n",
+                "description": "Identity document types (annex 1.9, table 13.2.1 of the toolbox, cbc:CompanyID/@schemeName). The issuer is always identified by NIT (31, rule FAJ25); every code of the table is valid for the customer, PEP (47) and PPT (48) included, and NUIP (91) only for the customer, as the table notes. The code-list schematron of the toolbox (listacodigos v1.6, 2019) predates 10, 47 and 48; annex 1.9 added 48.\n",
                 "enum": [
+                    "10",
                     "11",
                     "12",
                     "13",
@@ -22117,7 +22119,7 @@
             },
             "OrganizationType": {
                 "type": "string",
-                "description": "Organization types (DIAN technical annex 1.9).\n",
+                "description": "Organization types (annex 1.9, table 13.2.3 of the toolbox, cbc:AdditionalAccountID): legal entities and natural persons, each \"and similar\" in the official names.\n",
                 "enum": [
                     "1",
                     "2"
@@ -22135,7 +22137,7 @@
             },
             "PaymentForm": {
                 "type": "string",
-                "description": "Payment forms (DIAN technical annex 1.9).\n",
+                "description": "Payment forms (annex 1.9, table 13.3.4.1 of the toolbox, cac:PaymentMeans/cbc:ID).\n",
                 "enum": [
                     "1",
                     "2"
@@ -22144,7 +22146,7 @@
             },
             "PaymentMeans": {
                 "type": "string",
-                "description": "Payment means (DIAN technical annex 1.9).\n",
+                "description": "Payment means offered (annex 1.9, table 13.3.4.2 of the toolbox, cbc:PaymentMeansCode): a subset of the table, with English names of the official ones.\n",
                 "enum": [
                     "10",
                     "20",
@@ -22495,10 +22497,11 @@
                 "type": "object",
                 "properties": {
                     "dian_code": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/TaxType"
                     },
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "maxLength": 100
                     },
                     "rate": {
                         "type": "string"
@@ -22508,7 +22511,9 @@
                     }
                 },
                 "required": [
-                    "is_active"
+                    "dian_code",
+                    "name",
+                    "rate"
                 ],
                 "title": "TaxRequest"
             },
@@ -22563,7 +22568,7 @@
             },
             "TaxScheme": {
                 "type": "string",
-                "description": "Tax scheme of a party (DIAN technical annex 1.9).\n",
+                "description": "Tax scheme of a party (annex 1.9, table 13.2.6.2 of the toolbox, PartyTaxScheme/cac:TaxScheme). Annex 1.9 has no separate list of regimes: TaxLevelCode/@listName is optional and, when sent, \"No aplica\", so it is left out.\n",
                 "enum": [
                     "01",
                     "04",
@@ -22574,7 +22579,7 @@
             },
             "TaxType": {
                 "type": "string",
-                "description": "Tax types charged on documents (DIAN technical annex 1.9).\n",
+                "description": "Tax types charged on documents (annex 1.9, table 13.2.2 of the toolbox): IVA and INC, the two this product models.\n",
                 "enum": [
                     "01",
                     "04"
@@ -22645,10 +22650,11 @@
                 "type": "object",
                 "properties": {
                     "dian_code": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/WithholdingType"
                     },
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "maxLength": 100
                     },
                     "rate": {
                         "type": "string"
@@ -22658,7 +22664,9 @@
                     }
                 },
                 "required": [
-                    "is_active"
+                    "dian_code",
+                    "name",
+                    "rate"
                 ],
                 "title": "WithholdingRequest"
             },
@@ -22718,7 +22726,7 @@
             },
             "WithholdingType": {
                 "type": "string",
-                "description": "Withholding types (DIAN technical annex 1.9).\n",
+                "description": "Withholding types (annex 1.9, table 13.2.2 of the toolbox). Tribute 06 is named ReteRenta in the table and in the XML; the app calls it ReteFuente, its common name. Rates are stored as percentages; ReteICA is expressed per thousand in the XML and the PDF (note *** of table 13.2.2).\n",
                 "enum": [
                     "05",
                     "06",

@@ -57,7 +57,7 @@ const kpis = computed(() => {
   }
 
   return [
-    { key: 'invoiced', label: t('dashboard.kpis.invoiced'), kpi: value.kpis.invoiced, count: t('dashboard.kpis.invoices', { n: formatInteger(value.kpis.invoiced.count) }, value.kpis.invoiced.count), higherIsBetter: true },
+    { key: 'invoiced', label: t('dashboard.kpis.invoiced'), hint: t('dashboard.kpis.invoicedHint'), kpi: value.kpis.invoiced, count: t('dashboard.kpis.invoices', { n: formatInteger(value.kpis.invoiced.count) }, value.kpis.invoiced.count), higherIsBetter: true },
     { key: 'collected', label: t('dashboard.kpis.collected'), kpi: value.kpis.collected, count: t('dashboard.kpis.payments', { n: formatInteger(value.kpis.collected.count) }, value.kpis.collected.count), higherIsBetter: true },
     { key: 'receivable', label: t('dashboard.kpis.receivable'), kpi: value.kpis.receivable, count: t('dashboard.kpis.openInvoices', { n: formatInteger(value.kpis.receivable.count) }, value.kpis.receivable.count), higherIsBetter: false },
     { key: 'overdue', label: t('dashboard.kpis.overdue'), kpi: value.kpis.overdue, count: t('dashboard.kpis.overdueInvoices', { n: formatInteger(value.kpis.overdue.count) }, value.kpis.overdue.count), higherIsBetter: false },
@@ -138,6 +138,7 @@ const kpis = computed(() => {
           v-for="item in kpis"
           :key="item.key"
           :label="item.label"
+          :hint="item.hint"
           :kpi="item.kpi"
           :count-label="item.count"
           :compared-to="comparedTo"

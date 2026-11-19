@@ -32,11 +32,15 @@ use Illuminate\Support\Facades\DB;
 /**
  * Everything the dashboard shows for the current company, from aggregate queries (sums, counts and
  * groups computed by the database, never a loop over every invoice). Dates are Colombian calendar
- * dates. Invoiced means invoices accepted by the local DIAN simulator, by their total (payable
- * amount, before withholdings); collected means payments recorded and not voided, which are net of
- * the withholdings customers apply. Indicators compare the month to date with the same days of the
- * previous month; receivables and overdue compare with the balances as they stood that day, rebuilt
- * from the notes and payments dated up to it.
+ * dates. Invoiced, collected and receivable are all net of the withholdings customers apply, the
+ * amount the customer actually pays: invoiced is the amount due of the invoices accepted by the
+ * local DIAN simulator (their total with taxes, less withholdings), by issue date, notes not netted
+ * out; collected is the payments recorded and not voided, by payment date; receivable is what is
+ * left of the amount due after accepted notes and payments, the same balance the Receivables report
+ * and the invoice list show. A month whose invoices were paid in full shows the same invoiced and
+ * collected. Indicators compare the month to date with the same days of the previous month;
+ * receivables and overdue compare with the balances as they stood that day, rebuilt from the notes
+ * and payments dated up to it.
  */
 final class DashboardReport
 {
@@ -132,7 +136,7 @@ final class DashboardReport
         $invoiced = $this->acceptedInvoices()
             ->whereBetween('issue_date', [$period['previous_from'], $period['to']])
             ->toBase()
-            ->selectRaw(self::periodColumns('issue_date', 'payable_amount'), self::periodBindings($period))
+            ->selectRaw(self::periodColumns('issue_date', 'amount_due'), self::periodBindings($period))
             ->first();
 
         $collected = Payment::query()
@@ -294,7 +298,7 @@ final class DashboardReport
         $invoiced = $this->acceptedInvoices()
             ->whereBetween('issue_date', $range)
             ->toBase()
-            ->selectRaw("date_format(issue_date, '%Y-%m') as month, coalesce(sum(payable_amount), 0) as amount, count(*) as count")
+            ->selectRaw("date_format(issue_date, '%Y-%m') as month, coalesce(sum(amount_due), 0) as amount, count(*) as count")
             ->groupByRaw("date_format(issue_date, '%Y-%m')")
             ->get()
             ->keyBy('month');
@@ -495,7 +499,8 @@ final class DashboardReport
     }
 
     /**
-     * The customers with the most invoiced in the last 90 days, by the total of their accepted invoices.
+     * The customers with the most invoiced in the last 90 days: the amount due of their accepted
+     * invoices, net of withholdings as everywhere on the dashboard.
      *
      * @return list<array<string, mixed>>
      */
@@ -504,7 +509,7 @@ final class DashboardReport
         $rows = $this->acceptedInvoices()
             ->where('issue_date', '>=', $today->copy()->subDays(self::TOP_CUSTOMER_DAYS - 1)->toDateString())
             ->toBase()
-            ->selectRaw('contact_id, coalesce(sum(payable_amount), 0) as amount, count(*) as invoices')
+            ->selectRaw('contact_id, coalesce(sum(amount_due), 0) as amount, count(*) as invoices')
             ->groupBy('contact_id')
             ->orderByDesc('amount')
             ->orderBy('contact_id')

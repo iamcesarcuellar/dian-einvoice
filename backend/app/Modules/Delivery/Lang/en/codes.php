@@ -9,7 +9,8 @@ return [
         '2' => 'Void of the electronic invoice',
         '3' => 'Partial or total rebate or discount',
         '4' => 'Price adjustment',
-        '5' => 'Other',
+        '5' => 'Commercial discount for prompt payment',
+        '6' => 'Commercial discount for sales volume',
     ],
 
     'debit_note_concepts' => [
@@ -28,13 +29,14 @@ return [
         '10' => 'Cash',
         '20' => 'Check',
         '42' => 'Bank deposit',
-        '47' => 'Bank transfer',
+        '47' => 'Bank debit transfer',
         '48' => 'Credit card',
         '49' => 'Debit card',
         'ZZZ' => 'Other',
     ],
 
     'identification_short' => [
+        '10' => 'CNV',
         '11' => 'RC',
         '12' => 'TI',
         '13' => 'CC',

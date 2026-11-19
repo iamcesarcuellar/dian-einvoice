@@ -37,7 +37,7 @@ const { submit, isPending, error, errors, reset } = useFormMutation({
     await invalidateTenant('team-invitations')
     open.value = false
 
-    if (answer.meta.email_sent) {
+    if (answer.meta.email_queued) {
       notify.success(t('team.invite.sent', { email: answer.data.email }), t('team.invite.sentHint'))
     } else {
       notify.warning(t('team.invite.notSent', { email: answer.data.email }), t('team.invite.notSentHint'))
