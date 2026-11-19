@@ -3,6 +3,7 @@
 namespace App\Modules\Workspace\Console;
 
 use App\Modules\Delivery\Support\ColombianFormat;
+use App\Support\Json;
 use Brick\Math\BigDecimal;
 use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Console\Command;
@@ -90,13 +91,13 @@ final class UiCheckCommand extends Command
         }
 
         $me = $this->http()->get($this->api.'/auth/me');
-        $company = collect($me->json('data.companies') ?? [])->firstWhere('name', self::COMPANY);
+        $company = collect(Json::objects($me->json(), 'data.companies'))->firstWhere('name', self::COMPANY);
 
         if (! $this->check($me->status() === 200 && is_array($company), 'GET /auth/me lists '.self::COMPANY, 'GET /auth/me answered '.$me->status().' without '.self::COMPANY.': run make demo first')) {
             return;
         }
 
-        $tenant = ['X-Company-Id' => (string) $company['id']];
+        $tenant = ['X-Company-Id' => Json::text($company, 'id') ?? ''];
 
         try {
             $this->checkDashboard($this->http()->withHeaders($tenant)->get($this->api.'/dashboard'));
@@ -116,33 +117,32 @@ final class UiCheckCommand extends Command
             return;
         }
 
-        $data = $response->json('data') ?? [];
-        $kpis = $data['kpis'] ?? [];
-        $monthly = $data['monthly'] ?? [];
+        $data = Json::array($response->json(), 'data');
+        $monthly = Json::objects($data, 'monthly');
         $monthsWithInvoices = count(array_filter($monthly, fn (array $month): bool => $this->positive($month['invoiced'] ?? null)));
-        $topCustomers = count($data['top_customers'] ?? []);
-        $activity = count($data['activity'] ?? []);
-        $invoices = (int) ($kpis['invoiced']['count'] ?? 0);
+        $topCustomers = count(Json::array($data, 'top_customers'));
+        $activity = count(Json::array($data, 'activity'));
+        $invoices = Json::int($data, 'kpis.invoiced.count') ?? 0;
 
         $this->check(($data['has_invoices'] ?? false) === true, 'has_invoices is true', 'has_invoices is not true');
         $this->check($invoices > 0, "{$invoices} invoices accepted this month", 'kpis.invoiced.count is 0: no accepted invoice this month');
         $this->check(count($monthly) === 6 && $monthsWithInvoices > 0, "6 months in the series, {$monthsWithInvoices} with invoices", sprintf('monthly has %d rows, %d with invoices', count($monthly), $monthsWithInvoices));
-        $this->check($this->positive($data['aging']['total'] ?? null), 'the receivables by age add up to more than zero', 'aging.total is not above zero');
+        $this->check($this->positive(data_get($data, 'aging.total')), 'the receivables by age add up to more than zero', 'aging.total is not above zero');
         $this->check($topCustomers > 0, "{$topCustomers} top customers", 'top_customers is empty');
         $this->check($activity > 0, "{$activity} activity entries", 'activity is empty');
 
-        $change = $kpis['invoiced']['change'] ?? null;
+        $change = Json::text($data, 'kpis.invoiced.change');
 
         $this->detail(sprintf(
             'dashboard: %d invoices this month for %s (%s), %s collected, %s receivable, %s overdue in %d invoices, %d needing attention, %d activity entries',
             $invoices,
-            $this->money($kpis['invoiced']['amount'] ?? null),
+            $this->money(data_get($data, 'kpis.invoiced.amount')),
             $change === null ? 'nothing invoiced on the same days of last month' : "{$change} % against the same days of last month",
-            $this->money($kpis['collected']['amount'] ?? null),
-            $this->money($kpis['receivable']['amount'] ?? null),
-            $this->money($kpis['overdue']['amount'] ?? null),
-            (int) ($kpis['overdue']['count'] ?? 0),
-            (int) ($data['attention']['total'] ?? 0),
+            $this->money(data_get($data, 'kpis.collected.amount')),
+            $this->money(data_get($data, 'kpis.receivable.amount')),
+            $this->money(data_get($data, 'kpis.overdue.amount')),
+            Json::int($data, 'kpis.overdue.count') ?? 0,
+            Json::int($data, 'attention.total') ?? 0,
             $activity,
         ));
     }
@@ -153,23 +153,23 @@ final class UiCheckCommand extends Command
             return;
         }
 
-        $groups = $response->json('data.groups') ?? [];
-        $invoices = $groups['invoices'] ?? [];
-        $numbers = array_map(fn (array $item): string => (string) ($item['full_number'] ?? ''), $invoices['items'] ?? []);
+        $groups = Json::array($response->json(), 'data.groups');
+        $invoices = Json::int($groups, 'invoices.total') ?? 0;
+        $numbers = array_map(fn (array $item): string => Json::text($item, 'full_number') ?? '', Json::objects($groups, 'invoices.items'));
         $matching = array_filter($numbers, fn (string $number): bool => str_contains($number, self::QUERY));
 
-        $this->check((int) ($invoices['total'] ?? 0) > 0, sprintf('%d invoices match %s', (int) ($invoices['total'] ?? 0), self::QUERY), 'groups.invoices.total is 0');
+        $this->check($invoices > 0, sprintf('%d invoices match %s', $invoices, self::QUERY), 'groups.invoices.total is 0');
         $this->check($numbers !== [] && count($matching) === count($numbers), sprintf('every invoice shown has %s in its number (%s)', self::QUERY, implode(', ', $numbers)), sprintf('invoice numbers without %s: %s', self::QUERY, implode(', ', array_diff($numbers, $matching)) ?: 'none shown'));
 
         $this->detail(sprintf(
             'search ?q=%s: %d invoices (%d shown), %d notes, %d payments, %d contacts, %d items',
             self::QUERY,
-            (int) ($invoices['total'] ?? 0),
+            $invoices,
             count($numbers),
-            (int) ($groups['notes']['total'] ?? 0),
-            (int) ($groups['payments']['total'] ?? 0),
-            (int) ($groups['contacts']['total'] ?? 0),
-            (int) ($groups['items']['total'] ?? 0),
+            Json::int($groups, 'notes.total') ?? 0,
+            Json::int($groups, 'payments.total') ?? 0,
+            Json::int($groups, 'contacts.total') ?? 0,
+            Json::int($groups, 'items.total') ?? 0,
         ));
     }
 
@@ -215,7 +215,7 @@ final class UiCheckCommand extends Command
         return $this->check(
             $response->status() === $status,
             "{$label}: {$status}",
-            "{$label}: expected {$status}, got {$response->status()} ".Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
+            "{$label}: expected {$status}, got {$response->status()} ".Str::limit(Json::text($response->json(), 'detail') ?? $response->body(), 300),
         );
     }
 

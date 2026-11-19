@@ -20,6 +20,7 @@ final class WebhookDeliveryController
     /** Newest first. ?status=pending|succeeded|failed, ?search= (event type). */
     public function index(Request $request, WebhookSubscription $subscription): AnonymousResourceCollection
     {
+        /** @var array{status?: string|null} $filters */
         $filters = $request->validate(['status' => ['sometimes', 'nullable', Rule::in(['pending', 'succeeded', 'failed'])]]);
 
         $query = WebhookDelivery::query()

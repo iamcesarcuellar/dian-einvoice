@@ -2,6 +2,7 @@
 
 namespace App\Modules\Developers\Receiver;
 
+use App\Support\Json;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -48,26 +49,27 @@ final class LocalWebhookReceiver
     /**
      * The mode and the last webhooks the receiver got for a company, newest first.
      *
-     * @return array{mode: array<string, mixed>, received: list<array<string, mixed>>, secrets: int}
+     * @return array{mode: array<mixed>, received: list<array<mixed>>, secrets: int}
      */
     public function status(string $companyId, int $limit = 30): array
     {
         $status = $this->json('get', "/admin/webhook-receiver/{$companyId}", ['limit' => $limit]);
+        $mode = $status['mode'] ?? null;
 
         return [
-            'mode' => $status['mode'] ?? ['mode' => 'normal', 'remaining' => null, 'delay_ms' => null],
-            'received' => $status['received'] ?? [],
-            'secrets' => (int) ($status['secrets'] ?? 0),
+            'mode' => is_array($mode) ? $mode : ['mode' => 'normal', 'remaining' => null, 'delay_ms' => null],
+            'received' => Json::objects($status, 'received'),
+            'secrets' => Json::int($status, 'secrets') ?? 0,
         ];
     }
 
     /**
      * @param  array{mode: string, count?: int|null, delay_ms?: int|null}  $mode
-     * @return array<string, mixed>
+     * @return array<mixed>
      */
     public function setMode(string $companyId, array $mode): array
     {
-        return $this->json('put', "/admin/webhook-receiver/{$companyId}/mode", $mode)['mode'] ?? [];
+        return Json::array($this->json('put', "/admin/webhook-receiver/{$companyId}/mode", $mode), 'mode');
     }
 
     /** Tells the receiver the secret of a subscription, so it can verify what that one signs. */
@@ -89,7 +91,7 @@ final class LocalWebhookReceiver
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
+     * @return array<mixed>
      */
     private function json(string $method, string $path, array $data = []): array
     {
@@ -101,10 +103,12 @@ final class LocalWebhookReceiver
         }
 
         if (! $response->successful()) {
-            throw new ReceiverUnavailable(sprintf('The local webhook receiver answered HTTP %d: %s', $response->status(), $response->json('error') ?? 'no details'));
+            throw new ReceiverUnavailable(sprintf('The local webhook receiver answered HTTP %d: %s', $response->status(), Json::text($response->json(), 'error') ?? 'no details'));
         }
 
-        return $response->json() ?? [];
+        $json = $response->json();
+
+        return is_array($json) ? $json : [];
     }
 
     private function client(): PendingRequest

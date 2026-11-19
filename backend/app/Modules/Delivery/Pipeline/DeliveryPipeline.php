@@ -121,7 +121,7 @@ final class DeliveryPipeline
      */
     public function emit(Document $document, string $type, array $payload = [], ?DateTimeInterface $availableAt = null): void
     {
-        $this->outbox->record($document->company_id, 'document', $document->getKey(), $type, [
+        $this->outbox->record($document->company_id, 'document', $document->id, $type, [
             'document_id' => $document->getKey(),
             'delivery_run' => $document->delivery_run,
             ...$payload,

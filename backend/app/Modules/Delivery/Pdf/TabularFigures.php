@@ -95,7 +95,7 @@ final class TabularFigures
         }
 
         $count = self::u16($post, 32);
-        $indexes = array_values(unpack('n*', substr($post, 34, 2 * $count)) ?: []);
+        $indexes = self::integers('n*', substr($post, 34, 2 * $count));
         $names = [];
         $position = 34 + 2 * $count;
         $length = strlen($post);
@@ -322,7 +322,7 @@ final class TabularFigures
         $data .= str_repeat("\0", (4 - strlen($data) % 4) % 4);
         $sum = 0;
 
-        foreach (unpack('N*', $data) ?: [] as $word) {
+        foreach (self::integers('N*', $data) as $word) {
             $sum = ($sum + $word) & 0xFFFFFFFF;
         }
 
@@ -331,11 +331,21 @@ final class TabularFigures
 
     private static function u16(string $data, int $offset): int
     {
-        return unpack('n', $data, $offset)[1];
+        return self::integers('n', $data, $offset)[0] ?? throw new RuntimeException("The font ends before byte {$offset}.");
     }
 
     private static function u32(string $data, int $offset): int
     {
-        return unpack('N', $data, $offset)[1];
+        return self::integers('N', $data, $offset)[0] ?? throw new RuntimeException("The font ends before byte {$offset}.");
+    }
+
+    /**
+     * Big-endian unsigned integers of the font data (n: 16 bits, N: 32 bits), none when it is too short.
+     *
+     * @return list<int>
+     */
+    private static function integers(string $format, string $data, int $offset = 0): array
+    {
+        return array_values(array_filter(unpack($format, $data, $offset) ?: [], is_int(...)));
     }
 }

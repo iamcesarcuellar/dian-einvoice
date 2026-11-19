@@ -131,7 +131,7 @@ final class NotePrefill
 
                     $quantity = BigDecimal::of((string) $candidate->quantity);
                     $taken = $quantity->isLessThan($left) ? $quantity : $left;
-                    $candidate->quantity = (string) $quantity->minus($taken);
+                    $candidate->quantity = $quantity->minus($taken)->toString();
                     $left = $left->minus($taken);
                 }
             }

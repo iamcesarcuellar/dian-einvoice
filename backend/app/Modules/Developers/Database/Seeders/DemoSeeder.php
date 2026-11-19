@@ -38,7 +38,7 @@ final class DemoSeeder extends Seeder
             $keys->create('Demo reports (read only)', ApiKeyLevel::ReadOnly, creator: $user);
 
             $subscriptions->create([
-                'url' => $receiver->urlFor($company->getKey()),
+                'url' => $receiver->urlFor($company->id),
                 'description' => 'Local webhook receiver (development tool)',
                 'events' => WebhookEventTypes::all(),
             ], $user);

@@ -76,10 +76,28 @@ function memberActions(member: TeamMember): RowAction[] {
   }
 
   return [
-    { label: t('team.role.action'), icon: ShieldIcon, onSelect: () => { selectedMember.value = member; roleOpen.value = true } },
+    {
+      label: t('team.role.action'),
+      icon: ShieldIcon,
+      onSelect: () => {
+        selectedMember.value = member
+        roleOpen.value = true
+      },
+    },
     ...(member.is_current_user
       ? []
-      : [{ label: t('team.remove.action'), icon: UserMinusIcon, destructive: true, onSelect: () => { selectedMember.value = member; remove.reset(); removeOpen.value = true } }]),
+      : [
+          {
+            label: t('team.remove.action'),
+            icon: UserMinusIcon,
+            destructive: true,
+            onSelect: () => {
+              selectedMember.value = member
+              remove.reset()
+              removeOpen.value = true
+            },
+          },
+        ]),
   ]
 }
 
@@ -90,7 +108,16 @@ function invitationActions(invitation: TeamInvitation): RowAction[] {
 
   return [
     { label: t('team.invitations.resend'), icon: RefreshCwIcon, onSelect: () => resend.mutate(invitation) },
-    { label: t('team.invitations.cancel'), icon: XIcon, destructive: true, onSelect: () => { selectedInvitation.value = invitation; cancel.reset(); cancelOpen.value = true } },
+    {
+      label: t('team.invitations.cancel'),
+      icon: XIcon,
+      destructive: true,
+      onSelect: () => {
+        selectedInvitation.value = invitation
+        cancel.reset()
+        cancelOpen.value = true
+      },
+    },
   ]
 }
 

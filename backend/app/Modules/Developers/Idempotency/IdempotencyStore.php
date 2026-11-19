@@ -54,14 +54,14 @@ final class IdempotencyStore
                 continue;
             }
 
-            // Kept for 24 hours only: an expired key is free again.
-            if (Carbon::parse($row->expires_at)->isPast()) {
+            // Kept for 24 hours only: an expired key is free again. Columns of a row read as text.
+            if (is_string($row->expires_at) && Carbon::parse($row->expires_at)->isPast()) {
                 DB::table('idempotency_keys')->where('id', $row->id)->where('expires_at', '<', $now)->delete();
 
                 continue;
             }
 
-            if (! hash_equals($row->fingerprint, $fingerprint)) {
+            if (! is_string($row->fingerprint) || ! hash_equals($row->fingerprint, $fingerprint)) {
                 return ['mismatch', $row];
             }
 
@@ -70,7 +70,7 @@ final class IdempotencyStore
             }
 
             // The request that reserved it died without an answer: take the reservation over.
-            if ($row->locked_until !== null && Carbon::parse($row->locked_until)->isPast()) {
+            if (is_string($row->locked_until) && Carbon::parse($row->locked_until)->isPast()) {
                 $taken = DB::table('idempotency_keys')
                     ->where('id', $row->id)
                     ->where('status', self::PROCESSING)

@@ -4,15 +4,16 @@ namespace App\Modules\Billing\Models;
 
 use App\Modules\Billing\Enums\BalanceStatus;
 use App\Modules\Billing\Enums\DeliveryStatus;
-use App\Modules\Billing\Enums\InvoicePaymentStatus;
 use App\Modules\Billing\Enums\DeliveryStep;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\ElectronicStatus;
+use App\Modules\Billing\Enums\InvoicePaymentStatus;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Delivery\Models\DeliveryAttempt;
 use App\Modules\Delivery\Models\DocumentFile;
 use App\Modules\Dian\Models\DianTransmission;
+use App\Modules\Dian\Transmission\DianAnswer;
 use App\Modules\Identity\Tenancy\BelongsToCompany;
 use App\Modules\Reference\Enums\PaymentForm;
 use App\Modules\Reference\Enums\PaymentMeans;
@@ -20,6 +21,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use LogicException;
 
 /**
  * An invoice, or a credit or debit note that corrects an accepted invoice. A draft is editable and
@@ -29,6 +31,25 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * electronic document chain (see ElectronicStatus), which also sends it to the DIAN: in this
  * project, always the local simulator. Once accepted, the customer delivery (see DeliveryStatus)
  * builds its AttachedDocument and PDF and emails them, always to the local development mailbox.
+ *
+ * The frozen copies, written on issue by DocumentSnapshots (dian by DocumentStamp, related only on
+ * a note):
+ *
+ * @phpstan-type PlaceSnapshot array{code: string, name: string, department_code: string, department_name: string|null}
+ * @phpstan-type CompanySnapshot array{name: string, legal_name: string, identification_type: string, identification_number: string, check_digit: int, organization_type: string|null, tax_scheme: string|null, fiscal_responsibilities: list<string>, registration_number: string|null, email: string|null, phone: string|null, address: string|null, country_code: string, municipality: PlaceSnapshot|null, postal_code: string|null}
+ * @phpstan-type CustomerSnapshot array{id: string, organization_type: string, identification_type: string, identification_number: string, check_digit: int|null, legal_name: string, trade_name: string|null, tax_scheme: string, fiscal_responsibilities: list<string>, email: string|null, phone: string|null, address: string|null, country_code: string, municipality: PlaceSnapshot|null, postal_code: string|null}
+ * @phpstan-type NumberingSnapshot array{number_template_id: string, prefix: string|null, from_number: int, to_number: int, resolution_number: string|null, resolution_date?: string|null, valid_from: string|null, valid_to: string|null}
+ * @phpstan-type RelatedSnapshot array{id: string, full_number: string, cufe: string, issue_date: string, issue_time: string, payable_amount: string}
+ * @phpstan-type DianSnapshot array{environment: int, software_id: string, software_provider: array{identification_number: string, check_digit: int}}
+ *
+ * @phpstan-import-type DianMessage from DianAnswer
+ *
+ * @property CompanySnapshot|null $company_snapshot
+ * @property CustomerSnapshot|null $customer_snapshot
+ * @property NumberingSnapshot|null $numbering_snapshot
+ * @property RelatedSnapshot|null $related_snapshot
+ * @property DianSnapshot|null $dian_snapshot
+ * @property list<DianMessage>|null $dian_messages The rules and notifications of the last answer.
  */
 class Document extends Model
 {
@@ -150,7 +171,16 @@ class Document extends Model
             'due_date' => 'date',
             'payment_form' => PaymentForm::class,
             'payment_means_code' => PaymentMeans::class,
-            ...array_fill_keys(self::AMOUNTS, 'decimal:2'),
+            // The columns of AMOUNTS, written out so static analysis reads every cast.
+            'subtotal_amount' => 'decimal:2',
+            'discount_total' => 'decimal:2',
+            'line_extension_amount' => 'decimal:2',
+            'tax_exclusive_amount' => 'decimal:2',
+            'tax_total' => 'decimal:2',
+            'tax_inclusive_amount' => 'decimal:2',
+            'payable_amount' => 'decimal:2',
+            'withholding_total' => 'decimal:2',
+            'amount_due' => 'decimal:2',
             'company_snapshot' => 'array',
             'customer_snapshot' => 'array',
             'numbering_snapshot' => 'array',
@@ -190,6 +220,61 @@ class Document extends Model
     public function keyName(): string
     {
         return $this->isNote() ? 'CUDE' : 'CUFE';
+    }
+
+    /**
+     * The company as it was frozen on issue.
+     *
+     * @return CompanySnapshot
+     */
+    public function companySnapshot(): array
+    {
+        return $this->company_snapshot ?? throw $this->notFrozen('company');
+    }
+
+    /**
+     * The customer as it was frozen on issue.
+     *
+     * @return CustomerSnapshot
+     */
+    public function customerSnapshot(): array
+    {
+        return $this->customer_snapshot ?? throw $this->notFrozen('customer');
+    }
+
+    /**
+     * The numbering and its resolution as they were frozen on issue.
+     *
+     * @return NumberingSnapshot
+     */
+    public function numberingSnapshot(): array
+    {
+        return $this->numbering_snapshot ?? throw $this->notFrozen('numbering');
+    }
+
+    /**
+     * The software data its XML carries, frozen on issue.
+     *
+     * @return DianSnapshot
+     */
+    public function dianSnapshot(): array
+    {
+        return $this->dian_snapshot ?? throw $this->notFrozen('software');
+    }
+
+    /**
+     * The invoice a note corrects, as it was frozen when the note was issued.
+     *
+     * @return RelatedSnapshot
+     */
+    public function relatedSnapshot(): array
+    {
+        return $this->related_snapshot ?? throw $this->notFrozen('invoice');
+    }
+
+    private function notFrozen(string $copy): LogicException
+    {
+        return new LogicException("The {$this->type->noun()} {$this->id} has no frozen copy of its {$copy}: only issued documents have one, and only notes have one of their invoice.");
     }
 
     /**

@@ -32,7 +32,7 @@ const session = useSessionStore()
 const { user } = useSession()
 const { choice } = useTheme()
 
-const themes: Array<{ value: ThemeChoice, icon: typeof SunIcon }> = [
+const themes: Array<{ value: ThemeChoice; icon: typeof SunIcon }> = [
   { value: 'light', icon: SunIcon },
   { value: 'dark', icon: MoonIcon },
   { value: 'auto', icon: MonitorIcon },

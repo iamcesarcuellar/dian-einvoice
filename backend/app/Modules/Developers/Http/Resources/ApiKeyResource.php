@@ -10,6 +10,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * An API key without its secret: the key itself is shown once, when it is created.
  *
  * @mixin ApiKey
+ *
+ * @property ApiKey $resource
  */
 final class ApiKeyResource extends JsonResource
 {

@@ -126,9 +126,7 @@ const FILE_PREFIX: Record<DocumentKind, string> = { invoice: 'fv', credit_note: 
 
 /** The NIT in a zip name of annex 1.9, 6.5.8. */
 function nitFromFileName(fileName: string | undefined): string | null {
-  const match = ZIP_NAME.exec(fileName ?? '')
-
-  return match ? match[1].replace(/^0+/, '') : null
+  return ZIP_NAME.exec(fileName ?? '')?.[1]?.replace(/^0+/, '') ?? null
 }
 
 /**
@@ -197,12 +195,12 @@ async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<An
   }
 
   const names = Object.keys(entries).filter((name) => name.toLowerCase().endsWith('.xml'))
+  const xmlFileName = names[0]
 
-  if (names.length !== 1) {
-    return { result: unreadable([{ code: null, kind: 'rejection', message: names.length === 0 ? 'El archivo ZIP no contiene un documento XML.' : 'El archivo ZIP contiene más de un documento XML.' }]), outcome: 'rejected', document: null, rules: [] }
+  if (xmlFileName === undefined || names.length > 1) {
+    return { result: unreadable([{ code: null, kind: 'rejection', message: xmlFileName === undefined ? 'El archivo ZIP no contiene un documento XML.' : 'El archivo ZIP contiene más de un documento XML.' }]), outcome: 'rejected', document: null, rules: [] }
   }
 
-  const xmlFileName = names[0]
   const xml = new TextDecoder('utf-8').decode(entries[xmlFileName])
   const parsed = parseXml(xml)
 
@@ -464,7 +462,15 @@ function publicTaxpayer(taxpayer: Taxpayer): unknown {
     legal_name: taxpayer.legal_name,
     software_id: taxpayer.software?.id ?? null,
     pin_set: taxpayer.software !== null,
-    ranges: taxpayer.ranges.map(({ technical_key: _key, ...range }) => range),
+    // Every field but the technical key, which stays secret.
+    ranges: taxpayer.ranges.map((range) => ({
+      resolution_number: range.resolution_number,
+      prefix: range.prefix,
+      from: range.from,
+      to: range.to,
+      valid_from: range.valid_from,
+      valid_to: range.valid_to,
+    })),
     registered_at: taxpayer.registered_at,
   }
 }
@@ -475,11 +481,12 @@ async function admin(request: IncomingMessage, response: ServerResponse, url: UR
   }
 
   const method = request.method ?? 'GET'
-  const [, , resource, id, ...rest] = url.pathname.split('/')
+  const [, , resource, ...segments] = url.pathname.split('/')
+  const id = segments[0]
   const body = method === 'PUT' || method === 'POST' ? JSON.parse((await readBody(request)) || '{}') as Record<string, unknown> : {}
 
   if (resource === 'webhook-receiver') {
-    return json(response, 200, receiverAdmin(state, method, [id, ...rest].filter((part) => part !== ''), url, body, () => store.save()))
+    return json(response, 200, receiverAdmin(state, method, segments.filter((part) => part !== ''), url, body, () => store.save()))
   }
 
   if (resource === 'rules' && method === 'GET') {

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Billing\Services;
 
+use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Identity\Models\Company;
@@ -11,11 +12,16 @@ use App\Modules\Reference\Models\Municipality;
 /**
  * The copies frozen on a document when it is issued, so later changes to the company, the
  * customer or the numbering do not alter it.
+ *
+ * @phpstan-import-type PlaceSnapshot from Document
+ * @phpstan-import-type CompanySnapshot from Document
+ * @phpstan-import-type CustomerSnapshot from Document
+ * @phpstan-import-type NumberingSnapshot from Document
  */
 final class DocumentSnapshots
 {
     /**
-     * @return array<string, mixed>
+     * @return CompanySnapshot
      */
     public function company(Company $company): array
     {
@@ -41,14 +47,14 @@ final class DocumentSnapshots
     }
 
     /**
-     * @return array<string, mixed>
+     * @return CustomerSnapshot
      */
     public function customer(Contact $contact): array
     {
         $contact->loadMissing('municipality.department');
 
         return [
-            'id' => $contact->getKey(),
+            'id' => $contact->id,
             'organization_type' => $contact->organization_type->value,
             'identification_type' => $contact->identification_type->value,
             'identification_number' => $contact->identification_number,
@@ -70,12 +76,12 @@ final class DocumentSnapshots
      * Resolution data of the numbering: number and date of the resolution, prefix, range and
      * validity. The technical key is not copied: it stays encrypted.
      *
-     * @return array<string, mixed>
+     * @return NumberingSnapshot
      */
     public function numbering(NumberTemplate $template): array
     {
         return [
-            'number_template_id' => $template->getKey(),
+            'number_template_id' => $template->id,
             'prefix' => $template->prefix,
             'from_number' => $template->from_number,
             'to_number' => $template->to_number,
@@ -87,7 +93,7 @@ final class DocumentSnapshots
     }
 
     /**
-     * @return array<string, string|null>|null
+     * @return PlaceSnapshot|null
      */
     private function municipality(?Municipality $municipality): ?array
     {

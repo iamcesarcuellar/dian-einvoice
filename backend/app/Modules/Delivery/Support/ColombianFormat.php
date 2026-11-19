@@ -17,13 +17,22 @@ final class ColombianFormat
 
     private const string DECIMALS = ',';
 
-    /** "1234567.5" becomes "$ 1.234.567,50"; prices keep up to 6 decimals when they have them. */
+    /**
+     * "1234567.5" becomes "$ 1.234.567,50"; prices keep up to 6 decimals when they have them.
+     *
+     * @param  non-negative-int  $maxFraction
+     */
     public static function money(string $value, int $maxFraction = 2): string
     {
         return '$ '.self::decimal($value, 2, $maxFraction);
     }
 
-    /** "1234567.500000" becomes "1.234.567,5"; at least $minFraction and at most $maxFraction decimals. */
+    /**
+     * "1234567.500000" becomes "1.234.567,5"; at least $minFraction and at most $maxFraction decimals.
+     *
+     * @param  non-negative-int  $minFraction
+     * @param  non-negative-int  $maxFraction
+     */
     public static function decimal(string $value, int $minFraction = 0, int $maxFraction = 6): string
     {
         $decimal = BigDecimal::of($value)->toScale($maxFraction, RoundingMode::HalfEven)->strippedOfTrailingZeros();

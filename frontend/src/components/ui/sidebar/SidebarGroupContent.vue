@@ -8,11 +8,7 @@ const props = defineProps<{
 </script>
 
 <template>
-  <div
-    data-slot="sidebar-group-content"
-    data-sidebar="group-content"
-    :class="cn('text-sm w-full', props.class)"
-  >
+  <div data-slot="sidebar-group-content" data-sidebar="group-content" :class="cn('text-sm w-full', props.class)">
     <slot />
   </div>
 </template>

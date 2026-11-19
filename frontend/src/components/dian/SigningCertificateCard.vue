@@ -110,7 +110,9 @@ function askRemove(): void {
           </div>
           <div class="grid min-w-0 gap-0.5">
             <dt class="text-xs text-muted-foreground">{{ t('settings.dian.certificate.validity') }}</dt>
-            <dd class="tabular-nums">{{ t('settings.dian.certificate.validityRange', { from: formatDateTime(certificate.valid_from), to: formatDateTime(certificate.valid_to) }) }}</dd>
+            <dd class="tabular-nums">
+              {{ t('settings.dian.certificate.validityRange', { from: formatDateTime(certificate.valid_from), to: formatDateTime(certificate.valid_to) }) }}
+            </dd>
           </div>
         </dl>
 

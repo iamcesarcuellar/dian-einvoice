@@ -57,7 +57,7 @@ final class DianSettingsRequest extends FormRequest
      */
     public function settings(): array
     {
-        $settings = $this->safe()->only(['environment', 'software_id', 'test_set_id']);
+        $settings = $this->safe(['environment', 'software_id', 'test_set_id']);
 
         if (filled($this->validated('software_pin'))) {
             $settings['software_pin'] = $this->validated('software_pin');

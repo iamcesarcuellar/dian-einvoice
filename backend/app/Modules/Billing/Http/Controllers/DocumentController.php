@@ -55,6 +55,7 @@ final class DocumentController
     {
         $type = DocumentType::forRoute($request->route()?->getName());
 
+        /** @var array{status?: string|null, electronic_status?: string|null, balance_status?: string|null, related_document_id?: string|null, contact_id?: string|null, payment_status?: string|null, overdue?: bool|int|string|null, from?: string|null, to?: string|null} $filters */
         $filters = $request->validate([
             'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
             'electronic_status' => ['sometimes', 'nullable', Rule::in([self::PROCESSING, ...array_column(ElectronicStatus::cases(), 'value')])],
@@ -109,7 +110,7 @@ final class DocumentController
      */
     public function store(DocumentRequest $request, DocumentDrafts $drafts): JsonResponse
     {
-        $document = $drafts->create($request->documentType(), $request->validated(), Actor::user($request));
+        $document = $drafts->create($request->documentType(), $request->draft(), Actor::user($request));
 
         return DocumentResource::make($this->withDetails($document))->response()->setStatusCode(201);
     }
@@ -119,7 +120,7 @@ final class DocumentController
      */
     public function preview(DocumentRequest $request, DocumentPricing $pricing): CalculationResource
     {
-        $input = $request->validated();
+        $input = $request->draft();
         // A note is priced with the rates frozen on its invoice.
         $invoice = $request->documentType()->isNote() && filled($input['related_document_id'] ?? null)
             ? Document::query()->where('type', DocumentType::Invoice)->find($input['related_document_id'])
@@ -139,6 +140,7 @@ final class DocumentController
     public function prefill(Request $request, NotePrefill $prefill): JsonResponse
     {
         $type = DocumentType::forRoute($request->route()?->getName());
+        /** @var array{invoice_id: string, void?: bool|int|string} $input */
         $input = $request->validate([
             'invoice_id' => ['required', 'string'],
             'void' => ['sometimes', 'boolean'],
@@ -164,7 +166,7 @@ final class DocumentController
      */
     public function update(DocumentRequest $request, Document $document, DocumentDrafts $drafts): DocumentResource
     {
-        return DocumentResource::make($this->withDetails($drafts->update($document, $request->validated())));
+        return DocumentResource::make($this->withDetails($drafts->update($document, $request->draft())));
     }
 
     /**
@@ -185,7 +187,7 @@ final class DocumentController
      */
     public function issue(Request $request, Document $document, IssueDocument $issue): DocumentResource
     {
-        return DocumentResource::make($this->withDetails($issue($document->getKey(), Actor::user($request))));
+        return DocumentResource::make($this->withDetails($issue($document->id, Actor::user($request))));
     }
 
     /**
@@ -230,7 +232,7 @@ final class DocumentController
      */
     public function retry(Request $request, Document $document, ElectronicDocumentActions $actions): DocumentResource
     {
-        return DocumentResource::make($this->withDetails($actions->retryNow($document->getKey(), Actor::user($request))));
+        return DocumentResource::make($this->withDetails($actions->retryNow($document->id, Actor::user($request))));
     }
 
     /**
@@ -239,7 +241,7 @@ final class DocumentController
      */
     public function resend(Request $request, Document $document, ElectronicDocumentActions $actions): DocumentResource
     {
-        return DocumentResource::make($this->withDetails($actions->resend($document->getKey(), Actor::user($request))));
+        return DocumentResource::make($this->withDetails($actions->resend($document->id, Actor::user($request))));
     }
 
     private function withDetails(Document $document): Document

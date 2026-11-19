@@ -7,13 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { webhooksApi } from '@/api/developers'
 import DataTable from '@/components/data-table/DataTable.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatDateTime, formatInteger } from '@/lib/format'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
@@ -30,9 +24,12 @@ const { t } = useI18n()
 const session = useSessionStore()
 const page = ref(1)
 
-watch(() => props.subscription?.id, () => {
-  page.value = 1
-})
+watch(
+  () => props.subscription?.id,
+  () => {
+    page.value = 1
+  },
+)
 
 const { data, error, isPending, refetch } = useQuery({
   queryKey: computed(() => tenantKey(session.currentCompanyId, 'webhook-deliveries', 'list', props.subscription?.id, page.value)),

@@ -14,7 +14,7 @@ export function useReference() {
   const { t } = useI18n()
   const { data } = useQuery({
     queryKey: queryKeys.reference,
-    queryFn: referenceApi.get,
+    queryFn: () => referenceApi.get(),
     staleTime: Number.POSITIVE_INFINITY,
   })
 
@@ -46,9 +46,11 @@ export function useReference() {
     // Concepts of the notes, with their code: "2 · Void of the electronic invoice".
     creditNoteConcepts: computed(() => options(data.value?.credit_note_concepts, 'creditNoteConcepts', true)),
     debitNoteConcepts: computed(() => options(data.value?.debit_note_concepts, 'debitNoteConcepts', true)),
-    departments: computed<Option[]>(() => (data.value?.departments ?? []).map((department) => ({
-      value: department.code,
-      label: department.name,
-    }))),
+    departments: computed<Option[]>(() =>
+      (data.value?.departments ?? []).map((department) => ({
+        value: department.code,
+        label: department.name,
+      })),
+    ),
   }
 }

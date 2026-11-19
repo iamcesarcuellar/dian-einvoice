@@ -57,11 +57,7 @@ const unsaved = useUnsavedChanges(() => ({
   amounts: Object.values(amounts.value).filter((value) => value.trim() !== ''),
 }))
 
-const crumbs = computed(() => [
-  { label: t('nav.sales') },
-  { label: t('nav.payments'), to: { name: 'payments' } },
-  { label: t('payments.editor.title') },
-])
+const crumbs = computed(() => [{ label: t('nav.sales') }, { label: t('nav.payments'), to: { name: 'payments' } }, { label: t('payments.editor.title') }])
 
 const invoiceColumns = computed<DataTableColumn[]>(() => [
   { key: 'number', label: t('payments.editor.columns.invoice') },
@@ -101,9 +97,12 @@ const invoices = computed<OpenInvoice[]>(() => open.value?.data ?? [])
 const credits = computed(() => open.value?.meta.credits ?? [])
 
 // Another customer starts again; ?invoice= is paid in full once its invoices arrive.
-watch(() => contact.value?.id, () => {
-  amounts.value = {}
-})
+watch(
+  () => contact.value?.id,
+  () => {
+    amounts.value = {}
+  },
+)
 
 watch(invoices, (list) => {
   const preset = list.find((invoice) => invoice.id === presetInvoiceId)
@@ -136,9 +135,11 @@ function rowError(invoice: OpenInvoice): string | null {
   return cents > balance ? t('payments.editor.aboveBalance', { balance: formatMoney(invoice.balance) }) : null
 }
 
-const applied = computed(() => invoices.value
-  .map((invoice) => ({ invoice, cents: toCents((amounts.value[invoice.id] ?? '').trim()) }))
-  .filter((row): row is { invoice: OpenInvoice, cents: bigint } => row.cents !== null && row.cents > 0n))
+const applied = computed(() =>
+  invoices.value
+    .map((invoice) => ({ invoice, cents: toCents((amounts.value[invoice.id] ?? '').trim()) }))
+    .filter((row): row is { invoice: OpenInvoice; cents: bigint } => row.cents !== null && row.cents > 0n),
+)
 
 const total = computed(() => applied.value.reduce((sum, row) => sum + row.cents, 0n))
 const hasErrors = computed(() => invoices.value.some((invoice) => rowError(invoice) !== null))
@@ -227,7 +228,9 @@ function apiRowError(invoice: OpenInvoice): string | undefined {
                 <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.issue_date) }}</span>
               </template>
               <template #cell-due_date="{ row }">
-                <span class="whitespace-nowrap tabular-nums" :class="row.overdue ? 'text-destructive' : ''">{{ formatDate(row.due_date ?? row.issue_date) }}</span>
+                <span class="whitespace-nowrap tabular-nums" :class="row.overdue ? 'text-destructive' : ''">{{
+                  formatDate(row.due_date ?? row.issue_date)
+                }}</span>
               </template>
               <template #cell-balance="{ row }">
                 <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.balance) }}</span>
@@ -240,13 +243,15 @@ function apiRowError(invoice: OpenInvoice): string | undefined {
                     :scale="2"
                     :invalid="!!rowError(row) || !!apiRowError(row)"
                     :aria-label="t('payments.editor.amountFor', { number: row.number })"
-                    @update:model-value="(value: string) => amounts = { ...amounts, [row.id]: value }"
+                    @update:model-value="(value: string) => (amounts = { ...amounts, [row.id]: value })"
                   />
                   <p v-if="rowError(row) ?? apiRowError(row)" class="text-xs text-destructive">{{ rowError(row) ?? apiRowError(row) }}</p>
                 </div>
               </template>
               <template #cell-pay="{ row }">
-                <Button variant="outline" size="sm" :aria-label="t('payments.editor.payInFullFor', { number: row.number })" @click="payInFull(row)">{{ t('payments.editor.payInFull') }}</Button>
+                <Button variant="outline" size="sm" :aria-label="t('payments.editor.payInFullFor', { number: row.number })" @click="payInFull(row)">{{
+                  t('payments.editor.payInFull')
+                }}</Button>
               </template>
             </DataTable>
             <p v-if="credits.length > 0" class="text-xs text-muted-foreground">
@@ -265,7 +270,13 @@ function apiRowError(invoice: OpenInvoice): string | undefined {
                 <SelectInput id="payment-means" v-model="means" :options="paymentMeans" :invalid="!!errors.payment_means_code" />
               </FormField>
             </div>
-            <FormField id="payment-reference" :label="t('payments.editor.reference')" :hint="t('payments.editor.referenceHint')" :error="errors.reference?.[0]" optional>
+            <FormField
+              id="payment-reference"
+              :label="t('payments.editor.reference')"
+              :hint="t('payments.editor.referenceHint')"
+              :error="errors.reference?.[0]"
+              optional
+            >
               <Input id="payment-reference" v-model="reference" maxlength="100" autocomplete="off" />
             </FormField>
             <FormField id="payment-notes" :label="t('payments.editor.notes')" :error="errors.notes?.[0]" optional>

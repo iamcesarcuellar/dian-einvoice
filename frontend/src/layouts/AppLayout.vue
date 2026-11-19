@@ -42,7 +42,9 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
           >
             <SearchIcon class="mx-auto sm:mx-0" aria-hidden="true" />
             <span class="hidden flex-1 text-left font-normal sm:inline">{{ t('palette.button') }}</span>
-            <kbd class="pointer-events-none hidden rounded border bg-muted px-1.5 font-mono text-[10px] font-medium sm:inline">{{ isMac ? '⌘K' : 'Ctrl K' }}</kbd>
+            <kbd class="pointer-events-none hidden rounded border bg-muted px-1.5 font-mono text-[10px] font-medium sm:inline">{{
+              isMac ? '⌘K' : 'Ctrl K'
+            }}</kbd>
           </Button>
           <TestEnvironmentBadge />
           <UserMenu />

@@ -72,12 +72,15 @@ final class CurrentCompany
 
     public function id(): string
     {
-        return $this->system?->getKey() ?? $this->apiKey?->company_id ?? $this->membership()->company_id;
+        return $this->system->id ?? $this->apiKey->company_id ?? $this->membership()->company_id;
     }
 
     public function company(): Company
     {
-        return $this->system ?? $this->apiKey?->company ?? $this->membership()->company;
+        return $this->system
+            ?? $this->apiKey->company
+            ?? $this->membership()->company
+            ?? throw new LogicException('The company of the current request does not exist.');
     }
 
     /** The role of the signed-in user. API keys and the system have none. */

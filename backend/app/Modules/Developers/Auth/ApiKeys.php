@@ -64,7 +64,7 @@ final class ApiKeys
             ->where('public_id', $match[1])
             ->first();
 
-        $matches = hash_equals($key?->secret_hash ?? str_repeat('0', 64), self::hash($plaintext));
+        $matches = hash_equals($key->secret_hash ?? str_repeat('0', 64), self::hash($plaintext));
 
         return $key !== null && $matches ? $key : null;
     }

@@ -18,7 +18,7 @@ export const [useCommand, provideCommandContext] = createContext<{
     search: string
     /** False: every item shows, whatever the search. */
     enabled: boolean
-    filtered: { count: number, items: Map<string, number>, groups: Set<string> }
+    filtered: { count: number; items: Map<string, number>; groups: Set<string> }
   }
 }>('Command')
 

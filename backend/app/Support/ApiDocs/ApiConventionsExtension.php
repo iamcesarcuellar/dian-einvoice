@@ -10,7 +10,6 @@ use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\Parameter;
 use Dedoc\Scramble\Support\Generator\Reference;
 use Dedoc\Scramble\Support\Generator\Response;
-use Dedoc\Scramble\Support\Generator\Schema;
 use Dedoc\Scramble\Support\Generator\Types\IntegerType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
 use Dedoc\Scramble\Support\RouteInfo;
@@ -29,22 +28,19 @@ final class ApiConventionsExtension extends OperationExtension
         $tenant = $middleware->contains('company');
         $idempotent = $middleware->contains('idempotency') && strtoupper($operation->method) === 'POST';
 
+        // description() and required() of Scramble declare no return type, so they are not chained.
         if ($tenant) {
-            $operation->addParameters([
-                Parameter::make(ResolveCurrentCompany::HEADER, 'header')
-                    ->description('The company to act on. Required with a session; with an API key it is the company of the key, and when sent it must match.')
-                    ->setSchema(Schema::fromType(new StringType))
-                    ->required(false),
-            ]);
+            $company = Parameter::make(ResolveCurrentCompany::HEADER, 'header')->setSchema(ProblemResponses::schema(new StringType));
+            $company->description('The company to act on. Required with a session; with an API key it is the company of the key, and when sent it must match.');
+            $company->required(false);
+            $operation->addParameters([$company]);
         }
 
         if ($idempotent) {
-            $operation->addParameters([
-                Parameter::make(HandleIdempotency::HEADER, 'header')
-                    ->description('Optional. A unique value, such as a UUID, to make retries safe: the same key with the same request returns the first answer (marked Idempotent-Replayed: true) without running again, for 24 hours.')
-                    ->setSchema(Schema::fromType(new StringType))
-                    ->required(false),
-            ]);
+            $key = Parameter::make(HandleIdempotency::HEADER, 'header')->setSchema(ProblemResponses::schema(new StringType));
+            $key->description('Optional. A unique value, such as a UUID, to make retries safe: the same key with the same request returns the first answer (marked Idempotent-Replayed: true) without running again, for 24 hours.');
+            $key->required(false);
+            $operation->addParameters([$key]);
         }
 
         $codes = $this->codes($operation);
@@ -67,10 +63,10 @@ final class ApiConventionsExtension extends OperationExtension
 
         if ($middleware->contains('api-rate-limit')) {
             $operation->addResponse(ProblemResponses::make(429, 'Too many requests for this API key: wait the seconds of Retry-After')
-                ->addHeader('Retry-After', new Header('Seconds until the window of the limit resets.', schema: Schema::fromType(new IntegerType)))
-                ->addHeader('X-RateLimit-Limit', new Header('Requests per minute of the key.', schema: Schema::fromType(new IntegerType)))
-                ->addHeader('X-RateLimit-Remaining', new Header('Requests left in the current window: 0.', schema: Schema::fromType(new IntegerType)))
-                ->addHeader('X-RateLimit-Reset', new Header('Unix time when the window resets.', schema: Schema::fromType(new IntegerType))));
+                ->addHeader('Retry-After', new Header('Seconds until the window of the limit resets.', schema: ProblemResponses::schema(new IntegerType)))
+                ->addHeader('X-RateLimit-Limit', new Header('Requests per minute of the key.', schema: ProblemResponses::schema(new IntegerType)))
+                ->addHeader('X-RateLimit-Remaining', new Header('Requests left in the current window: 0.', schema: ProblemResponses::schema(new IntegerType)))
+                ->addHeader('X-RateLimit-Reset', new Header('Unix time when the window resets.', schema: ProblemResponses::schema(new IntegerType))));
         }
     }
 

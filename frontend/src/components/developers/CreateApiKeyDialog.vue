@@ -8,14 +8,7 @@ import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import SelectInput from '@/components/SelectInput.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { todayInColombia } from '@/lib/format'
@@ -30,7 +23,14 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const form = ref({ name: '', level: 'read_write' as string | null, expires_at: '', rate_limit_per_minute: '' })
+interface KeyForm {
+  name: string
+  level: string | null
+  expires_at: string
+  rate_limit_per_minute: string
+}
+
+const form = ref<KeyForm>({ name: '', level: 'read_write', expires_at: '', rate_limit_per_minute: '' })
 
 const levelOptions = computed<Option[]>(() => [
   { value: 'read_write', label: t('developers.keys.levels.read_write') },
@@ -81,17 +81,40 @@ watch(open, (isOpen) => {
           <Input id="api-key-name" v-model="form.name" autocomplete="off" :aria-invalid="!!errors.name" />
         </FormField>
 
-        <FormField id="api-key-level" :label="t('developers.keys.level')" :hint="form.level ? t(`developers.keys.levelHints.${form.level}`) : undefined" :error="errors.level?.[0]">
+        <FormField
+          id="api-key-level"
+          :label="t('developers.keys.level')"
+          :hint="form.level ? t(`developers.keys.levelHints.${form.level}`) : undefined"
+          :error="errors.level?.[0]"
+        >
           <SelectInput id="api-key-level" v-model="form.level" :options="levelOptions" :invalid="!!errors.level" />
         </FormField>
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <FormField id="api-key-expires" :label="t('developers.keys.expiresAt')" :hint="t('developers.keys.expiresHint')" :error="errors.expires_at?.[0]" optional>
+          <FormField
+            id="api-key-expires"
+            :label="t('developers.keys.expiresAt')"
+            :hint="t('developers.keys.expiresHint')"
+            :error="errors.expires_at?.[0]"
+            optional
+          >
             <Input id="api-key-expires" v-model="form.expires_at" type="date" :min="todayInColombia()" :aria-invalid="!!errors.expires_at" />
           </FormField>
 
-          <FormField id="api-key-limit" :label="t('developers.keys.rateLimit')" :hint="t('developers.keys.rateLimitHint')" :error="errors.rate_limit_per_minute?.[0]" optional>
-            <Input id="api-key-limit" v-model="form.rate_limit_per_minute" inputmode="numeric" placeholder="120" :aria-invalid="!!errors.rate_limit_per_minute" />
+          <FormField
+            id="api-key-limit"
+            :label="t('developers.keys.rateLimit')"
+            :hint="t('developers.keys.rateLimitHint')"
+            :error="errors.rate_limit_per_minute?.[0]"
+            optional
+          >
+            <Input
+              id="api-key-limit"
+              v-model="form.rate_limit_per_minute"
+              inputmode="numeric"
+              placeholder="120"
+              :aria-invalid="!!errors.rate_limit_per_minute"
+            />
           </FormField>
         </div>
       </form>

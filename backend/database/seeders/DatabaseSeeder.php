@@ -46,7 +46,7 @@ class DatabaseSeeder extends Seeder
             $queue = Queue::connection();
 
             if ($queue instanceof ClearableQueue) {
-                $queue->clear((string) config('queue.connections.'.config('queue.default').'.queue', 'default'));
+                $queue->clear(config()->string('queue.connections.'.config()->string('queue.default').'.queue', 'default'));
             }
         }
 

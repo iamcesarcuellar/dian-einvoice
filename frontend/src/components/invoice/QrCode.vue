@@ -31,13 +31,7 @@ const path = computed(() => {
 </script>
 
 <template>
-  <svg
-    :viewBox="`0 0 ${qr.size} ${qr.size}`"
-    role="img"
-    :aria-label="label"
-    shape-rendering="crispEdges"
-    class="block rounded-md"
-  >
+  <svg :viewBox="`0 0 ${qr.size} ${qr.size}`" role="img" :aria-label="label" shape-rendering="crispEdges" class="block rounded-md">
     <rect :width="qr.size" :height="qr.size" fill="#ffffff" />
     <path :d="path" fill="#000000" />
   </svg>

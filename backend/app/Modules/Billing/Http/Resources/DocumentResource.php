@@ -18,6 +18,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin Document
+ *
+ * @property Document $resource
  */
 final class DocumentResource extends JsonResource
 {
@@ -34,9 +36,12 @@ final class DocumentResource extends JsonResource
     {
         $collection = self::collection($resource);
 
-        $collection->collection->each(function (self $row): void {
-            $row->summary = true;
-        });
+        // collection() wraps every row in this resource.
+        foreach ($collection->collection ?? [] as $row) {
+            if ($row instanceof self) {
+                $row->summary = true;
+            }
+        }
 
         return $collection;
     }
@@ -161,12 +166,12 @@ final class DocumentResource extends JsonResource
         return $snapshot === null ? ['id' => $this->related_document_id] : [
             'id' => $this->related_document_id,
             'type' => 'invoice',
-            'full_number' => $snapshot['full_number'] ?? null,
-            'issue_date' => $snapshot['issue_date'] ?? null,
-            'cufe' => $snapshot['cufe'] ?? null,
+            'full_number' => $snapshot['full_number'],
+            'issue_date' => $snapshot['issue_date'],
+            'cufe' => $snapshot['cufe'],
             'customer_name' => $this->customer_snapshot['legal_name'] ?? null,
             'currency' => $this->currency,
-            'payable_amount' => $snapshot['payable_amount'] ?? null,
+            'payable_amount' => $snapshot['payable_amount'],
         ];
     }
 
@@ -200,7 +205,7 @@ final class DocumentResource extends JsonResource
         }
 
         if ($this->isNote() && $this->relationLoaded('lines') && $this->relationLoaded('relatedDocument') && $this->relatedDocument !== null) {
-            return ['invoice_balance' => $balances->of($this->relatedDocument, $this->getKey())];
+            return ['invoice_balance' => $balances->of($this->relatedDocument, $this->id)];
         }
 
         return [];
@@ -280,8 +285,8 @@ final class DocumentResource extends JsonResource
                 'status_code' => $this->dian_status_code,
                 'status_description' => $this->dian_status_description,
                 'status_message' => $this->dian_status_message,
-                'rules' => array_values(array_filter($messages, fn (array $message): bool => ($message['kind'] ?? null) === 'rejection')),
-                'notifications' => array_values(array_filter($messages, fn (array $message): bool => ($message['kind'] ?? null) === 'notification')),
+                'rules' => array_values(array_filter($messages, fn (array $message): bool => $message['kind'] === 'rejection')),
+                'notifications' => array_values(array_filter($messages, fn (array $message): bool => $message['kind'] === 'notification')),
                 'responded_at' => $this->dian_responded_at,
                 'response_available' => $this->dian_response_path !== null,
                 'response_file_name' => $this->full_number === null ? null : $this->full_number.'-simulator-response.xml',

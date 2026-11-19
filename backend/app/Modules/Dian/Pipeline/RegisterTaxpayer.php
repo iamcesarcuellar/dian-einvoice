@@ -26,7 +26,7 @@ final class RegisterTaxpayer implements ConsumesOutboxEvents
 
     public static function fromOutboxEvent(OutboxEvent $event): static
     {
-        return new static($event->company_id);
+        return new self($event->company_id);
     }
 
     /**

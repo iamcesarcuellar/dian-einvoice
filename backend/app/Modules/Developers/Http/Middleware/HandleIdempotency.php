@@ -8,6 +8,8 @@ use App\Modules\Identity\Tenancy\CurrentCompany;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use LogicException;
+use stdClass;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Throwable;
@@ -35,6 +37,9 @@ final class HandleIdempotency
         private readonly CurrentCompany $currentCompany,
     ) {}
 
+    /**
+     * @param  Closure(Request): Response  $next
+     */
     public function handle(Request $request, Closure $next): Response
     {
         if ($request->method() !== 'POST' || ! $request->headers->has(self::HEADER)) {
@@ -52,11 +57,14 @@ final class HandleIdempotency
         return match ($outcome) {
             'mismatch' => ProblemDetails::response(422, 'This Idempotency-Key was already used with another request (method, path or body). Use a new key for a new request.'),
             'in_progress' => ProblemDetails::response(409, 'A request with this Idempotency-Key is still in progress. Wait for it to finish, then repeat it to get its answer.'),
-            'replay' => $this->replay($row),
-            default => $this->run($request, $next, (string) $row->id),
+            'replay' => $this->replay($row ?? throw new LogicException('A kept answer has its stored row.')),
+            default => $this->run($request, $next, $this->reservedId($row)),
         };
     }
 
+    /**
+     * @param  Closure(Request): Response  $next
+     */
     private function run(Request $request, Closure $next, string $id): Response
     {
         try {
@@ -76,11 +84,26 @@ final class HandleIdempotency
         return $response;
     }
 
-    private function replay(object $row): Response
+    /** The id of the row a reservation stored; the columns of a row read as text. */
+    private function reservedId(?stdClass $row): string
     {
-        $headers = json_decode((string) ($row->response_headers ?? '[]'), true) ?: [];
+        $id = $row?->id;
 
-        return new HttpResponse((string) $row->response_body, (int) $row->response_status, [...$headers, self::REPLAYED => 'true']);
+        return is_string($id) ? $id : throw new LogicException('A reserved Idempotency-Key has its stored row.');
+    }
+
+    private function replay(stdClass $row): Response
+    {
+        $stored = $row->response_headers ?? null;
+        $headers = is_string($stored) ? json_decode($stored, true) : [];
+        $body = $row->response_body ?? null;
+        $status = $row->response_status ?? null;
+
+        return new HttpResponse(
+            is_string($body) ? $body : '',
+            is_numeric($status) ? (int) $status : 0,
+            [...(is_array($headers) ? $headers : []), self::REPLAYED => 'true'],
+        );
     }
 
     /** SHA-256 of the method, the path and the body; a JSON body in a canonical form. */

@@ -10,6 +10,7 @@ use App\Modules\Identity\Tenancy\CurrentCompany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use LogicException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
@@ -31,11 +32,14 @@ final class TeamMembers
      */
     public function list(): Collection
     {
+        // Deleting a user deletes its memberships (foreign keys cascade).
+        $name = fn (Membership $membership): string => mb_strtolower(($membership->user ?? throw new LogicException("Membership {$membership->id} has no user."))->name);
+
         return Membership::query()
             ->with('user')
             ->where('company_id', $this->currentCompany->id())
             ->get()
-            ->sort(fn (Membership $a, Membership $b): int => [$a->role->rank(), mb_strtolower($a->user->name)] <=> [$b->role->rank(), mb_strtolower($b->user->name)])
+            ->sort(fn (Membership $a, Membership $b): int => [$a->role->rank(), $name($a)] <=> [$b->role->rank(), $name($b)])
             ->values();
     }
 

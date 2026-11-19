@@ -115,7 +115,7 @@ final class DompdfDocumentRenderer implements DocumentRenderer
         $family = $metrics->getFontFamilies()[mb_strtolower(self::FAMILY)] ?? [];
 
         foreach (self::FACES as $file => $face) {
-            $registered = $family[$face] ?? null;
+            $registered = is_array($family) ? $family[$face] ?? null : null;
 
             if (is_string($registered) && is_file($registered.'.ttf') && is_file($registered.'.ufm')) {
                 continue;

@@ -19,21 +19,22 @@ const { t } = useI18n()
 const route = useRoute()
 const { can } = useSession()
 
-const types: Array<{ type: DocumentType, label: string }> = [
+const types: Array<{ type: DocumentType; label: string }> = [
   { type: 'invoice', label: 'notes.tabs.invoices' },
   { type: 'credit_note', label: 'notes.tabs.creditNotes' },
   { type: 'debit_note', label: 'notes.tabs.debitNotes' },
 ]
 
-const active = computed<DocumentType>(() => types
-  .find((tab) => DOCUMENT_ROUTES[tab.type].list === route.name)?.type ?? 'invoice')
+const active = computed<DocumentType>(() => types.find((tab) => DOCUMENT_ROUTES[tab.type].list === route.name)?.type ?? 'invoice')
 
-const tabs = computed<PageTab[]>(() => types.map((tab) => ({
-  key: tab.type,
-  label: t(tab.label),
-  to: { name: DOCUMENT_ROUTES[tab.type].list },
-  active: active.value === tab.type,
-})))
+const tabs = computed<PageTab[]>(() =>
+  types.map((tab) => ({
+    key: tab.type,
+    label: t(tab.label),
+    to: { name: DOCUMENT_ROUTES[tab.type].list },
+    active: active.value === tab.type,
+  })),
+)
 </script>
 
 <template>

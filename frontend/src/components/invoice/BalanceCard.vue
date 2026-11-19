@@ -62,6 +62,12 @@ function create(type: 'credit_note' | 'debit_note', voidInvoice = false): void {
     query: { invoice: props.invoice.id, ...(voidInvoice ? { void: '1' } : {}) },
   })
 }
+
+/** Confirmed in the dialog: opens the credit note that voids the invoice. */
+function confirmVoid(): void {
+  voidOpen.value = false
+  create('credit_note', true)
+}
 </script>
 
 <template>
@@ -137,7 +143,7 @@ function create(type: 'credit_note' | 'debit_note', voidInvoice = false): void {
       :title="t('notes.balance.voidTitle', { number: invoice.full_number })"
       :description="t('notes.balance.voidDescription', { amount: formatMoney(balance?.remaining_to_credit ?? '0') })"
       :confirm-label="t('notes.balance.voidConfirm')"
-      @confirm="voidOpen = false; create('credit_note', true)"
+      @confirm="confirmVoid"
     />
   </FormSection>
 </template>

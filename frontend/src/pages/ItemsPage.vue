@@ -26,7 +26,7 @@ const { label } = useReference()
 
 const canManage = computed(() => can('manage-catalog'))
 
-const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('items', itemsApi.list)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('items', (params) => itemsApi.list(params))
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'code', label: t('items.columns.code') },

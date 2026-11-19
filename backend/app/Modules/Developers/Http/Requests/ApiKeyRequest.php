@@ -41,8 +41,8 @@ final class ApiKeyRequest extends FormRequest
     /** The end of the last day of validity, in Colombia, as an instant. */
     public function expiresAt(): ?Carbon
     {
-        $date = $this->validated('expires_at');
+        $date = $this->safe()->string('expires_at')->toString();
 
-        return $date === null ? null : Carbon::parse((string) $date, NumberTemplate::TIMEZONE)->endOfDay()->utc();
+        return $date === '' ? null : Carbon::parse($date, NumberTemplate::TIMEZONE)->endOfDay()->utc();
     }
 }

@@ -2,14 +2,17 @@
 import type { Option } from '@/lib/options'
 import { Checkbox } from '@/components/ui/checkbox'
 
-withDefaults(defineProps<{
-  options: Option[]
-  idPrefix?: string
-  disabled?: boolean
-}>(), {
-  idPrefix: 'fiscal',
-  disabled: false,
-})
+withDefaults(
+  defineProps<{
+    options: Option[]
+    idPrefix?: string
+    disabled?: boolean
+  }>(),
+  {
+    idPrefix: 'fiscal',
+    disabled: false,
+  },
+)
 
 /** Codes of the checked responsibilities. */
 const model = defineModel<string[]>({ required: true })
@@ -26,20 +29,13 @@ function toggle(code: string, checked: boolean): void {
     return
   }
 
-  model.value = code === NOT_APPLICABLE
-    ? [NOT_APPLICABLE]
-    : [...others.filter((value) => value !== NOT_APPLICABLE), code]
+  model.value = code === NOT_APPLICABLE ? [NOT_APPLICABLE] : [...others.filter((value) => value !== NOT_APPLICABLE), code]
 }
 </script>
 
 <template>
   <div class="grid gap-2.5 sm:grid-cols-2">
-    <label
-      v-for="option in options"
-      :key="option.value"
-      :for="`${idPrefix}-${option.value}`"
-      class="flex items-center gap-2.5 text-sm"
-    >
+    <label v-for="option in options" :key="option.value" :for="`${idPrefix}-${option.value}`" class="flex items-center gap-2.5 text-sm">
       <Checkbox
         :id="`${idPrefix}-${option.value}`"
         :model-value="model.includes(option.value)"

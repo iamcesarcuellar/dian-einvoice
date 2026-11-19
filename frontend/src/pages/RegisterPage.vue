@@ -47,26 +47,11 @@ const { submit, isPending, error, errors } = useFormMutation({
         <h2 class="text-xs font-medium tracking-wide text-muted-foreground uppercase">{{ t('auth.register.account') }}</h2>
 
         <FormField id="register-name" :label="t('fields.name')" :error="errors.name?.[0]">
-          <Input
-            id="register-name"
-            v-model="account.name"
-            autocomplete="name"
-            required
-            :disabled="isPending"
-            :aria-invalid="!!errors.name"
-          />
+          <Input id="register-name" v-model="account.name" autocomplete="name" required :disabled="isPending" :aria-invalid="!!errors.name" />
         </FormField>
 
         <FormField id="register-email" :label="t('fields.email')" :error="errors.email?.[0]">
-          <Input
-            id="register-email"
-            v-model="account.email"
-            type="email"
-            autocomplete="email"
-            required
-            :disabled="isPending"
-            :aria-invalid="!!errors.email"
-          />
+          <Input id="register-email" v-model="account.email" type="email" autocomplete="email" required :disabled="isPending" :aria-invalid="!!errors.email" />
         </FormField>
 
         <FormField id="register-password" :label="t('fields.password')" :hint="t('fields.passwordHint')" :error="errors.password?.[0]">
@@ -85,14 +70,7 @@ const { submit, isPending, error, errors } = useFormMutation({
       <section class="grid gap-4">
         <h2 class="text-xs font-medium tracking-wide text-muted-foreground uppercase">{{ t('auth.register.company') }}</h2>
 
-        <CompanyFields
-          v-model="company"
-          section="identity"
-          id-prefix="register-company"
-          error-prefix="company."
-          :errors="errors"
-          :disabled="isPending"
-        />
+        <CompanyFields v-model="company" section="identity" id-prefix="register-company" error-prefix="company." :errors="errors" :disabled="isPending" />
       </section>
 
       <Button type="submit" class="w-full" :disabled="isPending">

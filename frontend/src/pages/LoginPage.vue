@@ -53,25 +53,11 @@ function useDemoAccount(): void {
       <FormError :error="error" />
 
       <FormField id="login-email" :label="t('fields.email')" :error="errors.email?.[0]">
-        <Input
-          id="login-email"
-          v-model="form.email"
-          type="email"
-          autocomplete="email"
-          required
-          :aria-invalid="!!errors.email"
-        />
+        <Input id="login-email" v-model="form.email" type="email" autocomplete="email" required :aria-invalid="!!errors.email" />
       </FormField>
 
       <FormField id="login-password" :label="t('fields.password')" :error="errors.password?.[0]">
-        <Input
-          id="login-password"
-          v-model="form.password"
-          type="password"
-          autocomplete="current-password"
-          required
-          :aria-invalid="!!errors.password"
-        />
+        <Input id="login-password" v-model="form.password" type="password" autocomplete="current-password" required :aria-invalid="!!errors.password" />
       </FormField>
 
       <Button type="submit" class="mt-2 w-full" :disabled="isPending">

@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
-import {
-  CreditCardIcon,
-  FileTextIcon,
-  LayoutDashboardIcon,
-  PackageIcon,
-  SettingsIcon,
-  UsersIcon,
-} from '@lucide/vue'
+import { CreditCardIcon, FileTextIcon, LayoutDashboardIcon, PackageIcon, SettingsIcon, UsersIcon } from '@lucide/vue'
 import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -77,11 +70,14 @@ function isCurrent(item: NavItem): boolean {
 }
 
 // On narrow screens the sheet closes once a page is chosen.
-watch(() => route.fullPath, () => {
-  if (isMobile.value) {
-    setOpenMobile(false)
-  }
-})
+watch(
+  () => route.fullPath,
+  () => {
+    if (isMobile.value) {
+      setOpenMobile(false)
+    }
+  },
+)
 </script>
 
 <template>

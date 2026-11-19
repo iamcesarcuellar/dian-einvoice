@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * A row of the local key store. The payload (PKCS#12 bundle and password) is encrypted with the
  * app key and never serialized.
+ *
+ * @property array{pkcs12: string, password: string} $payload The bundle in base64.
  */
 class KeyStoreEntry extends Model
 {

@@ -2,8 +2,10 @@
 
 namespace App\Modules\Reference\Support;
 
+use App\Support\Json;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use UnexpectedValueException;
 
 /**
  * Loads departments and municipalities from Data/divipola.json, the DANE DIVIPOLA list as
@@ -16,22 +18,23 @@ final class Divipola
     public static function import(): void
     {
         $data = json_decode((string) file_get_contents(self::FILE), true, flags: JSON_THROW_ON_ERROR);
+        $field = fn (array $record, string $key): string => Json::text($record, $key) ?? throw new UnexpectedValueException("A DIVIPOLA record has no {$key}.");
 
         $departments = [];
         $municipalities = [];
 
-        foreach ($data['records'] as $record) {
-            $departments[$record['cod_dpto']] ??= [
+        foreach (Json::objects($data, 'records') as $record) {
+            $departments[$field($record, 'cod_dpto')] ??= [
                 'id' => self::ulid(),
-                'code' => $record['cod_dpto'],
-                'name' => PlaceName::format($record['dpto']),
+                'code' => $field($record, 'cod_dpto'),
+                'name' => PlaceName::format($field($record, 'dpto')),
             ];
 
             $municipalities[] = [
                 'id' => self::ulid(),
-                'code' => $record['cod_mpio'],
-                'department_code' => $record['cod_dpto'],
-                'name' => PlaceName::format($record['nom_mpio']),
+                'code' => $field($record, 'cod_mpio'),
+                'department_code' => $field($record, 'cod_dpto'),
+                'name' => PlaceName::format($field($record, 'nom_mpio')),
             ];
         }
 

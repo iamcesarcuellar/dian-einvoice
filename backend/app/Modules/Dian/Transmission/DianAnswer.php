@@ -6,6 +6,8 @@ namespace App\Modules\Dian\Transmission;
  * The validation result in an answer of SendBillSync or GetStatus (annex 1.9, 7.10.3 and 7.11.3):
  * IsValid, StatusCode, StatusDescription, StatusMessage, the ErrorMessage strings split into rule,
  * kind and message, and the ApplicationResponse decoded from XmlBase64Bytes.
+ *
+ * @phpstan-type DianMessage array{rule: string|null, kind: string, message: string}
  */
 final readonly class DianAnswer
 {
@@ -13,7 +15,7 @@ final readonly class DianAnswer
     private const array NOT_FOUND = ['66', '90'];
 
     /**
-     * @param  list<array{rule: string|null, kind: string, message: string}>  $messages  kind is rejection or notification.
+     * @param  list<DianMessage>  $messages  kind is rejection or notification.
      */
     public function __construct(
         public bool $isValid,

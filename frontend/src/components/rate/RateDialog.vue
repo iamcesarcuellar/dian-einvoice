@@ -11,14 +11,7 @@ import SelectInput from '@/components/SelectInput.vue'
 import SwitchField from '@/components/SwitchField.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { useReference } from '@/composables/useReference'
@@ -57,9 +50,7 @@ const baseHint = computed(() => {
 // PDF write the rate per thousand.
 const RETE_ICA = '07'
 const isReteIca = computed(() => props.kind === 'withholdings' && form.value.dian_code === RETE_ICA)
-const rateHint = computed(() => (isReteIca.value
-  ? t('rates.form.perMilHint', { perMil: formatPerMil(form.value.rate) || '—' })
-  : undefined))
+const rateHint = computed(() => (isReteIca.value ? t('rates.form.perMilHint', { perMil: formatPerMil(form.value.rate) || '—' }) : undefined))
 
 function toInput(): RateInput {
   if (isSystem.value) {
@@ -138,7 +129,7 @@ const title = computed(() => {
       <DialogFooter>
         <Button type="button" variant="outline" @click="open = false">{{ t('common.cancel') }}</Button>
         <Button type="submit" form="rate-form" :disabled="isPending">
-          {{ isPending ? t('common.saving') : (rate ? t('common.save') : t('rates.form.create')) }}
+          {{ isPending ? t('common.saving') : rate ? t('common.save') : t('rates.form.create') }}
         </Button>
       </DialogFooter>
     </DialogContent>

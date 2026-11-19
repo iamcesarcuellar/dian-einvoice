@@ -31,7 +31,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('webhooks', webhooksApi.list, {
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('webhooks', (params) => webhooksApi.list(params), {
   refetchInterval: () => 10_000,
 })
 
@@ -109,12 +109,36 @@ const deliveriesOpen = ref(false)
 
 function actions(subscription: WebhookSubscription): RowAction[] {
   return [
-    { label: t('developers.webhooks.deliveries'), icon: HistoryIcon, onSelect: () => { target.value = subscription; deliveriesOpen.value = true } },
+    {
+      label: t('developers.webhooks.deliveries'),
+      icon: HistoryIcon,
+      onSelect: () => {
+        target.value = subscription
+        deliveriesOpen.value = true
+      },
+    },
     { label: t('developers.webhooks.sendTest'), icon: SendIcon, onSelect: () => test.mutate(subscription) },
     { label: t('common.edit'), icon: PencilIcon, onSelect: () => openEdit(subscription) },
     { label: subscription.is_active ? t('common.deactivate') : t('common.activate'), icon: PowerIcon, onSelect: () => toggle.mutate(subscription) },
-    { label: t('developers.webhooks.rotate'), icon: KeyRoundIcon, onSelect: () => { target.value = subscription; rotate.reset(); rotateOpen.value = true } },
-    { label: t('common.delete'), icon: Trash2Icon, destructive: true, onSelect: () => { target.value = subscription; remove.reset(); deleteOpen.value = true } },
+    {
+      label: t('developers.webhooks.rotate'),
+      icon: KeyRoundIcon,
+      onSelect: () => {
+        target.value = subscription
+        rotate.reset()
+        rotateOpen.value = true
+      },
+    },
+    {
+      label: t('common.delete'),
+      icon: Trash2Icon,
+      destructive: true,
+      onSelect: () => {
+        target.value = subscription
+        remove.reset()
+        deleteOpen.value = true
+      },
+    },
   ]
 }
 
@@ -159,7 +183,9 @@ function eventsLabel(subscription: WebhookSubscription): string {
           <span class="grid gap-1">
             <StatusBadge domain="subscription" :status="row.status" />
             <span v-if="row.disabled_reason" class="max-w-56 text-xs text-destructive">{{ row.disabled_reason }}</span>
-            <span v-else-if="row.consecutive_failures > 0" class="text-xs text-muted-foreground">{{ t('developers.webhooks.failuresInARow', { count: row.consecutive_failures }) }}</span>
+            <span v-else-if="row.consecutive_failures > 0" class="text-xs text-muted-foreground">{{
+              t('developers.webhooks.failuresInARow', { count: row.consecutive_failures })
+            }}</span>
           </span>
         </template>
         <template #cell-last_delivery="{ row }">

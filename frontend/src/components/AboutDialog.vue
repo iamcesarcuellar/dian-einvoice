@@ -2,14 +2,7 @@
 import { BookOpenIcon, FlaskConicalIcon, InboxIcon, ReceiptTextIcon } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { product } from '@/config/product'
 
 /** What this product is, what is simulated, and where the local tools are. */

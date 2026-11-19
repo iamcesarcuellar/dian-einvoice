@@ -8,12 +8,7 @@ const props = defineProps<{
 </script>
 
 <template>
-  <span
-    :class="cn(
-      'text-muted-foreground gap-2 text-sm [&_svg:not([class*=size-])]:size-4 flex items-center [&_svg]:pointer-events-none',
-      props.class,
-    )"
-  >
+  <span :class="cn('text-muted-foreground gap-2 text-sm [&_svg:not([class*=size-])]:size-4 flex items-center [&_svg]:pointer-events-none', props.class)">
     <slot />
   </span>
 </template>

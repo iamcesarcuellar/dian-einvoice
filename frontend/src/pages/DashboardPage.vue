@@ -33,7 +33,12 @@ const { t } = useI18n()
 const session = useSessionStore()
 const { currentCompany, can } = useSession()
 
-const { data: dashboard, isPending, error, refetch } = useQuery({
+const {
+  data: dashboard,
+  isPending,
+  error,
+  refetch,
+} = useQuery({
   queryKey: computed(() => tenantKey(session.currentCompanyId, 'dashboard')),
   queryFn: () => workspaceApi.dashboard(),
   enabled: computed(() => session.currentCompanyId !== null),
@@ -41,13 +46,13 @@ const { data: dashboard, isPending, error, refetch } = useQuery({
   refetchInterval: 60_000,
 })
 
-const description = computed(() => [currentCompany.value?.name, dashboard.value ? formatMonth(dashboard.value.today.slice(0, 7), 'long') : null]
-  .filter(Boolean)
-  .join(' · '))
+const description = computed(() =>
+  [currentCompany.value?.name, dashboard.value ? formatMonth(dashboard.value.today.slice(0, 7), 'long') : null].filter(Boolean).join(' · '),
+)
 
-const comparedTo = computed(() => (dashboard.value
-  ? t('dashboard.kpis.vs', { period: formatDateRange(dashboard.value.period.previous_from, dashboard.value.period.previous_to) })
-  : ''))
+const comparedTo = computed(() =>
+  dashboard.value ? t('dashboard.kpis.vs', { period: formatDateRange(dashboard.value.period.previous_from, dashboard.value.period.previous_to) }) : '',
+)
 
 const kpis = computed(() => {
   const value = dashboard.value
@@ -57,10 +62,35 @@ const kpis = computed(() => {
   }
 
   return [
-    { key: 'invoiced', label: t('dashboard.kpis.invoiced'), hint: t('dashboard.kpis.invoicedHint'), kpi: value.kpis.invoiced, count: t('dashboard.kpis.invoices', { n: formatInteger(value.kpis.invoiced.count) }, value.kpis.invoiced.count), higherIsBetter: true },
-    { key: 'collected', label: t('dashboard.kpis.collected'), kpi: value.kpis.collected, count: t('dashboard.kpis.payments', { n: formatInteger(value.kpis.collected.count) }, value.kpis.collected.count), higherIsBetter: true },
-    { key: 'receivable', label: t('dashboard.kpis.receivable'), kpi: value.kpis.receivable, count: t('dashboard.kpis.openInvoices', { n: formatInteger(value.kpis.receivable.count) }, value.kpis.receivable.count), higherIsBetter: false },
-    { key: 'overdue', label: t('dashboard.kpis.overdue'), kpi: value.kpis.overdue, count: t('dashboard.kpis.overdueInvoices', { n: formatInteger(value.kpis.overdue.count) }, value.kpis.overdue.count), higherIsBetter: false },
+    {
+      key: 'invoiced',
+      label: t('dashboard.kpis.invoiced'),
+      hint: t('dashboard.kpis.invoicedHint'),
+      kpi: value.kpis.invoiced,
+      count: t('dashboard.kpis.invoices', { n: formatInteger(value.kpis.invoiced.count) }, value.kpis.invoiced.count),
+      higherIsBetter: true,
+    },
+    {
+      key: 'collected',
+      label: t('dashboard.kpis.collected'),
+      kpi: value.kpis.collected,
+      count: t('dashboard.kpis.payments', { n: formatInteger(value.kpis.collected.count) }, value.kpis.collected.count),
+      higherIsBetter: true,
+    },
+    {
+      key: 'receivable',
+      label: t('dashboard.kpis.receivable'),
+      kpi: value.kpis.receivable,
+      count: t('dashboard.kpis.openInvoices', { n: formatInteger(value.kpis.receivable.count) }, value.kpis.receivable.count),
+      higherIsBetter: false,
+    },
+    {
+      key: 'overdue',
+      label: t('dashboard.kpis.overdue'),
+      kpi: value.kpis.overdue,
+      count: t('dashboard.kpis.overdueInvoices', { n: formatInteger(value.kpis.overdue.count) }, value.kpis.overdue.count),
+      higherIsBetter: false,
+    },
   ]
 })
 </script>
@@ -164,7 +194,9 @@ const kpis = computed(() => {
           </CardHeader>
           <CardContent class="grid gap-3">
             <AgingChart :aging="dashboard.aging" />
-            <RouterLink :to="{ name: 'receivables' }" class="w-fit text-xs font-medium text-primary hover:underline">{{ t('dashboard.aging.open') }}</RouterLink>
+            <RouterLink :to="{ name: 'receivables' }" class="w-fit text-xs font-medium text-primary hover:underline">{{
+              t('dashboard.aging.open')
+            }}</RouterLink>
           </CardContent>
         </Card>
       </div>
@@ -173,7 +205,9 @@ const kpis = computed(() => {
         <Card class="lg:col-span-2">
           <CardHeader>
             <CardTitle>{{ t('dashboard.electronic.title') }}</CardTitle>
-            <CardDescription>{{ t('dashboard.electronic.description', { days: dashboard.electronic.days, total: formatInteger(dashboard.electronic.total) }) }}</CardDescription>
+            <CardDescription>{{
+              t('dashboard.electronic.description', { days: dashboard.electronic.days, total: formatInteger(dashboard.electronic.total) })
+            }}</CardDescription>
           </CardHeader>
           <CardContent class="grid gap-5">
             <ElectronicSummary :electronic="dashboard.electronic" />

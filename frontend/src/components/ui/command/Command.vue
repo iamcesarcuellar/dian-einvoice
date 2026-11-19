@@ -7,15 +7,20 @@ import { ListboxRoot, useFilter, useForwardPropsEmits } from 'reka-ui'
 import { reactive, ref, watch } from 'vue'
 import { provideCommandContext } from '.'
 
-const props = withDefaults(defineProps<ListboxRootProps & {
-  class?: HTMLAttributes['class']
-  /** False when the items are already the results of a search, such as those of the server. */
-  shouldFilter?: boolean
-}>(), {
-  modelValue: '',
-  highlightOnHover: true,
-  shouldFilter: true,
-})
+const props = withDefaults(
+  defineProps<
+    ListboxRootProps & {
+      class?: HTMLAttributes['class']
+      /** False when the items are already the results of a search, such as those of the server. */
+      shouldFilter?: boolean
+    }
+  >(),
+  {
+    modelValue: '',
+    highlightOnHover: true,
+    shouldFilter: true,
+  },
+)
 
 const emits = defineEmits<ListboxRootEmits>()
 
@@ -37,9 +42,9 @@ const filterState = reactive({
     /** The count of all visible items. */
     count: 0,
     /** Map from visible item id to its search score. */
-    items: new Map() as Map<string, number>,
+    items: new Map<string, number>(),
     /** Set of groups with at least one visible item. */
-    groups: new Set() as Set<string>,
+    groups: new Set<string>(),
   },
 })
 
@@ -58,8 +63,7 @@ function filterItems() {
   for (const [id, value] of allItems.value) {
     const score = contains(value, filterState.search)
     filterState.filtered.items.set(id, score ? 1 : 0)
-    if (score)
-      itemCount++
+    if (score) itemCount++
   }
 
   // Check which groups have at least 1 item shown
@@ -75,10 +79,13 @@ function filterItems() {
   filterState.filtered.count = itemCount
 }
 
-watch(() => filterState.search, (value) => {
-  search.value = value
-  filterItems()
-})
+watch(
+  () => filterState.search,
+  (value) => {
+    search.value = value
+    filterItems()
+  },
+)
 
 watch(search, (value) => {
   if (value !== filterState.search) {
@@ -86,10 +93,13 @@ watch(search, (value) => {
   }
 })
 
-watch(() => props.shouldFilter, (value) => {
-  filterState.enabled = value
-  filterItems()
-})
+watch(
+  () => props.shouldFilter,
+  (value) => {
+    filterState.enabled = value
+    filterItems()
+  },
+)
 
 provideCommandContext({
   allItems,

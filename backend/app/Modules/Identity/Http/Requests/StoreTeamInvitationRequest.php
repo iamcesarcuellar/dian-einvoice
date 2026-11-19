@@ -22,7 +22,7 @@ final class StoreTeamInvitationRequest extends FormRequest
 
     public function role(): Role
     {
-        return Role::from((string) $this->validated('role'));
+        return Role::from($this->safe()->string('role')->toString());
     }
 
     protected function prepareForValidation(): void

@@ -10,14 +10,7 @@ import FormField from '@/components/FormField.vue'
 import SelectInput from '@/components/SelectInput.vue'
 import SwitchField from '@/components/SwitchField.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { invalidateTenant } from '@/lib/query'
@@ -68,10 +61,12 @@ function formFrom(template: NumberTemplate | null): TemplateForm {
 
 const form = ref<TemplateForm>(formFrom(props.template))
 
-const documentTypes = computed<Option[]>(() => (['invoice', 'credit_note', 'debit_note', 'payment'] as const).map((type) => ({
-  value: type,
-  label: t(`numbering.documentTypes.${type}`),
-})))
+const documentTypes = computed<Option[]>(() =>
+  (['invoice', 'credit_note', 'debit_note', 'payment'] as const).map((type) => ({
+    value: type,
+    label: t(`numbering.documentTypes.${type}`),
+  })),
+)
 
 const isInvoice = computed(() => form.value.document_type === 'invoice')
 
@@ -104,9 +99,7 @@ function toInput(): NumberTemplateInput {
 }
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
-  mutationFn: () => (props.template
-    ? numberTemplatesApi.update(props.template.id, toInput())
-    : numberTemplatesApi.create(toInput())),
+  mutationFn: () => (props.template ? numberTemplatesApi.update(props.template.id, toInput()) : numberTemplatesApi.create(toInput())),
   success: () => t(props.template ? 'numbering.saved' : 'numbering.created'),
   onSuccess: async () => {
     await invalidateTenant('number-templates')
@@ -121,9 +114,11 @@ watch(open, (isOpen) => {
   }
 })
 
-const keyHint = computed(() => (props.template?.technical_key_set
-  ? t('numbering.form.technicalKeyStored', { last4: props.template.technical_key_last4 ?? '' })
-  : t('numbering.form.technicalKeyHint')))
+const keyHint = computed(() =>
+  props.template?.technical_key_set
+    ? t('numbering.form.technicalKeyStored', { last4: props.template.technical_key_last4 ?? '' })
+    : t('numbering.form.technicalKeyHint'),
+)
 </script>
 
 <template>
@@ -148,21 +143,47 @@ const keyHint = computed(() => (props.template?.technical_key_set
 
         <div class="grid gap-4 sm:grid-cols-3">
           <FormField id="numbering-from" :label="t('numbering.form.from')" :error="errors.from_number?.[0]">
-            <Input id="numbering-from" v-model="form.from_number" inputmode="numeric" autocomplete="off" class="tabular-nums" :aria-invalid="!!errors.from_number" />
+            <Input
+              id="numbering-from"
+              v-model="form.from_number"
+              inputmode="numeric"
+              autocomplete="off"
+              class="tabular-nums"
+              :aria-invalid="!!errors.from_number"
+            />
           </FormField>
           <FormField id="numbering-to" :label="t('numbering.form.to')" :error="errors.to_number?.[0]">
             <Input id="numbering-to" v-model="form.to_number" inputmode="numeric" autocomplete="off" class="tabular-nums" :aria-invalid="!!errors.to_number" />
           </FormField>
           <FormField id="numbering-next" :label="t('numbering.form.next')" :hint="t('numbering.form.nextHint')" :error="errors.next_number?.[0]">
-            <Input id="numbering-next" v-model="form.next_number" inputmode="numeric" autocomplete="off" class="tabular-nums" :aria-invalid="!!errors.next_number" />
+            <Input
+              id="numbering-next"
+              v-model="form.next_number"
+              inputmode="numeric"
+              autocomplete="off"
+              class="tabular-nums"
+              :aria-invalid="!!errors.next_number"
+            />
           </FormField>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <FormField id="numbering-resolution" :label="t('numbering.form.resolution')" :hint="isInvoice ? t('numbering.form.requiredForInvoices') : undefined" :error="errors.resolution_number?.[0]" :optional="!isInvoice">
+          <FormField
+            id="numbering-resolution"
+            :label="t('numbering.form.resolution')"
+            :hint="isInvoice ? t('numbering.form.requiredForInvoices') : undefined"
+            :error="errors.resolution_number?.[0]"
+            :optional="!isInvoice"
+          >
             <Input id="numbering-resolution" v-model="form.resolution_number" autocomplete="off" :aria-invalid="!!errors.resolution_number" />
           </FormField>
-          <FormField id="numbering-resolution-date" :label="t('numbering.form.resolutionDate')" :hint="isInvoice ? t('numbering.form.resolutionDateHint') : undefined" :error="errors.resolution_date?.[0]" :optional="!isInvoice">
+          <FormField
+            id="numbering-resolution-date"
+            :label="t('numbering.form.resolutionDate')"
+            :hint="isInvoice ? t('numbering.form.resolutionDateHint') : undefined"
+            :error="errors.resolution_date?.[0]"
+            :optional="!isInvoice"
+          >
             <Input id="numbering-resolution-date" v-model="form.resolution_date" type="date" :aria-invalid="!!errors.resolution_date" />
           </FormField>
         </div>
@@ -188,7 +209,12 @@ const keyHint = computed(() => (props.template?.technical_key_set
         </FormField>
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <SwitchField id="numbering-default" v-model="form.is_default" :label="t('numbering.form.isDefault')" :description="t('numbering.form.isDefaultHint')" />
+          <SwitchField
+            id="numbering-default"
+            v-model="form.is_default"
+            :label="t('numbering.form.isDefault')"
+            :description="t('numbering.form.isDefaultHint')"
+          />
           <SwitchField id="numbering-active" v-model="form.is_active" :label="t('fields.active')" :description="t('numbering.form.activeHint')" />
         </div>
       </form>
@@ -196,7 +222,7 @@ const keyHint = computed(() => (props.template?.technical_key_set
       <DialogFooter>
         <Button type="button" variant="outline" @click="open = false">{{ t('common.cancel') }}</Button>
         <Button type="submit" form="numbering-form" :disabled="isPending">
-          {{ isPending ? t('common.saving') : (template ? t('common.save') : t('numbering.form.create')) }}
+          {{ isPending ? t('common.saving') : template ? t('common.save') : t('numbering.form.create') }}
         </Button>
       </DialogFooter>
     </DialogContent>

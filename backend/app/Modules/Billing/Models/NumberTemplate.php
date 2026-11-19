@@ -2,8 +2,8 @@
 
 namespace App\Modules\Billing\Models;
 
-use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Enums\NumberingStatus;
+use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Identity\Tenancy\BelongsToCompany;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;

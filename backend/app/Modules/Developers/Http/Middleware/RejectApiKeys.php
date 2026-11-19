@@ -2,7 +2,7 @@
 
 namespace App\Modules\Developers\Http\Middleware;
 
-use App\Modules\Developers\Models\ApiKey;
+use App\Modules\Identity\Tenancy\Actor;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -14,9 +14,12 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  */
 final class RejectApiKeys
 {
+    /**
+     * @param  Closure(Request): Response  $next
+     */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user() instanceof ApiKey) {
+        if (Actor::apiKey($request) !== null) {
             throw new AccessDeniedHttpException('API keys cannot use this endpoint: it belongs to the web app session of an owner or admin.');
         }
 

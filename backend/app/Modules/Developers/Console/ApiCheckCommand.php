@@ -15,6 +15,7 @@ use App\Modules\Developers\Receiver\ReceiverUnavailable;
 use App\Modules\Developers\Webhooks\WebhookEventTypes;
 use App\Modules\Developers\Webhooks\WebhookSubscriptions;
 use App\Modules\Identity\Tenancy\CompanyScope;
+use App\Support\Json;
 use Closure;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\PendingRequest;
@@ -23,6 +24,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -50,7 +52,7 @@ final class ApiCheckCommand extends Command
     {
         $this->base = rtrim((string) config('developers.api_check_url'), '/');
         $temporary = TemporaryCompany::create('API Check', 'APIC');
-        $companyId = $temporary->company->getKey();
+        $companyId = $temporary->company->id;
 
         try {
             [, $write] = $keys->create('API check (read and write)', ApiKeyLevel::ReadWrite, creator: $temporary->user);
@@ -65,7 +67,7 @@ final class ApiCheckCommand extends Command
             $this->line("Every step below is an HTTP request to {$this->base} with an API key.");
             $this->newLine();
 
-            $this->runChecks($write, $read, $companyId, $subscription->getKey(), $receiver);
+            $this->runChecks($write, $read, $companyId, $subscription->id, $receiver);
         } catch (Throwable $exception) {
             $this->recordFailure('the check stopped: '.$exception->getMessage());
         } finally {
@@ -106,9 +108,9 @@ final class ApiCheckCommand extends Command
             'email' => 'api-check-customer@example.com',
             'address' => 'Calle 10 # 43-20',
             'municipality_code' => '05001',
-        ]), 201, 'POST /contacts creates a contact')['data'];
+        ]), 201, 'POST /contacts creates a contact');
 
-        $tax = collect($this->api($read)->get('/taxes', ['per_page' => 100])->json('data') ?? [])->firstWhere('name', 'IVA 19%');
+        $tax = collect(Json::objects($this->api($read)->get('/taxes', ['per_page' => 100])->json(), 'data'))->firstWhere('name', 'IVA 19%');
 
         $item = $this->expect($this->api($write)->post('/items', [
             'code' => 'API-001',
@@ -117,7 +119,7 @@ final class ApiCheckCommand extends Command
             'unit_code' => '94',
             'unit_price' => '100000',
             'tax_id' => $tax['id'] ?? null,
-        ]), 201, 'POST /items creates an item')['data'];
+        ]), 201, 'POST /items creates an item');
 
         $draft = fn (): array => $this->expect($this->api($write)->post('/invoices', [
             'contact_id' => $contact['id'],
@@ -125,34 +127,35 @@ final class ApiCheckCommand extends Command
             'payment_means_code' => '47',
             'due_date' => Carbon::now(NumberTemplate::TIMEZONE)->addDays(30)->toDateString(),
             'lines' => [['item_id' => $item['id'], 'quantity' => '2']],
-        ]), 201, 'POST /invoices creates a draft')['data'];
+        ]), 201, 'POST /invoices creates a draft');
 
-        $first = $draft();
+        $firstId = $this->id($draft());
         $key = (string) Str::uuid();
-        $issued = $this->api($write)->withHeaders([HandleIdempotency::HEADER => $key])->post("/invoices/{$first['id']}/issue");
-        $invoice = $this->expect($issued, 200, 'POST /invoices/{id}/issue with an Idempotency-Key issues it')['data'];
-        $this->detail(sprintf('invoice %s, status %s, CUFE %s…', $invoice['full_number'], $invoice['status'], substr((string) $invoice['cufe'], 0, 16)));
+        $issued = $this->api($write)->withHeaders([HandleIdempotency::HEADER => $key])->post("/invoices/{$firstId}/issue");
+        $invoice = $this->expect($issued, 200, 'POST /invoices/{id}/issue with an Idempotency-Key issues it');
+        $invoiceNumber = Json::text($invoice, 'full_number') ?? '?';
+        $this->detail(sprintf('invoice %s, status %s, CUFE %s…', $invoiceNumber, Json::text($invoice, 'status'), substr(Json::text($invoice, 'cufe') ?? '', 0, 16)));
 
         // 2. The same key and the same request: the kept answer, marked as a repetition.
-        $again = $this->api($write)->withHeaders([HandleIdempotency::HEADER => $key])->post("/invoices/{$first['id']}/issue");
+        $again = $this->api($write)->withHeaders([HandleIdempotency::HEADER => $key])->post("/invoices/{$firstId}/issue");
         $this->check(
             $again->status() === $issued->status() && $again->body() === $issued->body() && $again->header(HandleIdempotency::REPLAYED) === 'true',
             sprintf('the same key again answers the same %d with the same body and %s: true', $again->status(), HandleIdempotency::REPLAYED),
             sprintf('got %d, %s: %s, same body: %s', $again->status(), HandleIdempotency::REPLAYED, $again->header(HandleIdempotency::REPLAYED) ?: 'missing', $again->body() === $issued->body() ? 'yes' : 'no'),
         );
-        $total = (int) $this->api($read)->get('/invoices')->json('meta.total');
+        $total = Json::int($this->api($read)->get('/invoices')->json(), 'meta.total') ?? 0;
         $this->check($total === 1, 'there is still one invoice: nothing ran twice', "GET /invoices reports {$total} invoices");
 
         // 3. The same key with another body.
-        $other = $this->api($write)->withHeaders([HandleIdempotency::HEADER => $key])->post("/invoices/{$first['id']}/issue", ['notes' => 'Another body']);
+        $other = $this->api($write)->withHeaders([HandleIdempotency::HEADER => $key])->post("/invoices/{$firstId}/issue", ['notes' => 'Another body']);
         $this->expect($other, 422, 'the same key with another body answers 422');
-        $this->detail((string) $other->json('detail'));
+        $this->detail(Json::text($other->json(), 'detail') ?? '');
 
         // 4. Ten issues of another draft at the same moment, with one key.
-        $second = $draft();
+        $secondId = $this->id($draft());
         $concurrent = (string) Str::uuid();
         $responses = Http::pool(fn (Pool $pool): array => array_map(
-            fn (int $index) => $this->client($pool->as("issue-{$index}"), $write)->withHeaders([HandleIdempotency::HEADER => $concurrent])->post("/invoices/{$second['id']}/issue"),
+            fn (int $index) => $this->client($pool->as("issue-{$index}"), $write)->withHeaders([HandleIdempotency::HEADER => $concurrent])->post("/invoices/{$secondId}/issue"),
             range(1, 10),
         ));
 
@@ -174,32 +177,32 @@ final class ApiCheckCommand extends Command
             "{$ran} executed, {$inProgress} answered 409, {$replayed} replayed, {$other} other answers",
         );
 
-        $secondInvoice = $this->api($read)->get("/invoices/{$second['id']}")->json('data') ?? [];
-        $issueEvents = collect($secondInvoice['events'] ?? [])->where('type', 'issued')->count();
-        $issuedTotal = (int) $this->api($read)->get('/invoices', ['status' => 'issued'])->json('meta.total');
+        $secondInvoice = Json::array($this->api($read)->get("/invoices/{$secondId}")->json(), 'data');
+        $issueEvents = collect(Json::objects($secondInvoice, 'events'))->where('type', 'issued')->count();
+        $issuedTotal = Json::int($this->api($read)->get('/invoices', ['status' => 'issued'])->json(), 'meta.total') ?? 0;
         $this->check(
-            $issueEvents === 1 && $issuedTotal === 2 && (int) ($secondInvoice['number'] ?? 0) === (int) $invoice['number'] + 1,
-            sprintf('the draft was issued once: number %s, one issued entry in its timeline, two invoices issued in all', $secondInvoice['full_number'] ?? '?'),
-            "{$issueEvents} issued entries, {$issuedTotal} invoices issued, number ".($secondInvoice['number'] ?? 'none'),
+            $issueEvents === 1 && $issuedTotal === 2 && (Json::int($secondInvoice, 'number') ?? 0) === (Json::int($invoice, 'number') ?? 0) + 1,
+            sprintf('the draft was issued once: number %s, one issued entry in its timeline, two invoices issued in all', Json::text($secondInvoice, 'full_number') ?? '?'),
+            "{$issueEvents} issued entries, {$issuedTotal} invoices issued, number ".(Json::text($secondInvoice, 'number') ?? 'none'),
         );
-        $actor = collect($secondInvoice['events'] ?? [])->firstWhere('type', 'issued')['actor'] ?? null;
-        $this->check(($actor['type'] ?? null) === 'api_key', sprintf('its timeline names the key as the actor: %s', $actor['name'] ?? '?'), 'the issued entry has actor '.json_encode($actor));
+        $actor = collect(Json::objects($secondInvoice, 'events'))->firstWhere('type', 'issued')['actor'] ?? null;
+        $this->check(Json::text($actor, 'type') === 'api_key', sprintf('its timeline names the key as the actor: %s', Json::text($actor, 'name') ?? '?'), 'the issued entry has actor '.json_encode($actor));
 
         // 5. A read-only key cannot write.
         $denied = $this->api($read)->post('/contacts', ['legal_name' => 'Should not exist']);
         $this->expect($denied, 403, 'a POST with the read_only key answers 403');
-        $this->detail((string) $denied->json('detail'));
+        $this->detail(Json::text($denied->json(), 'detail') ?? '');
 
         // 6. The webhooks of the first invoice, with a valid signature.
         $this->line('  … waiting for the chain to accept and deliver both invoices (XML, signature, local DIAN simulator, PDF and email)');
-        $accepted = $this->waitFor(fn (): ?array => $this->delivered($read, $first['id']), self::CHAIN_TIMEOUT);
-        $this->check($accepted !== null, 'invoice '.$invoice['full_number'].' accepted by the local DIAN simulator and delivered', 'it did not end accepted and delivered in '.self::CHAIN_TIMEOUT.' s');
-        $this->waitFor(fn (): ?array => $this->delivered($read, $second['id']), self::CHAIN_TIMEOUT);
+        $accepted = $this->waitFor(fn (): ?array => $this->delivered($read, $firstId), self::CHAIN_TIMEOUT);
+        $this->check($accepted !== null, 'invoice '.$invoiceNumber.' accepted by the local DIAN simulator and delivered', 'it did not end accepted and delivered in '.self::CHAIN_TIMEOUT.' s');
+        $this->waitFor(fn (): ?array => $this->delivered($read, $secondId), self::CHAIN_TIMEOUT);
 
         $wanted = ['invoice.issued', 'invoice.accepted', 'invoice.delivered'];
-        $received = $this->waitFor(function () use ($receiver, $companyId, $first, $wanted): ?array {
+        $received = $this->waitFor(function () use ($receiver, $companyId, $firstId, $wanted): ?array {
             $found = collect($receiver->status($companyId, 100)['received'])
-                ->filter(fn (array $hook): bool => ($hook['object_id'] ?? null) === $first['id'] && ($hook['response_status'] ?? null) === 200)
+                ->filter(fn (array $hook): bool => ($hook['object_id'] ?? null) === $firstId && ($hook['response_status'] ?? null) === 200)
                 ->keyBy('event_type');
 
             return collect($wanted)->every(fn (string $type): bool => $found->has($type)) ? $found->all() : null;
@@ -209,8 +212,8 @@ final class ApiCheckCommand extends Command
             $hook = $received[$type] ?? null;
             $this->check(
                 $hook !== null && ($hook['verified'] ?? false) === true,
-                sprintf('the receiver got %s with a valid signature (webhook-id %s)', $type, $hook['webhook_id'] ?? '?'),
-                $hook === null ? "the receiver never got {$type}" : "{$type} arrived with verification {$hook['verification']}",
+                sprintf('the receiver got %s with a valid signature (webhook-id %s)', $type, Json::text($hook, 'webhook_id') ?? '?'),
+                $hook === null ? "the receiver never got {$type}" : "{$type} arrived with verification ".Json::text($hook, 'verification'),
             );
         }
 
@@ -218,7 +221,7 @@ final class ApiCheckCommand extends Command
         // The last event of the second invoice must have reached the receiver first: until the relay
         // publishes it, it has no delivery yet, and it would take one of the two 500 answers.
         $this->waitFor(fn (): ?bool => collect($receiver->status($companyId, 100)['received'])
-            ->contains(fn (array $hook): bool => ($hook['object_id'] ?? null) === $second['id'] && ($hook['event_type'] ?? null) === 'invoice.delivered' && ($hook['response_status'] ?? null) === 200) ?: null, self::WEBHOOK_TIMEOUT);
+            ->contains(fn (array $hook): bool => ($hook['object_id'] ?? null) === $secondId && ($hook['event_type'] ?? null) === 'invoice.delivered' && ($hook['response_status'] ?? null) === 200) ?: null, self::WEBHOOK_TIMEOUT);
         $this->waitFor(fn (): ?bool => WebhookDelivery::query()->withoutGlobalScope(CompanyScope::class)
             ->where('subscription_id', $subscriptionId)
             ->where('status', WebhookDeliveryStatus::Pending)
@@ -232,8 +235,8 @@ final class ApiCheckCommand extends Command
             'payment_date' => Carbon::now(NumberTemplate::TIMEZONE)->toDateString(),
             'payment_means_code' => '47',
             'reference' => 'API-CHECK-001',
-            'allocations' => [['document_id' => $first['id'], 'amount' => '50000.00']],
-        ]), 201, 'POST /payments records a payment of 50.000,00 on '.$invoice['full_number'])['data'];
+            'allocations' => [['document_id' => $firstId, 'amount' => '50000.00']],
+        ]), 201, 'POST /payments records a payment of 50.000,00 on '.$invoiceNumber);
 
         $hooks = $this->waitFor(function () use ($receiver, $companyId, $payment): ?array {
             $hooks = collect($receiver->status($companyId, 100)['received'])
@@ -244,9 +247,9 @@ final class ApiCheckCommand extends Command
             return $hooks->contains(fn (array $hook): bool => ($hook['response_status'] ?? null) === 200) ? $hooks->all() : null;
         }, self::WEBHOOK_TIMEOUT) ?? [];
 
-        $codes = array_map(fn (array $hook): string => (string) ($hook['response_status'] ?? '?'), $hooks);
+        $codes = array_map(fn (array $hook): string => Json::text($hook, 'response_status') ?? '?', $hooks);
         $last = end($hooks) ?: [];
-        $sameId = count(array_unique(array_column($hooks, 'webhook_id'))) === 1;
+        $sameId = count(array_unique(array_filter(array_map(fn (array $hook): ?string => Json::text($hook, 'webhook_id'), $hooks), is_string(...)))) === 1;
         $this->check(
             $codes === ['500', '500', '200'] && ($last['verified'] ?? false) === true && $sameId,
             'payment.recorded arrived after the retries, with a valid signature: the receiver answered '.implode(', ', $codes).' to the same webhook-id',
@@ -257,7 +260,7 @@ final class ApiCheckCommand extends Command
             ->whereIn('delivery_id', WebhookDelivery::query()->withoutGlobalScope(CompanyScope::class)->where('subscription_id', $subscriptionId)->where('event_type', 'payment.recorded')->select('id'))
             ->orderBy('attempt')
             ->get();
-        $this->detail('attempts recorded: '.$attempts->map(fn (WebhookAttempt $attempt): string => sprintf('#%d %s in %d ms at %s', $attempt->attempt, $attempt->status_code ?? $attempt->outcome?->value, $attempt->duration_ms, $attempt->started_at?->format('H:i:s')))->implode(', '));
+        $this->detail('attempts recorded: '.$attempts->map(fn (WebhookAttempt $attempt): string => sprintf('#%d %s in %d ms at %s', $attempt->attempt, $attempt->status_code ?? $attempt->outcome?->value, $attempt->duration_ms, $attempt->started_at->format('H:i:s')))->implode(', '));
 
         // 8. Above the rate limit: 429 with Retry-After.
         $sent = 0;
@@ -286,16 +289,30 @@ final class ApiCheckCommand extends Command
         );
 
         if ($limited !== null) {
-            $this->detail((string) $limited->json('detail'));
+            $this->detail(Json::text($limited->json(), 'detail') ?? '');
         }
     }
 
-    /** The invoice when it is accepted and delivered; null meanwhile. */
+    /**
+     * The invoice when it is accepted and delivered; null meanwhile.
+     *
+     * @return array<mixed>|null
+     */
     private function delivered(string $key, string $id): ?array
     {
-        $invoice = $this->api($key)->get("/invoices/{$id}")->json('data');
+        $invoice = Json::array($this->api($key)->get("/invoices/{$id}")->json(), 'data');
 
-        return ($invoice['electronic']['status'] ?? null) === 'accepted' && ($invoice['delivery']['status'] ?? null) === 'delivered' ? $invoice : null;
+        return data_get($invoice, 'electronic.status') === 'accepted' && data_get($invoice, 'delivery.status') === 'delivered' ? $invoice : null;
+    }
+
+    /**
+     * The id of a resource the API answered with; the check stops without it.
+     *
+     * @param  array<mixed>  $resource
+     */
+    private function id(array $resource): string
+    {
+        return Json::text($resource, 'id') ?? throw new RuntimeException('The answer has no id.');
     }
 
     private function api(string $key): PendingRequest
@@ -309,13 +326,15 @@ final class ApiCheckCommand extends Command
     }
 
     /**
-     * @return array<string, mixed>
+     * The data of the answer.
+     *
+     * @return array<mixed>
      */
     private function expect(Response $response, int $status, string $label): array
     {
-        $this->check($response->status() === $status, "{$label}: {$status}", "{$label}: expected {$status}, got {$response->status()} ".Str::limit((string) ($response->json('detail') ?? $response->body()), 300));
+        $this->check($response->status() === $status, "{$label}: {$status}", "{$label}: expected {$status}, got {$response->status()} ".Str::limit(Json::text($response->json(), 'detail') ?? $response->body(), 300));
 
-        return $response->json() ?? [];
+        return Json::array($response->json(), 'data');
     }
 
     private function check(bool $passed, string $label, string $failure): void

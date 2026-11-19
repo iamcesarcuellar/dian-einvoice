@@ -15,6 +15,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * A customer or supplier of the company. Every company has one system contact, the final
  * consumer, which cannot be edited or deleted.
+ *
+ * @property int|null $check_digit
+ * @property list<string> $fiscal_responsibilities
  */
 class Contact extends Model
 {

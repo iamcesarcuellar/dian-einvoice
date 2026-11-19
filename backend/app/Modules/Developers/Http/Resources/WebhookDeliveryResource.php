@@ -4,8 +4,10 @@ namespace App\Modules\Developers\Http\Resources;
 
 use App\Modules\Developers\Models\WebhookAttempt;
 use App\Modules\Developers\Models\WebhookDelivery;
+use App\Modules\Developers\Models\WebhookEvent;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use LogicException;
 
 /**
  * A delivery of one event to one subscription. The detail adds the request sent (URL, headers that
@@ -23,7 +25,7 @@ final class WebhookDeliveryResource extends JsonResource
         return [
             'id' => $this->id,
             'subscription_id' => $this->subscription_id,
-            'event_id' => $this->relationLoaded('event') ? $this->event->publicId() : 'evt_'.$this->event_id,
+            'event_id' => $this->relationLoaded('event') ? $this->loadedEvent()->publicId() : 'evt_'.$this->event_id,
             'event_type' => $this->event_type,
             // pending, succeeded or failed.
             'status' => $this->status,
@@ -37,14 +39,14 @@ final class WebhookDeliveryResource extends JsonResource
             'failed_at' => $this->failed_at,
             'created_at' => $this->created_at,
             'request' => $this->when($this->relationLoaded('event') && $this->relationLoaded('subscription'), fn (): array => [
-                'url' => $this->subscription->url,
+                'url' => ($this->subscription ?? throw new LogicException("Delivery {$this->id} has no subscription."))->url,
                 'headers' => [
                     'content-type' => 'application/json',
-                    'webhook-id' => $this->event->publicId(),
+                    'webhook-id' => $this->loadedEvent()->publicId(),
                     'webhook-timestamp' => 'Unix time of each attempt',
                     'webhook-signature' => 'v1,{base64 HMAC-SHA256 of "{webhook-id}.{webhook-timestamp}.{body}"}',
                 ],
-                'body' => $this->event->payload,
+                'body' => $this->loadedEvent()->payload,
             ]),
             'attempt_log' => $this->whenLoaded('attemptLog', fn () => $this->attemptLog->map(fn (WebhookAttempt $attempt): array => [
                 'id' => $attempt->id,
@@ -60,5 +62,11 @@ final class WebhookDeliveryResource extends JsonResource
                 'response_snippet' => $attempt->response_snippet,
             ])->values()->all()),
         ];
+    }
+
+    /** The loaded event of the delivery: deleting the event deletes it (foreign keys cascade). */
+    private function loadedEvent(): WebhookEvent
+    {
+        return $this->event ?? throw new LogicException("Delivery {$this->id} has no event.");
     }
 }

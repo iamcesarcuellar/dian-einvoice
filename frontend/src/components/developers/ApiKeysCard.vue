@@ -23,7 +23,7 @@ import SecretDialog from './SecretDialog.vue'
 /** API keys of the company: the table, Create key (shown once) and Revoke. */
 const { t } = useI18n()
 
-const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('api-keys', apiKeysApi.list)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('api-keys', (params) => apiKeysApi.list(params))
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'name', label: t('developers.keys.columns.name') },
@@ -56,9 +56,7 @@ const revoke = useMutation({
 })
 
 function actions(key: ApiKey): RowAction[] {
-  return key.status === 'revoked'
-    ? []
-    : [{ label: t('developers.keys.revoke'), icon: BanIcon, destructive: true, onSelect: () => askRevoke(key) }]
+  return key.status === 'revoked' ? [] : [{ label: t('developers.keys.revoke'), icon: BanIcon, destructive: true, onSelect: () => askRevoke(key) }]
 }
 
 function askRevoke(key: ApiKey): void {
@@ -93,7 +91,9 @@ function askRevoke(key: ApiKey): void {
       <template #cell-name="{ row }">
         <span class="grid gap-0.5">
           <span class="font-medium">{{ row.name }}</span>
-          <span v-if="row.custom_rate_limit" class="text-xs text-muted-foreground">{{ t('developers.keys.perMinute', { count: row.rate_limit_per_minute }) }}</span>
+          <span v-if="row.custom_rate_limit" class="text-xs text-muted-foreground">{{
+            t('developers.keys.perMinute', { count: row.rate_limit_per_minute })
+          }}</span>
         </span>
       </template>
       <template #cell-level="{ row }">
@@ -106,10 +106,14 @@ function askRevoke(key: ApiKey): void {
         </span>
       </template>
       <template #cell-last_used_at="{ row }">
-        <span class="whitespace-nowrap tabular-nums" :class="row.last_used_at ? '' : 'text-muted-foreground'">{{ row.last_used_at ? formatDateTime(row.last_used_at) : t('developers.keys.neverUsed') }}</span>
+        <span class="whitespace-nowrap tabular-nums" :class="row.last_used_at ? '' : 'text-muted-foreground'">{{
+          row.last_used_at ? formatDateTime(row.last_used_at) : t('developers.keys.neverUsed')
+        }}</span>
       </template>
       <template #cell-expires_at="{ row }">
-        <span class="whitespace-nowrap tabular-nums" :class="row.expires_at ? '' : 'text-muted-foreground'">{{ row.expires_at ? formatDateTime(row.expires_at) : t('developers.keys.noExpiration') }}</span>
+        <span class="whitespace-nowrap tabular-nums" :class="row.expires_at ? '' : 'text-muted-foreground'">{{
+          row.expires_at ? formatDateTime(row.expires_at) : t('developers.keys.noExpiration')
+        }}</span>
       </template>
       <template #cell-status="{ row }">
         <StatusBadge domain="apiKey" :status="row.status" />

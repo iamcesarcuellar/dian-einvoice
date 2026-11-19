@@ -11,14 +11,18 @@ use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Identity\Models\User;
 use App\Modules\Reference\Enums\PaymentForm;
 use App\Modules\Reference\Enums\PaymentMeans;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 /**
  * Drafts of invoices, credit notes and debit notes: they can be saved incomplete, and every save
  * recalculates their totals. A note takes the customer, the currency and the payment terms of the
  * invoice it corrects, and they cannot change.
+ *
+ * @phpstan-import-type DraftLine from DocumentPricing
+ *
+ * @phpstan-type DraftInput array{contact_id?: string|null, related_document_id?: string|null, reason_code?: string|null, reason_text?: string|null, number_template_id?: string|null, payment_form?: string|null, payment_means_code?: string|null, due_date?: string|null, notes?: string|null, lines?: array<DraftLine>, withholding_ids?: array<string>}
  */
 final class DocumentDrafts
 {
@@ -43,15 +47,16 @@ final class DocumentDrafts
     public function __construct(private readonly DocumentPricing $pricing) {}
 
     /**
-     * @param  array<string, mixed>  $input  Validated draft input.
+     * @param  DraftInput  $input  Validated draft input.
      */
     public function create(DocumentType $type, array $input, ?User $actor = null): Document
     {
         return DB::transaction(function () use ($type, $input, $actor): Document {
-            $invoice = $type->isNote() ? $this->invoice((string) $input['related_document_id']) : null;
+            // The request requires the invoice of a new note.
+            $invoice = $type->isNote() ? $this->invoice($input['related_document_id'] ?? throw new LogicException('A new note names the invoice it corrects.')) : null;
             $header = $invoice !== null
-                ? [...$this->inherited($invoice), ...Arr::only($input, self::NOTE_HEADER)]
-                : ['payment_form' => PaymentForm::Cash, 'payment_means_code' => PaymentMeans::Cash, ...Arr::only($input, self::INVOICE_HEADER)];
+                ? [...$this->inherited($invoice), ...array_intersect_key($input, array_flip(self::NOTE_HEADER))]
+                : ['payment_form' => PaymentForm::Cash, 'payment_means_code' => PaymentMeans::Cash, ...array_intersect_key($input, array_flip(self::INVOICE_HEADER))];
 
             $document = new Document([
                 'type' => $type,
@@ -64,7 +69,7 @@ final class DocumentDrafts
             $document->number_template_id ??= NumberTemplate::query()
                 ->where('document_type', $type)
                 ->where('is_default', true)
-                ->value('id');
+                ->first(['id'])?->id;
 
             $document->save();
 
@@ -76,7 +81,7 @@ final class DocumentDrafts
             );
 
             DocumentEvent::create([
-                'document_id' => $document->getKey(),
+                'document_id' => $document->id,
                 'type' => DocumentEventType::Created,
                 'occurred_at' => now(),
                 'actor_id' => $actor?->getKey(),
@@ -90,7 +95,7 @@ final class DocumentDrafts
      * Partial update: header fields that are sent replace the stored ones, and sent lines or
      * withholdings replace all of them. The invoice of a note never changes.
      *
-     * @param  array<string, mixed>  $input  Validated draft input.
+     * @param  DraftInput  $input  Validated draft input.
      */
     public function update(Document $document, array $input): Document
     {
@@ -98,7 +103,7 @@ final class DocumentDrafts
             $noun = $document->type->noun();
             $draft = $this->lockDraft($document, "Issued {$noun}s cannot be edited.");
 
-            $draft->fill(Arr::only($input, $draft->isNote() ? self::NOTE_HEADER : self::INVOICE_HEADER))->save();
+            $draft->fill(array_intersect_key($input, array_flip($draft->isNote() ? self::NOTE_HEADER : self::INVOICE_HEADER)))->save();
 
             if (array_key_exists('lines', $input) || array_key_exists('withholding_ids', $input)) {
                 $invoice = $draft->isNote() && $draft->related_document_id !== null ? $this->invoice($draft->related_document_id) : null;
@@ -106,10 +111,10 @@ final class DocumentDrafts
                 $this->pricing->apply(
                     $draft,
                     array_key_exists('lines', $input)
-                        ? $this->pricing->resolveLines($input['lines'] ?? [], $invoice)
+                        ? $this->pricing->resolveLines($input['lines'], $invoice)
                         : $this->pricing->storedLines($draft),
                     array_key_exists('withholding_ids', $input)
-                        ? $this->pricing->resolveWithholdings($input['withholding_ids'] ?? [], $invoice)
+                        ? $this->pricing->resolveWithholdings($input['withholding_ids'], $invoice)
                         : $this->pricing->storedWithholdings($draft),
                 );
             }

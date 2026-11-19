@@ -61,8 +61,8 @@ export interface ActivityEntry {
   source: 'document' | 'payment'
   type: string
   occurred_at: string
-  actor: { type: 'user' | 'api_key', name: string } | null
-  subject: { type: DocumentType | 'payment', id: string, number: string | null, customer_name: string | null }
+  actor: { type: 'user' | 'api_key'; name: string } | null
+  subject: { type: DocumentType | 'payment'; id: string; number: string | null; customer_name: string | null }
   amount: string | null
   detail: string | null
 }
@@ -72,14 +72,14 @@ export interface Dashboard {
   currency: string
   today: string
   has_invoices: boolean
-  period: { from: string, to: string, previous_from: string, previous_to: string }
+  period: { from: string; to: string; previous_from: string; previous_to: string }
   kpis: Record<'invoiced' | 'collected' | 'receivable' | 'overdue', DashboardKpi>
   monthly: DashboardMonth[]
   aging: Record<AgingBucket | 'total', string>
-  electronic: { days: number, total: number, accepted: number, processing: number, rejected: number, failed: number }
-  attention: { total: number, items: AttentionItem[] }
-  notices: { numbering: NumberingNotice | null, certificate: CertificateNotice | null }
-  top_customers: Array<{ contact_id: string, name: string, amount: string, invoices: number }>
+  electronic: { days: number; total: number; accepted: number; processing: number; rejected: number; failed: number }
+  attention: { total: number; items: AttentionItem[] }
+  notices: { numbering: NumberingNotice | null; certificate: CertificateNotice | null }
+  top_customers: Array<{ contact_id: string; name: string; amount: string; invoices: number }>
   activity: ActivityEntry[]
 }
 

@@ -32,11 +32,12 @@ final class ApiKeyController
      */
     public function store(ApiKeyRequest $request, ApiKeys $keys): JsonResponse
     {
+        $input = $request->safe();
         [$key, $plaintext] = $keys->create(
-            (string) $request->validated('name'),
-            ApiKeyLevel::from((string) $request->validated('level')),
+            $input->string('name')->toString(),
+            ApiKeyLevel::from($input->string('level')->toString()),
             $request->expiresAt(),
-            $request->validated('rate_limit_per_minute') === null ? null : (int) $request->validated('rate_limit_per_minute'),
+            $input->filled('rate_limit_per_minute') ? $input->integer('rate_limit_per_minute') : null,
             Actor::user($request),
         );
 

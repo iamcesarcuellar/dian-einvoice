@@ -35,16 +35,22 @@ final class DocumentStamp
      */
     public function stamp(Document $document, ?NumberTemplate $numbering, DianSetting $settings): array
     {
-        $company = $document->company_snapshot;
-        $customer = $document->customer_snapshot;
+        $company = $document->companySnapshot();
+        $customer = $document->customerSnapshot();
         $environment = $settings->environment;
         $taxes = $this->taxTotals($document);
+        $number = $document->full_number ?? throw new LogicException('Only a numbered document is stamped.');
+        $issueDate = $document->issue_date?->toDateString() ?? throw new LogicException('Only a document with its date of issue is stamped.');
+        $issueTime = $document->issue_time ?? throw new LogicException('Only a document with its time of issue is stamped.');
+        // IssueRequirements refuses to issue without the software ID and PIN.
+        $softwareId = $settings->software_id ?? throw new LogicException('The DIAN settings have no software ID.');
+        $softwarePin = $settings->software_pin ?? throw new LogicException('The DIAN settings have no software PIN.');
 
         if ($document->isNote()) {
             $key = Cude::calculate(new CudeInput(
-                number: $document->full_number,
-                issueDate: $document->issue_date->toDateString(),
-                issueTime: $document->issue_time,
+                number: $number,
+                issueDate: $issueDate,
+                issueTime: $issueTime,
                 lineExtensionAmount: (string) $document->line_extension_amount,
                 ivaAmount: $taxes[self::IVA] ?? '0',
                 incAmount: $taxes[self::INC] ?? '0',
@@ -52,7 +58,7 @@ final class DocumentStamp
                 payableAmount: (string) $document->payable_amount,
                 issuerNit: $company['identification_number'],
                 customerId: $customer['identification_number'],
-                softwarePin: (string) $settings->software_pin,
+                softwarePin: $softwarePin,
                 environment: $environment->value,
             ));
         } else {
@@ -61,9 +67,9 @@ final class DocumentStamp
             }
 
             $key = Cufe::calculate(new CufeInput(
-                number: $document->full_number,
-                issueDate: $document->issue_date->toDateString(),
-                issueTime: $document->issue_time,
+                number: $number,
+                issueDate: $issueDate,
+                issueTime: $issueTime,
                 lineExtensionAmount: (string) $document->line_extension_amount,
                 ivaAmount: $taxes[self::IVA] ?? '0',
                 incAmount: $taxes[self::INC] ?? '0',
@@ -78,13 +84,13 @@ final class DocumentStamp
 
         return [
             'cufe' => $key,
-            'software_security_code' => SoftwareSecurityCode::calculate($settings->software_id, $settings->software_pin, $document->full_number),
+            'software_security_code' => SoftwareSecurityCode::calculate($softwareId, $softwarePin, $number),
             'qr_url' => $environment->qrUrl($key),
             'dian_environment' => $environment->value,
             // The company runs its own registered software, so it is also the software provider.
             'dian_snapshot' => [
                 'environment' => $environment->value,
-                'software_id' => $settings->software_id,
+                'software_id' => $softwareId,
                 'software_provider' => [
                     'identification_number' => $company['identification_number'],
                     'check_digit' => $company['check_digit'],

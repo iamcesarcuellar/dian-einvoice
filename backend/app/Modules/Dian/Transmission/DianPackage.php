@@ -4,6 +4,7 @@ namespace App\Modules\Dian\Transmission;
 
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use stdClass;
 use ZipArchive;
 
 /**
@@ -119,6 +120,12 @@ final class DianPackage
             [$companyId, $year, $prefix],
         );
 
-        return (int) DB::selectOne('select last_insert_id() as number')->number;
+        $row = DB::selectOne('select last_insert_id() as number');
+
+        if (! $row instanceof stdClass || ! is_numeric($row->number)) {
+            throw new RuntimeException('The DIAN file counter did not answer its number.');
+        }
+
+        return (int) $row->number;
     }
 }

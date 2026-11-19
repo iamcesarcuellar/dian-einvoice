@@ -20,11 +20,12 @@ final class SearchController
 
     public function __invoke(Request $request, GlobalSearch $search): JsonResponse
     {
+        /** @var array{q: string} $input */
         $input = $request->validate([
             'q' => ['required', 'string', 'min:'.self::MIN_LENGTH, 'max:100'],
         ]);
 
-        $term = trim((string) $input['q']);
+        $term = trim($input['q']);
 
         if (Str::length($term) < self::MIN_LENGTH) {
             throw ValidationException::withMessages(['q' => sprintf('Type at least %d characters to search.', self::MIN_LENGTH)]);

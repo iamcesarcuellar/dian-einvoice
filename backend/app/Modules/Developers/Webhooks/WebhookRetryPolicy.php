@@ -42,6 +42,6 @@ final class WebhookRetryPolicy
     {
         $delays = config('developers.webhooks.retry_delays', []);
 
-        return is_array($delays) && $delays !== [] ? array_values($delays) : [2, 5, 15, 45, 120];
+        return $delays !== [] ? $delays : [2, 5, 15, 45, 120];
     }
 }

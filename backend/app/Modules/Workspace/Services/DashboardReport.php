@@ -23,11 +23,13 @@ use App\Modules\Payments\Enums\PaymentStatus;
 use App\Modules\Payments\Models\Payment;
 use App\Modules\Payments\Models\PaymentEvent;
 use App\Modules\Payments\Services\ReceivablesReport;
+use App\Support\Json;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use stdClass;
 
 /**
  * Everything the dashboard shows for the current company, from aggregate queries (sums, counts and
@@ -156,7 +158,13 @@ final class DashboardReport
         ];
     }
 
-    /** Sum and count of the period and of the same days of the previous month, in one query. */
+    /**
+     * Sum and count of the period and of the same days of the previous month, in one query.
+     *
+     * @param  literal-string  $date
+     * @param  literal-string  $amount
+     * @return literal-string
+     */
     private static function periodColumns(string $date, string $amount): string
     {
         return implode(', ', [
@@ -239,7 +247,7 @@ final class DashboardReport
      * accepted debit notes, less the payments dated by then that were not voided by the end of it.
      * Only positive balances count, as in the Receivables report; overdue are those due before it.
      */
-    private function openInvoicesAsOf(string $date): ?object
+    private function openInvoicesAsOf(string $date): ?stdClass
     {
         $companyId = $this->currentCompany->id();
         $endOfDay = Carbon::parse($date, NumberTemplate::TIMEZONE)->endOfDay()->utc()->format('Y-m-d H:i:s');
@@ -248,7 +256,7 @@ final class DashboardReport
         $credit = DocumentType::CreditNote->value;
         $debit = DocumentType::DebitNote->value;
 
-        return DB::selectOne(<<<'SQL'
+        $row = DB::selectOne(<<<'SQL'
             select
                 coalesce(sum(case when b.balance > 0 then b.balance end), 0) as amount,
                 count(case when b.balance > 0 then 1 end) as count,
@@ -283,6 +291,8 @@ final class DashboardReport
             $companyId, $date, DocumentPayment::APPLIED, $endOfDay,
             $companyId, DocumentType::Invoice->value, $issued, $accepted, $date,
         ]);
+
+        return $row instanceof stdClass ? $row : null;
     }
 
     /**
@@ -320,9 +330,9 @@ final class DashboardReport
             $months[] = [
                 'month' => $month,
                 'invoiced' => $this->money($invoiced->get($month)?->amount),
-                'invoices' => (int) ($invoiced->get($month)?->count ?? 0),
+                'invoices' => $this->number($invoiced->get($month)->count ?? null),
                 'collected' => $this->money($collected->get($month)?->amount),
-                'payments' => (int) ($collected->get($month)?->count ?? 0),
+                'payments' => $this->number($collected->get($month)->count ?? null),
             ];
         }
 
@@ -350,9 +360,11 @@ final class DashboardReport
         $summary = ['days' => self::ELECTRONIC_DAYS, 'total' => 0, 'accepted' => 0, 'processing' => 0, 'rejected' => 0, 'failed' => 0];
 
         foreach ($rows as $row) {
-            $state = in_array($row->electronic_status, $processing, true) ? 'processing' : (string) $row->electronic_status;
-            $summary[$state] = ($summary[$state] ?? 0) + (int) $row->total;
-            $summary['total'] += (int) $row->total;
+            $status = is_string($row->electronic_status) ? $row->electronic_status : '';
+            $state = in_array($status, $processing, true) ? 'processing' : $status;
+            $total = $this->number($row->total);
+            $summary[$state] = ($summary[$state] ?? 0) + $total;
+            $summary['total'] += $total;
         }
 
         return $summary;
@@ -384,7 +396,7 @@ final class DashboardReport
 
         return [
             'total' => $total,
-            'items' => $documents->map(function (Document $document): array {
+            'items' => array_values($documents->map(function (Document $document): array {
                 $problem = match ($document->electronic_status) {
                     ElectronicStatus::Rejected => 'rejected',
                     ElectronicStatus::Failed => 'failed',
@@ -405,7 +417,7 @@ final class DashboardReport
                     },
                     'since' => $problem === 'delivery_failed' ? $document->delivery_status_at : $document->electronic_status_at,
                 ];
-            })->values()->all(),
+            })->all()),
         ];
     }
 
@@ -413,12 +425,12 @@ final class DashboardReport
     private function firstRejection(Document $document): ?string
     {
         foreach ($document->dian_messages ?? [] as $message) {
-            if (($message['kind'] ?? null) !== 'rejection') {
+            if ($message['kind'] !== 'rejection') {
                 continue;
             }
 
-            $rule = $message['rule'] ?? null;
-            $text = trim((string) ($message['message'] ?? ''));
+            $rule = $message['rule'];
+            $text = trim($message['message']);
 
             return match (true) {
                 $rule === null => $text,
@@ -518,12 +530,12 @@ final class DashboardReport
 
         $names = Contact::query()->whereIn('id', $rows->pluck('contact_id')->all())->pluck('legal_name', 'id');
 
-        return $rows->map(fn (object $row): array => [
+        return array_values($rows->map(fn (stdClass $row): array => [
             'contact_id' => $row->contact_id,
-            'name' => $names->get($row->contact_id),
+            'name' => is_string($row->contact_id) ? $names->get($row->contact_id) : null,
             'amount' => $this->money($row->amount),
-            'invoices' => (int) $row->invoices,
-        ])->values()->all();
+            'invoices' => $this->number($row->invoices),
+        ])->all());
     }
 
     /**
@@ -624,18 +636,16 @@ final class DashboardReport
      * A short detail of a document entry: the first rule of a rejection, the recipient of an email,
      * or the step that failed.
      *
-     * @param  array<string, mixed>  $payload
+     * @param  array<mixed>  $payload
      */
     private function documentDetail(string $type, array $payload): ?string
     {
-        $detail = match ($type) {
-            DocumentEventType::Rejected->value => $payload['rules'][0] ?? null,
-            self::DELIVERED, DocumentEventType::DeliveryRequested->value => $payload['recipient'] ?? null,
-            DocumentEventType::XmlFailed->value, DocumentEventType::DeliveryFailed->value => $payload['step'] ?? null,
+        return match ($type) {
+            DocumentEventType::Rejected->value => Json::text($payload, 'rules.0'),
+            self::DELIVERED, DocumentEventType::DeliveryRequested->value => Json::text($payload, 'recipient'),
+            DocumentEventType::XmlFailed->value, DocumentEventType::DeliveryFailed->value => Json::text($payload, 'step'),
             default => null,
         };
-
-        return $detail === null ? null : (string) $detail;
     }
 
     /**
@@ -673,9 +683,9 @@ final class DashboardReport
 
         return [
             'amount' => (string) $current,
-            'count' => (int) ($count ?? 0),
+            'count' => $this->number($count),
             'previous_amount' => (string) $previous,
-            'previous_count' => (int) ($previousCount ?? 0),
+            'previous_count' => $this->number($previousCount),
             'change' => $previous->isZero()
                 ? null
                 : (string) $current->minus($previous)->multipliedBy(100)->dividedBy($previous->abs(), 1, RoundingMode::HalfUp),
@@ -685,6 +695,12 @@ final class DashboardReport
     /** A sum of the database as a decimal string with 2 decimals; null is zero. */
     private function money(mixed $value): string
     {
-        return (string) BigDecimal::of((string) ($value ?? '0'))->toScale(2, RoundingMode::HalfEven);
+        return (string) BigDecimal::of(is_scalar($value) ? (string) $value : '0')->toScale(2, RoundingMode::HalfEven);
+    }
+
+    /** A count of the database; null is zero. */
+    private function number(mixed $value): int
+    {
+        return is_numeric($value) ? (int) $value : 0;
     }
 }

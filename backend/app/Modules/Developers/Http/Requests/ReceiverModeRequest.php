@@ -30,12 +30,13 @@ final class ReceiverModeRequest extends FormRequest
      */
     public function mode(): array
     {
-        $mode = (string) $this->validated('mode');
+        $input = $this->safe();
+        $mode = $input->string('mode')->toString();
 
         return [
             'mode' => $mode,
-            'count' => $mode === 'normal' || $this->validated('count') === null ? null : (int) $this->validated('count'),
-            'delay_ms' => $mode === 'slow' ? (int) ($this->validated('delay_ms') ?? 7000) : null,
+            'count' => $mode === 'normal' || ! $input->filled('count') ? null : $input->integer('count'),
+            'delay_ms' => $mode === 'slow' ? ($input->filled('delay_ms') ? $input->integer('delay_ms') : 7000) : null,
         ];
     }
 }

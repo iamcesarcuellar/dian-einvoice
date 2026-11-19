@@ -49,12 +49,16 @@ const { submit, isPending, error, errors, reset } = useFormMutation({
 })
 
 // The form shows the stored values, including the check digit computed by the API.
-watch(company, (value) => {
-  if (value) {
-    form.value = companyFormFrom(value)
-    unsaved.reset()
-  }
-}, { immediate: true })
+watch(
+  company,
+  (value) => {
+    if (value) {
+      form.value = companyFormFrom(value)
+      unsaved.reset()
+    }
+  },
+  { immediate: true },
+)
 
 watch(companyId, () => {
   reset()

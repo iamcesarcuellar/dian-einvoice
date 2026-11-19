@@ -46,17 +46,24 @@ const { data: contact } = useQuery({
 const form = ref(emptyContactForm())
 const unsaved = useUnsavedChanges(form)
 
-watch(contact, (value) => {
-  if (value) {
-    form.value = contactFormFrom(value)
-    unsaved.reset()
-  }
-}, { immediate: true })
+watch(
+  contact,
+  (value) => {
+    if (value) {
+      form.value = contactFormFrom(value)
+      unsaved.reset()
+    }
+  },
+  { immediate: true },
+)
 
 // Another company has other contacts: go back to the list.
-watch(() => session.currentCompanyId, () => {
-  void router.push({ name: 'contacts' })
-})
+watch(
+  () => session.currentCompanyId,
+  () => {
+    void router.push({ name: 'contacts' })
+  },
+)
 
 const readOnlyReason = computed(() => {
   if (contact.value?.is_system) {
@@ -76,16 +83,10 @@ const checkDigit = computed(() => (isNit.value ? nitCheckDigit(form.value.identi
 
 const title = computed(() => (isNew.value ? t('contacts.newTitle') : (contact.value?.legal_name ?? t('common.loading'))))
 
-const crumbs = computed(() => [
-  { label: t('nav.catalog') },
-  { label: t('nav.contacts'), to: { name: 'contacts' } },
-  { label: title.value },
-])
+const crumbs = computed(() => [{ label: t('nav.catalog') }, { label: t('nav.contacts'), to: { name: 'contacts' } }, { label: title.value }])
 
 const { submit, isPending, error, errors } = useFormMutation({
-  mutationFn: () => (contactId.value
-    ? contactsApi.update(contactId.value, toContactInput(form.value))
-    : contactsApi.create(toContactInput(form.value))),
+  mutationFn: () => (contactId.value ? contactsApi.update(contactId.value, toContactInput(form.value)) : contactsApi.create(toContactInput(form.value))),
   success: (saved) => t(isNew.value ? 'contacts.created' : 'contacts.saved', { name: saved.legal_name }),
   onSuccess: async () => {
     unsaved.reset()
@@ -160,7 +161,7 @@ const { submit, isPending, error, errors } = useFormMutation({
             <FormField v-if="isNit" id="contact-check-digit" :label="t('fields.checkDigit')" :error="errors.check_digit?.[0]">
               <Input
                 id="contact-check-digit"
-                :model-value="checkDigit ?? ''"
+                :model-value="checkDigit === null ? '' : String(checkDigit)"
                 readonly
                 tabindex="-1"
                 class="bg-muted/50 text-center tabular-nums"
@@ -169,23 +170,11 @@ const { submit, isPending, error, errors } = useFormMutation({
           </div>
 
           <FormField id="contact-legal-name" :label="isPerson ? t('fields.fullName') : t('fields.legalName')" :error="errors.legal_name?.[0]">
-            <Input
-              id="contact-legal-name"
-              v-model="form.legal_name"
-              autocomplete="off"
-              :disabled="readOnly"
-              :aria-invalid="!!errors.legal_name"
-            />
+            <Input id="contact-legal-name" v-model="form.legal_name" autocomplete="off" :disabled="readOnly" :aria-invalid="!!errors.legal_name" />
           </FormField>
 
           <FormField id="contact-trade-name" :label="t('fields.tradeName')" :error="errors.trade_name?.[0]" optional>
-            <Input
-              id="contact-trade-name"
-              v-model="form.trade_name"
-              autocomplete="off"
-              :disabled="readOnly"
-              :aria-invalid="!!errors.trade_name"
-            />
+            <Input id="contact-trade-name" v-model="form.trade_name" autocomplete="off" :disabled="readOnly" :aria-invalid="!!errors.trade_name" />
           </FormField>
         </div>
       </FormSection>
@@ -194,13 +183,7 @@ const { submit, isPending, error, errors } = useFormMutation({
         <div class="grid gap-4">
           <div class="grid gap-4 sm:grid-cols-2">
             <FormField id="contact-tax-scheme" :label="t('fields.taxScheme')" :error="errors.tax_scheme?.[0]">
-              <SelectInput
-                id="contact-tax-scheme"
-                v-model="form.tax_scheme"
-                :options="taxSchemes"
-                :disabled="readOnly"
-                :invalid="!!errors.tax_scheme"
-              />
+              <SelectInput id="contact-tax-scheme" v-model="form.tax_scheme" :options="taxSchemes" :disabled="readOnly" :invalid="!!errors.tax_scheme" />
             </FormField>
           </div>
           <FormField id="contact-fiscal" :label="t('fields.fiscalResponsibilities')" :error="errors.fiscal_responsibilities?.[0]">
@@ -218,24 +201,10 @@ const { submit, isPending, error, errors } = useFormMutation({
         <div class="grid gap-4">
           <div class="grid gap-4 sm:grid-cols-2">
             <FormField id="contact-email" :label="t('fields.email')" :hint="t('contacts.form.emailHint')" :error="errors.email?.[0]">
-              <Input
-                id="contact-email"
-                v-model="form.email"
-                type="email"
-                autocomplete="off"
-                :disabled="readOnly"
-                :aria-invalid="!!errors.email"
-              />
+              <Input id="contact-email" v-model="form.email" type="email" autocomplete="off" :disabled="readOnly" :aria-invalid="!!errors.email" />
             </FormField>
             <FormField id="contact-phone" :label="t('fields.phone')" :error="errors.phone?.[0]" optional>
-              <Input
-                id="contact-phone"
-                v-model="form.phone"
-                type="tel"
-                autocomplete="off"
-                :disabled="readOnly"
-                :aria-invalid="!!errors.phone"
-              />
+              <Input id="contact-phone" v-model="form.phone" type="tel" autocomplete="off" :disabled="readOnly" :aria-invalid="!!errors.phone" />
             </FormField>
           </div>
 
@@ -263,24 +232,12 @@ const { submit, isPending, error, errors } = useFormMutation({
           />
 
           <FormField id="contact-address" :label="t('fields.address')" :error="errors.address?.[0]" optional>
-            <Input
-              id="contact-address"
-              v-model="form.address"
-              autocomplete="off"
-              :disabled="readOnly"
-              :aria-invalid="!!errors.address"
-            />
+            <Input id="contact-address" v-model="form.address" autocomplete="off" :disabled="readOnly" :aria-invalid="!!errors.address" />
           </FormField>
 
           <div class="grid gap-4 sm:grid-cols-2">
             <FormField id="contact-postal-code" :label="t('fields.postalCode')" :error="errors.postal_code?.[0]" optional>
-              <Input
-                id="contact-postal-code"
-                v-model="form.postal_code"
-                autocomplete="off"
-                :disabled="readOnly"
-                :aria-invalid="!!errors.postal_code"
-              />
+              <Input id="contact-postal-code" v-model="form.postal_code" autocomplete="off" :disabled="readOnly" :aria-invalid="!!errors.postal_code" />
             </FormField>
           </div>
 
@@ -298,7 +255,7 @@ const { submit, isPending, error, errors } = useFormMutation({
             <RouterLink :to="{ name: 'contacts' }">{{ t('common.cancel') }}</RouterLink>
           </Button>
           <Button type="submit" :disabled="isPending">
-            {{ isPending ? t('common.saving') : (isNew ? t('contacts.form.create') : t('common.save')) }}
+            {{ isPending ? t('common.saving') : isNew ? t('contacts.form.create') : t('common.save') }}
           </Button>
         </template>
       </FormSection>

@@ -20,7 +20,7 @@ final class MunicipalityResource extends JsonResource
             'code' => $this->code,
             'name' => $this->name,
             'department_code' => $this->department_code,
-            'department_name' => $this->whenLoaded('department', fn () => $this->department->name),
+            'department_name' => $this->whenLoaded('department', fn () => $this->department?->name),
         ];
     }
 }

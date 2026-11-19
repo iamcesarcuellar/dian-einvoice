@@ -36,7 +36,7 @@ final class TeamInvitationController
         /** @var User $user */
         $user = $request->user();
 
-        [$invitation, $sent] = $invitations->invite((string) $request->validated('email'), $request->role(), $user);
+        [$invitation, $sent] = $invitations->invite($request->safe()->string('email')->toString(), $request->role(), $user);
 
         return TeamInvitationResource::make($invitation)
             ->additional(['meta' => ['email_queued' => $sent]])

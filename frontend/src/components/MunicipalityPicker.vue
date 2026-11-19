@@ -12,17 +12,20 @@ import { useReference } from '@/composables/useReference'
  * Department and municipality (DANE DIVIPOLA). The department filters the municipalities, which
  * are searched by name on the API as the user types.
  */
-const props = withDefaults(defineProps<{
-  /** The municipality already stored, to show it with its department. */
-  initial?: Municipality | null
-  error?: string
-  idPrefix?: string
-  disabled?: boolean
-}>(), {
-  initial: null,
-  idPrefix: 'location',
-  disabled: false,
-})
+const props = withDefaults(
+  defineProps<{
+    /** The municipality already stored, to show it with its department. */
+    initial?: Municipality | null
+    error?: string
+    idPrefix?: string
+    disabled?: boolean
+  }>(),
+  {
+    initial: null,
+    idPrefix: 'location',
+    disabled: false,
+  },
+)
 
 /** DANE code of the chosen municipality. */
 const model = defineModel<string | null>({ required: true })
@@ -33,10 +36,13 @@ const { departments } = useReference()
 const department = ref<string | null>(props.initial?.department_code ?? null)
 const selected = ref<Municipality | null>(props.initial)
 
-watch(() => props.initial, (municipality) => {
-  selected.value = municipality
-  department.value = municipality?.department_code ?? department.value
-})
+watch(
+  () => props.initial,
+  (municipality) => {
+    selected.value = municipality
+    department.value = municipality?.department_code ?? department.value
+  },
+)
 
 // A municipality belongs to its department: choosing another department clears it.
 function chooseDepartment(code: string | null): void {

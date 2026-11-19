@@ -25,6 +25,6 @@ class WebhookEvent extends Model
     /** The id integrations see, and the webhook-id header of every attempt. */
     public function publicId(): string
     {
-        return self::ID_PREFIX.$this->getKey();
+        return self::ID_PREFIX.$this->id;
     }
 }

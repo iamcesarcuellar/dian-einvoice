@@ -100,7 +100,7 @@ final class TemporaryCompany
     public static function find(string $companyId): ?self
     {
         $company = Company::query()->find($companyId);
-        $ownerId = $company === null ? null : Membership::query()->where('company_id', $companyId)->where('role', Role::Owner)->value('user_id');
+        $ownerId = $company === null ? null : Membership::query()->where('company_id', $companyId)->where('role', Role::Owner)->first(['user_id'])?->user_id;
         $owner = $ownerId === null ? null : User::query()->find($ownerId);
 
         if ($company === null || $owner === null) {
@@ -126,7 +126,7 @@ final class TemporaryCompany
 
     public function iva(): ?string
     {
-        return Tax::query()->where('name', 'IVA 19%')->value('id');
+        return Tax::query()->where('name', 'IVA 19%')->first(['id'])?->id;
     }
 
     /**
@@ -135,7 +135,7 @@ final class TemporaryCompany
      */
     public function delete(): void
     {
-        $companyId = $this->company->getKey();
+        $companyId = $this->company->id;
 
         foreach (self::TABLES as $table) {
             DB::table($table)->where('company_id', $companyId)->delete();

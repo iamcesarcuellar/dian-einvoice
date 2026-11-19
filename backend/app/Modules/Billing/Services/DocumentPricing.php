@@ -21,6 +21,10 @@ use App\Modules\Reference\Enums\WithholdingType;
  * Turns draft input into the copies a document keeps, runs the calculator over them and writes
  * the results. Line copies carry the document_lines columns; withholding copies carry the
  * document_withholdings columns.
+ *
+ * @phpstan-type DraftLine array{item_id?: string|null, code?: string|null, description?: string|null, unit_code?: string|null, quantity?: string|int|null, unit_price?: string|int|null, discount_rate?: string|int|null, tax_id?: string|null}
+ * @phpstan-type LineCopy array{position: int, item_id: string|null, code: string|null, description: string|null, standard_scheme: string|null, standard_code: string|null, unit_code: string|null, quantity: string, unit_price: string, discount_rate: string, tax_id: string|null, tax_code: string|null, tax_name: string|null, tax_rate: string|null}
+ * @phpstan-type WithholdingCopy array{position: int, withholding_id: string|null, dian_code: string, name: string, rate: string}
  */
 final class DocumentPricing
 {
@@ -53,8 +57,8 @@ final class DocumentPricing
      * invoice it corrects: a tax the invoice carried keeps the rate frozen on the invoice, not the
      * current one.
      *
-     * @param  array<int, array<string, mixed>>  $lines  Validated input lines.
-     * @return list<array<string, mixed>>
+     * @param  array<DraftLine>  $lines  Validated input lines.
+     * @return list<LineCopy>
      */
     public function resolveLines(array $lines, ?Document $invoice = null): array
     {
@@ -70,11 +74,11 @@ final class DocumentPricing
             $tax = array_key_exists('tax_id', $line)
                 ? ($line['tax_id'] === null ? null : $taxes->get($line['tax_id']))
                 : $item?->tax;
-            $copy = $tax === null ? null : ($frozen[$tax->getKey()] ?? null);
+            $copy = $tax === null ? null : ($frozen[$tax->id] ?? null);
 
             $resolved[] = [
                 'position' => $index + 1,
-                'item_id' => $item?->getKey(),
+                'item_id' => $item?->id,
                 'code' => $line['code'] ?? $item?->code,
                 'description' => $line['description'] ?? $item?->name,
                 // The product standard always comes from the item; free lines have none.
@@ -82,9 +86,9 @@ final class DocumentPricing
                 'standard_code' => $item?->standard_code,
                 'unit_code' => $line['unit_code'] ?? $item?->unit_code->value ?? UnitOfMeasure::Unit->value,
                 'quantity' => (string) ($line['quantity'] ?? '0'),
-                'unit_price' => (string) ($line['unit_price'] ?? $item?->unit_price ?? '0'),
+                'unit_price' => (string) ($line['unit_price'] ?? $item->unit_price ?? '0'),
                 'discount_rate' => (string) ($line['discount_rate'] ?? '0'),
-                'tax_id' => $tax?->getKey(),
+                'tax_id' => $tax?->id,
                 'tax_code' => $copy['tax_code'] ?? $tax?->dian_code->value,
                 'tax_name' => $copy['tax_name'] ?? $tax?->name,
                 'tax_rate' => $copy['tax_rate'] ?? $tax?->rate,
@@ -140,8 +144,8 @@ final class DocumentPricing
      * Copies the withholdings of the current company, in the order given. For a note, a withholding
      * its invoice carried keeps the rate frozen on the invoice.
      *
-     * @param  array<int, string>  $ids
-     * @return list<array<string, mixed>>
+     * @param  array<string>  $ids
+     * @return list<WithholdingCopy>
      */
     public function resolveWithholdings(array $ids, ?Document $invoice = null): array
     {
@@ -156,7 +160,7 @@ final class DocumentPricing
             if ($withholding !== null) {
                 $resolved[] = [
                     'position' => count($resolved) + 1,
-                    'withholding_id' => $withholding->getKey(),
+                    'withholding_id' => $withholding->id,
                     'dian_code' => $copy['dian_code'] ?? $withholding->dian_code->value,
                     'name' => $copy['name'] ?? $withholding->name,
                     'rate' => $copy['rate'] ?? $withholding->rate,
@@ -170,32 +174,30 @@ final class DocumentPricing
     /**
      * The line copies already stored on the document.
      *
-     * @return list<array<string, mixed>>
+     * @return list<LineCopy>
      */
     public function storedLines(Document $document): array
     {
-        return $document->lines()->get()
+        return array_values($document->lines()->get()
             ->map(fn (DocumentLine $line): array => $line->only(self::LINE_FIELDS))
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
      * The withholding copies already stored on the document.
      *
-     * @return list<array<string, mixed>>
+     * @return list<WithholdingCopy>
      */
     public function storedWithholdings(Document $document): array
     {
-        return $document->withholdings()->get()
+        return array_values($document->withholdings()->get()
             ->map(fn (DocumentWithholding $withholding): array => $withholding->only(self::WITHHOLDING_FIELDS))
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
-     * @param  list<array<string, mixed>>  $lines
-     * @param  list<array<string, mixed>>  $withholdings
+     * @param  list<LineCopy>  $lines
+     * @param  list<WithholdingCopy>  $withholdings
      */
     public function calculate(array $lines, array $withholdings): Calculation
     {
@@ -217,8 +219,8 @@ final class DocumentPricing
     /**
      * Replaces the lines, tax subtotals and withholdings of the document and writes its totals.
      *
-     * @param  list<array<string, mixed>>  $lines
-     * @param  list<array<string, mixed>>  $withholdings
+     * @param  list<LineCopy>  $lines
+     * @param  list<WithholdingCopy>  $withholdings
      */
     public function apply(Document $document, array $lines, array $withholdings): Calculation
     {

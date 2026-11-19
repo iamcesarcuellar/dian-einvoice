@@ -61,8 +61,13 @@ final class X509
     public static function serialNumber(string $der): string
     {
         $serial = self::tbsChildren($der)['serial'];
+        $bytes = Der::content($der, $serial['element']);
 
-        return (string) BigInteger::fromBytes(Der::content($der, $serial['element']));
+        if ($bytes === '') {
+            throw new InvalidArgumentException('The certificate has an empty serial number.');
+        }
+
+        return (string) BigInteger::fromBytes($bytes);
     }
 
     /** The issuer in RFC 2253 form, for ds:X509IssuerName. */
@@ -106,7 +111,7 @@ final class X509
         $der = substr_replace($der, $replacement, $validity['contentStart'], $validity['length']);
 
         // Sign the new TBSCertificate with the algorithm the certificate declares (sha256WithRSAEncryption).
-        if (! openssl_sign(Der::bytes($der, $tbs), $value, $issuerKey, OPENSSL_ALGO_SHA256)) {
+        if (! openssl_sign(Der::bytes($der, $tbs), $value, $issuerKey, OPENSSL_ALGO_SHA256) || ! is_string($value)) {
             throw new RuntimeException('The certificate could not be signed again: '.openssl_error_string());
         }
 

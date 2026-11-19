@@ -36,9 +36,17 @@ const session = useSessionStore()
 
 const { data: receiver, error: receiverError, refetch, isFetching } = useWebhookReceiver()
 
-const form = ref({ mode: 'normal' as string | null, count: '', delay_ms: '7000' })
+interface ReceiverForm {
+  mode: string | null
+  count: string
+  delay_ms: string
+}
 
-const modeOptions = computed<Option[]>(() => (receiver.value?.modes ?? ['normal', 'error_500', 'slow']).map((mode) => ({ value: mode, label: t(`developers.receiver.modes.${mode}`) })))
+const form = ref<ReceiverForm>({ mode: 'normal', count: '', delay_ms: '7000' })
+
+const modeOptions = computed<Option[]>(() =>
+  (receiver.value?.modes ?? ['normal', 'error_500', 'slow']).map((mode) => ({ value: mode, label: t(`developers.receiver.modes.${mode}`) })),
+)
 
 const currentLabel = computed(() => {
   const mode = receiver.value?.mode
@@ -95,13 +103,15 @@ const receivedColumns = computed<DataTableColumn[]>(() => [
 const receivedRows = computed(() => (receiver.value?.received ?? []).map((hook, index) => ({ ...hook, id: `${hook.received_at}-${index}` })))
 
 // The form follows the mode of the receiver, unless a change is being applied.
-watch(() => receiver.value?.mode, (mode) => {
-  if (mode && !isPending.value) {
-    form.value = { mode: mode.mode, count: '', delay_ms: String(mode.delay_ms ?? 7000) }
-  }
-}, { immediate: true })
-
-
+watch(
+  () => receiver.value?.mode,
+  (mode) => {
+    if (mode && !isPending.value) {
+      form.value = { mode: mode.mode, count: '', delay_ms: String(mode.delay_ms ?? 7000) }
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -131,15 +141,33 @@ watch(() => receiver.value?.mode, (mode) => {
           <FormError :error="error" />
 
           <div class="grid gap-4 sm:grid-cols-3">
-            <FormField id="receiver-mode" :label="t('developers.receiver.mode')" :hint="form.mode ? t(`developers.receiver.modeHints.${form.mode}`) : undefined" :error="errors.mode?.[0]">
+            <FormField
+              id="receiver-mode"
+              :label="t('developers.receiver.mode')"
+              :hint="form.mode ? t(`developers.receiver.modeHints.${form.mode}`) : undefined"
+              :error="errors.mode?.[0]"
+            >
               <SelectInput id="receiver-mode" v-model="form.mode" :options="modeOptions" :disabled="isPending" :invalid="!!errors.mode" />
             </FormField>
 
-            <FormField v-if="form.mode && form.mode !== 'normal'" id="receiver-count" :label="t('developers.receiver.count')" :hint="t('developers.receiver.countHint')" :error="errors.count?.[0]" optional>
+            <FormField
+              v-if="form.mode && form.mode !== 'normal'"
+              id="receiver-count"
+              :label="t('developers.receiver.count')"
+              :hint="t('developers.receiver.countHint')"
+              :error="errors.count?.[0]"
+              optional
+            >
               <Input id="receiver-count" v-model="form.count" inputmode="numeric" :disabled="isPending" :aria-invalid="!!errors.count" />
             </FormField>
 
-            <FormField v-if="form.mode === 'slow'" id="receiver-delay" :label="t('developers.receiver.delay')" :hint="t('developers.receiver.delayHint')" :error="errors.delay_ms?.[0]">
+            <FormField
+              v-if="form.mode === 'slow'"
+              id="receiver-delay"
+              :label="t('developers.receiver.delay')"
+              :hint="t('developers.receiver.delayHint')"
+              :error="errors.delay_ms?.[0]"
+            >
               <Input id="receiver-delay" v-model="form.delay_ms" inputmode="numeric" :disabled="isPending" :aria-invalid="!!errors.delay_ms" />
             </FormField>
           </div>
@@ -176,7 +204,9 @@ watch(() => receiver.value?.mode, (mode) => {
             <template #cell-response_status="{ row }">
               <span class="whitespace-nowrap">
                 <span class="font-mono text-xs">HTTP {{ row.response_status }}</span>
-                <span v-if="row.mode === 'slow'" class="text-xs text-muted-foreground"> · {{ t('developers.receiver.after', { ms: formatInteger(row.delay_ms ?? 0) }) }}</span>
+                <span v-if="row.mode === 'slow'" class="text-xs text-muted-foreground">
+                  · {{ t('developers.receiver.after', { ms: formatInteger(row.delay_ms ?? 0) }) }}</span
+                >
               </span>
             </template>
             <template #cell-webhook_id="{ row }">

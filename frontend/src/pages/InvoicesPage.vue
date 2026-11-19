@@ -25,11 +25,14 @@ import { electronicGroup, statusKey } from '@/lib/status'
  * filtered by payment status, overdue, or one customer (?contact=, from the receivables); notes
  * show the invoice they correct and their concept.
  */
-const props = withDefaults(defineProps<{
-  kind?: DocumentType
-}>(), {
-  kind: 'invoice',
-})
+const props = withDefaults(
+  defineProps<{
+    kind?: DocumentType
+  }>(),
+  {
+    kind: 'invoice',
+  },
+)
 
 const ALL = 'all'
 
@@ -77,19 +80,25 @@ function filterValue(value: string | null): string | undefined {
   return value === ALL || value === null ? undefined : value
 }
 
-const { page, search, rows, meta, isLoading, error, refetch } = useListQuery(DOCUMENT_RESOURCES[props.kind], documentsApi(props.kind).list, {
-  filters: () => ({
-    status: filterValue(status.value),
-    electronic_status: filterValue(electronic.value),
-    balance_status: isNote.value ? undefined : filterValue(balance.value),
-    payment_status: isNote.value || payment.value === 'overdue' ? undefined : filterValue(payment.value),
-    overdue: !isNote.value && payment.value === 'overdue' ? 1 : undefined,
-    contact_id: contactId.value ?? undefined,
-  }),
-  // While a document on screen is still processing or being delivered, the list refreshes every 3 seconds.
-  refetchInterval: (items: Invoice[]) => (items.some((item) => item.electronic && (!item.electronic.final
-    || (item.electronic.status === 'accepted' && item.delivery?.final !== true))) ? 3000 : false),
-})
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery(
+  DOCUMENT_RESOURCES[props.kind],
+  (params) => documentsApi(props.kind).list(params),
+  {
+    filters: () => ({
+      status: filterValue(status.value),
+      electronic_status: filterValue(electronic.value),
+      balance_status: isNote.value ? undefined : filterValue(balance.value),
+      payment_status: isNote.value || payment.value === 'overdue' ? undefined : filterValue(payment.value),
+      overdue: !isNote.value && payment.value === 'overdue' ? 1 : undefined,
+      contact_id: contactId.value ?? undefined,
+    }),
+    // While a document on screen is still processing or being delivered, the list refreshes every 3 seconds.
+    refetchInterval: (items: Invoice[]) =>
+      items.some((item) => item.electronic && (!item.electronic.final || (item.electronic.status === 'accepted' && item.delivery?.final !== true)))
+        ? 3000
+        : false,
+  },
+)
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'number', label: t('invoices.columns.number') },
@@ -105,13 +114,11 @@ const columns = computed<DataTableColumn[]>(() => [
 ])
 
 function conceptOf(document: Invoice): string {
-  return document.reason_code
-    ? label(document.type === 'credit_note' ? 'creditNoteConcepts' : 'debitNoteConcepts', document.reason_code)
-    : '—'
+  return document.reason_code ? label(document.type === 'credit_note' ? 'creditNoteConcepts' : 'debitNoteConcepts', document.reason_code) : '—'
 }
 
 function actions(document: Invoice): RowAction[] {
-  const open = () => router.push({ name: routes.value.detail, params: { id: document.id } })
+  const open = () => void router.push({ name: routes.value.detail, params: { id: document.id } })
 
   return document.status === 'draft' && canManage.value
     ? [{ label: t('common.edit'), icon: PencilIcon, onSelect: open }]
@@ -140,7 +147,12 @@ function actions(document: Invoice): RowAction[] {
           <SelectInput v-model="status" :options="statusOptions" :placeholder="t('invoices.filters.status')" :label="t('invoices.filters.status')" />
         </div>
         <div class="w-52">
-          <SelectInput v-model="electronic" :options="electronicOptions" :placeholder="t('invoices.filters.electronic')" :label="t('invoices.filters.electronic')" />
+          <SelectInput
+            v-model="electronic"
+            :options="electronicOptions"
+            :placeholder="t('invoices.filters.electronic')"
+            :label="t('invoices.filters.electronic')"
+          />
         </div>
         <div v-if="!isNote" class="w-48">
           <SelectInput v-model="balance" :options="balanceOptions" :placeholder="t('notes.filters.balance')" :label="t('notes.filters.balance')" />
@@ -168,7 +180,11 @@ function actions(document: Invoice): RowAction[] {
       </span>
     </template>
     <template #cell-related="{ row }">
-      <RouterLink v-if="row.related_document" :to="{ name: 'invoice', params: { id: row.related_document.id } }" class="whitespace-nowrap tabular-nums hover:underline">
+      <RouterLink
+        v-if="row.related_document"
+        :to="{ name: 'invoice', params: { id: row.related_document.id } }"
+        class="whitespace-nowrap tabular-nums hover:underline"
+      >
         {{ row.related_document.full_number ?? '—' }}
       </RouterLink>
       <span v-else class="text-muted-foreground">—</span>
@@ -189,8 +205,16 @@ function actions(document: Invoice): RowAction[] {
       <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.totals.payable_amount) || '$ 0' }}</span>
     </template>
     <template #cell-balance="{ row }">
-      <span v-if="row.receivable_amount !== null && row.electronic?.status === 'accepted'" class="whitespace-nowrap tabular-nums" :class="row.receivable_amount.startsWith('-') ? 'text-success' : ''">
-        {{ row.receivable_amount.startsWith('-') ? t('invoices.payments.creditShort', { amount: formatMoney(row.receivable_amount.slice(1)) }) : formatMoney(row.receivable_amount) }}
+      <span
+        v-if="row.receivable_amount !== null && row.electronic?.status === 'accepted'"
+        class="whitespace-nowrap tabular-nums"
+        :class="row.receivable_amount.startsWith('-') ? 'text-success' : ''"
+      >
+        {{
+          row.receivable_amount.startsWith('-')
+            ? t('invoices.payments.creditShort', { amount: formatMoney(row.receivable_amount.slice(1)) })
+            : formatMoney(row.receivable_amount)
+        }}
       </span>
       <span v-else class="text-muted-foreground">—</span>
     </template>
@@ -209,7 +233,13 @@ function actions(document: Invoice): RowAction[] {
       <span v-else class="text-muted-foreground">—</span>
     </template>
     <template #cell-delivery="{ row }">
-      <StatusBadge v-if="row.delivery && row.electronic?.status === 'accepted'" domain="delivery" :status="row.delivery.status ?? 'waiting'" :hint="t(`invoices.delivery.statusTitle.${row.delivery.status ?? 'waiting'}`)" compact />
+      <StatusBadge
+        v-if="row.delivery && row.electronic?.status === 'accepted'"
+        domain="delivery"
+        :status="row.delivery.status ?? 'waiting'"
+        :hint="t(`invoices.delivery.statusTitle.${row.delivery.status ?? 'waiting'}`)"
+        compact
+      />
       <span v-else class="text-muted-foreground">—</span>
     </template>
     <template #actions="{ row }">

@@ -28,8 +28,9 @@ use App\Modules\Reference\Enums\PaymentForm;
 use App\Support\Outbox\Outbox;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Carbon;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use LogicException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 /**
@@ -41,6 +42,9 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
  * a number is never skipped or repeated; deadlocks are retried. The same transaction records the
  * issued event, which starts the electronic document chain: generating and signing the XML,
  * sending it to the DIAN (the local simulator) and recording the answer all run in the queue.
+ *
+ * @phpstan-import-type LineCopy from DocumentPricing
+ * @phpstan-import-type WithholdingCopy from DocumentPricing
  */
 final class IssueDocument
 {
@@ -126,7 +130,7 @@ final class IssueDocument
                 'issued_at' => $now,
                 'company_snapshot' => $this->snapshots->company($company),
                 // A note keeps the customer exactly as its invoice froze it.
-                'customer_snapshot' => $invoice?->customer_snapshot ?? $this->snapshots->customer($document->contact),
+                'customer_snapshot' => $invoice->customer_snapshot ?? $this->snapshots->customer($document->contact ?? throw new LogicException('validate() requires the customer.')),
                 'numbering_snapshot' => $this->snapshots->numbering($template),
                 'balance_status' => $document->isNote() ? null : BalanceStatus::Open,
                 // An invoice owes its amount due until notes and payments change it.
@@ -138,7 +142,7 @@ final class IssueDocument
                     'id' => $invoice->getKey(),
                     'full_number' => $invoice->full_number,
                     'cufe' => $invoice->cufe,
-                    'issue_date' => $invoice->issue_date->toDateString(),
+                    'issue_date' => ($invoice->issue_date ?? throw new LogicException('An issued invoice has a date of issue.'))->toDateString(),
                     'issue_time' => $invoice->issue_time,
                     'payable_amount' => (string) $invoice->payable_amount,
                 ],
@@ -153,7 +157,7 @@ final class IssueDocument
             $document->fill($this->stamp->stamp($document, $document->isNote() ? null : $template, $settings))->save();
 
             DocumentEvent::create([
-                'document_id' => $document->getKey(),
+                'document_id' => $document->id,
                 'type' => DocumentEventType::Issued,
                 'payload' => [
                     'number' => $number,
@@ -165,8 +169,8 @@ final class IssueDocument
                 'actor_id' => $actor?->getKey(),
             ]);
 
-            $this->outbox->record($document->company_id, 'document', $document->getKey(), ChainEvents::issued($document->type), [
-                'document_id' => $document->getKey(),
+            $this->outbox->record($document->company_id, 'document', $document->id, ChainEvents::issued($document->type), [
+                'document_id' => $document->id,
                 'run' => 1,
                 'type' => $document->type->value,
                 'full_number' => $document->full_number,
@@ -185,11 +189,12 @@ final class IssueDocument
     }
 
     /**
-     * @param  list<array<string, mixed>>  $lines
-     * @param  list<array<string, mixed>>  $withholdings
+     * @param  list<LineCopy>  $lines
+     * @param  list<WithholdingCopy>  $withholdings
      */
     private function validate(Document $document, ?Document $invoice, array $lines, array $withholdings, string $today, DianSetting $settings): void
     {
+        /** @var array<string, list<string>> $errors */
         $errors = [];
 
         if ($document->contact === null) {
@@ -263,6 +268,7 @@ final class IssueDocument
      */
     private function noteProblems(Document $note, Document $invoice): array
     {
+        /** @var array<string, list<string>> $errors */
         $errors = [];
 
         if ($invoice->electronic_status !== ElectronicStatus::Accepted) {
@@ -306,12 +312,13 @@ final class IssueDocument
      * reviews it, and saving it again takes the current rates. A note keeps the rates frozen on its
      * invoice: a copy equal to the one of the invoice is never stale.
      *
-     * @param  list<array<string, mixed>>  $lines
-     * @param  list<array<string, mixed>>  $withholdings
+     * @param  list<LineCopy>  $lines
+     * @param  list<WithholdingCopy>  $withholdings
      * @return array<string, list<string>>
      */
     private function staleRates(array $lines, array $withholdings, ?Document $invoice = null): array
     {
+        /** @var array<string, list<string>> $errors */
         $errors = [];
         $taxes = Tax::query()->whereKey(array_filter(array_column($lines, 'tax_id')))->get()->keyBy('id');
         $frozenTaxes = $invoice === null ? [] : $this->pricing->frozenTaxes($invoice);
@@ -389,7 +396,7 @@ final class IssueDocument
         return $document->number_template_id ?? NumberTemplate::query()
             ->where('document_type', $document->type)
             ->where('is_default', true)
-            ->value('id');
+            ->first(['id'])?->id;
     }
 
     private function lockNumbering(Document $document): NumberTemplate

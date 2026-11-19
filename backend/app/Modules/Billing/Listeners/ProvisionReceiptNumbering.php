@@ -21,7 +21,7 @@ final class ProvisionReceiptNumbering
     public function handle(CompanyCreated $event): void
     {
         // No current company exists yet, so the record names its company explicitly.
-        self::create($event->company->getKey());
+        self::create($event->company->id);
     }
 
     public static function create(string $companyId): NumberTemplate

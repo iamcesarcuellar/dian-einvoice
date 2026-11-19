@@ -3,8 +3,8 @@
 namespace App\Modules\Identity\Http\Middleware;
 
 use App\Modules\Developers\Enums\ApiKeyLevel;
-use App\Modules\Developers\Models\ApiKey;
 use App\Modules\Identity\Models\Membership;
+use App\Modules\Identity\Tenancy\Actor;
 use App\Modules\Identity\Tenancy\CurrentCompany;
 use Closure;
 use Illuminate\Http\Request;
@@ -28,21 +28,24 @@ final class ResolveCurrentCompany
 
     public function __construct(private readonly CurrentCompany $currentCompany) {}
 
+    /**
+     * @param  Closure(Request): Response  $next
+     */
     public function handle(Request $request, Closure $next): Response
     {
         $companyId = $request->header(self::HEADER);
-        $principal = $request->user();
+        $apiKey = Actor::apiKey($request);
 
-        if ($principal instanceof ApiKey) {
-            if (is_string($companyId) && $companyId !== '' && Str::lower($companyId) !== $principal->company_id) {
+        if ($apiKey !== null) {
+            if (is_string($companyId) && $companyId !== '' && Str::lower($companyId) !== $apiKey->company_id) {
                 throw new AccessDeniedHttpException('This API key belongs to another company. Leave X-Company-Id out, or send the company of the key.');
             }
 
-            if ($principal->level === ApiKeyLevel::ReadOnly && ! in_array($request->method(), self::READS, true)) {
-                throw new AccessDeniedHttpException(sprintf('The API key %s is read-only: it can only read.', $principal->visibleId()));
+            if ($apiKey->level === ApiKeyLevel::ReadOnly && ! in_array($request->method(), self::READS, true)) {
+                throw new AccessDeniedHttpException(sprintf('The API key %s is read-only: it can only read.', $apiKey->visibleId()));
             }
 
-            $this->currentCompany->setApiKey($principal);
+            $this->currentCompany->setApiKey($apiKey);
 
             return $next($request);
         }
@@ -54,7 +57,7 @@ final class ResolveCurrentCompany
         $membership = Membership::query()
             ->with('company')
             ->where('company_id', Str::lower($companyId))
-            ->where('user_id', $principal?->getKey())
+            ->where('user_id', $request->user()?->getKey())
             ->first();
 
         if ($membership === null) {

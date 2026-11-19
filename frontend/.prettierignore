@@ -1,0 +1,3 @@
+# Lock file and build output, written by tools.
+pnpm-lock.yaml
+dist/

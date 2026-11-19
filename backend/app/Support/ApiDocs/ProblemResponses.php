@@ -9,6 +9,8 @@ use Dedoc\Scramble\Support\Generator\Types\ArrayType;
 use Dedoc\Scramble\Support\Generator\Types\IntegerType;
 use Dedoc\Scramble\Support\Generator\Types\ObjectType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
+use Dedoc\Scramble\Support\Generator\Types\Type;
+use LogicException;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
@@ -21,24 +23,37 @@ final class ProblemResponses
     {
         $title = HttpResponse::$statusTexts[$status] ?? 'Error';
 
-        $schema = (new ObjectType)
-            ->addProperty('type', (new StringType)->setDescription('Always about:blank: status and title say what happened.')->example('about:blank'))
-            ->addProperty('title', (new StringType)->setDescription('The HTTP status text.')->example($title))
-            ->addProperty('status', (new IntegerType)->example($status))
-            ->addProperty('detail', (new StringType)->setDescription('What went wrong, in a sentence for people.'))
-            ->addProperty('instance', (new StringType)->setDescription('The path of the request.')->example('/api/v1/invoices'));
+        // Several builder methods of Scramble declare no return type, so they are not chained.
+        $schema = new ObjectType;
+        $schema->addProperty('type', (new StringType)->setDescription('Always about:blank: status and title say what happened.')->example('about:blank'));
+        $schema->addProperty('title', (new StringType)->setDescription('The HTTP status text.')->example($title));
+        $schema->addProperty('status', (new IntegerType)->example($status));
+        $schema->addProperty('detail', (new StringType)->setDescription('What went wrong, in a sentence for people.'));
+        $schema->addProperty('instance', (new StringType)->setDescription('The path of the request.')->example('/api/v1/invoices'));
 
         $required = ['type', 'title', 'status', 'instance'];
 
         if ($validation) {
-            $schema->addProperty('errors', (new ObjectType)
-                ->setDescription('The messages of each field that failed, by field name, such as lines.0.quantity.')
-                ->additionalProperties((new ArrayType)->setItems(new StringType)));
+            $messages = new ArrayType;
+            $messages->setItems(new StringType);
+            $errors = (new ObjectType)->setDescription('The messages of each field that failed, by field name, such as lines.0.quantity.');
+            $errors->additionalProperties($messages);
+            $schema->addProperty('errors', $errors);
             $required[] = 'errors';
         }
 
-        return Response::make($status)
+        $schema->setRequired($required);
+
+        return (new Response($status))
             ->setDescription($description)
-            ->setContent(ProblemDetails::CONTENT_TYPE, Schema::fromType($schema->setRequired($required)));
+            ->setContent(ProblemDetails::CONTENT_TYPE, self::schema($schema));
+    }
+
+    /** Schema::fromType() of Scramble, which declares no return type. */
+    public static function schema(Type $type): Schema
+    {
+        $schema = Schema::fromType($type);
+
+        return $schema instanceof Schema ? $schema : throw new LogicException('Schema::fromType() builds a Schema.');
     }
 }

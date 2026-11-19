@@ -11,6 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * exists only in the email link.
  *
  * @mixin TeamInvitation
+ *
+ * @property TeamInvitation $resource
  */
 final class TeamInvitationResource extends JsonResource
 {

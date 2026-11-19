@@ -54,7 +54,7 @@ final class StalledWebhookSweeper implements Sweeper
                 ->whereNull('finished_at')
                 ->exists();
 
-            $this->outbox->record($delivery->company_id, 'webhook_delivery', $delivery->getKey(), WebhookPublisher::DELIVERY_DUE, [
+            $this->outbox->record($delivery->company_id, 'webhook_delivery', $delivery->id, WebhookPublisher::DELIVERY_DUE, [
                 'delivery_id' => $delivery->getKey(),
                 'run' => $delivery->run,
                 'attempt' => $unfinished ? $delivery->attempts : $delivery->attempts + 1,

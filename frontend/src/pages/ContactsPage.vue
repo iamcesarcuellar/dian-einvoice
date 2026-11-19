@@ -28,7 +28,7 @@ const { label } = useReference()
 
 const canManage = computed(() => can('manage-catalog'))
 
-const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('contacts', contactsApi.list)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('contacts', (params) => contactsApi.list(params))
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'name', label: t('contacts.columns.name') },
@@ -39,9 +39,7 @@ const columns = computed<DataTableColumn[]>(() => [
 ])
 
 function identification(contact: Contact): string {
-  return contact.check_digit === null
-    ? contact.identification_number
-    : formatNit(contact.identification_number, contact.check_digit)
+  return contact.check_digit === null ? contact.identification_number : formatNit(contact.identification_number, contact.check_digit)
 }
 
 // Contacts abroad show their country code instead of a municipality.
@@ -81,7 +79,7 @@ function askDelete(contact: Contact): void {
 }
 
 function actions(contact: Contact): RowAction[] {
-  const open = () => router.push({ name: 'contact-edit', params: { id: contact.id } })
+  const open = () => void router.push({ name: 'contact-edit', params: { id: contact.id } })
 
   // The final consumer, and every contact for viewers, can only be looked at.
   if (!canManage.value || contact.is_system) {

@@ -67,7 +67,7 @@ final class StalledDeliverySweeper implements Sweeper
                 $payload['attempt'] = $unfinished ? $document->delivery_attempt : $document->delivery_attempt + 1;
             }
 
-            $this->outbox->record($document->company_id, 'document', $document->getKey(), DeliveryPipeline::eventFor($step), $payload);
+            $this->outbox->record($document->company_id, 'document', $document->id, DeliveryPipeline::eventFor($step), $payload);
         }
 
         return $documents->count();

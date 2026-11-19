@@ -5,16 +5,15 @@ const SCALE = 1_000_000n
 
 /** A decimal string in millionths; null when it is missing or not a plain decimal. */
 export function micros(value: string | undefined): bigint | null {
-  const match = value === undefined ? null : /^\s*(-)?(\d+)(?:\.(\d+))?\s*$/.exec(value)
+  const [, sign, whole, decimals = ''] = /^\s*(-)?(\d+)(?:\.(\d+))?\s*$/.exec(value ?? '') ?? []
 
-  if (!match) {
+  if (whole === undefined) {
     return null
   }
 
-  const fraction = (match[3] ?? '').padEnd(6, '0').slice(0, 6)
-  const amount = BigInt(match[2]) * SCALE + BigInt(fraction === '' ? '0' : fraction)
+  const amount = BigInt(whole) * SCALE + BigInt(decimals.padEnd(6, '0').slice(0, 6))
 
-  return match[1] ? -amount : amount
+  return sign ? -amount : amount
 }
 
 /** Two decimals truncated, as the CUFE writes every amount: 1500000 and 1500000.009 are 1500000.00. */

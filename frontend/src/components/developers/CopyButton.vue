@@ -5,13 +5,16 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 
 /** Copies a text to the clipboard and says so for two seconds. */
-const props = withDefaults(defineProps<{
-  value: string
-  label?: string
-  size?: 'sm' | 'xs'
-}>(), {
-  size: 'sm',
-})
+const props = withDefaults(
+  defineProps<{
+    value: string
+    label?: string
+    size?: 'sm' | 'xs'
+  }>(),
+  {
+    size: 'sm',
+  },
+)
 
 const { t } = useI18n()
 const copied = ref(false)

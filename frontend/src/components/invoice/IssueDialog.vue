@@ -8,32 +8,28 @@ import { ApiError } from '@/api/client'
 import FormError from '@/components/FormError.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 /**
  * Confirms issuing a draft. When the API answers 422 because company, DIAN, numbering or
  * customer data is missing, it lists what is missing with a link to the screen where each item is
  * completed; any other problem with the draft is listed below.
  */
-const props = withDefaults(defineProps<{
-  numbering: string
-  customerId: string | null
-  pending: boolean
-  error: unknown
-  kind?: DocumentType
-  /** A void credit note: the number of the invoice it voids. */
-  voids?: string | null
-}>(), {
-  kind: 'invoice',
-  voids: null,
-})
+const props = withDefaults(
+  defineProps<{
+    numbering: string
+    customerId: string | null
+    pending: boolean
+    error: unknown
+    kind?: DocumentType
+    /** A void credit note: the number of the invoice it voids. */
+    voids?: string | null
+  }>(),
+  {
+    kind: 'invoice',
+    voids: null,
+  },
+)
 
 const emit = defineEmits<{
   confirm: []
@@ -44,38 +40,44 @@ const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n()
 
 /** Prefix of the error keys the API uses for missing data, and the screen that completes it. */
-const screens = computed<Record<string, { label: string, to: RouteLocationRaw } | null>>(() => ({
+const screens = computed<Record<string, { label: string; to: RouteLocationRaw } | null>>(() => ({
   company: { label: t('invoices.issue.screens.company'), to: { name: 'company-settings' } },
   dian: { label: t('invoices.issue.screens.dian'), to: { name: 'dian-settings' } },
   numbering: { label: t('invoices.issue.screens.numbering'), to: { name: 'numbering' } },
-  customer: props.customerId
-    ? { label: t('invoices.issue.screens.customer'), to: { name: 'contact-edit', params: { id: props.customerId } } }
-    : null,
+  customer: props.customerId ? { label: t('invoices.issue.screens.customer'), to: { name: 'contact-edit', params: { id: props.customerId } } } : null,
 }))
 
 interface Missing {
   key: string
   message: string
-  link: { label: string, to: RouteLocationRaw } | null
+  link: { label: string; to: RouteLocationRaw } | null
 }
 
 const fieldErrors = computed(() => (props.error instanceof ApiError ? props.error.fieldErrors : {}))
 
-const missing = computed<Missing[]>(() => Object.entries(fieldErrors.value)
-  .filter(([key]) => key.split('.')[0] in screens.value)
-  .map(([key, messages]) => ({
-    key,
-    message: messages[0] ?? key,
-    // The certificate lives on the DIAN settings screen too, in its own card.
-    link: key === 'dian.certificate'
-      ? { label: t('invoices.issue.screens.certificate'), to: { name: 'dian-settings' } }
-      : screens.value[key.split('.')[0] as string] ?? null,
-  })))
+/** The part of an error key before the first dot, such as company for company.address. */
+function prefix(key: string): string {
+  return key.split('.')[0] ?? key
+}
+
+const missing = computed<Missing[]>(() =>
+  Object.entries(fieldErrors.value)
+    .filter(([key]) => prefix(key) in screens.value)
+    .map(([key, messages]) => ({
+      key,
+      message: messages[0] ?? key,
+      // The certificate lives on the DIAN settings screen too, in its own card.
+      link:
+        key === 'dian.certificate' ? { label: t('invoices.issue.screens.certificate'), to: { name: 'dian-settings' } } : (screens.value[prefix(key)] ?? null),
+    })),
+)
 
 /** Other validation messages, about the draft itself. */
-const others = computed(() => Object.entries(fieldErrors.value)
-  .filter(([key]) => !(key.split('.')[0] in screens.value))
-  .flatMap(([, messages]) => messages))
+const others = computed(() =>
+  Object.entries(fieldErrors.value)
+    .filter(([key]) => !(prefix(key) in screens.value))
+    .flatMap(([, messages]) => messages),
+)
 
 const hasFieldErrors = computed(() => Object.keys(fieldErrors.value).length > 0)
 </script>
@@ -85,7 +87,9 @@ const hasFieldErrors = computed(() => Object.keys(fieldErrors.value).length > 0)
     <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-lg" :show-close-button="false">
       <DialogHeader>
         <DialogTitle>{{ kind === 'invoice' ? t('invoices.editor.issueTitle') : t(`notes.issue.title.${kind}`) }}</DialogTitle>
-        <DialogDescription>{{ kind === 'invoice' ? t('invoices.editor.issueDescription', { numbering }) : t('notes.issue.description', { numbering }) }}</DialogDescription>
+        <DialogDescription>{{
+          kind === 'invoice' ? t('invoices.editor.issueDescription', { numbering }) : t('notes.issue.description', { numbering })
+        }}</DialogDescription>
       </DialogHeader>
 
       <Alert v-if="voids" variant="destructive">

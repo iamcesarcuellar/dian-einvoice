@@ -243,7 +243,7 @@ final class TeamInvitations
     private function send(TeamInvitation $invitation, string $token): bool
     {
         try {
-            SendTeamInvitation::dispatch($invitation->getKey(), $token);
+            SendTeamInvitation::dispatch($invitation->id, $token);
         } catch (Throwable $exception) {
             report($exception);
 

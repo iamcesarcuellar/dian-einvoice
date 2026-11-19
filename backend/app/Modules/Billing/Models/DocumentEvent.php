@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * An entry of the document timeline.
+ *
+ * @property string|null $actor_api_key_id Added with the API keys (Developers module).
  */
 class DocumentEvent extends Model
 {
@@ -40,7 +42,7 @@ class DocumentEvent extends Model
         // An entry written while a request signed with an API key acts, without a user, names the key.
         static::creating(function (self $event): void {
             if ($event->actor_id === null && $event->actor_api_key_id === null) {
-                $event->actor_api_key_id = app(CurrentCompany::class)->apiKey()?->getKey();
+                $event->actor_api_key_id = app(CurrentCompany::class)->apiKey()?->id;
             }
         });
     }

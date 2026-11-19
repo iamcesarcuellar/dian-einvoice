@@ -86,6 +86,14 @@ export function formatPerMil(value: string | null | undefined): string {
   return `${formatDecimal(shifted.endsWith('.') ? shifted.slice(0, -1) : shifted)} ‰`
 }
 
+/**
+ * A value of a loosely typed payload, such as the payload of a timeline event, as text: a string or
+ * a number as it is, anything else (missing, or an object) as the fallback.
+ */
+export function payloadText(value: unknown, fallback = ''): string {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : fallback
+}
+
 /** "990000000" becomes "990.000.000". */
 export function formatInteger(value: number): string {
   return group(String(value))
@@ -181,9 +189,7 @@ function interfaceLocale(): string {
 /** "2026-06" becomes "Jun" (short) or "June 2026" (long), in the language of the interface. */
 export function formatMonth(month: string, style: 'short' | 'long' = 'short'): string {
   const [year = 1970, number = 1] = month.split('-').map(Number)
-  const options: Intl.DateTimeFormatOptions = style === 'short'
-    ? { month: 'short', timeZone: 'UTC' }
-    : { month: 'long', year: 'numeric', timeZone: 'UTC' }
+  const options: Intl.DateTimeFormatOptions = style === 'short' ? { month: 'short', timeZone: 'UTC' } : { month: 'long', year: 'numeric', timeZone: 'UTC' }
 
   return new Intl.DateTimeFormat(interfaceLocale(), options).format(new Date(Date.UTC(year, number - 1, 1)))
 }

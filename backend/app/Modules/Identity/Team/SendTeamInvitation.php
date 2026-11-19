@@ -28,7 +28,11 @@ final class SendTeamInvitation implements ShouldBeEncrypted, ShouldQueue
     /** Attempts before the job is given up and kept in failed_jobs. */
     public int $tries = 5;
 
-    /** Seconds before each retry. */
+    /**
+     * Seconds before each retry.
+     *
+     * @var list<int>
+     */
     public array $backoff = [10, 30, 60, 120];
 
     /** Seconds before the worker stops the job; the SMTP connection has its own timeout. */

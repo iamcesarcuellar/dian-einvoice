@@ -14,10 +14,12 @@ const { t } = useI18n()
 const route = useRoute()
 const { can } = useSession()
 
-const tabs = computed<PageTab[]>(() => [
-  { name: 'payments', label: t('payments.tabs.payments') },
-  { name: 'receivables', label: t('payments.tabs.receivables') },
-].map((tab) => ({ key: tab.name, label: tab.label, to: { name: tab.name }, active: route.name === tab.name })))
+const tabs = computed<PageTab[]>(() =>
+  [
+    { name: 'payments', label: t('payments.tabs.payments') },
+    { name: 'receivables', label: t('payments.tabs.receivables') },
+  ].map((tab) => ({ key: tab.name, label: tab.label, to: { name: tab.name }, active: route.name === tab.name })),
+)
 
 const description = computed(() => (route.name === 'receivables' ? t('receivables.description') : t('payments.description')))
 </script>

@@ -175,7 +175,7 @@ final class DianCheckCommand extends Command
         $xml = $storage->get((string) $note->xml_path);
         $result = $validator->validateDocument($type, $xml);
 
-        $this->line(sprintf('   Note:        %s of %s, corrects %s (%s bytes, %s)', $note->full_number, $note->company_snapshot['legal_name'], $note->related_snapshot['full_number'] ?? '—', number_format(strlen($xml)), $note->electronic_status?->value ?? '—'));
+        $this->line(sprintf('   Note:        %s of %s, corrects %s (%s bytes, %s)', $note->full_number, $note->companySnapshot()['legal_name'], $note->related_snapshot['full_number'] ?? '—', number_format(strlen($xml)), $note->electronic_status->value ?? '—'));
         $this->line('   CUDE:        '.$note->cufe);
         $this->line('   Schema:      '.str_replace(base_path().'/', '', $validator->schemaPath($type)));
         $schema = $this->schemaVerdict($result->valid() && $result->skippedExtensions === 0, $result->errors, basename($validator->schemaPath($type)));
@@ -263,7 +263,7 @@ final class DianCheckCommand extends Command
 
         $this->newLine();
         $this->line('2. Unsigned XML of an issued demo invoice against the official XSD');
-        $this->line(sprintf('   Invoice:     %s of %s (%s bytes)', $document->full_number, $document->company_snapshot['legal_name'], number_format(strlen($xml))));
+        $this->line(sprintf('   Invoice:     %s of %s (%s bytes)', $document->full_number, $document->companySnapshot()['legal_name'], number_format(strlen($xml))));
         $this->line('   CUFE:        '.$document->cufe);
         $this->line('   Schema:      '.str_replace(base_path().'/', '', $validator->schemaPath()));
         $this->line(sprintf('   Left out:    %d empty extension reserved for the signature', $result->skippedExtensions));

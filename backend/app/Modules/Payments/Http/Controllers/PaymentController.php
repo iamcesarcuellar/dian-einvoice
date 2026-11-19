@@ -21,6 +21,8 @@ use Illuminate\Validation\Rule;
 /**
  * Payments received from customers, applied to their accepted invoices. A payment is recorded,
  * and voided with a reason; it is never edited or deleted.
+ *
+ * @phpstan-import-type PaymentInput from RecordPayment
  */
 final class PaymentController
 {
@@ -30,6 +32,7 @@ final class PaymentController
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        /** @var array{contact_id?: string|null, payment_means_code?: string|null, status?: string|null, from?: string|null, to?: string|null} $filters */
         $filters = $request->validate([
             'contact_id' => ['sometimes', 'nullable', 'string'],
             'payment_means_code' => ['sometimes', 'nullable', Rule::enum(PaymentMeans::class)],
@@ -62,7 +65,9 @@ final class PaymentController
      */
     public function store(RecordPaymentRequest $request, RecordPayment $record): JsonResponse
     {
-        $payment = $record($request->validated(), Actor::user($request));
+        /** @var PaymentInput $input */
+        $input = $request->validated();
+        $payment = $record($input, Actor::user($request));
 
         return PaymentResource::make($payment->load(Payment::DETAILS))->response()->setStatusCode(201);
     }
@@ -79,6 +84,6 @@ final class PaymentController
      */
     public function void(VoidPaymentRequest $request, Payment $payment, VoidPayment $void): PaymentResource
     {
-        return PaymentResource::make($void($payment->getKey(), (string) $request->validated('reason'), Actor::user($request))->load(Payment::DETAILS));
+        return PaymentResource::make($void($payment->id, $request->safe()->string('reason')->toString(), Actor::user($request))->load(Payment::DETAILS));
     }
 }

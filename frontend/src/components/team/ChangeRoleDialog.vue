@@ -8,14 +8,7 @@ import { teamApi } from '@/api/team'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { invalidateTenant, queryKeys } from '@/lib/query'
 import RoleSelect from './RoleSelect.vue'

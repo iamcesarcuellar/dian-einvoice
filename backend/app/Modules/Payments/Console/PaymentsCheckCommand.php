@@ -20,6 +20,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use LogicException;
 use RuntimeException;
 use Throwable;
 
@@ -67,12 +68,12 @@ final class PaymentsCheckCommand extends Command
         try {
             // 1 000 000 plus IVA 19 %: 1 190 000.00, whose tenth is exact.
             $invoice = $drafts->create(DocumentType::Invoice, [
-                'contact_id' => $temporary->customer()->getKey(),
-                'number_template_id' => $temporary->numbering()->getKey(),
+                'contact_id' => $temporary->customer()->id,
+                'number_template_id' => $temporary->numbering()->id,
                 'lines' => [['description' => 'Payments check service', 'quantity' => '1', 'unit_price' => '1000000', 'tax_id' => $temporary->iva()]],
             ], $temporary->user);
 
-            $issue($invoice->getKey(), $temporary->user);
+            $issue($invoice->id, $temporary->user);
             $this->line('Invoice issued; waiting for the chain: XML, signature, transmission to the local DIAN simulator and its answer...');
             $invoice = $this->waitFor($invoice, fn (Document $document): bool => $document->electronic_status?->isFinal() === true, self::CHAIN_TIMEOUT);
 
@@ -114,12 +115,12 @@ final class PaymentsCheckCommand extends Command
     private function payInParallel(RecordPayment $record, Document $invoice, string $amount, TemporaryCompany $temporary): array
     {
         $input = [
-            'contact_id' => $invoice->contact_id,
+            'contact_id' => $invoice->contact_id ?? throw new LogicException('An issued invoice has its customer.'),
             'payment_date' => Carbon::now(NumberTemplate::TIMEZONE)->toDateString(),
             'payment_means_code' => '47',
             'reference' => 'Payments check',
             'amount' => $amount,
-            'allocations' => [['document_id' => $invoice->getKey(), 'amount' => $amount]],
+            'allocations' => [['document_id' => $invoice->id, 'amount' => $amount]],
         ];
 
         // A forked child must never share the parent's connection.
@@ -167,7 +168,8 @@ final class PaymentsCheckCommand extends Command
 
         foreach ($children as $pid) {
             pcntl_waitpid($pid, $status);
-            $outcomes[] = pcntl_wifexited($status) ? pcntl_wexitstatus($status) : self::OTHER_ERROR;
+            $code = is_int($status) && pcntl_wifexited($status) ? pcntl_wexitstatus($status) : false;
+            $outcomes[] = $code === false ? self::OTHER_ERROR : $code;
         }
 
         return $outcomes;
@@ -183,7 +185,7 @@ final class PaymentsCheckCommand extends Command
         $deadline = microtime(true) + $seconds;
 
         do {
-            $document = Document::query()->findOrFail($document->getKey());
+            $document = Document::query()->findOrFail($document->id);
 
             if ($condition($document)) {
                 return $document;
@@ -206,12 +208,12 @@ final class PaymentsCheckCommand extends Command
         $errors = $counts[self::OTHER_ERROR] ?? 0;
 
         $payments = Payment::query()->where('status', PaymentStatus::Recorded)->orderBy('number')->get(['id', 'number', 'full_number']);
-        $applied = PaymentAllocation::query()->where('document_id', $invoice->getKey())->get()
+        $applied = PaymentAllocation::query()->where('document_id', $invoice->id)->get()
             ->reduce(fn (BigDecimal $sum, PaymentAllocation $allocation): BigDecimal => $sum->plus((string) $allocation->amount), BigDecimal::zero());
         $balance = BigDecimal::of((string) $invoice->receivable_amount);
         $open = $ledger->openInvoices($invoice->contact_id);
 
-        $numbers = $payments->pluck('number')->map(fn ($number): int => (int) $number)->all();
+        $numbers = $payments->pluck('number')->map(fn (mixed $number): int => is_numeric($number) ? (int) $number : 0)->all();
         $first = $numbers[0] ?? 0;
         $last = $numbers === [] ? 0 : $numbers[count($numbers) - 1];
         $repeated = array_values(array_unique(array_diff_assoc($numbers, array_unique($numbers))));
@@ -221,7 +223,7 @@ final class PaymentsCheckCommand extends Command
         $this->line(sprintf('Payments: %d recorded and %d rejected for exceeding the balance, %d other errors, in %.2f s.', $recorded, $rejected, $errors, $seconds));
         $results = [$this->verdict($recorded === self::SHARES && $rejected === self::PROCESSES - self::SHARES && $errors === 0, 'exactly 10 payments recorded and 10 rejected for exceeding the balance.', 'expected 10 recorded and 10 rejected for exceeding the balance.')];
 
-        $this->line(sprintf('Invoice %s: balance %s, payment status %s, %d open invoices left for the customer.', $invoice->full_number, $balance->toScale(2), $invoice->payment_status?->value ?? '—', count($open)));
+        $this->line(sprintf('Invoice %s: balance %s, payment status %s, %d open invoices left for the customer.', $invoice->full_number, $balance->toScale(2), $invoice->payment_status->value ?? '—', count($open)));
         $results[] = $this->verdict($balance->isZero() && $open === [], 'the final balance of the invoice is zero.', 'the final balance of the invoice is not zero.');
 
         $this->line(sprintf('Applied: %s of a starting balance of %s.', $applied->toScale(2), $start->toScale(2)));

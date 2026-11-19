@@ -7,6 +7,7 @@ use App\Modules\Identity\Http\Requests\StoreCompanyRequest;
 use App\Modules\Identity\Http\Requests\UpdateCompanyRequest;
 use App\Modules\Identity\Http\Resources\CompanyResource;
 use App\Modules\Identity\Models\Company;
+use App\Modules\Identity\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -21,7 +22,10 @@ final class CompanyController
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        return CompanyResource::collection($request->user()->companies()->get());
+        /** @var User $user */
+        $user = $request->user();
+
+        return CompanyResource::collection($user->companies()->get());
     }
 
     /**
@@ -29,9 +33,11 @@ final class CompanyController
      */
     public function store(StoreCompanyRequest $request, CreateCompany $createCompany): JsonResponse
     {
-        $company = $createCompany($request->user(), $request->validated());
+        /** @var User $user */
+        $user = $request->user();
+        $company = $createCompany($user, $request->validated());
 
-        return CompanyResource::make($request->user()->companies()->findOrFail($company->getKey()))
+        return CompanyResource::make($user->companies()->findOrFail($company->id))
             ->response()
             ->setStatusCode(201);
     }

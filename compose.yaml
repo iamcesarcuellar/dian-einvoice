@@ -89,6 +89,19 @@ services:
       timeout: 3s
       retries: 20
 
+  # Optional (profile tools): lint and type check of the simulator over its mounted sources. The dev
+  # dependencies live in the development image, so nothing is installed into the repo.
+  simulator-dev:
+    build:
+      context: ./simulator
+      target: development
+    profiles: ["tools"]
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 512m
+    volumes:
+      - ./simulator:/workspace/simulator
+
   # Local development mailbox (Mailpit): it keeps every email the app sends over SMTP and relays
   # none, so nothing leaves this machine. Web interface and API on 127.0.0.1:8603; SMTP (1025) only
   # on the internal network.

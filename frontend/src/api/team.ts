@@ -21,7 +21,7 @@ export interface TeamInvitation {
   email: string
   role: Role
   status: 'pending' | 'expired'
-  invited_by: { id: string, name: string } | null
+  invited_by: { id: string; name: string } | null
   expires_at: string
   last_sent_at: string | null
   created_at: string
@@ -33,7 +33,7 @@ export interface InvitationPreview {
   role: Role
   status: InvitationStatus
   expires_at: string
-  company: { id: string, name: string }
+  company: { id: string; name: string }
   invited_by: string | null
   /** The email already has an account: it joins by signing in as that user. */
   existing_user: boolean
@@ -87,7 +87,7 @@ export const invitationApi = {
    * Joins the company: as the signed-in user of the invited email, or with a new account (name and
    * password) when the email has none. Answers the user and the company joined.
    */
-  async accept(token: string, account?: { name: string, password: string, password_confirmation: string }): Promise<{ me: Me, companyId: string }> {
+  async accept(token: string, account?: { name: string; password: string; password_confirmation: string }): Promise<{ me: Me; companyId: string }> {
     const answer = await request<DataEnvelope<Me> & { meta: { company_id: string } }>('POST', `/invitations/${encodeURIComponent(token)}/accept`, account ?? {})
 
     return { me: answer.data, companyId: answer.meta.company_id }

@@ -18,7 +18,7 @@ final class OpenInvoicesController
     public function __invoke(Contact $contact, InvoiceLedger $ledger): JsonResponse
     {
         $customer = $contact;
-        $invoices = $ledger->openInvoices($customer->getKey());
+        $invoices = $ledger->openInvoices($customer->id);
 
         $open = array_values(array_filter($invoices, fn (OpenInvoice $invoice): bool => BigDecimal::of($invoice->balance)->isPositive()));
         $credits = array_values(array_filter($invoices, fn (OpenInvoice $invoice): bool => BigDecimal::of($invoice->balance)->isNegative()));

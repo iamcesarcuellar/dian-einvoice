@@ -11,6 +11,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use Throwable;
 
 /**
@@ -44,18 +45,20 @@ abstract class ChainStep implements ConsumesOutboxEvents
 
     public static function fromOutboxEvent(OutboxEvent $event): static
     {
-        $payload = $event->payload;
-
         return new static(
             companyId: $event->company_id,
-            documentId: (string) ($payload['document_id'] ?? $event->aggregate_id),
-            run: (int) ($payload['run'] ?? 1),
-            attempt: (int) ($payload['attempt'] ?? 0),
-            transmissionId: isset($payload['transmission_id']) ? (string) $payload['transmission_id'] : null,
+            documentId: $event->payloadString('document_id') ?? $event->aggregate_id,
+            run: $event->payloadInt('run') ?? 1,
+            attempt: $event->payloadInt('attempt') ?? 0,
+            transmissionId: $event->payloadString('transmission_id'),
         );
     }
 
-    /** The step, as recorded when the chain fails here: generate, sign or transmit. */
+    /**
+     * The step, as recorded when the chain fails here: generate, sign or transmit.
+     *
+     * @return 'generate'|'sign'|'transmit'
+     */
     abstract public function step(): string;
 
     /** Whether the document still waits for this step, so a failure here belongs to it. */
@@ -73,11 +76,18 @@ abstract class ChainStep implements ConsumesOutboxEvents
 
     final public function handle(CurrentCompany $currentCompany): void
     {
+        // Each step declares its own process(), with what it needs.
+        $process = [$this, 'process'];
+
+        if (! is_callable($process)) {
+            throw new LogicException(static::class.' has no process() method.');
+        }
+
         // A company deleted meanwhile, such as the temporary one of make stress or make chaos.
         $company = Company::query()->find($this->companyId);
 
         if ($company !== null) {
-            $currentCompany->runAs($company, fn () => app()->call([$this, 'process']));
+            $currentCompany->runAs($company, fn () => app()->call($process));
         }
     }
 

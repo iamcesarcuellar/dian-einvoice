@@ -73,9 +73,7 @@ const failure = computed(() => {
 const xmlDetails = computed(() => {
   const xml = props.invoice.xml
 
-  return xml.available && xml.size !== null
-    ? t('invoices.dian.signedDetails', { date: formatDateTime(xml.signed_at), size: formatInteger(xml.size) })
-    : null
+  return xml.available && xml.size !== null ? t('invoices.dian.signedDetails', { date: formatDateTime(xml.signed_at), size: formatInteger(xml.size) }) : null
 })
 
 function ruleLabel(message: DianRuleMessage): string {

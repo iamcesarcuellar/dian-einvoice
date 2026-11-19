@@ -11,6 +11,7 @@ use App\Modules\Identity\Models\User;
 use App\Support\Outbox\Outbox;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 /**
@@ -18,6 +19,11 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
  * switched on or off, given a new secret, deleted, and their deliveries sent again by hand. A
  * subscription that points to the local webhook receiver hands it its secret, so the receiver can
  * verify the signatures (best effort: the receiver is a development tool).
+ *
+ * The validated bodies; is_active as the boolean rule lets it through:
+ *
+ * @phpstan-type SubscriptionInput array{url: string, events: array<string>, description?: string|null, is_active?: bool|int|string}
+ * @phpstan-type SubscriptionChanges array{url?: string, events?: array<string>, description?: string|null, is_active?: bool|int|string}
  */
 final class WebhookSubscriptions
 {
@@ -27,7 +33,7 @@ final class WebhookSubscriptions
     ) {}
 
     /**
-     * @param  array{url: string, events: list<string>, description?: string|null, is_active?: bool}  $input
+     * @param  SubscriptionInput  $input
      * @return array{0: WebhookSubscription, 1: string} The subscription and its secret.
      */
     public function create(array $input, ?User $creator = null): array
@@ -49,7 +55,7 @@ final class WebhookSubscriptions
     }
 
     /**
-     * @param  array{url?: string, events?: list<string>, description?: string|null, is_active?: bool}  $input
+     * @param  SubscriptionChanges  $input
      */
     public function update(WebhookSubscription $subscription, array $input): WebhookSubscription
     {
@@ -61,8 +67,9 @@ final class WebhookSubscriptions
 
         $subscription->fill($input);
 
-        // Switched on again by hand: its failures in a row start over.
-        if (($input['is_active'] ?? false) === true && $subscription->isDirty('is_active')) {
+        // Switched on again by hand: its failures in a row start over. The cast value, since the
+        // boolean rule also lets 1 and "1" through.
+        if ($subscription->is_active && $subscription->isDirty('is_active')) {
             $subscription->forceFill(['consecutive_failures' => 0, 'disabled_at' => null, 'disabled_reason' => null]);
         }
 
@@ -103,7 +110,9 @@ final class WebhookSubscriptions
                 throw new ConflictHttpException('This delivery is still in progress.');
             }
 
-            if (! $delivery->subscription->is_active && $delivery->event_type !== WebhookEventTypes::TEST) {
+            $subscription = $delivery->subscription ?? throw new LogicException("Delivery {$delivery->id} has no subscription.");
+
+            if (! $subscription->is_active && $delivery->event_type !== WebhookEventTypes::TEST) {
                 throw new ConflictHttpException('The subscription is switched off. Activate it first.');
             }
 
@@ -116,7 +125,7 @@ final class WebhookSubscriptions
                 'failed_at' => null,
             ])->save();
 
-            $this->outbox->record($delivery->company_id, 'webhook_delivery', $delivery->getKey(), WebhookPublisher::DELIVERY_DUE, [
+            $this->outbox->record($delivery->company_id, 'webhook_delivery', $delivery->id, WebhookPublisher::DELIVERY_DUE, [
                 'delivery_id' => $delivery->getKey(),
                 'run' => $delivery->run,
                 'attempt' => $delivery->attempts + 1,
@@ -135,7 +144,7 @@ final class WebhookSubscriptions
         }
 
         try {
-            $this->receiver->registerSecret($companyId, $subscription->getKey(), $subscription->secret);
+            $this->receiver->registerSecret($companyId, $subscription->id, $subscription->secret);
         } catch (ReceiverUnavailable $exception) {
             report($exception);
         }
@@ -150,7 +159,7 @@ final class WebhookSubscriptions
         }
 
         try {
-            $this->receiver->forgetSecret($companyId, $subscription->getKey());
+            $this->receiver->forgetSecret($companyId, $subscription->id);
         } catch (ReceiverUnavailable $exception) {
             report($exception);
         }

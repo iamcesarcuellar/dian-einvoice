@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -18,8 +19,9 @@ final class Deletion
     {
         try {
             $model->delete();
-        } catch (QueryException $exception) {
-            if (($exception->errorInfo[1] ?? null) === self::ROW_IS_REFERENCED) {
+        } catch (Exception $exception) {
+            // A QueryException, which Model::delete() does not declare among the ones it throws.
+            if ($exception instanceof QueryException && ($exception->errorInfo[1] ?? null) === self::ROW_IS_REFERENCED) {
                 throw new ConflictHttpException($message, $exception);
             }
 

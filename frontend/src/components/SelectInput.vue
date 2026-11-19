@@ -3,18 +3,21 @@ import type { Option } from '@/lib/options'
 import { useI18n } from 'vue-i18n'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-withDefaults(defineProps<{
-  id?: string
-  options: Option[]
-  placeholder?: string
-  /** Accessible name when there is no visible label, as in the filters of a list. */
-  label?: string
-  disabled?: boolean
-  invalid?: boolean
-}>(), {
-  disabled: false,
-  invalid: false,
-})
+withDefaults(
+  defineProps<{
+    id?: string
+    options: Option[]
+    placeholder?: string
+    /** Accessible name when there is no visible label, as in the filters of a list. */
+    label?: string
+    disabled?: boolean
+    invalid?: boolean
+  }>(),
+  {
+    disabled: false,
+    invalid: false,
+  },
+)
 
 const model = defineModel<string | null>({ required: true })
 

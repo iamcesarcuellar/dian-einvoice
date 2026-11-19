@@ -24,12 +24,15 @@ const password = reactive({ current_password: '', password: '', password_confirm
 
 const { isDirty, reset } = useUnsavedChanges(() => ({ name: name.value, ...password }))
 
-watch(() => user.value?.name, (value) => {
-  if (value !== undefined && !isDirty.value) {
-    name.value = value
-    reset()
-  }
-})
+watch(
+  () => user.value?.name,
+  (value) => {
+    if (value !== undefined && !isDirty.value) {
+      name.value = value
+      reset()
+    }
+  },
+)
 
 const profile = useFormMutation({
   mutationFn: () => authApi.updateProfile({ name: name.value.trim() }),
@@ -80,14 +83,45 @@ const nameChanged = computed(() => name.value.trim() !== (user.value?.name ?? ''
       <FormSection :title="t('profile.password.title')" :description="t('profile.password.description')">
         <div class="grid gap-4 sm:grid-cols-2">
           <FormError :error="passwordChange.error.value" class="sm:col-span-2" />
-          <FormField id="profile-current-password" :label="t('profile.password.current')" :error="passwordChange.errors.value.current_password?.[0]" class="sm:col-span-2 sm:max-w-sm">
-            <Input id="profile-current-password" v-model="password.current_password" type="password" autocomplete="current-password" required :aria-invalid="!!passwordChange.errors.value.current_password" />
+          <FormField
+            id="profile-current-password"
+            :label="t('profile.password.current')"
+            :error="passwordChange.errors.value.current_password?.[0]"
+            class="sm:col-span-2 sm:max-w-sm"
+          >
+            <Input
+              id="profile-current-password"
+              v-model="password.current_password"
+              type="password"
+              autocomplete="current-password"
+              required
+              :aria-invalid="!!passwordChange.errors.value.current_password"
+            />
           </FormField>
-          <FormField id="profile-new-password" :label="t('profile.password.new')" :hint="t('fields.passwordHint')" :error="passwordChange.errors.value.password?.[0]">
-            <Input id="profile-new-password" v-model="password.password" type="password" autocomplete="new-password" required :aria-invalid="!!passwordChange.errors.value.password" />
+          <FormField
+            id="profile-new-password"
+            :label="t('profile.password.new')"
+            :hint="t('fields.passwordHint')"
+            :error="passwordChange.errors.value.password?.[0]"
+          >
+            <Input
+              id="profile-new-password"
+              v-model="password.password"
+              type="password"
+              autocomplete="new-password"
+              required
+              :aria-invalid="!!passwordChange.errors.value.password"
+            />
           </FormField>
           <FormField id="profile-confirm-password" :label="t('profile.password.confirm')" :error="passwordChange.errors.value.password_confirmation?.[0]">
-            <Input id="profile-confirm-password" v-model="password.password_confirmation" type="password" autocomplete="new-password" required :aria-invalid="!!passwordChange.errors.value.password_confirmation" />
+            <Input
+              id="profile-confirm-password"
+              v-model="password.password_confirmation"
+              type="password"
+              autocomplete="new-password"
+              required
+              :aria-invalid="!!passwordChange.errors.value.password_confirmation"
+            />
           </FormField>
         </div>
         <template #footer>

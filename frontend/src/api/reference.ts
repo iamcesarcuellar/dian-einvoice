@@ -7,7 +7,7 @@ export const referenceApi = {
     return (await request<DataEnvelope<Reference>>('GET', '/reference')).data
   },
 
-  municipalities(params: { department?: string, search?: string, per_page?: number }): Promise<Paginated<Municipality>> {
+  municipalities(params: { department?: string; search?: string; per_page?: number }): Promise<Paginated<Municipality>> {
     return request<Paginated<Municipality>>('GET', '/reference/municipalities', undefined, params)
   },
 }

@@ -6,14 +6,7 @@ import { teamApi } from '@/api/team'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { notify } from '@/lib/notify'
@@ -29,7 +22,7 @@ const open = defineModel<boolean>('open', { required: true })
 
 const { t } = useI18n()
 
-const form = reactive<{ email: string, role: Role }>({ email: '', role: 'member' })
+const form = reactive<{ email: string; role: Role }>({ email: '', role: 'member' })
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
   mutationFn: () => teamApi.invite(form.email.trim(), form.role),

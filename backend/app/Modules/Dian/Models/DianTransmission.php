@@ -3,6 +3,7 @@
 namespace App\Modules\Dian\Models;
 
 use App\Modules\Billing\Models\Document;
+use App\Modules\Dian\Transmission\DianAnswer;
 use App\Modules\Dian\Transmission\TransmissionOutcome;
 use App\Modules\Identity\Tenancy\BelongsToCompany;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
@@ -14,6 +15,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * operation of one attempt, with its duration and its result or error. It is written before the
  * call starts and completed when it ends, so a row without finished_at belongs to a worker that
  * stopped during the call.
+ *
+ * @phpstan-import-type DianMessage from DianAnswer
+ *
+ * @property list<DianMessage>|null $messages
  */
 class DianTransmission extends Model
 {

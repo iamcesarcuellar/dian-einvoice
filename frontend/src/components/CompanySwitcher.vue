@@ -42,12 +42,7 @@ const newCompanyOpen = ref(false)
 
     <DropdownMenuContent align="start" class="w-72">
       <DropdownMenuLabel>{{ t('companies.switcher.label') }}</DropdownMenuLabel>
-      <DropdownMenuItem
-        v-for="company in companies"
-        :key="company.id"
-        class="gap-3"
-        @select="session.selectCompany(company.id)"
-      >
+      <DropdownMenuItem v-for="company in companies" :key="company.id" class="gap-3" @select="session.selectCompany(company.id)">
         <span class="grid min-w-0 flex-1 leading-tight">
           <span class="truncate">{{ company.name }}</span>
           <span v-if="company.role" class="truncate text-xs text-muted-foreground">{{ t(`companies.roles.${company.role}`) }}</span>

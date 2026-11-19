@@ -27,15 +27,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { workspaceApi } from '@/api/workspace'
 import StatusBadge from '@/components/StatusBadge.vue'
-import {
-  Command,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-  CommandShortcut,
-} from '@/components/ui/command'
+import { Command, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from '@/components/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { useSession } from '@/composables/useSession'
@@ -73,7 +65,10 @@ const { choice } = useTheme()
 const { open, toggle } = useCommandPalette()
 
 const query = ref('')
-const term = refDebounced(computed(() => query.value.trim()), 250)
+const term = refDebounced(
+  computed(() => query.value.trim()),
+  250,
+)
 const searching = computed(() => term.value.length >= MIN_CHARS)
 
 useEventListener('keydown', (event: KeyboardEvent) => {
@@ -131,34 +126,43 @@ const pages = computed<PaletteAction[]>(() => [
   { id: 'go-profile', label: t('user.profile'), icon: UserRoundIcon, run: go({ name: 'profile' }) },
 ])
 
-const companyActions = computed<PaletteAction[]>(() => companies.value
-  .filter((company) => company.id !== currentCompany.value?.id)
-  .map((company) => ({
-    id: `company-${company.id}`,
-    label: t('palette.switchTo', { name: company.name }),
-    icon: Building2Icon,
-    run: () => switchCompany(company.id, company.name),
-  })))
+const companyActions = computed<PaletteAction[]>(() =>
+  companies.value
+    .filter((company) => company.id !== currentCompany.value?.id)
+    .map((company) => ({
+      id: `company-${company.id}`,
+      label: t('palette.switchTo', { name: company.name }),
+      icon: Building2Icon,
+      run: () => switchCompany(company.id, company.name),
+    })),
+)
 
-const themeActions = computed<PaletteAction[]>(() => ([
-  ['light', SunIcon],
-  ['dark', MoonIcon],
-  ['auto', MonitorIcon],
-] as const).map(([value, icon]) => ({
-  id: `theme-${value}`,
-  label: t('palette.theme', { theme: t(`user.themes.${value}`) }),
-  icon,
-  current: choice.value === value,
-  run: () => {
-    choice.value = value
-    open.value = false
-  },
-})))
+const themeActions = computed<PaletteAction[]>(() =>
+  (
+    [
+      ['light', SunIcon],
+      ['dark', MoonIcon],
+      ['auto', MonitorIcon],
+    ] as const
+  ).map(([value, icon]) => ({
+    id: `theme-${value}`,
+    label: t('palette.theme', { theme: t(`user.themes.${value}`) }),
+    icon,
+    current: choice.value === value,
+    run: () => {
+      choice.value = value
+      open.value = false
+    },
+  })),
+)
 
 // The actions are filtered here, by their label, without accents or case; search results come
 // filtered by the server.
 function normalize(text: string): string {
-  return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
 }
 
 function matching(actions: PaletteAction[]): PaletteAction[] {
@@ -167,12 +171,14 @@ function matching(actions: PaletteAction[]): PaletteAction[] {
   return typed === '' ? actions : actions.filter((action) => normalize(action.label).includes(typed))
 }
 
-const actionSections = computed(() => [
-  { key: 'actions', heading: t('palette.groups.actions'), actions: matching(quickActions.value) },
-  { key: 'pages', heading: t('palette.groups.pages'), actions: matching(pages.value) },
-  { key: 'companies', heading: t('palette.groups.companies'), actions: matching(companyActions.value) },
-  { key: 'theme', heading: t('palette.groups.theme'), actions: matching(themeActions.value) },
-].filter((section) => section.actions.length > 0))
+const actionSections = computed(() =>
+  [
+    { key: 'actions', heading: t('palette.groups.actions'), actions: matching(quickActions.value) },
+    { key: 'pages', heading: t('palette.groups.pages'), actions: matching(pages.value) },
+    { key: 'companies', heading: t('palette.groups.companies'), actions: matching(companyActions.value) },
+    { key: 'theme', heading: t('palette.groups.theme'), actions: matching(themeActions.value) },
+  ].filter((section) => section.actions.length > 0),
+)
 
 const resultCount = computed(() => {
   const found = groups.value
@@ -192,7 +198,9 @@ function documentDetails(document: SearchDocument): string {
     document.customer_name,
     formatDate(document.issue_date) || null,
     formatMoney(document.payable_amount),
-  ].filter(Boolean).join(' · ')
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 function contactIdentification(contact: SearchContact): string {
@@ -226,7 +234,12 @@ function seeAll(name: string): () => void {
 
           <template v-if="groups">
             <CommandGroup v-if="groups.invoices.items.length" :heading="t('palette.groups.invoices')">
-              <CommandItem v-for="document in groups.invoices.items" :key="document.id" :value="`invoice:${document.id}`" @select="go(documentRoute(document))()">
+              <CommandItem
+                v-for="document in groups.invoices.items"
+                :key="document.id"
+                :value="`invoice:${document.id}`"
+                @select="go(documentRoute(document))()"
+              >
                 <FileTextIcon class="text-muted-foreground" aria-hidden="true" />
                 <span class="grid min-w-0 flex-1">
                   <span class="truncate font-medium tabular-nums">{{ document.full_number ?? t('invoices.draft') }}</span>
@@ -245,7 +258,9 @@ function seeAll(name: string): () => void {
               <CommandItem v-for="document in groups.notes.items" :key="document.id" :value="`note:${document.id}`" @select="go(documentRoute(document))()">
                 <FileMinusIcon class="text-muted-foreground" aria-hidden="true" />
                 <span class="grid min-w-0 flex-1">
-                  <span class="truncate font-medium tabular-nums">{{ document.full_number ?? t('invoices.draft') }} · {{ t(`palette.noteTypes.${document.type}`) }}</span>
+                  <span class="truncate font-medium tabular-nums"
+                    >{{ document.full_number ?? t('invoices.draft') }} · {{ t(`palette.noteTypes.${document.type}`) }}</span
+                  >
                   <span class="truncate text-xs text-muted-foreground tabular-nums">{{ documentDetails(document) }}</span>
                 </span>
                 <StatusBadge v-if="document.electronic_status" domain="electronic" :status="electronicGroup(document.electronic_status)" compact />
@@ -254,11 +269,18 @@ function seeAll(name: string): () => void {
             </CommandGroup>
 
             <CommandGroup v-if="groups.payments.items.length" :heading="t('palette.groups.payments')">
-              <CommandItem v-for="payment in groups.payments.items" :key="payment.id" :value="`payment:${payment.id}`" @select="go({ name: 'payment', params: { id: payment.id } })()">
+              <CommandItem
+                v-for="payment in groups.payments.items"
+                :key="payment.id"
+                :value="`payment:${payment.id}`"
+                @select="go({ name: 'payment', params: { id: payment.id } })()"
+              >
                 <WalletIcon class="text-muted-foreground" aria-hidden="true" />
                 <span class="grid min-w-0 flex-1">
                   <span class="truncate font-medium tabular-nums">{{ payment.full_number }}</span>
-                  <span class="truncate text-xs text-muted-foreground tabular-nums">{{ payment.customer_name }} · {{ formatDate(payment.payment_date) }} · {{ formatMoney(payment.amount) }}</span>
+                  <span class="truncate text-xs text-muted-foreground tabular-nums"
+                    >{{ payment.customer_name }} · {{ formatDate(payment.payment_date) }} · {{ formatMoney(payment.amount) }}</span
+                  >
                 </span>
                 <StatusBadge v-if="payment.status === 'voided'" domain="payment" :status="payment.status" />
               </CommandItem>
@@ -269,11 +291,18 @@ function seeAll(name: string): () => void {
             </CommandGroup>
 
             <CommandGroup v-if="groups.contacts.items.length" :heading="t('palette.groups.contacts')">
-              <CommandItem v-for="contact in groups.contacts.items" :key="contact.id" :value="`contact:${contact.id}`" @select="go({ name: 'contact-edit', params: { id: contact.id } })()">
+              <CommandItem
+                v-for="contact in groups.contacts.items"
+                :key="contact.id"
+                :value="`contact:${contact.id}`"
+                @select="go({ name: 'contact-edit', params: { id: contact.id } })()"
+              >
                 <UsersIcon class="text-muted-foreground" aria-hidden="true" />
                 <span class="grid min-w-0 flex-1">
                   <span class="truncate font-medium">{{ contact.legal_name }}</span>
-                  <span class="truncate text-xs text-muted-foreground tabular-nums">{{ [contactIdentification(contact), contact.email].filter(Boolean).join(' · ') }}</span>
+                  <span class="truncate text-xs text-muted-foreground tabular-nums">{{
+                    [contactIdentification(contact), contact.email].filter(Boolean).join(' · ')
+                  }}</span>
                 </span>
                 <StatusBadge v-if="!contact.is_active" domain="record" status="inactive" />
               </CommandItem>
@@ -284,7 +313,12 @@ function seeAll(name: string): () => void {
             </CommandGroup>
 
             <CommandGroup v-if="groups.items.items.length" :heading="t('palette.groups.items')">
-              <CommandItem v-for="item in groups.items.items" :key="item.id" :value="`item:${item.id}`" @select="go({ name: 'items', query: { search: item.code } })()">
+              <CommandItem
+                v-for="item in groups.items.items"
+                :key="item.id"
+                :value="`item:${item.id}`"
+                @select="go({ name: 'items', query: { search: item.code } })()"
+              >
                 <PackageIcon class="text-muted-foreground" aria-hidden="true" />
                 <span class="grid min-w-0 flex-1">
                   <span class="truncate font-medium">{{ item.name }}</span>

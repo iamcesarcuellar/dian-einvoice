@@ -65,9 +65,9 @@ final class IssueDateRefresh
 
         return [
             ...$previous,
-            'issue_date' => $document->issue_date->toDateString(),
+            'issue_date' => $local->toDateString(),
             'issue_time' => $document->issue_time,
-            'due_date' => $document->due_date?->toDateString() ?? $document->issue_date->toDateString(),
+            'due_date' => $document->due_date?->toDateString() ?? $local->toDateString(),
             'key' => $document->cufe,
         ];
     }

@@ -2,6 +2,8 @@
 
 namespace App\Modules\Identity\Tenancy;
 
+use App\Modules\Developers\Auth\ApiKeyAuthenticator;
+use App\Modules\Developers\Models\ApiKey;
 use App\Modules\Identity\Models\User;
 use Illuminate\Http\Request;
 
@@ -16,5 +18,16 @@ final class Actor
         $user = $request->user();
 
         return $user instanceof User ? $user : null;
+    }
+
+    /**
+     * The API key the request signs with, or null for a session. Asked of the api-key guard itself:
+     * after "auth" it holds the key of a request with a bearer token, and finds none without one.
+     */
+    public static function apiKey(Request $request): ?ApiKey
+    {
+        $key = $request->user(ApiKeyAuthenticator::GUARD);
+
+        return $key instanceof ApiKey ? $key : null;
     }
 }

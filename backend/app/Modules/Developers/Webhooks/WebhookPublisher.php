@@ -138,19 +138,19 @@ final class WebhookPublisher
      * The public type and data.object of an outbox event, or [null, null] when it has none.
      *
      * @param  array<string, mixed>  $payload
-     * @return array{0: string|null, 1: array<string, mixed>|null}
+     * @return array{0: string|null, 1: array<mixed>|null}
      */
     private function resolve(string $outboxType, string $aggregateId, array $payload): array
     {
         if (WebhookEventTypes::isPaymentEvent($outboxType)) {
-            $payment = Payment::query()->with(Payment::DETAILS)->find((string) ($payload['payment_id'] ?? $aggregateId));
+            $payment = Payment::query()->with(Payment::DETAILS)->find($this->idIn($payload, 'payment_id') ?? $aggregateId);
 
             return $payment === null
                 ? [null, null]
                 : [WebhookEventTypes::publicType($outboxType), PaymentResource::make($payment)->resolve()];
         }
 
-        $document = Document::query()->with(Document::DETAILS)->find((string) ($payload['document_id'] ?? $aggregateId));
+        $document = Document::query()->with(Document::DETAILS)->find($this->idIn($payload, 'document_id') ?? $aggregateId);
 
         if ($document === null) {
             return [null, null];
@@ -162,7 +162,19 @@ final class WebhookPublisher
     }
 
     /**
-     * @param  array<string, mixed>|null  $object
+     * An id the outbox payload carries, such as document_id.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function idIn(array $payload, string $key): ?string
+    {
+        $id = $payload[$key] ?? null;
+
+        return is_string($id) ? $id : null;
+    }
+
+    /**
+     * @param  array<mixed>|null  $object
      */
     private function body(string $id, string $type, DateTimeInterface $occurredAt, ?array $object): string
     {

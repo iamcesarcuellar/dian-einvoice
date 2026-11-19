@@ -31,12 +31,14 @@ const SERIES = {
   collected: 'var(--chart-2)',
 } as const
 
-const data = computed<Datum[]>(() => props.months.map((month, index) => ({
-  index,
-  source: month,
-  invoiced: Number(month.invoiced),
-  collected: Number(month.collected),
-})))
+const data = computed<Datum[]>(() =>
+  props.months.map((month, index) => ({
+    index,
+    source: month,
+    invoiced: Number(month.invoiced),
+    collected: Number(month.collected),
+  })),
+)
 
 const config = computed<ChartConfig>(() => ({
   invoiced: { label: t('dashboard.monthly.invoiced'), color: SERIES.invoiced },
@@ -48,8 +50,18 @@ function template(hovered: unknown): string {
   const month = (hovered as Datum).source
 
   return tooltipHtml(`monthly:${month.month}:${month.invoiced}:${month.collected}`, formatMonth(month.month, 'long'), [
-    { label: t('dashboard.monthly.invoiced'), value: formatMoney(month.invoiced), color: SERIES.invoiced, hint: t('dashboard.monthly.invoices', { n: formatInteger(month.invoices) }, month.invoices) },
-    { label: t('dashboard.monthly.collected'), value: formatMoney(month.collected), color: SERIES.collected, hint: t('dashboard.monthly.payments', { n: formatInteger(month.payments) }, month.payments) },
+    {
+      label: t('dashboard.monthly.invoiced'),
+      value: formatMoney(month.invoiced),
+      color: SERIES.invoiced,
+      hint: t('dashboard.monthly.invoices', { n: formatInteger(month.invoices) }, month.invoices),
+    },
+    {
+      label: t('dashboard.monthly.collected'),
+      value: formatMoney(month.collected),
+      color: SERIES.collected,
+      hint: t('dashboard.monthly.payments', { n: formatInteger(month.payments) }, month.payments),
+    },
   ])
 }
 
@@ -79,7 +91,15 @@ function amountTick(tick: number | Date): string {
           :group-padding="0.35"
           :group-max-width="72"
         />
-        <VisAxis type="x" :x="(datum: Datum) => datum.index" :tick-values="tickValues" :tick-format="monthTick" :grid-line="false" :tick-line="false" :domain-line="false" />
+        <VisAxis
+          type="x"
+          :x="(datum: Datum) => datum.index"
+          :tick-values="tickValues"
+          :tick-format="monthTick"
+          :grid-line="false"
+          :tick-line="false"
+          :domain-line="false"
+        />
         <VisAxis type="y" :num-ticks="4" :tick-format="amountTick" :tick-line="false" :domain-line="false" />
         <ChartTooltip />
         <ChartCrosshair :template="template" color="#0000" />
@@ -95,7 +115,11 @@ function amountTick(tick: number | Date): string {
 
     <!-- The same figures as a table, for screen readers. -->
     <table class="sr-only">
-      <caption>{{ t('dashboard.monthly.title') }}</caption>
+      <caption>
+        {{
+          t('dashboard.monthly.title')
+        }}
+      </caption>
       <thead>
         <tr>
           <th scope="col">{{ t('dashboard.monthly.month') }}</th>

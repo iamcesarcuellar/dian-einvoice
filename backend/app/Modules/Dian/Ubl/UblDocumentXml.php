@@ -27,6 +27,10 @@ use LogicException;
  * recalculated: every amount is the one the document stores. Element order follows the official
  * XSD of each document; literals and codes follow the annex tables, and the official examples of
  * the DIAN toolbox where the tables say nothing.
+ *
+ * @phpstan-import-type CompanySnapshot from Document
+ * @phpstan-import-type CustomerSnapshot from Document
+ * @phpstan-import-type NumberingSnapshot from Document
  */
 final class UblDocumentXml
 {
@@ -207,7 +211,13 @@ final class UblDocumentXml
             $this->line($root, $line);
         }
 
-        return $this->dom->saveXML();
+        $xml = $this->dom->saveXML();
+
+        if ($xml === false) {
+            throw new LogicException("The XML of {$document->full_number} could not be serialized.");
+        }
+
+        return $xml;
     }
 
     /**
@@ -217,7 +227,7 @@ final class UblDocumentXml
      */
     private function extensions(DOMElement $root, Document $document): void
     {
-        $dian = $document->dian_snapshot;
+        $dian = $document->dianSnapshot();
         $provider = $dian['software_provider'];
 
         $extensions = $this->ext($root, 'UBLExtensions');
@@ -225,7 +235,7 @@ final class UblDocumentXml
         $dianExtensions = $this->sts($content, 'DianExtensions');
 
         if (! $document->isNote()) {
-            $this->invoiceControl($dianExtensions, $document->numbering_snapshot);
+            $this->invoiceControl($dianExtensions, $document->numberingSnapshot());
         }
 
         $source = $this->sts($dianExtensions, 'InvoiceSource');
@@ -261,7 +271,7 @@ final class UblDocumentXml
     /**
      * FAB02 to FAB13: the resolution of the numbering, as it was frozen on issue.
      *
-     * @param  array<string, mixed>  $numbering
+     * @param  NumberingSnapshot  $numbering
      */
     private function invoiceControl(DOMElement $dianExtensions, array $numbering): void
     {
@@ -296,7 +306,7 @@ final class UblDocumentXml
             'schemeID' => (string) $document->dian_environment,
             'schemeName' => $document->isNote() ? Cude::ALGORITHM : Cufe::ALGORITHM,
         ]);
-        $this->cbc($root, 'IssueDate', $document->issue_date->toDateString());
+        $this->cbc($root, 'IssueDate', ($document->issue_date ?? throw new LogicException('An issued document has a date of issue.'))->toDateString());
         $this->cbc($root, 'IssueTime', $document->issue_time);
 
         if ($this->type === DocumentType::Invoice && $document->due_date !== null) {
@@ -332,7 +342,7 @@ final class UblDocumentXml
      */
     private function correction(DOMElement $root, Document $document): void
     {
-        $invoice = $document->related_snapshot;
+        $invoice = $document->relatedSnapshot();
         $code = (string) $document->reason_code;
         $concept = $this->type === DocumentType::CreditNote ? CreditNoteConcept::tryFrom($code) : DebitNoteConcept::tryFrom($code);
 
@@ -350,7 +360,7 @@ final class UblDocumentXml
     /** FAJ01 to FAJ72: the issuing company as it was frozen on issue. */
     private function supplier(DOMElement $root, Document $document): void
     {
-        $company = $document->company_snapshot;
+        $company = $document->companySnapshot();
         $prefix = $document->numbering_snapshot['prefix'] ?? null;
 
         $supplierParty = $this->cac($root, 'AccountingSupplierParty');
@@ -368,7 +378,7 @@ final class UblDocumentXml
         $this->companyId($taxScheme, $company);
         $this->cbc($taxScheme, 'TaxLevelCode', implode(';', $company['fiscal_responsibilities']));
         $this->address($taxScheme, 'RegistrationAddress', $company);
-        $this->partyTaxScheme($taxScheme, $company['tax_scheme']);
+        $this->partyTaxScheme($taxScheme, $company['tax_scheme'] ?? throw new LogicException('An issued document has the tax scheme of its company.'));
 
         $legalEntity = $this->cac($party, 'PartyLegalEntity');
         $this->cbc($legalEntity, 'RegistrationName', $company['legal_name']);
@@ -392,7 +402,7 @@ final class UblDocumentXml
     /** FAK01 to FAK64: the customer as it was frozen on issue. */
     private function customer(DOMElement $root, Document $document): void
     {
-        $customer = $document->customer_snapshot;
+        $customer = $document->customerSnapshot();
 
         $customerParty = $this->cac($root, 'AccountingCustomerParty');
         $this->cbc($customerParty, 'AdditionalAccountID', $customer['organization_type']);
@@ -436,8 +446,8 @@ final class UblDocumentXml
     private function paymentMeans(DOMElement $root, Document $document): void
     {
         $means = $this->cac($root, 'PaymentMeans');
-        $this->cbc($means, 'ID', $document->payment_form->value);
-        $this->cbc($means, 'PaymentMeansCode', $document->payment_means_code->value);
+        $this->cbc($means, 'ID', ($document->payment_form ?? throw new LogicException('An issued document has a payment form.'))->value);
+        $this->cbc($means, 'PaymentMeansCode', ($document->payment_means_code ?? throw new LogicException('An issued document has a payment means.'))->value);
 
         if ($document->due_date !== null) {
             $this->cbc($means, 'PaymentDueDate', $document->due_date->toDateString());
@@ -488,9 +498,11 @@ final class UblDocumentXml
             DocumentType::DebitNote => ['DebitNoteLine', 'DebitedQuantity'],
         };
 
+        // Every line copy takes a unit: its own, the one of its item, or units (94).
+        $unit = $line->unit_code ?? throw new LogicException("Line {$line->position} has no unit code.");
         $element = $this->cac($root, $name);
         $this->cbc($element, 'ID', (string) $line->position);
-        $this->cbc($element, $quantity, $line->quantity, ['unitCode' => $line->unit_code]);
+        $this->cbc($element, $quantity, $line->quantity, ['unitCode' => $unit]);
         $this->amount($element, 'LineExtensionAmount', $line->line_extension_amount);
 
         if ($this->type !== DocumentType::DebitNote) {
@@ -519,7 +531,7 @@ final class UblDocumentXml
 
         $price = $this->cac($element, 'Price');
         $this->amount($price, 'PriceAmount', $this->decimal($line->unit_price));
-        $this->cbc($price, 'BaseQuantity', $line->quantity, ['unitCode' => $line->unit_code]);
+        $this->cbc($price, 'BaseQuantity', $line->quantity, ['unitCode' => $unit]);
     }
 
     private function lineDiscount(DOMElement $element, DocumentLine $line): void
@@ -546,7 +558,7 @@ final class UblDocumentXml
 
         $tax = $this->cac($element, 'TaxTotal');
         $this->amount($tax, 'TaxAmount', $line->tax_amount);
-        $this->taxSubtotal($tax, $line->tax_code, $line->line_extension_amount, $line->tax_amount, $line->tax_rate);
+        $this->taxSubtotal($tax, $line->tax_code, $line->line_extension_amount, $line->tax_amount, $line->tax_rate ?? throw new LogicException("Line {$line->position} has a tax code and no rate."));
     }
 
     /**
@@ -585,7 +597,7 @@ final class UblDocumentXml
      * Address with its DIVIPOLA codes (FAJ08 to FAJ18, FAJ28 to FAJ38). In Colombia it carries
      * the municipality and department; abroad only the free address and the country.
      *
-     * @param  array<string, mixed>  $party
+     * @param  CompanySnapshot|CustomerSnapshot  $party
      */
     private function address(DOMElement $parent, string $element, array $party): void
     {
@@ -622,7 +634,7 @@ final class UblDocumentXml
     /**
      * A customer gets address groups when it is in Colombia with a municipality, or abroad with an address.
      *
-     * @param  array<string, mixed>  $party
+     * @param  CustomerSnapshot  $party
      */
     private function hasAddress(array $party): bool
     {
@@ -634,7 +646,7 @@ final class UblDocumentXml
     /**
      * cbc:CompanyID with the DIAN agency, the identification type and, for a NIT, its check digit.
      *
-     * @param  array<string, mixed>  $party
+     * @param  CompanySnapshot|CustomerSnapshot  $party
      */
     private function companyId(DOMElement $parent, array $party): void
     {
@@ -645,7 +657,7 @@ final class UblDocumentXml
     }
 
     /**
-     * @param  array<string, mixed>  $party
+     * @param  CompanySnapshot|CustomerSnapshot  $party
      * @return array<string, string> @schemeID (check digit, only for a NIT) and @schemeName (identification type).
      */
     private function identificationScheme(array $party): array
@@ -671,11 +683,11 @@ final class UblDocumentXml
     /**
      * cac:Contact with the phone (digits only, up to the ten the annex allows) and the email.
      *
-     * @param  array<string, mixed>  $data
+     * @param  CompanySnapshot|CustomerSnapshot  $data
      */
     private function contact(DOMElement $party, array $data): void
     {
-        $phone = preg_replace('/\D+/', '', (string) ($data['phone'] ?? ''));
+        $phone = preg_replace('/\D+/', '', (string) ($data['phone'] ?? '')) ?? throw new LogicException('The phone could not be read.');
         $phone = strlen($phone) >= 1 && strlen($phone) <= 10 ? $phone : null;
 
         if ($phone === null && blank($data['email'])) {
@@ -746,6 +758,7 @@ final class UblDocumentXml
     /**
      * Splits a free text into pieces the annex allows for elements that can repeat.
      *
+     * @param  positive-int  $length
      * @return list<string>
      */
     private function chunks(?string $text, int $length): array

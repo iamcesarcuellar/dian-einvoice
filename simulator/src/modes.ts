@@ -28,15 +28,10 @@ export function currentMode(state: State, nit: string): Mode & { scope: 'company
  * rejection only applies to SendBillSync, since GetStatus does not validate anything.
  */
 export function takeMode(state: State, nit: string | null, operation: string): Mode | null {
-  const key = nit !== null && state.modes[nit] ? nit : (state.modes[ALL] ? ALL : null)
-
-  if (key === null) {
-    return null
-  }
-
+  const key = nit !== null && state.modes[nit] ? nit : ALL
   const mode = state.modes[key]
 
-  if (mode.mode === 'normal' || (mode.mode === 'reject' && operation !== 'SendBillSync')) {
+  if (mode === undefined || mode.mode === 'normal' || (mode.mode === 'reject' && operation !== 'SendBillSync')) {
     return null
   }
 

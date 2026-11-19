@@ -5,6 +5,7 @@ namespace App\Modules\Billing\Http\Requests;
 use App\Modules\Billing\Enums\BalanceStatus;
 use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Models\Document;
+use App\Modules\Billing\Services\DocumentDrafts;
 use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Modules\Reference\Enums\CreditNoteConcept;
 use App\Modules\Reference\Enums\DebitNoteConcept;
@@ -21,6 +22,8 @@ use Illuminate\Validation\Validator;
  * comes from the route (invoices, credit-notes or debit-notes). A draft can be incomplete: what is
  * required to issue it is checked when it is issued. A new note names the accepted invoice it
  * corrects, and takes its customer, currency and payment terms from it. Decimals travel as strings.
+ *
+ * @phpstan-import-type DraftInput from DocumentDrafts
  */
 final class DocumentRequest extends FormRequest
 {
@@ -29,6 +32,19 @@ final class DocumentRequest extends FormRequest
     public function documentType(): DocumentType
     {
         return DocumentType::forRoute($this->route()?->getName());
+    }
+
+    /**
+     * The validated body, in the shape the rules below give it.
+     *
+     * @return DraftInput
+     */
+    public function draft(): array
+    {
+        /** @var DraftInput $input */
+        $input = $this->validated();
+
+        return $input;
     }
 
     /**
@@ -102,7 +118,7 @@ final class DocumentRequest extends FormRequest
                 return;
             }
 
-            $invoice = Document::query()->find($this->input('related_document_id'));
+            $invoice = Document::query()->find($this->string('related_document_id')->toString());
 
             if ($invoice?->balance_status === BalanceStatus::Voided) {
                 $validator->errors()->add('related_document_id', "Invoice {$invoice->full_number} is voided and takes no more notes.");

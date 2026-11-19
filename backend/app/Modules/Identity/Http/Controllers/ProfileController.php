@@ -31,7 +31,7 @@ final class ProfileController
     public function password(UpdatePasswordRequest $request): Response
     {
         $user = $this->user($request);
-        $user->update(['password' => (string) $request->validated('password')]);
+        $user->update(['password' => $request->safe()->string('password')->toString()]);
 
         if ($request->hasSession()) {
             $request->session()->regenerate();

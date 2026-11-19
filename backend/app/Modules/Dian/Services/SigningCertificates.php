@@ -76,7 +76,9 @@ final class SigningCertificates
         ];
 
         $key = openssl_pkey_new($options) ?: throw $this->openSslError('The test key could not be generated');
-        $request = openssl_csr_new($this->testName($company), $key, $options);
+        // openssl_csr_new() takes the key by reference; it keeps a key it is given.
+        $requestKey = $key;
+        $request = openssl_csr_new($this->testName($company), $requestKey, $options);
 
         if ($request === false || $request === true) {
             throw $this->openSslError('The test certificate request could not be created');
@@ -85,21 +87,29 @@ final class SigningCertificates
         $certificate = openssl_csr_sign($request, null, $key, 1, $options, random_int(1, PHP_INT_MAX))
             ?: throw $this->openSslError('The test certificate could not be signed');
 
-        openssl_x509_export($certificate, $pem) ?: throw $this->openSslError('The test certificate could not be exported');
+        // The export functions write their result into a variable, a string when they succeed.
+        if (! openssl_x509_export($certificate, $pem) || ! is_string($pem)) {
+            throw $this->openSslError('The test certificate could not be exported');
+        }
 
         // OpenSSL starts the validity now; set the exact two years, from $validFrom, and sign again.
         $pem = X509::pem(X509::withValidity(X509::der($pem), $validFrom, $validTo, $key));
-        $publicKey = openssl_pkey_get_details($key)['key'] ?? '';
+        $details = openssl_pkey_get_details($key);
+        $publicKey = is_array($details) && is_string($details['key'] ?? null) ? $details['key'] : '';
 
         if (openssl_x509_verify($pem, $publicKey) !== 1) {
             throw new RuntimeException('The re-dated test certificate does not verify.');
         }
 
-        openssl_pkey_export($key, $keyPem, null, $options) ?: throw $this->openSslError('The test key could not be exported');
+        if (! openssl_pkey_export($key, $keyPem, null, $options) || ! is_string($keyPem)) {
+            throw $this->openSslError('The test key could not be exported');
+        }
 
         $password = bin2hex(random_bytes(16));
-        openssl_pkcs12_export($pem, $pkcs12, $keyPem, $password, ['friendly_name' => $this->testName($company)['commonName']])
-            ?: throw $this->openSslError('The test certificate could not be bundled');
+
+        if (! openssl_pkcs12_export($pem, $pkcs12, $keyPem, $password, ['friendly_name' => $this->testName($company)['commonName']]) || ! is_string($pkcs12)) {
+            throw $this->openSslError('The test certificate could not be bundled');
+        }
 
         return $this->replace($pkcs12, $password, new SigningCredentials($pem, $keyPem), isTest: true);
     }
@@ -131,25 +141,30 @@ final class SigningCertificates
      */
     private function open(string $pkcs12, #[SensitiveParameter] string $password): SigningCredentials
     {
-        if (! openssl_pkcs12_read($pkcs12, $parts, $password)) {
+        if (! openssl_pkcs12_read($pkcs12, $parts, $password) || ! is_array($parts)) {
             throw new InvalidArgumentException('The file could not be opened with this password. Check the password, and that the file is a .p12 or .pfx certificate.');
         }
 
-        if (blank($parts['pkey'] ?? null) || blank($parts['cert'] ?? null)) {
+        $keyPem = $parts['pkey'] ?? null;
+        $certificatePem = $parts['cert'] ?? null;
+
+        if (! is_string($keyPem) || ! is_string($certificatePem) || blank($keyPem) || blank($certificatePem)) {
             throw new InvalidArgumentException('The file must contain the private key and its certificate.');
         }
 
-        $key = openssl_pkey_get_private($parts['pkey']);
+        $key = openssl_pkey_get_private($keyPem);
 
         if ($key === false || (openssl_pkey_get_details($key)['type'] ?? null) !== OPENSSL_KEYTYPE_RSA) {
             throw new InvalidArgumentException('The private key must be an RSA key.');
         }
 
-        if (! openssl_x509_check_private_key($parts['cert'], $key)) {
+        if (! openssl_x509_check_private_key($certificatePem, $key)) {
             throw new InvalidArgumentException('The private key does not belong to the certificate.');
         }
 
-        return new SigningCredentials($parts['cert'], $parts['pkey'], $this->chain($parts['cert'], array_values($parts['extracerts'] ?? [])));
+        $others = $parts['extracerts'] ?? [];
+
+        return new SigningCredentials($certificatePem, $keyPem, $this->chain($certificatePem, array_values(array_filter(is_array($others) ? $others : [], is_string(...)))));
     }
 
     /**
@@ -191,8 +206,14 @@ final class SigningCertificates
     {
         $der = X509::der($credentials->certificatePem);
         $info = openssl_x509_parse($credentials->certificatePem) ?: throw new RuntimeException('The certificate could not be read.');
+        $validFrom = $info['validFrom_time_t'] ?? null;
+        $validTo = $info['validTo_time_t'] ?? null;
 
-        return DB::transaction(function () use ($pkcs12, $password, $der, $info, $isTest): SigningCertificate {
+        if (! is_int($validFrom) || ! is_int($validTo)) {
+            throw new RuntimeException('The certificate has no validity dates.');
+        }
+
+        return DB::transaction(function () use ($pkcs12, $password, $der, $info, $validFrom, $validTo, $isTest): SigningCertificate {
             $previous = $this->current();
 
             if ($previous !== null) {
@@ -206,8 +227,8 @@ final class SigningCertificates
                 'issuer' => $this->displayName($info['issuer'] ?? []),
                 'serial_number' => X509::serialNumber($der),
                 'fingerprint_sha256' => hash('sha256', $der),
-                'valid_from' => Carbon::createFromTimestampUTC($info['validFrom_time_t']),
-                'valid_to' => Carbon::createFromTimestampUTC($info['validTo_time_t']),
+                'valid_from' => Carbon::createFromTimestampUTC($validFrom),
+                'valid_to' => Carbon::createFromTimestampUTC($validTo),
                 'is_test' => $isTest,
             ]);
         });
@@ -216,15 +237,17 @@ final class SigningCertificates
     /**
      * A distinguished name for people to read, most specific attribute first: CN=..., O=..., C=CO.
      *
-     * @param  array<string, string|list<string>>  $name
+     * @param  mixed  $name  As openssl_x509_parse() reads it: each attribute a text or a list of them.
      */
-    private function displayName(array $name): string
+    private function displayName(mixed $name): string
     {
         $parts = [];
 
-        foreach ($name as $attribute => $values) {
+        foreach (is_array($name) ? $name : [] as $attribute => $values) {
             foreach ((array) $values as $value) {
-                $parts[] = "{$attribute}={$value}";
+                if (is_scalar($value)) {
+                    $parts[] = "{$attribute}={$value}";
+                }
             }
         }
 

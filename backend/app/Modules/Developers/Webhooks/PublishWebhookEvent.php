@@ -39,11 +39,11 @@ final class PublishWebhookEvent implements ConsumesOutboxEvents
     public static function fromOutboxEvent(OutboxEvent $event): self
     {
         return new self(
-            outboxEventId: $event->getKey(),
+            outboxEventId: $event->id,
             companyId: $event->company_id,
             type: $event->type,
             aggregateId: $event->aggregate_id,
-            payload: $event->payload ?? [],
+            payload: $event->payload,
             occurredAt: ($event->created_at ?? Carbon::now())->toIso8601String(),
         );
     }

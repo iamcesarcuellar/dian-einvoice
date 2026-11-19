@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useConfirmState } from '@/composables/useConfirm'
 
 /** The dialog of confirmAction, mounted once for the whole app. */

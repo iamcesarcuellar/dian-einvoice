@@ -32,7 +32,11 @@ const session = useSessionStore()
 
 const token = computed(() => String(route.params.token ?? ''))
 
-const { data: invitation, isPending, error } = useQuery({
+const {
+  data: invitation,
+  isPending,
+  error,
+} = useQuery({
   queryKey: computed(() => ['invitation', token.value]),
   queryFn: () => invitationApi.get(token.value),
 })
@@ -41,8 +45,7 @@ const { data: me } = useQuery(meQuery)
 
 const notFound = computed(() => error.value instanceof ApiError && error.value.status === 404)
 const pending = computed(() => invitation.value?.status === 'pending')
-const signedInAsInvited = computed(() => !!me.value && !!invitation.value
-  && me.value.email.toLowerCase() === invitation.value.email.toLowerCase())
+const signedInAsInvited = computed(() => !!me.value && !!invitation.value && me.value.email.toLowerCase() === invitation.value.email.toLowerCase())
 
 const title = computed(() => (invitation.value ? t('invitation.join', { company: invitation.value.company.name }) : t('invitation.title')))
 const description = computed(() => {
@@ -58,7 +61,7 @@ const description = computed(() => {
 
 const account = reactive({ name: '', password: '', password_confirmation: '' })
 
-async function joined(result: { me: Me, companyId: string }): Promise<void> {
+async function joined(result: { me: Me; companyId: string }): Promise<void> {
   queryClient.setQueryData(queryKeys.me, result.me)
   session.selectCompany(result.companyId)
   await router.replace({ name: 'dashboard' })
@@ -150,11 +153,25 @@ function signIn(): void {
       </FormField>
 
       <FormField id="invitation-password" :label="t('fields.password')" :hint="t('fields.passwordHint')" :error="accept.errors.value.password?.[0]">
-        <Input id="invitation-password" v-model="account.password" type="password" autocomplete="new-password" required :aria-invalid="!!accept.errors.value.password" />
+        <Input
+          id="invitation-password"
+          v-model="account.password"
+          type="password"
+          autocomplete="new-password"
+          required
+          :aria-invalid="!!accept.errors.value.password"
+        />
       </FormField>
 
       <FormField id="invitation-password-confirmation" :label="t('profile.password.confirm')" :error="accept.errors.value.password_confirmation?.[0]">
-        <Input id="invitation-password-confirmation" v-model="account.password_confirmation" type="password" autocomplete="new-password" required :aria-invalid="!!accept.errors.value.password_confirmation" />
+        <Input
+          id="invitation-password-confirmation"
+          v-model="account.password_confirmation"
+          type="password"
+          autocomplete="new-password"
+          required
+          :aria-invalid="!!accept.errors.value.password_confirmation"
+        />
       </FormField>
 
       <Button type="submit" class="mt-2 w-full" :disabled="accept.isPending.value">

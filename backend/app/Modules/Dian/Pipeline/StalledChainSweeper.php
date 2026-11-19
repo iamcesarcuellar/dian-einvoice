@@ -52,7 +52,7 @@ final class StalledChainSweeper implements Sweeper
                 default => $this->whileSending($document),
             };
 
-            $this->outbox->record($document->company_id, 'document', $document->getKey(), $type, [
+            $this->outbox->record($document->company_id, 'document', $document->id, $type, [
                 'document_id' => $document->getKey(),
                 'run' => $document->electronic_run,
                 'swept' => true,

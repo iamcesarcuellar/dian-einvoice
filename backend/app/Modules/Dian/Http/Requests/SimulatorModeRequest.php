@@ -44,14 +44,15 @@ final class SimulatorModeRequest extends FormRequest
      */
     public function mode(): array
     {
-        $mode = (string) $this->validated('mode');
+        $input = $this->safe();
+        $mode = $input->string('mode')->toString();
 
         return [
             'mode' => $mode,
-            'rule' => $mode === 'reject' ? (string) $this->validated('rule') : null,
-            'delay_ms' => $mode === 'slow' ? (int) $this->validated('delay_ms') : null,
-            'failure_rate' => $mode === 'intermittent' ? (int) $this->validated('failure_rate') : null,
-            'count' => $mode === 'normal' || $this->validated('count') === null ? null : (int) $this->validated('count'),
+            'rule' => $mode === 'reject' ? $input->string('rule')->toString() : null,
+            'delay_ms' => $mode === 'slow' ? $input->integer('delay_ms') : null,
+            'failure_rate' => $mode === 'intermittent' ? $input->integer('failure_rate') : null,
+            'count' => $mode === 'normal' || ! $input->filled('count') ? null : $input->integer('count'),
         ];
     }
 }

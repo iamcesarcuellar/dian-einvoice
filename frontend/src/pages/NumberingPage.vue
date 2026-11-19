@@ -24,7 +24,7 @@ const { can } = useSession()
 
 const canManage = computed(() => can('manage-settings'))
 
-const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('number-templates', numberTemplatesApi.list)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('number-templates', (params) => numberTemplatesApi.list(params))
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'document_type', label: t('numbering.columns.type') },

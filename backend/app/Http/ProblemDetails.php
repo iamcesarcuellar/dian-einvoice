@@ -18,7 +18,7 @@ final class ProblemDetails
 
     /**
      * @param  array<string, mixed>  $extensions  Extra members, such as the validation errors.
-     * @param  array<string, string|int>  $headers
+     * @param  array<mixed>  $headers  As a Symfony response takes them.
      */
     public static function response(int $status, ?string $detail = null, array $extensions = [], array $headers = []): JsonResponse
     {

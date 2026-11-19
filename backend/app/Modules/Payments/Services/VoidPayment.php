@@ -40,7 +40,7 @@ final class VoidPayment
                 throw new ConflictHttpException("Payment {$payment->full_number} is already voided.");
             }
 
-            $reference = new PaymentReference($payment->getKey(), $payment->full_number, $payment->payment_date->toDateString(), $payment->payment_means_code->value);
+            $reference = new PaymentReference($payment->id, $payment->full_number, $payment->payment_date->toDateString(), $payment->payment_means_code->value);
             $invoices = [];
 
             foreach ($payment->allocations()->get()->sortBy('document_id') as $allocation) {
@@ -65,7 +65,7 @@ final class VoidPayment
                 'actor_id' => $actor?->getKey(),
             ]);
 
-            $this->outbox->record($this->currentCompany->id(), 'payment', $payment->getKey(), PaymentEvents::VOIDED, [
+            $this->outbox->record($this->currentCompany->id(), 'payment', $payment->id, PaymentEvents::VOIDED, [
                 'payment_id' => $payment->getKey(),
                 'number' => $payment->full_number,
                 'amount' => (string) $payment->amount,

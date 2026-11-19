@@ -70,7 +70,9 @@ const canRecord = computed(() => can('record-payments') && owes.value && props.i
         <p class="text-sm font-medium">{{ t('invoices.payments.applied') }}</p>
         <DataTable :columns="columns" :rows="payments" :empty-title="t('invoices.payments.none')">
           <template #cell-number="{ row }">
-            <RouterLink :to="{ name: 'payment', params: { id: row.payment_id } }" class="font-medium whitespace-nowrap tabular-nums hover:underline">{{ row.number }}</RouterLink>
+            <RouterLink :to="{ name: 'payment', params: { id: row.payment_id } }" class="font-medium whitespace-nowrap tabular-nums hover:underline">{{
+              row.number
+            }}</RouterLink>
           </template>
           <template #cell-date="{ row }">
             <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.payment_date) }}</span>
@@ -79,7 +81,9 @@ const canRecord = computed(() => can('record-payments') && owes.value && props.i
             {{ label('paymentMeans', row.payment_means_code) }}
           </template>
           <template #cell-amount="{ row }">
-            <span class="whitespace-nowrap tabular-nums" :class="row.status === 'released' ? 'text-muted-foreground line-through' : ''">{{ formatMoney(row.amount) }}</span>
+            <span class="whitespace-nowrap tabular-nums" :class="row.status === 'released' ? 'text-muted-foreground line-through' : ''">{{
+              formatMoney(row.amount)
+            }}</span>
           </template>
           <template #cell-status="{ row }">
             <StatusBadge domain="allocation" :status="row.status" />

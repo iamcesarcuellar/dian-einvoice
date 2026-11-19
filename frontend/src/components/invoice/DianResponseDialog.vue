@@ -7,14 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { documentsApi } from '@/api/resources'
 import FormError from '@/components/FormError.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DOCUMENT_RESOURCES } from '@/lib/documents'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
@@ -33,8 +26,20 @@ const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n()
 const session = useSessionStore()
 
-const { data: xml, error, isLoading } = useQuery({
-  queryKey: computed(() => tenantKey(session.currentCompanyId, DOCUMENT_RESOURCES[props.invoice.type], 'dian-response', props.invoice.id, props.invoice.electronic?.result?.responded_at)),
+const {
+  data: xml,
+  error,
+  isLoading,
+} = useQuery({
+  queryKey: computed(() =>
+    tenantKey(
+      session.currentCompanyId,
+      DOCUMENT_RESOURCES[props.invoice.type],
+      'dian-response',
+      props.invoice.id,
+      props.invoice.electronic?.result?.responded_at,
+    ),
+  ),
   queryFn: () => documentsApi(props.invoice.type).dianResponse(props.invoice.id),
   enabled: open,
   staleTime: Number.POSITIVE_INFINITY,
@@ -57,7 +62,7 @@ const { data: xml, error, isLoading } = useQuery({
           class="h-full max-h-[60vh] overflow-auto rounded-lg border bg-muted/40 p-4 font-mono text-xs leading-relaxed whitespace-pre"
           tabindex="0"
           :aria-label="t('invoices.dian.responseTitle', { number: invoice.full_number })"
-        >{{ xml }}</pre>
+          >{{ xml }}</pre>
       </div>
 
       <DialogFooter>

@@ -104,7 +104,7 @@ final class Der
     /** Dotted form of an OBJECT IDENTIFIER content, such as 2.5.4.3. */
     public static function oid(string $content): string
     {
-        $bytes = array_values(unpack('C*', $content) ?: []);
+        $bytes = array_values(array_filter(unpack('C*', $content) ?: [], is_int(...)));
 
         if ($bytes === []) {
             throw new InvalidArgumentException('Empty OBJECT IDENTIFIER.');

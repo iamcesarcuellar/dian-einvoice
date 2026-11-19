@@ -53,22 +53,13 @@ export function parseXml(text: string): XmlDocument | null {
   }
 }
 
+/** The child elements, in document order. */
+function elements(parent: XmlNode | undefined): XmlNode[] {
+  return parent ? Array.from(parent.childNodes).filter((node) => node.nodeType === ELEMENT_NODE) : []
+}
+
 export function children(parent: XmlNode | undefined, namespace: string, name: string): XmlNode[] {
-  const found: XmlNode[] = []
-
-  if (!parent) {
-    return found
-  }
-
-  for (let index = 0; index < parent.childNodes.length; index++) {
-    const node = parent.childNodes[index]
-
-    if (node.nodeType === ELEMENT_NODE && node.localName === name && node.namespaceURI === namespace) {
-      found.push(node)
-    }
-  }
-
-  return found
+  return elements(parent).filter((node) => node.localName === name && node.namespaceURI === namespace)
 }
 
 export function child(parent: XmlNode | undefined, namespace: string, name: string): XmlNode | undefined {
@@ -88,32 +79,12 @@ export function path(start: XmlNode | undefined, ...steps: Array<readonly [strin
 
 /** The first child element, whatever its name. */
 export function firstElement(parent: XmlNode | undefined): XmlNode | undefined {
-  if (!parent) {
-    return undefined
-  }
-
-  for (let index = 0; index < parent.childNodes.length; index++) {
-    if (parent.childNodes[index].nodeType === ELEMENT_NODE) {
-      return parent.childNodes[index]
-    }
-  }
-
-  return undefined
+  return elements(parent)[0]
 }
 
 /** Every descendant element with that namespace and local name, in document order. */
 export function descendants(parent: XmlNode | undefined, namespace: string, name: string, found: XmlNode[] = []): XmlNode[] {
-  if (!parent) {
-    return found
-  }
-
-  for (let index = 0; index < parent.childNodes.length; index++) {
-    const node = parent.childNodes[index]
-
-    if (node.nodeType !== ELEMENT_NODE) {
-      continue
-    }
-
+  for (const node of elements(parent)) {
     if (node.localName === name && node.namespaceURI === namespace) {
       found.push(node)
     }

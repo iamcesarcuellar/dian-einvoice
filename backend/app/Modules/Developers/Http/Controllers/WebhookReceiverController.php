@@ -26,7 +26,8 @@ final class WebhookReceiverController
     /** The URL, the mode and the last webhooks received, newest first. ?limit= up to 100, 30 by default. */
     public function show(Request $request): JsonResponse
     {
-        $limit = (int) ($request->validate(['limit' => ['sometimes', 'integer', 'min:1', 'max:100']])['limit'] ?? 30);
+        $request->validate(['limit' => ['sometimes', 'integer', 'min:1', 'max:100']]);
+        $limit = $request->integer('limit', 30);
 
         return $this->answer(fn (): array => [
             'url' => $this->receiver->urlFor($this->currentCompany->id()),

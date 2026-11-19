@@ -27,7 +27,7 @@ defineProps<{
 
 const { t } = useI18n()
 
-const ICONS: Record<string, { icon: Component, tone: string }> = {
+const ICONS: Record<string, { icon: Component; tone: string }> = {
   issued: { icon: FileCheckIcon, tone: TONE_TEXT.neutral },
   accepted: { icon: CircleCheckIcon, tone: TONE_TEXT.success },
   rejected: { icon: CircleXIcon, tone: TONE_TEXT.danger },

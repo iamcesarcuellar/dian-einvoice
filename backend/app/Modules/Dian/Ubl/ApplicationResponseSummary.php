@@ -3,6 +3,7 @@
 namespace App\Modules\Dian\Ubl;
 
 use DOMDocument;
+use DOMNode;
 use DOMXPath;
 use Illuminate\Support\Carbon;
 use RuntimeException;
@@ -40,7 +41,8 @@ final readonly class ApplicationResponseSummary
 
         $value = function (string $path) use ($xpath): ?string {
             $nodes = $xpath->query($path);
-            $text = $nodes === false || $nodes->length === 0 ? null : trim((string) $nodes->item(0)?->textContent);
+            $node = $nodes === false ? null : $nodes->item(0);
+            $text = $node instanceof DOMNode ? trim($node->textContent) : null;
 
             return $text === '' ? null : $text;
         };

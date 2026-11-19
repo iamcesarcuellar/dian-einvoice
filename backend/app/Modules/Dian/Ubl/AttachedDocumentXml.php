@@ -21,6 +21,9 @@ use LogicException;
  *
  * In this project the validation comes from the local DIAN simulator, so ValidatorID says so
  * instead of the literal of AE52, which names the DIAN.
+ *
+ * @phpstan-import-type CompanySnapshot from Document
+ * @phpstan-import-type CustomerSnapshot from Document
  */
 final class AttachedDocumentXml
 {
@@ -92,8 +95,8 @@ final class AttachedDocumentXml
         $this->cbc($root, 'ParentDocumentID', $document->full_number);
 
         // AE09 to AE32: who generates the container (the issuer) and who receives it (the customer).
-        $this->party($root, 'SenderParty', $document->company_snapshot);
-        $this->party($root, 'ReceiverParty', $document->customer_snapshot);
+        $this->party($root, 'SenderParty', $document->companySnapshot());
+        $this->party($root, 'ReceiverParty', $document->customerSnapshot());
 
         // AE33 to AE37: the signed invoice.
         $this->attachment($root, $input->invoiceXml);
@@ -121,7 +124,7 @@ final class AttachedDocumentXml
      * cac:PartyTaxScheme of a frozen party: name, identification (with the check digit of a NIT),
      * fiscal responsibilities and tax scheme.
      *
-     * @param  array<string, mixed>  $party
+     * @param  CompanySnapshot|CustomerSnapshot  $party
      */
     private function party(DOMElement $root, string $element, array $party): void
     {
@@ -137,7 +140,7 @@ final class AttachedDocumentXml
         $attributes['schemeName'] = (string) $party['identification_type'];
         $this->cbc($scheme, 'CompanyID', (string) $party['identification_number'], $attributes);
 
-        $responsibilities = $party['fiscal_responsibilities'] ?? [];
+        $responsibilities = $party['fiscal_responsibilities'];
         $this->cbc($scheme, 'TaxLevelCode', $responsibilities === [] ? FiscalResponsibility::NotApplicable->value : implode(';', $responsibilities));
 
         $code = (string) ($party['tax_scheme'] ?? 'ZZ');

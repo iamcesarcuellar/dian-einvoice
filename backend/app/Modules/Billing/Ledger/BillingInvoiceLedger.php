@@ -40,7 +40,7 @@ final class BillingInvoiceLedger implements InvoiceLedger
             ->orderBy('number')
             ->get();
 
-        return $invoices->map(fn (Document $invoice): OpenInvoice => $this->open($invoice))->values()->all();
+        return array_values($invoices->map(fn (Document $invoice): OpenInvoice => $this->open($invoice))->all());
     }
 
     public function apply(string $invoiceId, string $contactId, string $amount, PaymentReference $payment): OpenInvoice
@@ -133,7 +133,7 @@ final class BillingInvoiceLedger implements InvoiceLedger
         $customer = $invoice->customer_snapshot ?? [];
 
         return new OpenInvoice(
-            id: $invoice->getKey(),
+            id: $invoice->id,
             number: (string) $invoice->full_number,
             contactId: (string) $invoice->contact_id,
             customerName: (string) ($customer['legal_name'] ?? ''),

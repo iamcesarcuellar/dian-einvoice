@@ -67,7 +67,11 @@ enum ElectronicStatus: string
         return in_array($state, $this->next(), true);
     }
 
-    /** States of a chain still running, for the "processing" filter. */
+    /**
+     * States of a chain still running, for the "processing" filter.
+     *
+     * @return list<self>
+     */
     public static function processing(): array
     {
         return [self::Pending, self::Generated, self::Signed, self::Sending];

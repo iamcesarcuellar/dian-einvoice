@@ -15,7 +15,7 @@ final class LocalKeyStore implements KeyStore
         return KeyStoreEntry::create([
             'company_id' => $companyId,
             'payload' => ['pkcs12' => base64_encode($pkcs12), 'password' => $password],
-        ])->getKey();
+        ])->id;
     }
 
     public function get(string $reference): KeyBundle

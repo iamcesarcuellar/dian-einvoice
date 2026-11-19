@@ -7,10 +7,10 @@ import { child, escapeXml, firstElement, NS, parseXml, text } from './xml.ts'
 
 export interface SoapRequest {
   operation: string
-  action?: string
-  fileName?: string
-  contentFile?: string
-  trackId?: string
+  action: string | undefined
+  fileName: string | undefined
+  contentFile: string | undefined
+  trackId: string | undefined
 }
 
 export interface DianResult {

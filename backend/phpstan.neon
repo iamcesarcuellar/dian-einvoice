@@ -1,0 +1,32 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 10
+    paths:
+        - app
+        - bootstrap/app.php
+        - config
+        - database
+        - routes
+    # Each module keeps its own migrations; Larastan reads the columns of the models from them.
+    databaseMigrationsPath:
+        - database/migrations
+        - app/Modules/Billing/Database/Migrations
+        - app/Modules/Catalog/Database/Migrations
+        - app/Modules/Delivery/Database/Migrations
+        - app/Modules/Developers/Database/Migrations
+        - app/Modules/Dian/Database/Migrations
+        - app/Modules/Identity/Database/Migrations
+        - app/Modules/Payments/Database/Migrations
+        - app/Modules/Reference/Database/Migrations
+    # Models declare their casts in casts(); Larastan reads them from its return statement.
+    parseModelCastsMethod: true
+    # Config values are typed from the files in config/.
+    checkConfigTypes: true
+    configDirectories:
+        - config
+    tmpDir: storage/framework/cache/phpstan
+    # The api container has 512 MB: one worker keeps the analysis inside it.
+    parallel:
+        maximumNumberOfProcesses: 1

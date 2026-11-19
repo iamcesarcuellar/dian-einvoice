@@ -6,14 +6,7 @@ import { signingCertificateApi } from '@/api/dian'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useFormMutation } from '@/composables/useFormMutation'
 
@@ -88,18 +81,16 @@ watch(open, (isOpen) => {
             :aria-invalid="!!errors.file"
             :disabled="isPending"
             @change="chooseFile"
-          >
+          />
         </FormField>
 
-        <FormField id="certificate-password" :label="t('settings.dian.certificate.password')" :hint="t('settings.dian.certificate.passwordHint')" :error="errors.password?.[0]">
-          <Input
-            id="certificate-password"
-            v-model="password"
-            type="password"
-            autocomplete="off"
-            :disabled="isPending"
-            :aria-invalid="!!errors.password"
-          />
+        <FormField
+          id="certificate-password"
+          :label="t('settings.dian.certificate.password')"
+          :hint="t('settings.dian.certificate.passwordHint')"
+          :error="errors.password?.[0]"
+        >
+          <Input id="certificate-password" v-model="password" type="password" autocomplete="off" :disabled="isPending" :aria-invalid="!!errors.password" />
         </FormField>
       </form>
 

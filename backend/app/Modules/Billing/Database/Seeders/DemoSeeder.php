@@ -6,16 +6,18 @@ use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\DocumentLine;
+use App\Modules\Billing\Models\DocumentWithholding;
 use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Billing\Services\DocumentDrafts;
+use App\Modules\Billing\Services\DocumentPricing;
 use App\Modules\Billing\Services\IssueDocument;
+use App\Modules\Catalog\Database\Seeders\DemoSeeder as CatalogDemoSeeder;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\Withholding;
 use App\Modules\Dian\Pipeline\ElectronicDocumentPipeline;
 use App\Modules\Dian\Pipeline\InlineChain;
 use App\Modules\Dian\Simulator\DianSimulator;
-use App\Modules\Catalog\Database\Seeders\DemoSeeder as CatalogDemoSeeder;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\Membership;
@@ -28,6 +30,7 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use LogicException;
 
 /**
@@ -62,6 +65,17 @@ use LogicException;
  * split between two invoices, a check that bounced (its payment voided), invoices paid in part, and
  * overdue invoices of three customers in every aging bucket. In Demo Servicios: a monthly
  * bookkeeping retainer, a service not fully delivered, a rebate and one overdue invoice.
+ *
+ * The rows of INVOICES and TIMELINE, as described there:
+ *
+ * @phpstan-import-type DraftLine from DocumentPricing
+ *
+ * @phpstan-type PlannedLine array{0: string, 1: string, 2: string}|array{0: null, 1: string, 2: string, 3: string, 4: string}
+ * @phpstan-type PlannedInvoice array{0: int|null, 1: string|null, 2: string, 3: int|null, 4: string, 5: list<PlannedLine>, 6: list<string>, 7: string, 8: array{0: int, 1?: string}|null}
+ * @phpstan-type NoteLine array{0: string, 1: string, 2: string}|array{0: null, 1: string, 2: string, 3: string}
+ * @phpstan-type NoteStep array{0: 'note', 1: int, 2: string, 3: string, 4: string, 5: 'all'|list<NoteLine>, 6: string}
+ * @phpstan-type PaymentStep array{0: 'payment', 1: string, 2: string, 3: string|null, 4: list<array{0: int, 1: string}>, 5: string}
+ * @phpstan-type VoidStep array{0: 'void', 1: string, 2: string, 3: string}
  */
 final class DemoSeeder extends Seeder
 {
@@ -317,7 +331,7 @@ final class DemoSeeder extends Seeder
         $owner = User::query()->where('email', self::USERS['owner'])->firstOrFail();
         $members = User::query()
             ->whereIn('email', array_values(self::USERS))
-            ->whereIn('id', Membership::query()->where('company_id', $company->getKey())->select('user_id'))
+            ->whereIn('id', Membership::query()->where('company_id', $company->id)->select('user_id'))
             ->get()
             ->keyBy('email');
 
@@ -325,8 +339,8 @@ final class DemoSeeder extends Seeder
     }
 
     /**
-     * @param  list<array<int, mixed>>  $plan
-     * @param  array<int, array<string, mixed>>  $outcomes
+     * @param  list<PlannedInvoice>  $plan
+     * @param  array<int, array{mode: string, rule?: string, count: int}>  $outcomes
      * @param  array<string, User>  $users
      * @return array<int, string> The id of each invoice, by position in the plan.
      */
@@ -339,7 +353,7 @@ final class DemoSeeder extends Seeder
         $today = $this->today();
 
         foreach ($plan as $position => [$daysAgo, $time, $customer, $creditDays, $means, $lines, $withholdingNames, $issuer]) {
-            $issuedAt = $daysAgo === null ? null : $this->at($today, $daysAgo, $time);
+            $issuedAt = $daysAgo === null || $time === null ? null : $this->at($today, $daysAgo, $time);
             $user = $users[$issuer];
 
             // Each draft is written a few minutes before it is issued.
@@ -348,17 +362,17 @@ final class DemoSeeder extends Seeder
             $issueDay = ($issuedAt ?? Carbon::now())->copy()->setTimezone(NumberTemplate::TIMEZONE);
 
             $document = $drafts->create(DocumentType::Invoice, [
-                'contact_id' => $contacts[$customer],
+                'contact_id' => $this->idOf($contacts, $customer),
                 'payment_form' => $creditDays === null ? '1' : '2',
                 'payment_means_code' => $means,
                 'due_date' => $creditDays === null ? null : $issueDay->copy()->addDays($creditDays)->toDateString(),
                 'lines' => array_map(fn (array $line): array => $line[0] === null
                     ? ['description' => $line[3], 'unit_code' => '94', 'quantity' => $line[1], 'discount_rate' => $line[2], 'unit_price' => $line[4], 'tax_id' => null]
-                    : ['item_id' => $items[$line[0]], 'quantity' => $line[1], 'discount_rate' => $line[2]], $lines),
-                'withholding_ids' => array_map(fn (string $name): string => $withholdings[$name], $withholdingNames),
+                    : ['item_id' => $this->idOf($items, $line[0]), 'quantity' => $line[1], 'discount_rate' => $line[2]], $lines),
+                'withholding_ids' => array_map(fn (string $name): string => $this->idOf($withholdings, $name), $withholdingNames),
             ], $user);
 
-            $created[$position] = $document->getKey();
+            $created[$position] = $document->id;
 
             if ($issuedAt !== null) {
                 if (isset($outcomes[$position])) {
@@ -370,8 +384,8 @@ final class DemoSeeder extends Seeder
                 }
 
                 Carbon::setTestNow($issuedAt);
-                $issue($document->getKey(), $user);
-                $this->chain->run($document->getKey());
+                $issue($document->id, $user);
+                $this->chain->run($document->id);
             }
         }
 
@@ -385,7 +399,7 @@ final class DemoSeeder extends Seeder
      * the plan, as a payment two hours after its time of issue that many days later (recorded by the
      * owner or the admin, in turns), and the steps of TIMELINE. Drafts go last.
      *
-     * @return list<array{0: ?Carbon, 1: list<mixed>}>
+     * @return list<array{0: ?Carbon, 1: NoteStep|PaymentStep|VoidStep}>
      */
     private function timeline(string $set): array
     {
@@ -395,6 +409,10 @@ final class DemoSeeder extends Seeder
         foreach (self::INVOICES[$set] as $position => [$daysAgo, $time, , , $means, , , , $settlement]) {
             if ($settlement === null) {
                 continue;
+            }
+
+            if ($daysAgo === null || $time === null) {
+                throw new LogicException("The demo plan settles draft {$position}.");
             }
 
             $at = $this->at($today, $daysAgo, $time)->addDays($settlement[0])->addHours(2);
@@ -408,7 +426,7 @@ final class DemoSeeder extends Seeder
 
         foreach (self::TIMELINE[$set] ?? [] as $row) {
             [$daysAgo, $time] = $row;
-            $steps[] = [$daysAgo === null ? null : $this->at($today, $daysAgo, $time), array_slice($row, 2)];
+            $steps[] = [$daysAgo === null || $time === null ? null : $this->at($today, $daysAgo, $time), array_slice($row, 2)];
         }
 
         // Dated steps first, oldest first; steps at the same moment keep their order.
@@ -418,7 +436,7 @@ final class DemoSeeder extends Seeder
     }
 
     /**
-     * @param  list<array{0: ?Carbon, 1: list<mixed>}>  $steps
+     * @param  list<array{0: ?Carbon, 1: NoteStep|PaymentStep|VoidStep}>  $steps
      * @param  array<int, string>  $invoices
      * @param  array<string, User>  $users
      */
@@ -429,8 +447,8 @@ final class DemoSeeder extends Seeder
         foreach ($steps as [$at, $step]) {
             match ($step[0]) {
                 'note' => $this->createNote($at, $step, $invoices, $drafts, $issue, $users),
-                'payment' => $payments[$step[1]] = $this->recordPayment($at, $step, $invoices, $users),
-                'void' => $this->voidPayment($at, $step, $payments, $users),
+                'payment' => $payments[$step[1]] = $this->recordPayment($at ?? throw new LogicException('A demo payment has its moment.'), $step, $invoices, $users),
+                'void' => $this->voidPayment($at ?? throw new LogicException('A demo void has its moment.'), $step, $payments, $users),
             };
         }
 
@@ -438,7 +456,7 @@ final class DemoSeeder extends Seeder
     }
 
     /**
-     * @param  list<mixed>  $step
+     * @param  NoteStep  $step
      * @param  array<int, string>  $invoices
      * @param  array<string, User>  $users
      */
@@ -454,21 +472,21 @@ final class DemoSeeder extends Seeder
         Carbon::setTestNow($issuedAt?->copy()->subMinutes(9) ?? Carbon::now()->subHours(3));
 
         $note = $drafts->create(DocumentType::from($type), [
-            'related_document_id' => $invoice->getKey(),
+            'related_document_id' => $invoice->id,
             'reason_code' => $concept,
             'reason_text' => $description,
             'lines' => $lines === 'all'
                 ? $invoice->lines->map(fn (DocumentLine $line): array => $this->copyLine($line, (string) $line->quantity, '1'))->all()
                 : array_map(fn (array $line): array => $line[0] === null
                     ? ['description' => $line[2], 'unit_code' => '94', 'quantity' => $line[1], 'unit_price' => $line[3], 'discount_rate' => '0', 'tax_id' => null]
-                    : $this->copyLine($invoice->lines->firstWhere('item_id', $items[$line[0]]), $line[1], $line[2]), $lines),
-            'withholding_ids' => $invoice->withholdings->pluck('withholding_id')->filter()->values()->all(),
+                    : $this->copyLine($invoice->lines->firstWhere('item_id', $this->idOf($items, $line[0])), $line[1], $line[2]), $lines),
+            'withholding_ids' => array_values(array_filter($invoice->withholdings->map(fn (DocumentWithholding $withholding): ?string => $withholding->withholding_id)->all())),
         ], $user);
 
         if ($issuedAt !== null) {
             Carbon::setTestNow($issuedAt);
-            $issue($note->getKey(), $user);
-            $this->chain->run($note->getKey());
+            $issue($note->id, $user);
+            $this->chain->run($note->id);
         }
 
         Carbon::setTestNow();
@@ -478,7 +496,7 @@ final class DemoSeeder extends Seeder
      * Records a payment through the payments module, for the balance its invoices have at that
      * moment ('full') or a share of it, rounded to whole pesos.
      *
-     * @param  list<mixed>  $step
+     * @param  PaymentStep  $step
      * @param  array<int, string>  $invoices
      * @param  array<string, User>  $users
      * @return string The id of the payment.
@@ -489,7 +507,7 @@ final class DemoSeeder extends Seeder
 
         Carbon::setTestNow($at);
 
-        $contactId = (string) Document::query()->whereKey($invoices[$allocations[0][0]])->value('contact_id');
+        $contactId = (string) Document::query()->whereKey($invoices[$allocations[0][0]])->first(['contact_id'])?->contact_id;
         $open = [];
 
         foreach ($this->ledger->openInvoices($contactId) as $invoice) {
@@ -517,11 +535,11 @@ final class DemoSeeder extends Seeder
 
         Carbon::setTestNow();
 
-        return $payment->getKey();
+        return $payment->id;
     }
 
     /**
-     * @param  list<mixed>  $step
+     * @param  VoidStep  $step
      * @param  array<string, string>  $payments
      * @param  array<string, User>  $users
      */
@@ -547,6 +565,18 @@ final class DemoSeeder extends Seeder
         return $prefix === null ? null : sprintf('%s-%s%05d', $prefix, $set === 'commerce' ? '41' : '22', 10000 + $position * 731);
     }
 
+    /**
+     * The id of a seeded record, from a pluck() of ids by another column.
+     *
+     * @param  Collection<array-key, mixed>  $ids
+     */
+    private function idOf(Collection $ids, string $key): string
+    {
+        $id = $ids->get($key);
+
+        return is_string($id) ? $id : throw new LogicException("The demo data has no record {$key}.");
+    }
+
     /** The start of today in Colombia. */
     private function today(): Carbon
     {
@@ -563,7 +593,7 @@ final class DemoSeeder extends Seeder
      * The input of a note line that corrects a line of the invoice: the same item, price, discount
      * and tax, with its own quantity and a share of the price.
      *
-     * @return array<string, mixed>
+     * @return DraftLine
      */
     private function copyLine(?DocumentLine $line, string $quantity, string $priceFactor): array
     {

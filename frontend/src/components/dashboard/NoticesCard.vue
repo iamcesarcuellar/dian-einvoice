@@ -45,19 +45,38 @@ function highlighted(warning: boolean): string {
       </CardHeader>
       <CardContent class="grid gap-2 text-sm">
         <template v-if="numbering">
-          <div class="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" :aria-valuenow="Number(numbering.usage)" aria-valuemin="0" aria-valuemax="100" :aria-label="t('dashboard.notices.numbering.usage')">
+          <div
+            class="h-1.5 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            :aria-valuenow="Number(numbering.usage)"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-label="t('dashboard.notices.numbering.usage')"
+          >
             <div :class="cn('h-full rounded-full', numbering.warning ? 'bg-warning' : 'bg-primary')" :style="{ width: usageWidth }" />
           </div>
-          <p class="text-muted-foreground tabular-nums">{{ t('dashboard.notices.numbering.used', { used: formatInteger(numbering.used), total: formatInteger(numbering.total), percent: formatPercent(numbering.usage) }) }}</p>
+          <p class="text-muted-foreground tabular-nums">
+            {{
+              t('dashboard.notices.numbering.used', {
+                used: formatInteger(numbering.used),
+                total: formatInteger(numbering.total),
+                percent: formatPercent(numbering.usage),
+              })
+            }}
+          </p>
           <p v-if="numbering.days_left !== null" :class="cn('tabular-nums', numbering.warning ? 'font-medium text-warning' : 'text-muted-foreground')">
-            {{ t('dashboard.notices.numbering.expires', { date: formatDate(numbering.valid_to), days: formatInteger(numbering.days_left) }, numbering.days_left) }}
+            {{
+              t('dashboard.notices.numbering.expires', { date: formatDate(numbering.valid_to), days: formatInteger(numbering.days_left) }, numbering.days_left)
+            }}
           </p>
         </template>
         <p v-else class="flex items-start gap-2 font-medium text-warning">
           <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           {{ t('dashboard.notices.numbering.missing') }}
         </p>
-        <RouterLink v-if="can('manage-settings')" :to="{ name: 'numbering' }" class="w-fit text-xs font-medium text-primary hover:underline">{{ t('dashboard.notices.numbering.manage') }}</RouterLink>
+        <RouterLink v-if="can('manage-settings')" :to="{ name: 'numbering' }" class="w-fit text-xs font-medium text-primary hover:underline">{{
+          t('dashboard.notices.numbering.manage')
+        }}</RouterLink>
       </CardContent>
     </Card>
 
@@ -75,9 +94,15 @@ function highlighted(warning: boolean): string {
       <CardContent class="grid gap-2 text-sm">
         <template v-if="certificate">
           <p :class="cn('tabular-nums', certificate.warning ? 'font-medium text-warning' : 'text-muted-foreground')">
-            {{ certificate.days_left >= 0
-              ? t('dashboard.notices.certificate.expires', { date: formatDateTime(certificate.valid_to), days: formatInteger(certificate.days_left) }, certificate.days_left)
-              : t('dashboard.notices.certificate.expired', { date: formatDateTime(certificate.valid_to) }) }}
+            {{
+              certificate.days_left >= 0
+                ? t(
+                    'dashboard.notices.certificate.expires',
+                    { date: formatDateTime(certificate.valid_to), days: formatInteger(certificate.days_left) },
+                    certificate.days_left,
+                  )
+                : t('dashboard.notices.certificate.expired', { date: formatDateTime(certificate.valid_to) })
+            }}
           </p>
           <p v-if="certificate.is_test" class="text-xs text-muted-foreground">{{ t('dashboard.notices.certificate.test') }}</p>
         </template>
@@ -85,7 +110,9 @@ function highlighted(warning: boolean): string {
           <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           {{ t('dashboard.notices.certificate.missing') }}
         </p>
-        <RouterLink v-if="can('manage-settings')" :to="{ name: 'dian-settings' }" class="w-fit text-xs font-medium text-primary hover:underline">{{ t('dashboard.notices.certificate.manage') }}</RouterLink>
+        <RouterLink v-if="can('manage-settings')" :to="{ name: 'dian-settings' }" class="w-fit text-xs font-medium text-primary hover:underline">{{
+          t('dashboard.notices.certificate.manage')
+        }}</RouterLink>
       </CardContent>
     </Card>
   </div>

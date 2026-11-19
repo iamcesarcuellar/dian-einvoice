@@ -11,7 +11,6 @@ use App\Modules\Identity\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -30,9 +29,9 @@ final class AuthController
         $this->ensureSession($request);
 
         $user = DB::transaction(function () use ($request, $createCompany): User {
-            $user = User::create($request->safe()->only(['name', 'email', 'password']));
+            $user = User::create($request->safe(['name', 'email', 'password']));
 
-            $createCompany($user, Arr::only($request->validated('company'), CompanyRules::FIELDS));
+            $createCompany($user, array_intersect_key($request->safe()->array('company'), array_flip(CompanyRules::FIELDS)));
 
             return $user;
         });
@@ -77,7 +76,10 @@ final class AuthController
      */
     public function me(Request $request): UserResource
     {
-        return UserResource::make($request->user()->load('companies'));
+        /** @var User $user */
+        $user = $request->user();
+
+        return UserResource::make($user->load('companies'));
     }
 
     private function ensureSession(Request $request): void

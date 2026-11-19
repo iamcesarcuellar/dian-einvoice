@@ -21,7 +21,7 @@ final class DeliverRequest extends FormRequest
 
     public function email(): ?string
     {
-        $email = trim((string) ($this->validated('email') ?? ''));
+        $email = trim($this->safe()->string('email')->toString());
 
         return $email === '' ? null : $email;
     }

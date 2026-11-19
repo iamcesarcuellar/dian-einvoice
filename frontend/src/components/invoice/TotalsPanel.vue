@@ -5,17 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatMoney, formatPercent } from '@/lib/format'
 
 /** Totals of a document as the API calculated them; the web app does no arithmetic. */
-withDefaults(defineProps<{
-  totals: DocumentTotals | null
-  taxes: DocumentTaxSubtotal[]
-  withholdings: DocumentWithholdingAmount[]
-  pending?: boolean
-  /** Shown instead of the totals, such as when the draft has invalid values. */
-  notice?: string | null
-}>(), {
-  pending: false,
-  notice: null,
-})
+withDefaults(
+  defineProps<{
+    totals: DocumentTotals | null
+    taxes: DocumentTaxSubtotal[]
+    withholdings: DocumentWithholdingAmount[]
+    pending?: boolean
+    /** Shown instead of the totals, such as when the draft has invalid values. */
+    notice?: string | null
+  }>(),
+  {
+    pending: false,
+    notice: null,
+  },
+)
 
 const { t } = useI18n()
 

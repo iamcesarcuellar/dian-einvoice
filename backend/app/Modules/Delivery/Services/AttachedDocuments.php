@@ -91,15 +91,17 @@ final class AttachedDocuments
     /** The common part of the names, taken once per document from the "ad" counter of the company. */
     private function base(Document $document): string
     {
-        if ($document->delivery_file_base === null) {
-            $document->delivery_file_base = $this->package->nextBase(
+        $base = $document->delivery_file_base;
+
+        if ($base === null) {
+            $base = $document->delivery_file_base = $this->package->nextBase(
                 $document->company_id,
-                (string) $document->company_snapshot['identification_number'],
+                $document->companySnapshot()['identification_number'],
                 (int) Carbon::now(NumberTemplate::TIMEZONE)->format('Y'),
                 DianPackage::ATTACHED_DOCUMENT,
             );
         }
 
-        return $document->delivery_file_base;
+        return $base;
     }
 }

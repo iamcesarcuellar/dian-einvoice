@@ -60,13 +60,13 @@ final class DeliveryController
      */
     public function deliver(DeliverRequest $request, Document $document, DeliveryActions $actions): DocumentResource
     {
-        return DocumentResource::make($actions->sendAgain($document->getKey(), $request->email(), Actor::user($request))->load(Document::DETAILS));
+        return DocumentResource::make($actions->sendAgain($document->id, $request->email(), Actor::user($request))->load(Document::DETAILS));
     }
 
     /** Regenerate PDF, after it failed or when it is missing; the delivery then goes on. Otherwise 409. */
     public function regeneratePdf(Request $request, Document $document, DeliveryActions $actions): DocumentResource
     {
-        return DocumentResource::make($actions->regeneratePdf($document->getKey(), Actor::user($request))->load(Document::DETAILS));
+        return DocumentResource::make($actions->regeneratePdf($document->id, Actor::user($request))->load(Document::DETAILS));
     }
 
     private function file(Document $document, DocumentFileKind $kind, string $missing): DocumentFile

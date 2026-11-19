@@ -40,7 +40,7 @@ function filterValue(value: string | null): string | undefined {
   return value === ALL || value === null ? undefined : value
 }
 
-const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('payments', paymentsApi.list, {
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery('payments', (params) => paymentsApi.list(params), {
   filters: () => ({ status: filterValue(status.value), payment_means_code: filterValue(means.value) }),
 })
 
@@ -54,7 +54,7 @@ const columns = computed<DataTableColumn[]>(() => [
 ])
 
 function actions(payment: Payment): RowAction[] {
-  return [{ label: t('common.view'), icon: EyeIcon, onSelect: () => router.push({ name: 'payment', params: { id: payment.id } }) }]
+  return [{ label: t('common.view'), icon: EyeIcon, onSelect: () => void router.push({ name: 'payment', params: { id: payment.id } }) }]
 }
 </script>
 
@@ -98,7 +98,9 @@ function actions(payment: Payment): RowAction[] {
       <span class="whitespace-nowrap text-muted-foreground">{{ label('paymentMeans', row.payment_means_code) }}</span>
     </template>
     <template #cell-amount="{ row }">
-      <span class="whitespace-nowrap tabular-nums" :class="row.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{ formatMoney(row.amount) }}</span>
+      <span class="whitespace-nowrap tabular-nums" :class="row.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{
+        formatMoney(row.amount)
+      }}</span>
     </template>
     <template #cell-status="{ row }">
       <StatusBadge domain="payment" :status="row.status" />

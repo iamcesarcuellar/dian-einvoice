@@ -55,10 +55,10 @@ final class NumberTemplateRequest extends FormRequest
             }
 
             $errors = $validator->errors();
-            $type = NumberingType::from((string) $this->resulting('document_type'));
-            $from = (int) $this->resulting('from_number');
-            $to = (int) $this->resulting('to_number');
-            $next = (int) $this->resulting('next_number');
+            $type = NumberingType::from($this->resultingString('document_type'));
+            $from = $this->resultingInt('from_number');
+            $to = $this->resultingInt('to_number');
+            $next = $this->resultingInt('next_number');
 
             if ($from > $to) {
                 $errors->add('to_number', 'The last number must be greater than or equal to the first.');
@@ -123,6 +123,22 @@ final class NumberTemplateRequest extends FormRequest
         if ($this->template() === null && ! $this->has('next_number') && $this->has('from_number')) {
             $this->merge(['next_number' => $this->input('from_number')]);
         }
+    }
+
+    /** The value after this request as text; empty when it has none. */
+    private function resultingString(string $key): string
+    {
+        $value = $this->resulting($key);
+
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /** The value after this request as a whole number; 0 when it has none. */
+    private function resultingInt(string $key): int
+    {
+        $value = $this->resulting($key);
+
+        return is_numeric($value) ? (int) $value : 0;
     }
 
     /** The value after this request: the one sent, or else the stored one. */

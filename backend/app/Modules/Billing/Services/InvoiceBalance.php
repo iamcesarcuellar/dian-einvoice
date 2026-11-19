@@ -87,7 +87,7 @@ final class InvoiceBalance
             return;
         }
 
-        $remaining = BigDecimal::of($this->of($invoice, $note->getKey())['remaining_to_credit']);
+        $remaining = BigDecimal::of($this->of($invoice, $note->id)['remaining_to_credit']);
 
         if ($payable->isGreaterThan($remaining)) {
             throw ValidationException::withMessages(['lines' => [sprintf(
@@ -145,7 +145,7 @@ final class InvoiceBalance
         ]);
 
         if ($status === BalanceStatus::Voided && ! $wasVoided) {
-            $this->outbox->record($invoice->company_id, 'document', $invoice->getKey(), BillingEvents::INVOICE_VOIDED, [
+            $this->outbox->record($invoice->company_id, 'document', $invoice->id, BillingEvents::INVOICE_VOIDED, [
                 'document_id' => $invoice->getKey(),
                 'number' => $invoice->full_number,
                 'note_id' => $note->getKey(),

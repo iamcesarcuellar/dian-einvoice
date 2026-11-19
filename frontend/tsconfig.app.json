@@ -1,0 +1,27 @@
+// The web app, which runs in the browser.
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    // Type checking runs in build mode (vue-tsc --build), which keeps an incremental state file.
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  },
+  "vueCompilerOptions": {
+    "strictTemplates": true,
+    // The shadcn-vue and reka-ui wrappers pass native attributes and listeners (type, disabled,
+    // @click) through to their root element, which vue-tsc reports as unknown props and events.
+    "checkUnknownProps": false,
+    "checkUnknownEvents": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue"]
+}

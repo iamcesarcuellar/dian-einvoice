@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ListParams, Paginated, Tax, Withholding } from '@/api/types'
+import type { ListParams, Tax, Withholding } from '@/api/types'
 import type { DataTableColumn, RowAction } from '@/components/data-table/types'
 import { PencilIcon, PlusIcon, PowerIcon, PowerOffIcon, Trash2Icon } from '@lucide/vue'
 import { useMutation } from '@tanstack/vue-query'
@@ -36,10 +36,7 @@ const isWithholding = props.kind === 'withholdings'
 const api = isWithholding ? withholdingsApi : taxesApi
 const typeGroup = isWithholding ? 'withholdingTypes' : 'taxTypes'
 
-const { page, search, rows, meta, isLoading, error, refetch } = useListQuery<Rate>(
-  props.kind,
-  (params: ListParams) => api.list(params) as Promise<Paginated<Rate>>,
-)
+const { page, search, rows, meta, isLoading, error, refetch } = useListQuery<Rate>(props.kind, (params: ListParams) => api.list(params))
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'name', label: t('rates.columns.name') },
@@ -145,7 +142,9 @@ function actions(rate: Rate): RowAction[] {
       <template #cell-rate="{ row }">
         <span class="whitespace-nowrap tabular-nums">{{ formatPercent(row.rate) }}</span>
         <!-- ReteICA is usually given per thousand, as the XML and the PDF write it. -->
-        <span v-if="isWithholding && row.dian_code === '07'" class="block whitespace-nowrap text-xs text-muted-foreground tabular-nums">{{ formatPerMil(row.rate) }}</span>
+        <span v-if="isWithholding && row.dian_code === '07'" class="block whitespace-nowrap text-xs text-muted-foreground tabular-nums">{{
+          formatPerMil(row.rate)
+        }}</span>
       </template>
       <template #cell-base="{ row }">
         <span class="text-muted-foreground">{{ row.base ? t(`rates.baseShort.${row.base}`) : '' }}</span>

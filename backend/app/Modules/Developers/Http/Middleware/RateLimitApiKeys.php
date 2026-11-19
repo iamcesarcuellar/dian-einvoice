@@ -3,7 +3,7 @@
 namespace App\Modules\Developers\Http\Middleware;
 
 use App\Http\ProblemDetails;
-use App\Modules\Developers\Models\ApiKey;
+use App\Modules\Identity\Tenancy\Actor;
 use Closure;
 use Illuminate\Contracts\Redis\Factory as Redis;
 use Illuminate\Http\Request;
@@ -23,16 +23,19 @@ final class RateLimitApiKeys
 
     public function __construct(private readonly Redis $redis) {}
 
+    /**
+     * @param  Closure(Request): Response  $next
+     */
     public function handle(Request $request, Closure $next): Response
     {
-        $key = $request->user();
+        $key = Actor::apiKey($request);
 
-        if (! $key instanceof ApiKey) {
+        if ($key === null) {
             return $next($request);
         }
 
         $limit = $key->rateLimit();
-        $limiter = new DurationLimiter($this->redis->connection(), 'api-key-rate:'.$key->getKey(), $limit, self::WINDOW);
+        $limiter = new DurationLimiter($this->redis->connection(), 'api-key-rate:'.$key->id, $limit, self::WINDOW);
         $allowed = $limiter->acquire();
 
         $reset = (int) $limiter->decaysAt;

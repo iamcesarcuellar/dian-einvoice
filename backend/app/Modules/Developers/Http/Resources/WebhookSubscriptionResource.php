@@ -11,6 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * A webhook subscription without its secret, which is shown only when created or rotated.
  *
  * @mixin WebhookSubscription
+ *
+ * @property WebhookSubscription $resource
  */
 final class WebhookSubscriptionResource extends JsonResource
 {

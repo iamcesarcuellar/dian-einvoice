@@ -3,6 +3,7 @@
 namespace App\Modules\Billing\Http\Resources;
 
 use App\Modules\Billing\Domain\Calculation;
+use App\Modules\Billing\Services\DocumentPricing;
 use App\Modules\Reference\Enums\TaxType;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -11,11 +12,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Result of POST /invoices/preview: what the invoice would be, with nothing stored.
  *
  * @property Calculation $resource
+ *
+ * @phpstan-import-type WithholdingCopy from DocumentPricing
  */
 final class CalculationResource extends JsonResource
 {
     /**
-     * @param  list<array<string, mixed>>  $withholdings  The withholding copies that were calculated.
+     * @param  list<WithholdingCopy>  $withholdings  The withholding copies that were calculated.
      */
     public function __construct(Calculation $calculation, private readonly array $withholdings)
     {

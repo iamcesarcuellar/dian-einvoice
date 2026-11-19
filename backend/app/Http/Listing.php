@@ -5,6 +5,7 @@ namespace App\Http;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
@@ -18,11 +19,16 @@ final class Listing
     public const int MAX_PER_PAGE = 100;
 
     /**
+     * @template TModel of Model
+     *
+     * @param  Builder<TModel>  $query
      * @param  list<string>  $searchable
-     * @param  (Closure(Builder, string): void)|null  $search  Receives the query and the LIKE pattern.
+     * @param  (Closure(Builder<TModel>, string): void)|null  $search  Receives the query and the LIKE pattern.
+     * @return LengthAwarePaginator<int, TModel>
      */
     public static function paginate(Builder $query, Request $request, array $searchable, ?Closure $search = null): LengthAwarePaginator
     {
+        /** @var array{page?: int|string, per_page?: int|string, search?: string|null} $params */
         $params = $request->validate([
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:'.self::MAX_PER_PAGE],

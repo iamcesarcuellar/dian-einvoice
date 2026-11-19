@@ -114,7 +114,7 @@ final class XadesSigner
         $keyInfoDigest->appendChild($this->dom->createTextNode($this->digest($keyInfo->C14N(false, false))));
         $documentDigest->appendChild($this->dom->createTextNode($this->digest($this->withoutSignature($id))));
 
-        if (! openssl_sign($signedInfo->C14N(false, false), $value, $key, OPENSSL_ALGO_SHA256)) {
+        if (! openssl_sign($signedInfo->C14N(false, false), $value, $key, OPENSSL_ALGO_SHA256) || ! is_string($value)) {
             throw new RuntimeException('The XML could not be signed: '.openssl_error_string());
         }
 
@@ -248,7 +248,7 @@ final class XadesSigner
         $matches = $xpath->query("//ds:Signature[@Id='{$signatureId}']");
         $signature = $matches === false ? null : $matches->item(0);
 
-        if ($signature?->parentNode === null) {
+        if (! $signature instanceof DOMElement || $signature->parentNode === null) {
             throw new RuntimeException('The signature could not be found in the document.');
         }
 

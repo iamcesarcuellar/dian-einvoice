@@ -18,12 +18,12 @@ final class DeliverySubject
 
     public static function for(Document $document): string
     {
-        $company = $document->company_snapshot;
-        $legalName = self::clean((string) $company['legal_name']);
-        $tradeName = self::clean((string) ($company['name'] ?? ''));
+        $company = $document->companySnapshot();
+        $legalName = self::clean($company['legal_name']);
+        $tradeName = self::clean($company['name']);
 
         return implode(';', [
-            (string) $company['identification_number'],
+            $company['identification_number'],
             $legalName,
             (string) $document->full_number,
             $document->type->dianCode(),

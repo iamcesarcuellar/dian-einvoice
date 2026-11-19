@@ -102,7 +102,7 @@ async function send(method: Method, path: string, body: unknown, query?: QueryPa
     method,
     headers,
     credentials: 'include',
-    body: body === undefined ? undefined : (isForm ? body : JSON.stringify(body)),
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   })
 }
 

@@ -16,16 +16,7 @@ import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import FormSection from '@/components/FormSection.vue'
 import IssueDialog from '@/components/invoice/IssueDialog.vue'
-import {
-  CREDIT,
-  emptyInvoiceForm,
-  emptyLine,
-  EXCLUDED,
-  invoiceFormFrom,
-  isBlankLine,
-  noteFormFrom,
-  toInvoiceInput,
-} from '@/components/invoice/invoiceForm'
+import { CREDIT, emptyInvoiceForm, emptyLine, EXCLUDED, invoiceFormFrom, isBlankLine, noteFormFrom, toInvoiceInput } from '@/components/invoice/invoiceForm'
 import TotalsPanel from '@/components/invoice/TotalsPanel.vue'
 import MoneyInput from '@/components/MoneyInput.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -53,16 +44,19 @@ import { useSessionStore } from '@/stores/session'
  * corrects, takes a concept and a description, and keeps the customer and the payment terms of the
  * invoice. A credit note cannot be issued above what is left to credit on its invoice.
  */
-const props = withDefaults(defineProps<{
-  invoice: Invoice | null
-  /** Type of a new document; a saved draft has its own. */
-  kind?: DocumentType
-  /** A new note: what the API prefilled from its invoice. */
-  prefill?: NotePrefill | null
-}>(), {
-  kind: 'invoice',
-  prefill: null,
-})
+const props = withDefaults(
+  defineProps<{
+    invoice: Invoice | null
+    /** Type of a new document; a saved draft has its own. */
+    kind?: DocumentType
+    /** A new note: what the API prefilled from its invoice. */
+    prefill?: NotePrefill | null
+  }>(),
+  {
+    kind: 'invoice',
+    prefill: null,
+  },
+)
 
 const { t } = useI18n()
 const router = useRouter()
@@ -104,63 +98,71 @@ async function searchItems(term: string): Promise<Item[]> {
   return (await itemsApi.list({ search: term || undefined, active: 1, per_page: 20 })).data
 }
 
-const form = ref(props.invoice
-  ? invoiceFormFrom(props.invoice)
-  : props.prefill ? noteFormFrom(props.prefill) : emptyInvoiceForm())
+const form = ref(props.invoice ? invoiceFormFrom(props.invoice) : props.prefill ? noteFormFrom(props.prefill) : emptyInvoiceForm())
 
 /** New lines take the highest active IVA rate (taxes come sorted by rate), or no tax. */
-const defaultTaxId = computed(() => (taxes.value
-  ? (taxes.value.data.find((tax) => tax.is_active && tax.dian_code === '01')?.id ?? EXCLUDED)
-  : null))
+const defaultTaxId = computed(() => (taxes.value ? (taxes.value.data.find((tax) => tax.is_active && tax.dian_code === '01')?.id ?? EXCLUDED) : null))
 
 if (form.value.lines.length === 0) {
   form.value.lines.push(emptyLine(defaultTaxId.value))
 }
 
-const numberingOptions = computed<Option[]>(() => (templates.value?.data ?? [])
-  .filter((template) => template.document_type === type.value && (template.is_active || template.id === form.value.number_template_id))
-  .map((template) => ({
-    value: template.id,
-    label: `${template.prefix ?? ''} ${formatInteger(template.from_number)} – ${formatInteger(template.to_number)}`.trim(),
-  })))
+const numberingOptions = computed<Option[]>(() =>
+  (templates.value?.data ?? [])
+    .filter((template) => template.document_type === type.value && (template.is_active || template.id === form.value.number_template_id))
+    .map((template) => ({
+      value: template.id,
+      label: `${template.prefix ?? ''} ${formatInteger(template.from_number)} – ${formatInteger(template.to_number)}`.trim(),
+    })),
+)
 
 const taxOptions = computed<Option[]>(() => {
   const used = new Set(form.value.lines.map((line) => line.tax_id))
 
   return [
     { value: EXCLUDED, label: t('items.excluded') },
-    ...(taxes.value?.data ?? [])
-      .filter((tax) => tax.is_active || used.has(tax.id))
-      .map((tax) => ({ value: tax.id, label: tax.name })),
+    ...(taxes.value?.data ?? []).filter((tax) => tax.is_active || used.has(tax.id)).map((tax) => ({ value: tax.id, label: tax.name })),
   ]
 })
 
-const withholdingOptions = computed(() => (withholdingPage.value?.data ?? [])
-  .filter((withholding) => withholding.is_active || form.value.withholding_ids.includes(withholding.id)))
+const withholdingOptions = computed(() =>
+  (withholdingPage.value?.data ?? []).filter((withholding) => withholding.is_active || form.value.withholding_ids.includes(withholding.id)),
+)
 
 // A new document takes the default numbering of its type.
-watch(templates, (page) => {
-  if (form.value.number_template_id === null && page) {
-    form.value.number_template_id = page.data
-      .find((template) => template.document_type === type.value && template.is_default && template.is_active)?.id ?? null
-  }
-}, { immediate: true })
+watch(
+  templates,
+  (page) => {
+    if (form.value.number_template_id === null && page) {
+      form.value.number_template_id =
+        page.data.find((template) => template.document_type === type.value && template.is_default && template.is_active)?.id ?? null
+    }
+  },
+  { immediate: true },
+)
 
 // Lines added before the taxes loaded take the default tax once it is known.
-watch(defaultTaxId, (taxId) => {
-  for (const line of form.value.lines) {
-    if (line.tax_id === null) {
-      line.tax_id = taxId
+watch(
+  defaultTaxId,
+  (taxId) => {
+    for (const line of form.value.lines) {
+      if (line.tax_id === null) {
+        line.tax_id = taxId
+      }
     }
-  }
-}, { immediate: true })
+  },
+  { immediate: true },
+)
 
 // A credit invoice needs a due date: suggest 30 days from today.
-watch(() => form.value.payment_form, (paymentForm) => {
-  if (paymentForm === CREDIT && form.value.due_date === '') {
-    form.value.due_date = addDays(today, 30)
-  }
-})
+watch(
+  () => form.value.payment_form,
+  (paymentForm) => {
+    if (paymentForm === CREDIT && form.value.due_date === '') {
+      form.value.due_date = addDays(today, 30)
+    }
+  },
+)
 
 // Live totals: the draft goes to the API 350 ms after the last change.
 const snapshot = computed(() => JSON.stringify(toInvoiceInput(form.value, type.value)))
@@ -169,7 +171,7 @@ const debouncedSnapshot = refDebounced(snapshot, 350)
 const preview = useQuery({
   queryKey: computed(() => tenantKey(companyId.value, DOCUMENT_RESOURCES[type.value], 'preview', debouncedSnapshot.value)),
   queryFn: async () => {
-    const { input, keys } = JSON.parse(debouncedSnapshot.value) as { input: InvoiceInput, keys: string[] }
+    const { input, keys } = JSON.parse(debouncedSnapshot.value) as { input: InvoiceInput; keys: string[] }
 
     return { keys, calculation: await api.value.preview(input) }
   },
@@ -199,13 +201,11 @@ const lineTotals = computed(() => {
 })
 
 function lineTotal(line: LineForm): string {
-  return isBlankLine(line) ? '—' : (formatMoney(lineTotals.value.get(line.key)) || '—')
+  return isBlankLine(line) ? '—' : formatMoney(lineTotals.value.get(line.key)) || '—'
 }
 
 function identificationOf(contact: Contact): string {
-  const number = contact.check_digit === null
-    ? contact.identification_number
-    : formatNit(contact.identification_number, contact.check_digit)
+  const number = contact.check_digit === null ? contact.identification_number : formatNit(contact.identification_number, contact.check_digit)
 
   return `${label('identificationShort', contact.identification_type)} ${number}`
 }
@@ -219,20 +219,22 @@ const submittedKeys = ref<string[]>([])
 const unsaved = useUnsavedChanges(form)
 let baselineTaken = false
 
-watch([templates, taxes], ([loadedTemplates, loadedTaxes]) => {
-  if (!baselineTaken && loadedTemplates && loadedTaxes) {
-    baselineTaken = true
-    void nextTick(() => unsaved.reset())
-  }
-}, { immediate: true })
+watch(
+  [templates, taxes],
+  ([loadedTemplates, loadedTaxes]) => {
+    if (!baselineTaken && loadedTemplates && loadedTaxes) {
+      baselineTaken = true
+      void nextTick(() => unsaved.reset())
+    }
+  },
+  { immediate: true },
+)
 
 async function persist(): Promise<Invoice> {
   const { input, keys } = toInvoiceInput(form.value, type.value)
   submittedKeys.value = keys
 
-  const invoice = savedId.value
-    ? await api.value.update(savedId.value, input)
-    : await api.value.create(input)
+  const invoice = savedId.value ? await api.value.update(savedId.value, input) : await api.value.create(input)
 
   savedId.value = invoice.id
 
@@ -296,7 +298,7 @@ function cents(value: string | null | undefined): bigint {
   return match[1] === '-' ? -amount : amount
 }
 
-const remaining = computed(() => (type.value === 'credit_note' ? invoiceBalance.value?.remaining_to_credit ?? null : null))
+const remaining = computed(() => (type.value === 'credit_note' ? (invoiceBalance.value?.remaining_to_credit ?? null) : null))
 const payable = computed(() => calculation.value?.totals.payable_amount ?? null)
 
 /** The credit note is above what is left to credit: it cannot be issued. */
@@ -305,15 +307,17 @@ const exceeds = computed(() => remaining.value !== null && payable.value !== nul
 const voiding = computed(() => type.value === 'credit_note' && form.value.reason_code === VOID_CONCEPT)
 
 /** A void takes all that is left to credit; less than one peso may stay, and then counts as credited. */
-const voidMismatch = computed(() => voiding.value && remaining.value !== null && payable.value !== null && cents(remaining.value) - cents(payable.value) >= 100n)
+const voidMismatch = computed(
+  () => voiding.value && remaining.value !== null && payable.value !== null && cents(remaining.value) - cents(payable.value) >= 100n,
+)
 
 const conceptOptions = computed<Option[]>(() => (type.value === 'credit_note' ? creditNoteConcepts.value : debitNoteConcepts.value))
 const conceptGroup = computed(() => (type.value === 'credit_note' ? 'creditNoteConceptHints' : 'debitNoteConceptHints'))
 const reasonLength = computed(() => form.value.reason_text.trim().length)
 
-const titleKey = computed(() => (isNote.value
-  ? `notes.editor.${props.invoice ? 'draftTitle' : 'newTitle'}.${type.value}`
-  : `invoices.editor.${props.invoice ? 'draftTitle' : 'newTitle'}`))
+const titleKey = computed(() =>
+  isNote.value ? `notes.editor.${props.invoice ? 'draftTitle' : 'newTitle'}.${type.value}` : `invoices.editor.${props.invoice ? 'draftTitle' : 'newTitle'}`,
+)
 
 function save(): void {
   issuing.reset()
@@ -338,8 +342,7 @@ function lineError(key: string, field: string): string | undefined {
   return index === -1 ? undefined : errors.value[`lines.${index}.${field}`]?.[0]
 }
 
-const numberingName = computed(() => numberingOptions.value
-  .find((option) => option.value === form.value.number_template_id)?.label ?? '')
+const numberingName = computed(() => numberingOptions.value.find((option) => option.value === form.value.number_template_id)?.label ?? '')
 
 // Lines: Enter in a line adds another one below it; the remove button deletes it.
 function addLine(after?: number): void {
@@ -378,9 +381,7 @@ function chooseItem(line: LineForm, chosen: Item | ItemOption | null): void {
 }
 
 function toggleWithholding(id: string, checked: boolean): void {
-  form.value.withholding_ids = checked
-    ? [...form.value.withholding_ids, id]
-    : form.value.withholding_ids.filter((value) => value !== id)
+  form.value.withholding_ids = checked ? [...form.value.withholding_ids, id] : form.value.withholding_ids.filter((value) => value !== id)
 }
 
 const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_number ?? t(titleKey.value), t))
@@ -388,11 +389,7 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
 
 <template>
   <div class="grid gap-6">
-    <PageHeader
-      :title="t(titleKey)"
-      :description="isNote ? t(`notes.editor.description.${type}`) : t('invoices.editor.description')"
-      :breadcrumbs="crumbs"
-    >
+    <PageHeader :title="t(titleKey)" :description="isNote ? t(`notes.editor.description.${type}`) : t('invoices.editor.description')" :breadcrumbs="crumbs">
       <template #badge>
         <StatusBadge domain="document" status="draft" />
       </template>
@@ -408,7 +405,6 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
         {{ voiding ? t('notes.editor.issueVoid') : t('invoices.editor.issue') }}
       </Button>
     </PageHeader>
-
 
     <FormError :error="error" />
 
@@ -521,11 +517,18 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
           </div>
         </FormSection>
 
-        <FormSection :title="t('invoices.editor.conditions')" :description="isNote ? t('notes.editor.conditionsDescription') : t('invoices.editor.conditionsDescription')">
+        <FormSection
+          :title="t('invoices.editor.conditions')"
+          :description="isNote ? t('notes.editor.conditionsDescription') : t('invoices.editor.conditionsDescription')"
+        >
           <div class="grid gap-4">
             <div class="grid gap-4 sm:grid-cols-2">
               <FormField v-if="isNote" id="note-payment" :label="t('invoices.editor.paymentForm')">
-                <Input id="note-payment" :model-value="[label('paymentForms', form.payment_form), label('paymentMeans', form.payment_means_code)].filter(Boolean).join(' · ')" disabled />
+                <Input
+                  id="note-payment"
+                  :model-value="[label('paymentForms', form.payment_form), label('paymentMeans', form.payment_means_code)].filter(Boolean).join(' · ')"
+                  disabled
+                />
               </FormField>
               <FormField v-if="!isNote" id="invoice-payment-form" :label="t('invoices.editor.paymentForm')" :error="errors.payment_form?.[0]">
                 <SelectInput id="invoice-payment-form" v-model="form.payment_form" :options="paymentForms" :invalid="!!errors.payment_form" />
@@ -543,7 +546,12 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
               >
                 <Input id="invoice-due-date" v-model="form.due_date" type="date" :min="today" :aria-invalid="!!errors.due_date" />
               </FormField>
-              <FormField id="invoice-numbering" :label="t('invoices.editor.numbering')" :hint="t('invoices.editor.numberingHint')" :error="errors.number_template_id?.[0]">
+              <FormField
+                id="invoice-numbering"
+                :label="t('invoices.editor.numbering')"
+                :hint="t('invoices.editor.numberingHint')"
+                :error="errors.number_template_id?.[0]"
+              >
                 <SelectInput id="invoice-numbering" v-model="form.number_template_id" :options="numberingOptions" :invalid="!!errors.number_template_id" />
               </FormField>
             </div>
@@ -676,7 +684,11 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
           :pending="previewPending"
           :notice="previewNotice"
         />
-        <div v-if="remaining !== null" class="mt-3 flex items-center justify-between rounded-lg border px-4 py-3 text-sm" :class="exceeds ? 'border-destructive/50 text-destructive' : ''">
+        <div
+          v-if="remaining !== null"
+          class="mt-3 flex items-center justify-between rounded-lg border px-4 py-3 text-sm"
+          :class="exceeds ? 'border-destructive/50 text-destructive' : ''"
+        >
           <span :class="exceeds ? '' : 'text-muted-foreground'">{{ t('notes.reference.remaining') }}</span>
           <span class="font-medium tabular-nums">{{ formatMoney(remaining) }}</span>
         </div>

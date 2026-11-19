@@ -8,14 +8,7 @@ import CompanyFields from '@/components/company/CompanyFields.vue'
 import { emptyCompanyForm, toCompanyInput } from '@/components/company/companyForm'
 import FormError from '@/components/FormError.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { queryKeys } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'

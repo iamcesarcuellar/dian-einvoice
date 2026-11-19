@@ -38,7 +38,13 @@ const { data: settings, error: settingsError } = useQuery({
   queryFn: () => simulatorApi.settings(),
 })
 
-const { data: requests, error: requestsError, refetch, isFetching, isPending: requestsPending } = useQuery({
+const {
+  data: requests,
+  error: requestsError,
+  refetch,
+  isFetching,
+  isPending: requestsPending,
+} = useQuery({
   queryKey: requestsKey,
   queryFn: () => simulatorApi.requests(30),
   refetchInterval: 5000,
@@ -72,9 +78,9 @@ watch(settings, (value) => {
 
 const modeOptions = computed<Option[]>(() => (settings.value?.modes ?? []).map((mode) => ({ value: mode, label: t(`settings.dian.simulator.modes.${mode}`) })))
 
-const ruleOptions = computed<Option[]>(() => (settings.value?.rules ?? [])
-  .filter((rule) => rule.kind === 'rejection')
-  .map((rule) => ({ value: rule.code, label: `${rule.code} · ${rule.message}` })))
+const ruleOptions = computed<Option[]>(() =>
+  (settings.value?.rules ?? []).filter((rule) => rule.kind === 'rejection').map((rule) => ({ value: rule.code, label: `${rule.code} · ${rule.message}` })),
+)
 
 const current = computed(() => settings.value?.mode ?? null)
 
@@ -146,9 +152,12 @@ const { submit, isPending, error, errors, reset } = useFormMutation({
   },
 })
 
-watch(() => session.currentCompanyId, () => {
-  reset()
-})
+watch(
+  () => session.currentCompanyId,
+  () => {
+    reset()
+  },
+)
 </script>
 
 <template>
@@ -168,7 +177,12 @@ watch(() => session.currentCompanyId, () => {
         <FormError :error="error" />
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <FormField id="simulator-mode" :label="t('settings.dian.simulator.mode')" :hint="form.mode ? t(`settings.dian.simulator.modeHints.${form.mode}`) : undefined" :error="errors.mode?.[0]">
+          <FormField
+            id="simulator-mode"
+            :label="t('settings.dian.simulator.mode')"
+            :hint="form.mode ? t(`settings.dian.simulator.modeHints.${form.mode}`) : undefined"
+            :error="errors.mode?.[0]"
+          >
             <SelectInput id="simulator-mode" v-model="form.mode" :options="modeOptions" :disabled="isPending" :invalid="!!errors.mode" />
           </FormField>
 
@@ -180,11 +194,23 @@ watch(() => session.currentCompanyId, () => {
             <Input id="simulator-delay" v-model="form.delay_ms" inputmode="numeric" :disabled="isPending" :aria-invalid="!!errors.delay_ms" />
           </FormField>
 
-          <FormField v-if="form.mode === 'intermittent'" id="simulator-rate" :label="t('settings.dian.simulator.failureRate')" :error="errors.failure_rate?.[0]">
+          <FormField
+            v-if="form.mode === 'intermittent'"
+            id="simulator-rate"
+            :label="t('settings.dian.simulator.failureRate')"
+            :error="errors.failure_rate?.[0]"
+          >
             <Input id="simulator-rate" v-model="form.failure_rate" inputmode="numeric" :disabled="isPending" :aria-invalid="!!errors.failure_rate" />
           </FormField>
 
-          <FormField v-if="form.mode && form.mode !== 'normal'" id="simulator-count" :label="t('settings.dian.simulator.count')" :hint="t('settings.dian.simulator.countHint')" :error="errors.count?.[0]" optional>
+          <FormField
+            v-if="form.mode && form.mode !== 'normal'"
+            id="simulator-count"
+            :label="t('settings.dian.simulator.count')"
+            :hint="t('settings.dian.simulator.countHint')"
+            :error="errors.count?.[0]"
+            optional
+          >
             <Input id="simulator-count" v-model="form.count" inputmode="numeric" :disabled="isPending" :aria-invalid="!!errors.count" />
           </FormField>
         </div>

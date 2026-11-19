@@ -5,6 +5,7 @@ namespace App\Modules\Identity\Http\Requests;
 use App\Modules\Identity\Models\Company;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
+use LogicException;
 
 final class UpdateCompanyRequest extends FormRequest
 {
@@ -49,6 +50,8 @@ final class UpdateCompanyRequest extends FormRequest
 
     private function company(): Company
     {
-        return $this->route('company');
+        $company = $this->route('company');
+
+        return $company instanceof Company ? $company : throw new LogicException('The {company} parameter is bound to a company of the signed-in user.');
     }
 }

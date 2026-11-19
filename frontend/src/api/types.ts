@@ -266,7 +266,7 @@ export interface NumberTemplate {
   is_default: boolean
   is_active: boolean
   status: NumberingStatus
-  usage: { used: number, total: number }
+  usage: { used: number; total: number }
   created_at: string
   updated_at: string
 }
@@ -448,16 +448,7 @@ export interface DocumentEvent {
 
 /** How one call to the local DIAN simulator ended. */
 export type TransmissionOutcome =
-  | 'responded'
-  | 'found'
-  | 'not_found'
-  | 'timeout'
-  | 'no_response'
-  | 'refused'
-  | 'server_error'
-  | 'invalid_response'
-  | 'client_error'
-  | 'abandoned'
+  'responded' | 'found' | 'not_found' | 'timeout' | 'no_response' | 'refused' | 'server_error' | 'invalid_response' | 'client_error' | 'abandoned'
 
 /** UBL 2.1 XML of an issued document, signed with XAdES-EPES; null for drafts. */
 export type XmlStatus = 'pending' | 'generated' | 'signed' | 'failed'
@@ -831,7 +822,7 @@ export interface NotePrefill {
 
 /** POST /invoices/preview: what the invoice would be, with nothing stored. */
 export interface Calculation {
-  lines: Array<{ position: number, discount_amount: string, line_extension_amount: string, tax_amount: string }>
+  lines: Array<{ position: number; discount_amount: string; line_extension_amount: string; tax_amount: string }>
   taxes: DocumentTaxSubtotal[]
   withholdings: DocumentWithholdingAmount[]
   totals: DocumentTotals
@@ -901,8 +892,8 @@ export interface Payment {
   status: PaymentStatus
   void_reason: string | null
   voided_at: string | null
-  voided_by?: { id: string, name: string } | null
-  created_by?: { id: string, name: string } | null
+  voided_by?: { id: string; name: string } | null
+  created_by?: { id: string; name: string } | null
   allocations?: PaymentAllocation[]
   events?: PaymentEvent[]
   created_at: string
@@ -917,7 +908,7 @@ export interface PaymentInput {
   notes: string | null
   /** The sum of the allocations. */
   amount: string
-  allocations: Array<{ document_id: string, amount: string }>
+  allocations: Array<{ document_id: string; amount: string }>
 }
 
 /** An accepted invoice with something left to collect, or a credit in favor of the customer. */
@@ -941,7 +932,7 @@ export interface OpenInvoice {
 
 export interface OpenInvoices {
   data: OpenInvoice[]
-  meta: { contact_id: string, total: string, credits: OpenInvoice[] }
+  meta: { contact_id: string; total: string; credits: OpenInvoice[] }
 }
 
 /** The aging buckets of the receivables, by days after the due date. */
@@ -985,7 +976,7 @@ export interface ApiKey {
   /** Updated at most once a minute. */
   last_used_at: string | null
   revoked_at: string | null
-  created_by: { id: string, name: string } | null
+  created_by: { id: string; name: string } | null
   created_at: string
 }
 
@@ -1019,7 +1010,7 @@ export interface WebhookSubscription {
   /** whsec_… and its last characters. */
   secret_hint: string
   secret_rotated_at: string | null
-  last_delivery: { at: string, status: 'succeeded' | 'failed', response_code: number | null } | null
+  last_delivery: { at: string; status: 'succeeded' | 'failed'; response_code: number | null } | null
   created_at: string
   updated_at: string
 }
@@ -1076,7 +1067,7 @@ export interface WebhookDelivery {
   failed_at: string | null
   created_at: string
   /** Only on the detail. */
-  request?: { url: string, headers: Record<string, string>, body: string }
+  request?: { url: string; headers: Record<string, string>; body: string }
   attempt_log?: WebhookAttempt[]
 }
 

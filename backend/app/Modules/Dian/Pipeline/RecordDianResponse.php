@@ -50,8 +50,8 @@ final class RecordDianResponse extends ChainStep
 
             $accepted = $transmission->is_valid;
             $messages = $transmission->messages ?? [];
-            $rejections = array_values(array_filter($messages, fn (array $message): bool => ($message['kind'] ?? null) === 'rejection'));
-            $notifications = array_values(array_filter($messages, fn (array $message): bool => ($message['kind'] ?? null) === 'notification'));
+            $rejections = array_values(array_filter($messages, fn (array $message): bool => $message['kind'] === 'rejection'));
+            $notifications = array_values(array_filter($messages, fn (array $message): bool => $message['kind'] === 'notification'));
 
             $pipeline->move($document, $accepted ? ElectronicStatus::Accepted : ElectronicStatus::Rejected, [
                 'electronic_next_attempt_at' => null,

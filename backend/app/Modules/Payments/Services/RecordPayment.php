@@ -32,6 +32,10 @@ use Illuminate\Validation\ValidationException;
  * any failure rolls everything back, the receipt number included. The amount of the payment is the
  * sum applied. The same transaction writes payment.recorded, and invoice.paid for each invoice left
  * with nothing to collect.
+ *
+ * The validated body; decimals arrive as strings or whole numbers (see DecimalString):
+ *
+ * @phpstan-type PaymentInput array{contact_id: string, payment_date: string, payment_means_code: string, reference?: string|null, notes?: string|null, amount?: string|int|null, allocations: array<array{document_id: string, amount: string|int}>}
  */
 final class RecordPayment
 {
@@ -46,7 +50,7 @@ final class RecordPayment
     ) {}
 
     /**
-     * @param  array{contact_id: string, payment_date: string, payment_means_code: string, reference?: ?string, notes?: ?string, amount?: ?string, allocations: list<array{document_id: string, amount: string}>}  $input
+     * @param  PaymentInput  $input
      */
     public function __invoke(array $input, ?User $actor = null): Payment
     {
@@ -72,7 +76,7 @@ final class RecordPayment
 
             foreach ($sorted as $index => $allocation) {
                 try {
-                    $applied[$index] = $this->ledger->apply($allocation['document_id'], $contact->getKey(), (string) $allocation['amount'], $reference);
+                    $applied[$index] = $this->ledger->apply($allocation['document_id'], $contact->id, (string) $allocation['amount'], $reference);
                 } catch (AmountExceedsBalance $exception) {
                     throw ValidationException::withMessages(["allocations.{$index}.amount" => [sprintf(
                         'Invoice %s has %s left to collect; %s cannot be applied to it.',
@@ -162,14 +166,14 @@ final class RecordPayment
      * Allocations with a positive amount, keyed by their position in the request so errors point at
      * the right row.
      *
-     * @param  array<string, mixed>  $input
+     * @param  PaymentInput  $input
      * @return array<int, array{document_id: string, amount: string}>
      */
     private function allocations(array $input): array
     {
         $allocations = [];
 
-        foreach (array_values($input['allocations'] ?? []) as $index => $allocation) {
+        foreach (array_values($input['allocations']) as $index => $allocation) {
             $amount = BigDecimal::of((string) $allocation['amount'])->toScale(2);
 
             if (! $amount->isPositive()) {

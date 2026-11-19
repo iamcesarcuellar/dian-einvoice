@@ -89,6 +89,6 @@ final class SimulatorTaxpayerRegistry implements TaxpayerRegistry
 
     private function key(Company $company): string
     {
-        return 'dian-simulator:taxpayer:'.$company->getKey();
+        return 'dian-simulator:taxpayer:'.$company->id;
     }
 }

@@ -25,11 +25,14 @@ import { useSessionStore } from '@/stores/session'
  * of an issued document runs, and then its delivery to the customer, the page asks for it every 2
  * seconds, and stops once both end.
  */
-const props = withDefaults(defineProps<{
-  kind?: DocumentType
-}>(), {
-  kind: 'invoice',
-})
+const props = withDefaults(
+  defineProps<{
+    kind?: DocumentType
+  }>(),
+  {
+    kind: 'invoice',
+  },
+)
 
 const { t } = useI18n()
 const route = useRoute()
@@ -82,16 +85,22 @@ const prefillError = computed(() => (prefill.error.value instanceof Error ? pref
 
 // When the chain or the delivery ends, lists that show this document refresh too, invoices
 // included: an accepted note changes the balance of its invoice.
-watch(() => running(invoice.value), (isRunning, wasRunning) => {
-  if (!isRunning && wasRunning) {
-    void invalidateTenant(...ALL_DOCUMENT_RESOURCES)
-  }
-})
+watch(
+  () => running(invoice.value),
+  (isRunning, wasRunning) => {
+    if (!isRunning && wasRunning) {
+      void invalidateTenant(...ALL_DOCUMENT_RESOURCES)
+    }
+  },
+)
 
 // Another company has other documents: go back to the list.
-watch(() => session.currentCompanyId, () => {
-  void router.push({ name: DOCUMENT_ROUTES[props.kind].list })
-})
+watch(
+  () => session.currentCompanyId,
+  () => {
+    void router.push({ name: DOCUMENT_ROUTES[props.kind].list })
+  },
+)
 </script>
 
 <template>

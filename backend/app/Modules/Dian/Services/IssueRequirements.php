@@ -34,6 +34,7 @@ final class IssueRequirements
      */
     public function missing(Company $company, DianSetting $settings, ?SigningCertificate $certificate, ?NumberTemplate $numbering, ?Contact $customer): array
     {
+        /** @var array<string, list<string>> $errors */
         $errors = [];
 
         foreach (self::COMPANY as $field => $message) {

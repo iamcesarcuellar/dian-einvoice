@@ -81,9 +81,7 @@ const steps = computed<Step[]>(() => {
 
   const chain = labels.map((key, index): Step => {
     const state: StepState = index < done ? 'done' : index === done ? next : 'todo'
-    const label = index === 4 && status === 'rejected'
-      ? t('invoices.progress.rejected')
-      : t(`invoices.progress.${key}`)
+    const label = index === 4 && status === 'rejected' ? t('invoices.progress.rejected') : t(`invoices.progress.${key}`)
 
     return { key, label, state }
   })
@@ -147,7 +145,7 @@ const circle: Record<StepState, string> = {
         <span
           v-if="index > 0"
           class="absolute top-3.5 right-1/2 h-0.5 w-full -translate-y-1/2"
-          :class="step.state === 'todo' ? 'bg-border' : (step.state === 'error' ? 'bg-destructive/60' : (step.state === 'skipped' ? 'bg-border' : 'bg-primary'))"
+          :class="step.state === 'todo' ? 'bg-border' : step.state === 'error' ? 'bg-destructive/60' : step.state === 'skipped' ? 'bg-border' : 'bg-primary'"
           aria-hidden="true"
         />
         <span :class="cn('relative z-10 grid size-7 place-items-center rounded-full border-2 text-xs font-semibold', circle[step.state])">
@@ -157,7 +155,10 @@ const circle: Record<StepState, string> = {
           <MinusIcon v-else-if="step.state === 'skipped'" class="size-4" aria-hidden="true" />
           <span v-else aria-hidden="true">{{ index + 1 }}</span>
         </span>
-        <span class="text-xs font-medium sm:text-sm" :class="step.state === 'todo' || step.state === 'skipped' ? 'text-muted-foreground' : (step.state === 'error' ? 'text-destructive' : '')">
+        <span
+          class="text-xs font-medium sm:text-sm"
+          :class="step.state === 'todo' || step.state === 'skipped' ? 'text-muted-foreground' : step.state === 'error' ? 'text-destructive' : ''"
+        >
           {{ step.label }}
           <span class="sr-only">({{ t(`invoices.progress.${step.state}`) }})</span>
         </span>

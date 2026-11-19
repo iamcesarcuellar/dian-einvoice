@@ -9,14 +9,7 @@ import { paymentsApi } from '@/api/resources'
 import FormError from '@/components/FormError.vue'
 import FormField from '@/components/FormField.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { ALL_DOCUMENT_RESOURCES } from '@/lib/documents'
 import { formatMoney } from '@/lib/format'
@@ -61,7 +54,9 @@ const errors = computed(() => fieldErrors(voiding.error.value))
     <DialogContent class="sm:max-w-lg">
       <DialogHeader>
         <DialogTitle>{{ t('payments.void.title', { number: payment.full_number }) }}</DialogTitle>
-        <DialogDescription>{{ t('payments.void.description', { amount: formatMoney(payment.amount), count: payment.allocations?.length ?? 0 }) }}</DialogDescription>
+        <DialogDescription>{{
+          t('payments.void.description', { amount: formatMoney(payment.amount), count: payment.allocations?.length ?? 0 })
+        }}</DialogDescription>
       </DialogHeader>
 
       <form id="void-payment-form" class="grid gap-4" novalidate @submit.prevent="voiding.mutate()">

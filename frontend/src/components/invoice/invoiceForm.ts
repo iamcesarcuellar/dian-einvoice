@@ -90,9 +90,7 @@ function linesFrom(lines: DocumentLine[]): LineForm[] {
 }
 
 function withholdingIds(withholdings: DocumentWithholdingAmount[]): string[] {
-  return withholdings
-    .map((withholding) => withholding.withholding_id)
-    .filter((id): id is string => id !== null)
+  return withholdings.map((withholding) => withholding.withholding_id).filter((id): id is string => id !== null)
 }
 
 /** A saved draft: an invoice or a note. */
@@ -139,20 +137,21 @@ export function isBlankLine(line: LineForm): boolean {
  * answers line by line in that order. A note sends its invoice, concept and description; its
  * customer and payment terms come from the invoice.
  */
-export function toInvoiceInput(form: InvoiceForm, type: DocumentType = 'invoice'): { input: InvoiceInput, keys: string[] } {
+export function toInvoiceInput(form: InvoiceForm, type: DocumentType = 'invoice'): { input: InvoiceInput; keys: string[] } {
   const lines = form.lines.filter((line) => !isBlankLine(line))
-  const header = type === 'invoice'
-    ? {
-        contact_id: form.contact?.id ?? null,
-        payment_form: form.payment_form,
-        payment_means_code: form.payment_means_code,
-        due_date: orNull(form.due_date),
-      }
-    : {
-        related_document_id: form.related_document_id,
-        reason_code: form.reason_code,
-        reason_text: orNull(form.reason_text),
-      }
+  const header =
+    type === 'invoice'
+      ? {
+          contact_id: form.contact?.id ?? null,
+          payment_form: form.payment_form,
+          payment_means_code: form.payment_means_code,
+          due_date: orNull(form.due_date),
+        }
+      : {
+          related_document_id: form.related_document_id,
+          reason_code: form.reason_code,
+          reason_text: orNull(form.reason_text),
+        }
 
   return {
     input: {

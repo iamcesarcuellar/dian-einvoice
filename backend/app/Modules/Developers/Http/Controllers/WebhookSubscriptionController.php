@@ -19,6 +19,9 @@ use Illuminate\Http\Response;
 /**
  * Webhook subscriptions of the current company, for owners and admins in the web app. The secret
  * that signs the deliveries is shown once, when it is created or rotated.
+ *
+ * @phpstan-import-type SubscriptionInput from WebhookSubscriptions
+ * @phpstan-import-type SubscriptionChanges from WebhookSubscriptions
  */
 final class WebhookSubscriptionController
 {
@@ -41,7 +44,9 @@ final class WebhookSubscriptionController
     /** Create a subscription. The answer carries its secret in secret, once. */
     public function store(WebhookSubscriptionRequest $request, WebhookSubscriptions $subscriptions): JsonResponse
     {
-        [$subscription, $secret] = $subscriptions->create($request->validated(), Actor::user($request));
+        /** @var SubscriptionInput $input */
+        $input = $request->validated();
+        [$subscription, $secret] = $subscriptions->create($input, Actor::user($request));
 
         return response()->json(['data' => [...WebhookSubscriptionResource::make($subscription)->resolve($request), 'secret' => $secret]], 201);
     }
@@ -54,7 +59,10 @@ final class WebhookSubscriptionController
     /** Change the URL, the events or the description, or switch it on or off. */
     public function update(WebhookSubscriptionRequest $request, WebhookSubscription $subscription, WebhookSubscriptions $subscriptions): WebhookSubscriptionResource
     {
-        return WebhookSubscriptionResource::make($subscriptions->update($subscription, $request->validated()));
+        /** @var SubscriptionChanges $input */
+        $input = $request->validated();
+
+        return WebhookSubscriptionResource::make($subscriptions->update($subscription, $input));
     }
 
     /** Delete a subscription with its deliveries. */

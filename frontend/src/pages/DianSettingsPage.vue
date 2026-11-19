@@ -85,17 +85,23 @@ const { submit, isPending, error, errors, reset } = useFormMutation({
   },
 })
 
-watch(settings, (value) => {
-  form.value = formFrom(value)
-  unsaved.reset()
-}, { immediate: true })
+watch(
+  settings,
+  (value) => {
+    form.value = formFrom(value)
+    unsaved.reset()
+  },
+  { immediate: true },
+)
 
-watch(() => session.currentCompanyId, () => {
-  reset()
-})
+watch(
+  () => session.currentCompanyId,
+  () => {
+    reset()
+  },
+)
 
 const pinHint = computed(() => (settings.value?.software_pin_set ? t('settings.dian.pinStored') : t('settings.dian.pinHint')))
-
 </script>
 
 <template>
@@ -153,7 +159,13 @@ const pinHint = computed(() => (settings.value?.software_pin_set ? t('settings.d
             />
           </FormField>
 
-          <FormField id="dian-test-set" :label="t('settings.dian.testSetId')" :hint="t('settings.dian.testSetIdHint')" :error="errors.test_set_id?.[0]" optional>
+          <FormField
+            id="dian-test-set"
+            :label="t('settings.dian.testSetId')"
+            :hint="t('settings.dian.testSetIdHint')"
+            :error="errors.test_set_id?.[0]"
+            optional
+          >
             <Input
               id="dian-test-set"
               v-model="form.test_set_id"

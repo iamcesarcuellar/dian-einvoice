@@ -4,6 +4,7 @@ namespace App\Modules\Dian\Ubl;
 
 use App\Modules\Billing\Enums\DocumentType;
 use DOMDocument;
+use DOMElement;
 use DOMXPath;
 use LibXMLError;
 
@@ -80,8 +81,10 @@ final class XsdValidator
         $count = 0;
 
         foreach ($empty === false ? [] : $empty as $extension) {
-            $extension->parentNode?->removeChild($extension);
-            $count++;
+            if ($extension instanceof DOMElement) {
+                $extension->parentNode?->removeChild($extension);
+                $count++;
+            }
         }
 
         return $count;

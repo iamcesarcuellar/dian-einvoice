@@ -170,7 +170,7 @@ final class SendDeliveryEmail extends DeliveryJob
             return null;
         }
 
-        $reason = sprintf('Attempt %d of %d: %s', $row->attempt, $pipeline->maxAttempts(), $row->error ?? $row->outcome?->value ?? 'no outcome');
+        $reason = sprintf('Attempt %d of %d: %s', $row->attempt, $pipeline->maxAttempts(), $row->error ?? $row->outcome->value ?? 'no outcome');
 
         $pipeline->timeline($document, DocumentEventType::EmailAttempt, $payload);
         $pipeline->fail($document, DeliveryStep::Email, $reason, $row->attempt);

@@ -34,7 +34,7 @@ const direction = computed(() => {
 
   const value = Number(props.kpi.change)
 
-  return value > 0 ? 'up' : (value < 0 ? 'down' : 'flat')
+  return value > 0 ? 'up' : value < 0 ? 'down' : 'flat'
 })
 
 const tone = computed(() => {

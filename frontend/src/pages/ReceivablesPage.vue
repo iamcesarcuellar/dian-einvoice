@@ -21,7 +21,12 @@ const session = useSessionStore()
 
 const BUCKETS: AgingBucket[] = ['current', 'days_1_30', 'days_31_60', 'days_61_90', 'over_90']
 
-const { data: report, isPending, error, refetch } = useQuery({
+const {
+  data: report,
+  isPending,
+  error,
+  refetch,
+} = useQuery({
   queryKey: computed(() => tenantKey(session.currentCompanyId, 'receivables', 'report')),
   queryFn: () => paymentsApi.receivables(),
   enabled: computed(() => session.currentCompanyId !== null),
@@ -62,7 +67,13 @@ function amount(value: string): string {
         <span class="grid min-w-48">
           <span class="font-medium">{{ row.customer_name }}</span>
           <span class="text-xs text-muted-foreground">
-            {{ t('receivables.invoices', { n: formatInteger(row.invoices) }, row.invoices) }}<template v-if="row.overdue_invoices > 0"> · <span class="text-destructive">{{ t('receivables.overdue', { n: formatInteger(row.overdue_invoices), days: formatInteger(row.oldest_days_past_due) }, row.overdue_invoices) }}</span></template>
+            {{ t('receivables.invoices', { n: formatInteger(row.invoices) }, row.invoices)
+            }}<template v-if="row.overdue_invoices > 0">
+              ·
+              <span class="text-destructive">{{
+                t('receivables.overdue', { n: formatInteger(row.overdue_invoices), days: formatInteger(row.oldest_days_past_due) }, row.overdue_invoices)
+              }}</span></template
+            >
           </span>
         </span>
       </template>
@@ -70,13 +81,18 @@ function amount(value: string): string {
         <span class="font-semibold whitespace-nowrap tabular-nums">{{ amount(row.total) }}</span>
       </template>
       <template v-for="bucket in BUCKETS" :key="bucket" #[`cell-${bucket}`]="{ row }">
-        <span class="whitespace-nowrap tabular-nums" :class="bucket !== 'current' && !isZero(row[bucket]) ? 'text-destructive' : ''">{{ amount(row[bucket]) }}</span>
+        <span class="whitespace-nowrap tabular-nums" :class="bucket !== 'current' && !isZero(row[bucket]) ? 'text-destructive' : ''">{{
+          amount(row[bucket])
+        }}</span>
       </template>
       <template #cell-customer_credit="{ row }">
         <span class="whitespace-nowrap text-success tabular-nums">{{ amount(row.customer_credit) }}</span>
       </template>
       <template #cell-link="{ row }">
-        <RouterLink :to="{ name: 'invoices', query: { contact: row.contact_id, customer: row.customer_name } }" class="inline-flex items-center gap-1 text-sm font-medium whitespace-nowrap text-primary hover:underline">
+        <RouterLink
+          :to="{ name: 'invoices', query: { contact: row.contact_id, customer: row.customer_name } }"
+          class="inline-flex items-center gap-1 text-sm font-medium whitespace-nowrap text-primary hover:underline"
+        >
           {{ t('receivables.viewInvoices') }}
           <ArrowUpRightIcon class="size-3.5" aria-hidden="true" />
         </RouterLink>
@@ -85,7 +101,9 @@ function amount(value: string): string {
         <TableRow class="hover:bg-transparent">
           <TableCell class="font-semibold">{{ t('receivables.totals') }}</TableCell>
           <TableCell class="text-right font-semibold whitespace-nowrap tabular-nums">{{ amount(report.totals.total) }}</TableCell>
-          <TableCell v-for="bucket in BUCKETS" :key="bucket" class="text-right font-semibold whitespace-nowrap tabular-nums">{{ amount(report.totals[bucket]) }}</TableCell>
+          <TableCell v-for="bucket in BUCKETS" :key="bucket" class="text-right font-semibold whitespace-nowrap tabular-nums">{{
+            amount(report.totals[bucket])
+          }}</TableCell>
           <TableCell v-if="hasCredit" class="text-right font-semibold whitespace-nowrap tabular-nums">{{ amount(report.totals.customer_credit) }}</TableCell>
           <TableCell />
         </TableRow>

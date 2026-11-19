@@ -18,6 +18,7 @@ use App\Modules\Identity\Enums\Role;
 use App\Modules\Identity\Models\Membership;
 use App\Modules\Identity\Tenancy\CompanyScope;
 use App\Modules\Identity\Tenancy\CurrentCompany;
+use App\Support\Json;
 use App\Support\Storage\DocumentStorage;
 use DOMDocument;
 use DOMXPath;
@@ -61,7 +62,7 @@ final class DeliveryCheckCommand extends Command
             return self::FAILURE;
         }
 
-        $this->line(sprintf('Invoice:     %s of %s, %d lines, delivered to %s', $document->full_number, $document->company_snapshot['legal_name'], $document->lines()->count(), $document->delivery_recipient));
+        $this->line(sprintf('Invoice:     %s of %s, %d lines, delivered to %s', $document->full_number, $document->companySnapshot()['legal_name'], $document->lines()->count(), $document->delivery_recipient));
         $this->line('CUFE:        '.$document->cufe);
 
         $results = [
@@ -97,7 +98,7 @@ final class DeliveryCheckCommand extends Command
             ->get();
 
         foreach ($rows as $row) {
-            $counts[(string) ($row->delivery_status ?? 'none')] = (int) $row->total;
+            $counts[is_string($row->delivery_status) ? $row->delivery_status : 'none'] = is_numeric($row->total) ? (int) $row->total : 0;
         }
 
         ksort($counts);
@@ -162,12 +163,12 @@ final class DeliveryCheckCommand extends Command
         $xpath->registerNamespace('ds', UblDocumentXml::NS_DS);
         $xpath->registerNamespace('ext', UblDocumentXml::NS_EXT);
 
-        $invoice = (string) $xpath->evaluate('string(/a:AttachedDocument/cac:Attachment/cac:ExternalReference/cbc:Description)');
-        $response = (string) $xpath->evaluate('string(/a:AttachedDocument/cac:ParentDocumentLineReference/cac:DocumentReference/cac:Attachment/cac:ExternalReference/cbc:Description)');
-        $signed = (int) $xpath->evaluate('count(//ds:Signature)') === 1
-            && (int) $xpath->evaluate('count(/a:AttachedDocument/ext:UBLExtensions/ext:UBLExtension/ext:ExtensionContent/ds:Signature)') === 1;
+        $invoice = $this->text($xpath, 'string(/a:AttachedDocument/cac:Attachment/cac:ExternalReference/cbc:Description)');
+        $response = $this->text($xpath, 'string(/a:AttachedDocument/cac:ParentDocumentLineReference/cac:DocumentReference/cac:Attachment/cac:ExternalReference/cbc:Description)');
+        $signed = $this->number($xpath, 'count(//ds:Signature)') === 1
+            && $this->number($xpath, 'count(/a:AttachedDocument/ext:UBLExtensions/ext:UBLExtension/ext:ExtensionContent/ds:Signature)') === 1;
 
-        $this->line(sprintf('   Container:   ParentDocumentID %s, ValidatorID "%s", ValidationResultCode %s', $xpath->evaluate('string(/a:AttachedDocument/cbc:ParentDocumentID)'), $xpath->evaluate('string(//cac:ResultOfVerification/cbc:ValidatorID)'), $xpath->evaluate('string(//cac:ResultOfVerification/cbc:ValidationResultCode)')));
+        $this->line(sprintf('   Container:   ParentDocumentID %s, ValidatorID "%s", ValidationResultCode %s', $this->text($xpath, 'string(/a:AttachedDocument/cbc:ParentDocumentID)'), $this->text($xpath, 'string(//cac:ResultOfVerification/cbc:ValidatorID)'), $this->text($xpath, 'string(//cac:ResultOfVerification/cbc:ValidationResultCode)')));
 
         $invoiceInside = $this->embedded($invoice, 'Invoice', $document);
         $sameInvoice = $document->xml_path !== null && $invoice === $storage->get($document->xml_path);
@@ -201,9 +202,9 @@ final class DeliveryCheckCommand extends Command
         $xpath->registerNamespace('cac', UblDocumentXml::NS_CAC);
 
         $key = $root === 'Invoice'
-            ? (string) $xpath->evaluate('string(/*/cbc:UUID)')
-            : (string) $xpath->evaluate('string(/*/cac:DocumentResponse/cac:DocumentReference/cbc:UUID)');
-        $id = (string) $xpath->evaluate('string(/*/cbc:ID)');
+            ? $this->text($xpath, 'string(/*/cbc:UUID)')
+            : $this->text($xpath, 'string(/*/cac:DocumentResponse/cac:DocumentReference/cbc:UUID)');
+        $id = $this->text($xpath, 'string(/*/cbc:ID)');
 
         if ($key !== $document->cufe || ($root === 'Invoice' && $id !== $document->full_number)) {
             return null;
@@ -280,14 +281,14 @@ final class DeliveryCheckCommand extends Command
                 return [$this->verdict(false, '', sprintf('no email to %s with that subject among %d to that address.', $recipient, count($summaries)))];
             }
 
-            $message = $mailbox->message((string) $summary['ID']);
+            $message = $mailbox->message(Json::text($summary, 'ID') ?? '');
         } catch (LocalMailboxUnavailable $exception) {
             return [$this->verdict(false, '', 'the local mailbox is not answering: '.$exception->getMessage())];
         }
 
-        $to = array_map(fn (array $address): string => (string) ($address['Address'] ?? ''), $message['To'] ?? []);
-        $replyTo = array_map(fn (array $address): string => (string) ($address['Address'] ?? ''), $message['ReplyTo'] ?? []);
-        $this->line(sprintf('   Found:       message %s, from "%s" <%s>, reply to %s, %s', $message['ID'] ?? '?', $message['From']['Name'] ?? '', $message['From']['Address'] ?? '', implode(', ', $replyTo) ?: 'none', $message['Date'] ?? ''));
+        $to = array_map(fn (array $address): string => Json::text($address, 'Address') ?? '', Json::objects($message, 'To'));
+        $replyTo = array_map(fn (array $address): string => Json::text($address, 'Address') ?? '', Json::objects($message, 'ReplyTo'));
+        $this->line(sprintf('   Found:       message %s, from "%s" <%s>, reply to %s, %s', Json::text($message, 'ID') ?? '?', Json::text($message, 'From.Name') ?? '', Json::text($message, 'From.Address') ?? '', implode(', ', $replyTo) ?: 'none', Json::text($message, 'Date') ?? ''));
 
         $addressed = $this->verdict(
             $to === [$recipient] && ($message['Subject'] ?? null) === $expected && preg_match(self::SUBJECT_PATTERN, $expected) === 1,
@@ -295,8 +296,8 @@ final class DeliveryCheckCommand extends Command
             'the recipient or the subject is not the expected one.',
         );
 
-        $attachments = $message['Attachments'] ?? [];
-        $this->line(sprintf('   Attachments: %s', implode(', ', array_map(fn (array $part): string => sprintf('%s (%s, %s bytes)', $part['FileName'] ?? '?', $part['ContentType'] ?? '?', number_format((int) ($part['Size'] ?? 0))), $attachments)) ?: 'none'));
+        $attachments = Json::objects($message, 'Attachments');
+        $this->line(sprintf('   Attachments: %s', implode(', ', array_map(fn (array $part): string => sprintf('%s (%s, %s bytes)', Json::text($part, 'FileName') ?? '?', Json::text($part, 'ContentType') ?? '?', number_format(Json::int($part, 'Size') ?? 0)), $attachments)) ?: 'none'));
 
         $package = $files->find($document, DocumentFileKind::Package);
         $attached = $files->find($document, DocumentFileKind::AttachedDocument);
@@ -307,7 +308,7 @@ final class DeliveryCheckCommand extends Command
         }
 
         try {
-            $zip = $mailbox->part((string) $message['ID'], (string) $attachments[0]['PartID']);
+            $zip = $mailbox->part(Json::text($message, 'ID') ?? '', Json::text($attachments[0], 'PartID') ?? '');
         } catch (LocalMailboxUnavailable $exception) {
             return [$addressed, $this->verdict(false, '', 'the attachment could not be downloaded: '.$exception->getMessage())];
         }
@@ -382,6 +383,22 @@ final class DeliveryCheckCommand extends Command
                 // Left in the temporary directory of the container; harmless.
             }
         }
+    }
+
+    /** The text of an XPath string() expression. */
+    private function text(DOMXPath $xpath, string $expression): string
+    {
+        $value = $xpath->evaluate($expression);
+
+        return is_string($value) ? $value : '';
+    }
+
+    /** The number of an XPath count() expression. */
+    private function number(DOMXPath $xpath, string $expression): int
+    {
+        $value = $xpath->evaluate($expression);
+
+        return is_numeric($value) ? (int) $value : 0;
     }
 
     private function verdict(bool $ok, string $pass, string $fail): bool

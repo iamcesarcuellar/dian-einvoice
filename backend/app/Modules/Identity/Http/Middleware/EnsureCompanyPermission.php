@@ -18,6 +18,9 @@ final class EnsureCompanyPermission
 {
     public function __construct(private readonly CurrentCompany $currentCompany) {}
 
+    /**
+     * @param  Closure(Request): Response  $next
+     */
     public function handle(Request $request, Closure $next, string $permission): Response
     {
         $permission = Permission::from($permission);

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Dian\Simulator;
 
+use App\Support\Json;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -26,7 +27,7 @@ final class DianSimulator
     /**
      * The failure mode that applies to the requests of a NIT.
      *
-     * @return array<string, mixed>
+     * @return array<mixed>
      */
     public function mode(string $nit): array
     {
@@ -35,7 +36,7 @@ final class DianSimulator
 
     /**
      * @param  array{mode: string, rule?: string|null, delay_ms?: int|null, failure_rate?: int|null, count?: int|null}  $mode
-     * @return array<string, mixed>
+     * @return array<mixed>
      */
     public function setMode(string $nit, array $mode): array
     {
@@ -45,31 +46,31 @@ final class DianSimulator
     /**
      * The validation rules the simulator implements: code, kind and message.
      *
-     * @return list<array{code: string, kind: string, message: string}>
+     * @return list<array<mixed>>
      */
     public function rules(): array
     {
-        return $this->json('get', '/admin/rules')['rules'] ?? [];
+        return Json::objects($this->json('get', '/admin/rules'), 'rules');
     }
 
     /**
      * The last requests received from a NIT, newest first.
      *
-     * @return list<array<string, mixed>>
+     * @return list<array<mixed>>
      */
     public function requests(string $nit, int $limit = 50): array
     {
-        return $this->json('get', '/admin/requests', ['nit' => $nit, 'limit' => $limit])['requests'] ?? [];
+        return Json::objects($this->json('get', '/admin/requests', ['nit' => $nit, 'limit' => $limit]), 'requests');
     }
 
     /**
      * The documents the simulator processed for a NIT.
      *
-     * @return list<array<string, mixed>>
+     * @return list<array<mixed>>
      */
     public function documents(string $nit): array
     {
-        return $this->json('get', '/admin/documents', ['nit' => $nit])['documents'] ?? [];
+        return Json::objects($this->json('get', '/admin/documents', ['nit' => $nit]), 'documents');
     }
 
     /**
@@ -94,7 +95,7 @@ final class DianSimulator
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
+     * @return array<mixed>
      */
     private function json(string $method, string $path, array $data = []): array
     {
@@ -106,10 +107,12 @@ final class DianSimulator
         }
 
         if (! $response->successful()) {
-            throw new SimulatorUnavailable(sprintf('The local DIAN simulator answered HTTP %d: %s', $response->status(), $response->json('error') ?? 'no details'));
+            throw new SimulatorUnavailable(sprintf('The local DIAN simulator answered HTTP %d: %s', $response->status(), Json::text($response->json(), 'error') ?? 'no details'));
         }
 
-        return $response->json() ?? [];
+        $json = $response->json();
+
+        return is_array($json) ? $json : [];
     }
 
     private function client(): PendingRequest

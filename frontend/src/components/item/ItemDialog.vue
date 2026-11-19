@@ -12,14 +12,7 @@ import MoneyInput from '@/components/MoneyInput.vue'
 import SelectInput from '@/components/SelectInput.vue'
 import SwitchField from '@/components/SwitchField.vue'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useFormMutation } from '@/composables/useFormMutation'
@@ -95,9 +88,7 @@ const { data: taxPage } = useQuery({
 
 const taxOptions = computed<Option[]>(() => [
   { value: EXCLUDED, label: t('items.excluded') },
-  ...(taxPage.value?.data ?? [])
-    .filter((tax) => tax.is_active || tax.id === props.item?.tax_id)
-    .map((tax) => ({ value: tax.id, label: tax.name })),
+  ...(taxPage.value?.data ?? []).filter((tax) => tax.is_active || tax.id === props.item?.tax_id).map((tax) => ({ value: tax.id, label: tax.name })),
 ])
 
 const typeOptions = computed<Option[]>(() => [
@@ -115,9 +106,7 @@ function applyDefaultTax(): void {
 watch(taxPage, applyDefaultTax)
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
-  mutationFn: () => (props.item
-    ? itemsApi.update(props.item.id, toInput(form.value))
-    : itemsApi.create(toInput(form.value))),
+  mutationFn: () => (props.item ? itemsApi.update(props.item.id, toInput(form.value)) : itemsApi.create(toInput(form.value))),
   success: (item) => t(props.item ? 'items.saved' : 'items.created', { name: item.name }),
   onSuccess: async () => {
     await invalidateTenant('items')
@@ -177,7 +166,13 @@ watch(open, (isOpen) => {
         </FormField>
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <FormField id="item-standard-scheme" :label="t('items.form.standardScheme')" :hint="t('items.form.standardSchemeHint')" :error="errors.standard_scheme?.[0]" optional>
+          <FormField
+            id="item-standard-scheme"
+            :label="t('items.form.standardScheme')"
+            :hint="t('items.form.standardSchemeHint')"
+            :error="errors.standard_scheme?.[0]"
+            optional
+          >
             <Input id="item-standard-scheme" v-model="form.standard_scheme" autocomplete="off" :aria-invalid="!!errors.standard_scheme" />
           </FormField>
           <FormField id="item-standard-code" :label="t('items.form.standardCode')" :error="errors.standard_code?.[0]" optional>
@@ -191,7 +186,7 @@ watch(open, (isOpen) => {
       <DialogFooter>
         <Button type="button" variant="outline" @click="open = false">{{ t('common.cancel') }}</Button>
         <Button type="submit" form="item-form" :disabled="isPending">
-          {{ isPending ? t('common.saving') : (item ? t('common.save') : t('items.form.create')) }}
+          {{ isPending ? t('common.saving') : item ? t('common.save') : t('items.form.create') }}
         </Button>
       </DialogFooter>
     </DialogContent>

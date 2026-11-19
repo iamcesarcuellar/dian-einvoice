@@ -75,7 +75,15 @@ function amountTick(tick: number | Date): string {
           :group-padding="0.3"
           :group-max-width="56"
         />
-        <VisAxis type="x" :x="(datum: Datum) => datum.index" :tick-values="data.map((datum) => datum.index)" :tick-format="bucketTick" :grid-line="false" :tick-line="false" :domain-line="false" />
+        <VisAxis
+          type="x"
+          :x="(datum: Datum) => datum.index"
+          :tick-values="data.map((datum) => datum.index)"
+          :tick-format="bucketTick"
+          :grid-line="false"
+          :tick-line="false"
+          :domain-line="false"
+        />
         <VisAxis type="y" :num-ticks="4" :tick-format="amountTick" :tick-line="false" :domain-line="false" />
         <ChartTooltip />
         <ChartCrosshair :template="template" color="#0000" />
@@ -83,7 +91,11 @@ function amountTick(tick: number | Date): string {
     </ChartContainer>
 
     <table class="sr-only">
-      <caption>{{ t('dashboard.aging.title') }}</caption>
+      <caption>
+        {{
+          t('dashboard.aging.title')
+        }}
+      </caption>
       <tbody>
         <tr v-for="bucket in BUCKETS" :key="bucket">
           <th scope="row">{{ t(`receivables.buckets.${bucket}`) }}</th>

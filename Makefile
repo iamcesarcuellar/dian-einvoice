@@ -12,7 +12,7 @@ CONCURRENCY ?= 20
 # Size of make chaos.
 CHAOS_INVOICES ?= 40
 
-.PHONY: up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check
+.PHONY: up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix
 
 # Build images if needed, start the stack, wait for the database, Redis and the local mailbox, install missing dependencies,
 # generate the key, migrate, and start the queue workers and the outbox relay with the current code.
@@ -119,8 +119,27 @@ api-check:
 
 # Type-check and build the web app for production (into /tmp of its container), then sign in over HTTP as the synthetic demo user and check that GET /dashboard and GET /search?q=SETP of Demo Comercial SAS return data.
 ui-check:
-	$(COMPOSE) exec -T web sh -c 'pnpm exec vue-tsc --noEmit && pnpm exec vite build --outDir /tmp/ui-check-dist --emptyOutDir'
+	$(COMPOSE) exec -T web sh -c 'pnpm typecheck && pnpm exec vite build --outDir /tmp/ui-check-dist --emptyOutDir'
 	$(COMPOSE) exec -T api php artisan ui:check
+
+# Formatters and linters, checking only: Laravel Pint for the backend, ESLint and Prettier for the web app, ESLint
+# for the simulator. Each one runs in a throwaway container of its service; the stack need not be up.
+lint:
+	$(COMPOSE) run --rm --no-deps -T api vendor/bin/pint --test
+	$(COMPOSE) run --rm --no-deps -T web sh -c 'pnpm lint && pnpm format:check'
+	$(COMPOSE) --profile tools run --rm --build -T simulator-dev npm run lint
+
+# Static analysis: PHPStan with Larastan (level in backend/phpstan.neon, no baseline), vue-tsc and tsc, all strict.
+analyse:
+	$(COMPOSE) run --rm --no-deps -T api vendor/bin/phpstan analyse --no-progress --memory-limit=448M
+	$(COMPOSE) run --rm --no-deps -T web pnpm typecheck
+	$(COMPOSE) --profile tools run --rm --build -T simulator-dev npm run typecheck
+
+# Apply the formatters and the automatic fixes of the linters.
+fix:
+	$(COMPOSE) run --rm --no-deps -T api vendor/bin/pint
+	$(COMPOSE) run --rm --no-deps -T web pnpm fix
+	$(COMPOSE) --profile tools run --rm --build -T simulator-dev npm run fix
 
 # Export the public API reference (Scramble) to openapi.json at the root of the repository.
 openapi:

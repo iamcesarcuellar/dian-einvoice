@@ -3,14 +3,7 @@ import { TriangleAlertIcon } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import CopyButton from './CopyButton.vue'
 
 /** Shows a new API key or webhook secret, the only time it can be seen, with a copy button. */

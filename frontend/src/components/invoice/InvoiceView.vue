@@ -16,7 +16,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useReference } from '@/composables/useReference'
 import { documentCrumbs } from '@/lib/documents'
-import { formatDate, formatDateTime, formatDecimal, formatInteger, formatMoney, formatPercent, formatTime } from '@/lib/format'
+import { formatDate, formatDateTime, formatDecimal, formatInteger, formatMoney, formatPercent, formatTime, payloadText } from '@/lib/format'
 import { formatNit } from '@/lib/utils'
 
 /**
@@ -48,8 +48,7 @@ function partyOf(contact: Contact): PartySnapshot {
 }
 
 // An issued invoice shows the customer exactly as it was when issued; a draft shows it as it is now.
-const customer = computed<PartySnapshot | null>(() => props.invoice.customer_snapshot
-  ?? (props.invoice.contact ? partyOf(props.invoice.contact) : null))
+const customer = computed<PartySnapshot | null>(() => props.invoice.customer_snapshot ?? (props.invoice.contact ? partyOf(props.invoice.contact) : null))
 
 const identification = computed(() => {
   const party = customer.value
@@ -58,9 +57,7 @@ const identification = computed(() => {
     return ''
   }
 
-  const number = party.check_digit === null
-    ? party.identification_number
-    : formatNit(party.identification_number, party.check_digit)
+  const number = party.check_digit === null ? party.identification_number : formatNit(party.identification_number, party.check_digit)
 
   return `${label('identificationShort', party.identification_type)} ${number}`
 })
@@ -72,9 +69,7 @@ const location = computed(() => {
     return ''
   }
 
-  const place = party.municipality
-    ? [party.municipality.name, party.municipality.department_name].filter(Boolean).join(', ')
-    : party.country_code
+  const place = party.municipality ? [party.municipality.name, party.municipality.department_name].filter(Boolean).join(', ') : party.country_code
 
   return [party.address, place].filter(Boolean).join(' · ')
 })
@@ -90,9 +85,11 @@ const subtitle = computed(() => {
   return isNote.value ? [t(`notes.one.${props.invoice.type}`), issued].filter(Boolean).join(' · ') : issued
 })
 
-const concept = computed(() => (props.invoice.reason_code
-  ? `${props.invoice.reason_code} · ${label(props.invoice.type === 'credit_note' ? 'creditNoteConcepts' : 'debitNoteConcepts', props.invoice.reason_code)}`
-  : '—'))
+const concept = computed(() =>
+  props.invoice.reason_code
+    ? `${props.invoice.reason_code} · ${label(props.invoice.type === 'credit_note' ? 'creditNoteConcepts' : 'debitNoteConcepts', props.invoice.reason_code)}`
+    : '—',
+)
 
 const numbering = computed(() => {
   const snapshot = props.invoice.numbering_snapshot
@@ -121,10 +118,10 @@ const numbering = computed(() => {
 
 /** Why a call to the local simulator failed, in a few words. */
 function attemptReason(payload: Record<string, unknown>): string {
-  const outcome = String(payload.outcome ?? 'no_response')
+  const outcome = payloadText(payload.outcome, 'no_response')
   const key = `invoices.view.events.reasons.${outcome}`
 
-  return t(key, { status: String(payload.http_status ?? '') })
+  return t(key, { status: payloadText(payload.http_status) })
 }
 
 function attemptLabel(payload: Record<string, unknown>): string {
@@ -149,7 +146,7 @@ function attemptLabel(payload: Record<string, unknown>): string {
 /** One email attempt to the customer, always caught by the local mailbox. */
 function emailLabel(payload: Record<string, unknown>): string {
   const attempt = Number(payload.attempt ?? 1)
-  const recipient = String(payload.recipient ?? '')
+  const recipient = payloadText(payload.recipient)
 
   switch (payload.outcome) {
     case 'sent':
@@ -174,13 +171,13 @@ function eventLabel(event: DocumentEvent): string {
 
   switch (event.type) {
     case 'issued':
-      return t('invoices.view.events.issued', { number: String(payload.full_number ?? '') })
+      return t('invoices.view.events.issued', { number: payloadText(payload.full_number) })
     case 'xml_generated':
       return t('invoices.view.events.xmlGenerated')
     case 'xml_signed':
       return t('invoices.view.events.xmlSigned')
     case 'issue_date_moved':
-      return t('invoices.view.events.issueDateMoved', { date: formatDate(String(payload.issue_date ?? '')), time: formatTime(String(payload.issue_time ?? '')) })
+      return t('invoices.view.events.issueDateMoved', { date: formatDate(payloadText(payload.issue_date)), time: formatTime(payloadText(payload.issue_time)) })
     case 'xml_failed':
       return t('invoices.view.events.xmlFailed')
     case 'transmission_attempt':
@@ -204,17 +201,19 @@ function eventLabel(event: DocumentEvent): string {
     case 'delivery_not_applicable':
       return t('invoices.view.events.deliveryNotApplicable')
     case 'delivery_failed':
-      return t('invoices.view.events.deliveryFailed', { step: t(`invoices.view.events.steps.${String(payload.step ?? 'email')}`) })
+      return t('invoices.view.events.deliveryFailed', { step: t(`invoices.view.events.steps.${payloadText(payload.step, 'email')}`) })
     case 'delivery_requested':
       return t('invoices.view.events.deliveryRequested')
     case 'pdf_regeneration_requested':
       return t('invoices.view.events.pdfRegenerationRequested')
     case 'note_accepted':
-      return t(payload.voided === true ? 'notes.view.events.voided' : `notes.view.events.accepted.${String(payload.note_type ?? 'credit_note')}`, { number: String(payload.number ?? '') })
+      return t(payload.voided === true ? 'notes.view.events.voided' : `notes.view.events.accepted.${payloadText(payload.note_type, 'credit_note')}`, {
+        number: payloadText(payload.number),
+      })
     case 'payment_applied':
-      return t('invoices.payments.events.applied', { number: String(payload.number ?? ''), amount: formatMoney(String(payload.amount ?? '0')) })
+      return t('invoices.payments.events.applied', { number: payloadText(payload.number), amount: formatMoney(payloadText(payload.amount, '0')) })
     case 'payment_released':
-      return t('invoices.payments.events.released', { number: String(payload.number ?? ''), amount: formatMoney(String(payload.amount ?? '0')) })
+      return t('invoices.payments.events.released', { number: payloadText(payload.number), amount: formatMoney(payloadText(payload.amount, '0')) })
     default:
       return t('invoices.view.events.created')
   }
@@ -228,19 +227,25 @@ function eventDetail(event: DocumentEvent): string | null {
   switch (event.type) {
     case 'issue_date_moved':
       return t('invoices.view.events.issueDateMovedDetail', {
-        date: formatDate(String(payload.previous_issue_date ?? '')),
-        time: formatTime(String(payload.previous_issue_time ?? '')),
-        previousDue: formatDate(String(payload.previous_due_date ?? payload.previous_issue_date ?? '')),
-        due: formatDate(String(payload.due_date ?? payload.issue_date ?? '')),
+        date: formatDate(payloadText(payload.previous_issue_date)),
+        time: formatTime(payloadText(payload.previous_issue_time)),
+        previousDue: formatDate(payloadText(payload.previous_due_date ?? payload.previous_issue_date)),
+        due: formatDate(payloadText(payload.due_date ?? payload.issue_date)),
       })
     case 'xml_signed':
       return typeof payload.certificate_serial === 'string'
-        ? t(payload.test_certificate === true ? 'invoices.view.events.signedWithTest' : 'invoices.view.events.signedWith', { serial: payload.certificate_serial })
+        ? t(payload.test_certificate === true ? 'invoices.view.events.signedWithTest' : 'invoices.view.events.signedWith', {
+            serial: payload.certificate_serial,
+          })
         : null
     case 'transmission_attempt':
       return payload.status_code
-        ? t('invoices.view.events.callDetailStatus', { operation: String(payload.operation ?? ''), ms: Number(payload.duration_ms ?? 0), code: String(payload.status_code) })
-        : t('invoices.view.events.callDetail', { operation: String(payload.operation ?? ''), ms: Number(payload.duration_ms ?? 0) })
+        ? t('invoices.view.events.callDetailStatus', {
+            operation: payloadText(payload.operation),
+            ms: Number(payload.duration_ms ?? 0),
+            code: payloadText(payload.status_code),
+          })
+        : t('invoices.view.events.callDetail', { operation: payloadText(payload.operation), ms: Number(payload.duration_ms ?? 0) })
     case 'accepted':
       return Number(payload.notifications ?? 0) > 0
         ? t('invoices.view.events.acceptedNotifications', { count: Number(payload.notifications), rules: rulesOf(payload) })
@@ -250,24 +255,34 @@ function eventDetail(event: DocumentEvent): string | null {
     case 'retry_requested':
       return payload.waiting === true
         ? t('invoices.view.events.retryWaiting')
-        : t('invoices.view.events.retryFrom', { step: t(`invoices.view.events.steps.${String(payload.step ?? 'transmit')}`) })
+        : t('invoices.view.events.retryFrom', { step: t(`invoices.view.events.steps.${payloadText(payload.step, 'transmit')}`) })
     case 'resend_requested':
       return payload.cufe_changed === true ? t('invoices.view.events.cufeChanged') : null
     case 'note_accepted':
-      return t('notes.view.events.balance', { status: t(`notes.balanceStatus.${String(payload.balance_status ?? 'open')}`) })
+      return t('notes.view.events.balance', { status: t(`notes.balanceStatus.${payloadText(payload.balance_status, 'open')}`) })
     case 'payment_applied':
     case 'payment_released':
-      return t('invoices.payments.events.balance', { amount: formatMoney(String(payload.balance ?? '0')) })
+      return t('invoices.payments.events.balance', { amount: formatMoney(payloadText(payload.balance, '0')) })
     case 'attached_document_built':
-      return t('invoices.view.events.attachedDocumentDetail', { file: String(payload.file_name ?? ''), size: formatInteger(Number(payload.size ?? 0)) })
+      return t('invoices.view.events.attachedDocumentDetail', { file: payloadText(payload.file_name), size: formatInteger(Number(payload.size ?? 0)) })
     case 'pdf_generated':
-      return t('invoices.view.events.pdfDetail', { file: String(payload.file_name ?? ''), pages: Number(payload.pages ?? 0), size: formatInteger(Number(payload.size ?? 0)) })
+      return t('invoices.view.events.pdfDetail', {
+        file: payloadText(payload.file_name),
+        pages: Number(payload.pages ?? 0),
+        size: formatInteger(Number(payload.size ?? 0)),
+      })
     case 'email_attempt':
       return payload.outcome === 'sent'
-        ? t('invoices.view.events.emailSentDetail', { attempt: Number(payload.attempt ?? 1), max: Number(payload.max_attempts ?? 1), ms: Number(payload.duration_ms ?? 0) })
-        : (typeof payload.error === 'string' ? payload.error : null)
+        ? t('invoices.view.events.emailSentDetail', {
+            attempt: Number(payload.attempt ?? 1),
+            max: Number(payload.max_attempts ?? 1),
+            ms: Number(payload.duration_ms ?? 0),
+          })
+        : typeof payload.error === 'string'
+          ? payload.error
+          : null
     case 'delivery_requested':
-      return t('invoices.view.events.deliveryRequestedTo', { recipient: String(payload.recipient ?? '') })
+      return t('invoices.view.events.deliveryRequestedTo', { recipient: payloadText(payload.recipient) })
     case 'xml_failed':
     case 'transmission_failed':
     case 'delivery_failed':
@@ -293,7 +308,7 @@ function eventTone(event: DocumentEvent): 'error' | 'warning' | 'success' | 'def
     case 'issue_date_moved':
       return 'warning'
     case 'email_attempt':
-      return event.payload?.outcome === 'sent' ? 'success' : (event.payload?.outcome === 'rejected' ? 'error' : 'warning')
+      return event.payload?.outcome === 'sent' ? 'success' : event.payload?.outcome === 'rejected' ? 'error' : 'warning'
     case 'transmission_attempt':
       return ['responded', 'found', 'not_found'].includes(String(event.payload?.outcome)) ? 'default' : 'warning'
     default:
@@ -328,7 +343,11 @@ const lineColumns = computed<DataTableColumn[]>(() => [
         <StatusBadge domain="document" :status="invoice.status" />
         <StatusBadge v-if="invoice.balance_status && invoice.balance_status !== 'open'" domain="balance" :status="invoice.balance_status" />
         <template v-if="invoice.type === 'invoice' && invoice.electronic?.status === 'accepted'">
-          <StatusBadge v-if="invoice.payment_status === 'paid' || invoice.payment_status === 'partially_paid'" domain="invoicePayment" :status="invoice.payment_status" />
+          <StatusBadge
+            v-if="invoice.payment_status === 'paid' || invoice.payment_status === 'partially_paid'"
+            domain="invoicePayment"
+            :status="invoice.payment_status"
+          />
           <StatusBadge v-if="invoice.overdue" domain="invoicePayment" status="overdue" />
         </template>
       </template>
@@ -460,23 +479,23 @@ const lineColumns = computed<DataTableColumn[]>(() => [
         <FormSection :title="t('invoices.view.timeline')">
           <ol class="grid gap-4">
             <li v-for="event in invoice.events ?? []" :key="event.id" class="flex gap-3">
-              <span
-                class="mt-1.5 size-2 shrink-0 rounded-full"
-                :class="toneClass[eventTone(event)]"
-                aria-hidden="true"
-              />
+              <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="toneClass[eventTone(event)]" aria-hidden="true" />
               <div class="grid min-w-0 gap-0.5">
                 <p class="font-medium">{{ eventLabel(event) }}</p>
                 <p
                   v-if="eventDetail(event)"
                   class="text-xs break-words"
-                  :class="['xml_failed', 'transmission_failed', 'delivery_failed'].includes(event.type) ? 'font-mono text-destructive' : 'text-muted-foreground'"
+                  :class="
+                    ['xml_failed', 'transmission_failed', 'delivery_failed'].includes(event.type) ? 'font-mono text-destructive' : 'text-muted-foreground'
+                  "
                 >
                   {{ eventDetail(event) }}
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDateTime(event.occurred_at) }}
-                  <template v-if="event.actor">· {{ t(event.actor.type === 'api_key' ? 'invoices.view.byApiKey' : 'invoices.view.by', { name: event.actor.name }) }}</template>
+                  <template v-if="event.actor"
+                    >· {{ t(event.actor.type === 'api_key' ? 'invoices.view.byApiKey' : 'invoices.view.by', { name: event.actor.name }) }}</template
+                  >
                 </p>
               </div>
             </li>

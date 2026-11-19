@@ -60,7 +60,8 @@ final class DianSimulatorController
      */
     public function requests(Request $request): JsonResponse
     {
-        $limit = (int) ($request->validate(['limit' => ['sometimes', 'integer', 'min:1', 'max:200']])['limit'] ?? 50);
+        $request->validate(['limit' => ['sometimes', 'integer', 'min:1', 'max:200']]);
+        $limit = $request->integer('limit', 50);
 
         return $this->answer(fn (): array => $this->simulator->requests($this->nit(), $limit));
     }

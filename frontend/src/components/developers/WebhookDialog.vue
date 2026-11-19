@@ -9,14 +9,7 @@ import FormField from '@/components/FormField.vue'
 import SwitchField from '@/components/SwitchField.vue'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useFormMutation } from '@/composables/useFormMutation'
@@ -63,9 +56,7 @@ const form = ref({ url: '', description: '', events: [] as string[], is_active: 
 const allSelected = computed(() => (eventTypes.value?.length ?? 0) > 0 && form.value.events.length === eventTypes.value?.length)
 
 function toggle(type: string, checked: boolean | 'indeterminate'): void {
-  form.value.events = checked === true
-    ? [...new Set([...form.value.events, type])]
-    : form.value.events.filter((event) => event !== type)
+  form.value.events = checked === true ? [...new Set([...form.value.events, type])] : form.value.events.filter((event) => event !== type)
 }
 
 function toggleAll(): void {
@@ -82,9 +73,10 @@ function toInput(): WebhookSubscriptionInput {
 }
 
 const { submit, isPending, error, errors, reset } = useFormMutation({
-  mutationFn: async () => (props.subscription
-    ? { updated: await webhooksApi.update(props.subscription.id, toInput()), created: null }
-    : { updated: null, created: await webhooksApi.create(toInput()) }),
+  mutationFn: async () =>
+    props.subscription
+      ? { updated: await webhooksApi.update(props.subscription.id, toInput()), created: null }
+      : { updated: null, created: await webhooksApi.create(toInput()) },
   success: ({ created }) => t(created ? 'developers.webhooks.created' : 'developers.webhooks.saved'),
   onSuccess: async ({ created }) => {
     await invalidateTenant('webhooks')
@@ -121,7 +113,16 @@ watch(open, (isOpen) => {
         <FormError :error="error" />
 
         <FormField id="webhook-url" :label="t('developers.webhooks.url')" :hint="t('developers.webhooks.urlHint')" :error="errors.url?.[0]">
-          <Input id="webhook-url" v-model="form.url" type="url" autocomplete="off" spellcheck="false" class="font-mono" placeholder="https://" :aria-invalid="!!errors.url" />
+          <Input
+            id="webhook-url"
+            v-model="form.url"
+            type="url"
+            autocomplete="off"
+            spellcheck="false"
+            class="font-mono"
+            placeholder="https://"
+            :aria-invalid="!!errors.url"
+          />
         </FormField>
         <div v-if="suggestedUrl && form.url !== suggestedUrl" class="-mt-2">
           <Button type="button" variant="link" size="xs" class="h-auto px-0" @click="form.url = suggestedUrl">
@@ -167,7 +168,7 @@ watch(open, (isOpen) => {
       <DialogFooter>
         <Button type="button" variant="outline" @click="open = false">{{ t('common.cancel') }}</Button>
         <Button type="submit" form="webhook-form" :disabled="isPending">
-          {{ isPending ? t('common.saving') : (subscription ? t('common.save') : t('developers.webhooks.create')) }}
+          {{ isPending ? t('common.saving') : subscription ? t('common.save') : t('developers.webhooks.create') }}
         </Button>
       </DialogFooter>
     </DialogContent>

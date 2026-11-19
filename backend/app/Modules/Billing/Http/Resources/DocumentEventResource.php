@@ -8,6 +8,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin DocumentEvent
+ *
+ * @property DocumentEvent $resource
  */
 final class DocumentEventResource extends JsonResource
 {

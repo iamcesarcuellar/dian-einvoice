@@ -22,26 +22,26 @@ export interface DocumentData {
   root: XmlNode
   /** Null when the root is none of the three documents. */
   kind: DocumentKind | null
-  ublVersion?: string
-  environment?: string
-  number?: string
+  ublVersion: string | undefined
+  environment: string | undefined
+  number: string | undefined
   /** cbc:UUID: the CUFE of an invoice or the CUDE of a note. */
-  cufe?: string
-  uuidScheme?: string
-  issueDate?: string
-  issueTime?: string
-  supplierNit?: string
-  supplierCheckDigit?: string
-  supplierName?: string
-  customerId?: string
-  softwareId?: string
-  softwareSecurityCode?: string
-  authorization?: string
-  periodStart?: string
-  periodEnd?: string
-  prefix?: string
-  from?: string
-  to?: string
+  cufe: string | undefined
+  uuidScheme: string | undefined
+  issueDate: string | undefined
+  issueTime: string | undefined
+  supplierNit: string | undefined
+  supplierCheckDigit: string | undefined
+  supplierName: string | undefined
+  customerId: string | undefined
+  softwareId: string | undefined
+  softwareSecurityCode: string | undefined
+  authorization: string | undefined
+  periodStart: string | undefined
+  periodEnd: string | undefined
+  prefix: string | undefined
+  from: string | undefined
+  to: string | undefined
   lineExtension: bigint | null
   taxExclusive: bigint | null
   taxInclusive: bigint | null
@@ -54,13 +54,13 @@ export interface DocumentData {
   linesExtension: bigint
   linesTaxable: bigint
   prepaid: bigint
-  signature?: XmlNode
-  certificate?: string
-  signingTime?: string
+  signature: XmlNode | undefined
+  certificate: string | undefined
+  signingTime: string | undefined
   /** A note: cac:BillingReference/cac:InvoiceDocumentReference, the invoice it corrects. */
-  reference?: { id?: string, cufe?: string, scheme?: string, issueDate?: string }
+  reference: { id: string | undefined, cufe: string | undefined, scheme: string | undefined, issueDate: string | undefined } | undefined
   /** A note: cac:DiscrepancyResponse/cbc:ResponseCode, the concept of the correction. */
-  concept?: string
+  concept: string | undefined
 }
 
 const cac = (name: string) => [NS.cac, name] as const

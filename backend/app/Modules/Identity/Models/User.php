@@ -31,7 +31,7 @@ class User extends Authenticatable
      * Companies the user belongs to, with their municipality. Each one carries the membership,
      * with the role, as $company->membership.
      *
-     * @return BelongsToMany<Company, $this>
+     * @return BelongsToMany<Company, $this, Membership, 'membership'>
      */
     public function companies(): BelongsToMany
     {

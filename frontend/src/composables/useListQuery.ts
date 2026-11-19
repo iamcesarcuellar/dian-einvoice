@@ -30,10 +30,13 @@ export function useListQuery<T>(resource: string, list: (params: ListParams) => 
     page.value = 1
   })
 
-  watch(() => session.currentCompanyId, () => {
-    page.value = 1
-    search.value = ''
-  })
+  watch(
+    () => session.currentCompanyId,
+    () => {
+      page.value = 1
+      search.value = ''
+    },
+  )
 
   const params = computed<ListParams>(() => ({
     ...filters.value,
@@ -47,8 +50,7 @@ export function useListQuery<T>(resource: string, list: (params: ListParams) => 
     queryFn: () => list(params.value),
     enabled: computed(() => session.currentCompanyId !== null),
     // Keep the previous page on screen while the next one loads, but never another company's rows.
-    placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[1] === session.currentCompanyId ? previous : undefined,
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === session.currentCompanyId ? previous : undefined),
     refetchInterval: (query) => options.refetchInterval?.(query.state.data?.data ?? []) ?? false,
   })
 

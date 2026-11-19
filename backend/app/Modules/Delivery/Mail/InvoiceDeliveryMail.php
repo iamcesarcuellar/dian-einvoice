@@ -29,8 +29,8 @@ final class InvoiceDeliveryMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $company = $this->document->company_snapshot;
-        $name = (string) $company['legal_name'];
+        $company = $this->document->companySnapshot();
+        $name = $company['legal_name'];
         $email = trim((string) ($company['email'] ?? ''));
 
         return new Envelope(
@@ -50,14 +50,14 @@ final class InvoiceDeliveryMail extends Mailable
 
     public function content(): Content
     {
-        $company = $this->document->company_snapshot;
+        $company = $this->document->companySnapshot();
         $type = $this->document->type->value;
 
         return new Content(
             view: 'delivery::mail.invoice',
             text: 'delivery::mail.invoice-text',
             with: [
-                'company' => (string) $company['legal_name'],
+                'company' => $company['legal_name'],
                 'document' => __("delivery::mail.documents.{$type}"),
                 'numberLabel' => __("delivery::mail.numbers.{$type}"),
                 'number' => (string) $this->document->full_number,

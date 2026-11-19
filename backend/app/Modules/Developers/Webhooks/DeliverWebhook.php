@@ -18,6 +18,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use LogicException;
 use Throwable;
 
 /**
@@ -53,13 +54,11 @@ final class DeliverWebhook implements ConsumesOutboxEvents
 
     public static function fromOutboxEvent(OutboxEvent $event): self
     {
-        $payload = $event->payload;
-
         return new self(
             companyId: $event->company_id,
-            deliveryId: (string) ($payload['delivery_id'] ?? $event->aggregate_id),
-            run: (int) ($payload['run'] ?? 1),
-            attempt: (int) ($payload['attempt'] ?? 1),
+            deliveryId: $event->payloadString('delivery_id') ?? $event->aggregate_id,
+            run: $event->payloadInt('run') ?? 1,
+            attempt: $event->payloadInt('attempt') ?? 1,
         );
     }
 
@@ -155,8 +154,9 @@ final class DeliverWebhook implements ConsumesOutboxEvents
             return null;
         }
 
-        $subscription = $delivery->subscription;
-        $event = $delivery->event;
+        // Both outlive the locked delivery: deleting either one deletes it (foreign keys cascade).
+        $subscription = $delivery->subscription ?? throw new LogicException("Delivery {$delivery->id} has no subscription.");
+        $event = $delivery->event ?? throw new LogicException("Delivery {$delivery->id} has no event.");
 
         // A subscription switched off meanwhile receives nothing more; a test event goes anyway.
         if (! $subscription->is_active && $event->type !== WebhookEventTypes::TEST) {
@@ -236,7 +236,7 @@ final class DeliverWebhook implements ConsumesOutboxEvents
             $next = $now->copy()->addSeconds($delay);
 
             $delivery->fill(['next_attempt_at' => $next])->save();
-            $outbox->record($delivery->company_id, 'webhook_delivery', $delivery->getKey(), WebhookPublisher::DELIVERY_DUE, [
+            $outbox->record($delivery->company_id, 'webhook_delivery', $delivery->id, WebhookPublisher::DELIVERY_DUE, [
                 'delivery_id' => $delivery->getKey(),
                 'run' => $delivery->run,
                 'attempt' => $delivery->attempts + 1,
@@ -254,6 +254,8 @@ final class DeliverWebhook implements ConsumesOutboxEvents
     /**
      * The last delivery of the subscription and its failures in a row (null leaves them as they are);
      * at the threshold it is switched off, and says why.
+     *
+     * @param  int<0, max>|null  $failures
      */
     private function touchSubscription(?WebhookSubscription $subscription, Carbon $now, string $status, ?int $code, ?int $failures, WebhookRetryPolicy $policy): void
     {

@@ -4,9 +4,12 @@ namespace App\Modules\Dian\Transmission;
 
 use DOMDocument;
 use DOMElement;
+use DOMNameSpaceNode;
+use DOMNode;
 use DOMXPath;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use LogicException;
 use Throwable;
 
 /**
@@ -135,8 +138,9 @@ final class SoapDianGateway implements DianGateway
 
     private function text(DOMElement $parent, string $namespace, string $name, string $value): void
     {
-        $element = $parent->ownerDocument->createElementNS($namespace, $name);
-        $element->appendChild($parent->ownerDocument->createTextNode($value));
+        $dom = $parent->ownerDocument ?? throw new LogicException('An element of the envelope belongs to its document.');
+        $element = $dom->createElementNS($namespace, $name);
+        $element->appendChild($dom->createTextNode($value));
         $parent->appendChild($element);
     }
 
@@ -144,15 +148,15 @@ final class SoapDianGateway implements DianGateway
     private function answer(string $operation, string $body): ?DianAnswer
     {
         $xpath = $this->xpath($body);
-        $result = $xpath?->query("//*[local-name()='{$operation}Result']")->item(0);
+        $result = $xpath === null ? null : $this->first($xpath, "//*[local-name()='{$operation}Result']");
 
-        if (! $result instanceof DOMElement) {
+        if ($xpath === null || ! $result instanceof DOMElement) {
             return null;
         }
 
         $value = function (string ...$names) use ($xpath, $result): ?string {
             foreach ($names as $name) {
-                $node = $xpath->query("./*[local-name()='{$name}']", $result)->item(0);
+                $node = $this->first($xpath, "./*[local-name()='{$name}']", $result);
 
                 if ($node instanceof DOMElement && $node->getAttributeNS(self::NS_XSI, 'nil') !== 'true') {
                     return trim($node->textContent);
@@ -171,8 +175,10 @@ final class SoapDianGateway implements DianGateway
         $isValid = strtolower((string) $value('IsValid')) === 'true';
         $messages = [];
 
-        foreach ($xpath->query("./*[local-name()='ErrorMessage']/*[local-name()='string']", $result) as $node) {
-            $text = trim($node->textContent);
+        $nodes = $xpath->query("./*[local-name()='ErrorMessage']/*[local-name()='string']", $result);
+
+        foreach ($nodes === false ? [] : $nodes as $node) {
+            $text = $node instanceof DOMNode ? trim($node->textContent) : '';
 
             if ($text !== '') {
                 $messages[] = $this->message($text, $isValid);
@@ -216,9 +222,18 @@ final class SoapDianGateway implements DianGateway
     /** The reason of a SOAP fault, if the body is one. */
     private function faultReason(string $body): ?string
     {
-        $text = $this->xpath($body)?->query("//*[local-name()='Fault']//*[local-name()='Text' or local-name()='faultstring']")->item(0)?->textContent;
+        $xpath = $this->xpath($body);
+        $node = $xpath === null ? null : $this->first($xpath, "//*[local-name()='Fault']//*[local-name()='Text' or local-name()='faultstring']");
 
-        return $text === null ? null : $this->limit(trim($text), 300);
+        return $node instanceof DOMNode ? $this->limit(trim($node->textContent), 300) : null;
+    }
+
+    /** The first node an XPath expression finds, if any. */
+    private function first(DOMXPath $xpath, string $expression, ?DOMNode $context = null): DOMNode|DOMNameSpaceNode|null
+    {
+        $nodes = $xpath->query($expression, $context);
+
+        return $nodes === false ? null : $nodes->item(0);
     }
 
     private function xpath(string $body): ?DOMXPath

@@ -41,7 +41,7 @@ final class BillingReceiptNumbering implements ReceiptNumbering
         $template->next_number = $number + 1;
         $template->save();
 
-        return new ReceiptNumber($template->getKey(), (string) ($template->prefix ?? ''), $number);
+        return new ReceiptNumber($template->id, (string) ($template->prefix ?? ''), $number);
     }
 
     private function lock(): ?NumberTemplate

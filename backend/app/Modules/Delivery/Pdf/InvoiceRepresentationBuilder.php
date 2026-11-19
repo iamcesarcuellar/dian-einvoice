@@ -26,6 +26,10 @@ use LogicException;
  * subtotals, withholdings and totals, its CUFE or CUDE and QR URL, the ApplicationResponse of its
  * validation, and for a note the copy of the invoice it corrects with the concept of the correction.
  * Live company, customer, item or tax data is never read, and nothing is recalculated.
+ *
+ * @phpstan-import-type CompanySnapshot from Document
+ * @phpstan-import-type CustomerSnapshot from Document
+ * @phpstan-import-type NumberingSnapshot from Document
  */
 final class InvoiceRepresentationBuilder
 {
@@ -33,11 +37,15 @@ final class InvoiceRepresentationBuilder
 
     public function build(Document $document): InvoiceRepresentation
     {
-        if ($document->isDraft() || $document->cufe === null || $document->full_number === null) {
+        $number = $document->full_number;
+        $cufe = $document->cufe;
+        $responsePath = $document->dian_response_path;
+
+        if ($document->isDraft() || $cufe === null || $number === null) {
             throw new LogicException('Only issued documents with a CUFE or CUDE have a graphic representation.');
         }
 
-        if ($document->dian_response_path === null) {
+        if ($responsePath === null) {
             throw new LogicException('The document has no ApplicationResponse: it was not validated.');
         }
 
@@ -45,39 +53,39 @@ final class InvoiceRepresentationBuilder
 
         $document->loadMissing(['lines', 'taxes', 'withholdings']);
 
-        $company = $document->company_snapshot;
-        $customer = $document->customer_snapshot;
-        $validation = ApplicationResponseSummary::fromXml($this->storage->get($document->dian_response_path));
-        $nit = ColombianFormat::nit((string) $company['identification_number'], $company['check_digit']);
+        $company = $document->companySnapshot();
+        $customer = $document->customerSnapshot();
+        $validation = ApplicationResponseSummary::fromXml($this->storage->get($responsePath));
+        $nit = ColombianFormat::nit($company['identification_number'], $company['check_digit']);
 
         return new InvoiceRepresentation(
             title: __("delivery::pdf.titles.{$type}"),
-            number: $document->full_number,
+            number: $number,
             testMark: __('delivery::pdf.test_mark'),
             testNotice: __('delivery::pdf.test_notice'),
             watermark: __('delivery::pdf.watermark'),
             company: [
-                'legal_name' => (string) $company['legal_name'],
-                'nit' => __('delivery::pdf.nit_value', ['nit' => $nit]),
-                'address' => $company['address'] ?? null,
+                'legal_name' => $company['legal_name'],
+                'nit' => (string) __('delivery::pdf.nit_value', ['nit' => $nit]),
+                'address' => $company['address'],
                 'city' => $this->place($company),
-                'phone' => $company['phone'] ?? null,
-                'email' => $company['email'] ?? null,
-                'regime' => __('delivery::pdf.regime', [
-                    'scheme' => $this->code('tax_schemes', $company['tax_scheme'] ?? null),
-                    'responsibilities' => $this->responsibilities($company['fiscal_responsibilities'] ?? []),
+                'phone' => $company['phone'],
+                'email' => $company['email'],
+                'regime' => (string) __('delivery::pdf.regime', [
+                    'scheme' => $this->code('tax_schemes', $company['tax_scheme']),
+                    'responsibilities' => $this->responsibilities($company['fiscal_responsibilities']),
                 ]),
             ],
             customer: [
-                'name' => (string) $customer['legal_name'],
+                'name' => $customer['legal_name'],
                 'identification' => $this->identification($customer),
-                'address' => $customer['address'] ?? null,
+                'address' => $customer['address'],
                 'city' => $this->place($customer),
-                'email' => $customer['email'] ?? null,
-                'phone' => $customer['phone'] ?? null,
+                'email' => $customer['email'],
+                'phone' => $customer['phone'],
             ],
             details: $this->details($document),
-            lines: $document->lines->values()->map(fn (DocumentLine $line, int $index): array => $this->line($line, $index))->all(),
+            lines: array_values($document->lines->values()->map(fn (DocumentLine $line, int $index): array => $this->line($line, $index))->all()),
             totals: $this->totals($document),
             amountInWords: AmountInWords::pesos((string) $document->payable_amount),
             notes: filled($document->notes) ? (string) $document->notes : null,
@@ -86,20 +94,20 @@ final class InvoiceRepresentationBuilder
                     ? $this->noteNumbering($document->numbering_snapshot ?? [])
                     : $this->authorization($document->numbering_snapshot ?? []),
                 'key_label' => $document->keyName(),
-                'cufe' => $document->cufe,
-                'representation' => __("delivery::pdf.representations.{$type}"),
-                'software' => __('delivery::pdf.software', ['name' => (string) $company['legal_name'], 'nit' => $nit]),
-                'validation' => __('delivery::pdf.validation', [
+                'cufe' => $cufe,
+                'representation' => (string) __("delivery::pdf.representations.{$type}"),
+                'software' => (string) __('delivery::pdf.software', ['name' => $company['legal_name'], 'nit' => $nit]),
+                'validation' => (string) __('delivery::pdf.validation', [
                     'date' => ColombianFormat::date($validation->issueDate),
                     'time' => $validation->issueTime,
                 ]),
             ],
             qrText: QrContent::for($document),
             metadata: [
-                'title' => __('delivery::pdf.metadata_title', ['title' => __("delivery::pdf.titles.{$type}"), 'number' => $document->full_number]),
-                'author' => (string) $company['legal_name'],
+                'title' => __('delivery::pdf.metadata_title', ['title' => __("delivery::pdf.titles.{$type}"), 'number' => $number]),
+                'author' => $company['legal_name'],
                 'subject' => __('delivery::pdf.metadata_subject', ['title' => mb_strtolower(__("delivery::pdf.titles.{$type}"))]),
-                'keywords' => $document->keyName().' '.$document->cufe,
+                'keywords' => $document->keyName().' '.$cufe,
             ],
             reference: $document->isNote() ? $this->reference($document) : null,
         );
@@ -137,7 +145,7 @@ final class InvoiceRepresentationBuilder
     /**
      * Notes need no DIAN resolution: the legend names the numbering of the issuer for the type.
      *
-     * @param  array<string, mixed>  $numbering
+     * @param  NumberingSnapshot|array{}  $numbering
      */
     private function noteNumbering(array $numbering): string
     {
@@ -183,7 +191,7 @@ final class InvoiceRepresentationBuilder
             'quantity' => ColombianFormat::decimal((string) $line->quantity),
             'unit' => $this->code('units', $line->unit_code),
             'unit_price' => ColombianFormat::money((string) $line->unit_price, 6),
-            'discount' => BigDecimal::of($discount === '' ? '0' : $discount)->isZero() ? '—' : ColombianFormat::percent($discount),
+            'discount' => BigDecimal::of($discount)->isZero() ? '—' : ColombianFormat::percent($discount),
             'tax' => filled($line->tax_name) ? (string) $line->tax_name : __('delivery::pdf.excluded'),
             'total' => ColombianFormat::money((string) $line->line_extension_amount),
         ];
@@ -198,21 +206,21 @@ final class InvoiceRepresentationBuilder
     private function totals(Document $document): array
     {
         $rows = [
-            ['label' => __('delivery::pdf.subtotal'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->subtotal_amount), 'kind' => 'amount'],
-            ['label' => __('delivery::pdf.discounts'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->discount_total), 'kind' => 'deduction'],
+            ['label' => (string) __('delivery::pdf.subtotal'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->subtotal_amount), 'kind' => 'amount'],
+            ['label' => (string) __('delivery::pdf.discounts'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->discount_total), 'kind' => 'deduction'],
         ];
 
         foreach ($document->taxes as $tax) {
             /** @var DocumentTax $tax */
             $rows[] = [
                 'label' => $tax->name.' '.ColombianFormat::percent((string) $tax->rate),
-                'detail' => __('delivery::pdf.on', ['base' => ColombianFormat::money((string) $tax->taxable_amount)]),
+                'detail' => (string) __('delivery::pdf.on', ['base' => ColombianFormat::money((string) $tax->taxable_amount)]),
                 'value' => ColombianFormat::money((string) $tax->tax_amount),
                 'kind' => 'amount',
             ];
         }
 
-        $rows[] = ['label' => __('delivery::pdf.total'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->payable_amount), 'kind' => 'total'];
+        $rows[] = ['label' => (string) __('delivery::pdf.total'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->payable_amount), 'kind' => 'total'];
 
         foreach ($document->withholdings as $withholding) {
             /** @var DocumentWithholding $withholding */
@@ -223,13 +231,13 @@ final class InvoiceRepresentationBuilder
 
             $rows[] = [
                 'label' => (string) $withholding->name,
-                'detail' => __('delivery::pdf.rate_on', ['rate' => $rate, 'base' => ColombianFormat::money((string) $withholding->base_amount)]),
+                'detail' => (string) __('delivery::pdf.rate_on', ['rate' => $rate, 'base' => ColombianFormat::money((string) $withholding->base_amount)]),
                 'value' => ColombianFormat::money((string) $withholding->amount),
                 'kind' => 'deduction',
             ];
         }
 
-        $rows[] = ['label' => __('delivery::pdf.net'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->amount_due), 'kind' => 'net'];
+        $rows[] = ['label' => (string) __('delivery::pdf.net'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->amount_due), 'kind' => 'net'];
 
         return $rows;
     }
@@ -238,7 +246,7 @@ final class InvoiceRepresentationBuilder
      * The numbering authorization legend: resolution, its date, prefix, range and validity, all from
      * the copy of the numbering frozen on issue.
      *
-     * @param  array<string, mixed>  $numbering
+     * @param  NumberingSnapshot|array{}  $numbering
      */
     private function authorization(array $numbering): string
     {
@@ -258,12 +266,12 @@ final class InvoiceRepresentationBuilder
     }
 
     /**
-     * @param  array<string, mixed>  $party
+     * @param  CustomerSnapshot  $party
      */
     private function identification(array $party): string
     {
-        $type = (string) $party['identification_type'];
-        $number = (string) $party['identification_number'];
+        $type = $party['identification_type'];
+        $number = $party['identification_number'];
 
         if ($type === IdentificationType::Nit->value && ($party['check_digit'] ?? null) !== null) {
             $number = ColombianFormat::nit($number, $party['check_digit']);
@@ -275,17 +283,17 @@ final class InvoiceRepresentationBuilder
     /**
      * City and department, or the country of a party abroad.
      *
-     * @param  array<string, mixed>  $party
+     * @param  CompanySnapshot|CustomerSnapshot  $party
      */
     private function place(array $party): ?string
     {
-        $municipality = $party['municipality'] ?? null;
+        $municipality = $party['municipality'];
 
-        if (is_array($municipality) && filled($municipality['name'] ?? null)) {
-            return implode(', ', array_filter([$municipality['name'], $municipality['department_name'] ?? null]));
+        if ($municipality !== null && filled($municipality['name'])) {
+            return implode(', ', array_filter([$municipality['name'], $municipality['department_name']]));
         }
 
-        return filled($party['country_code'] ?? null) ? (string) $party['country_code'] : null;
+        return filled($party['country_code']) ? $party['country_code'] : null;
     }
 
     /**

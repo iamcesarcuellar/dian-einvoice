@@ -21,26 +21,29 @@ import { cn } from '@/lib/utils'
  * A select that searches on the API while the user types. Options are cached by the query key
  * plus the search term. Used for customers, items and municipalities.
  */
-const props = withDefaults(defineProps<{
-  id?: string
-  /** Cache key of the options; the search term is appended to it. */
-  queryKey: unknown[]
-  /** Loads the options matching a search term (an empty term loads the first ones). */
-  search: (term: string) => Promise<T[]>
-  /** Property that identifies an option, such as "id" or "code". */
-  by: keyof T & string
-  /** Text of an option, also shown in the input once it is chosen. */
-  label: (option: T) => string
-  placeholder?: string
-  emptyText?: string
-  disabled?: boolean
-  invalid?: boolean
-  /** Extra classes for the list, such as a minimum width. */
-  listClass?: string
-}>(), {
-  disabled: false,
-  invalid: false,
-})
+const props = withDefaults(
+  defineProps<{
+    id?: string
+    /** Cache key of the options; the search term is appended to it. */
+    queryKey: unknown[]
+    /** Loads the options matching a search term (an empty term loads the first ones). */
+    search: (term: string) => Promise<T[]>
+    /** Property that identifies an option, such as "id" or "code". */
+    by: keyof T & string
+    /** Text of an option, also shown in the input once it is chosen. */
+    label: (option: T) => string
+    placeholder?: string
+    emptyText?: string
+    disabled?: boolean
+    invalid?: boolean
+    /** Extra classes for the list, such as a minimum width. */
+    listClass?: string
+  }>(),
+  {
+    disabled: false,
+    invalid: false,
+  },
+)
 
 const model = defineModel<T | null>({ required: true })
 
@@ -73,20 +76,15 @@ function keyOf(option: T): string {
 </script>
 
 <template>
-  <Combobox
-    :model-value="model ?? undefined"
-    :by="by"
-    ignore-filter
-    open-on-click
-    :disabled="disabled"
-    @update:model-value="choose"
-  >
+  <Combobox :model-value="model ?? undefined" :by="by" ignore-filter open-on-click :disabled="disabled" @update:model-value="choose">
     <ComboboxAnchor
-      :class="cn(
-        'flex h-9 w-full min-w-0 items-center rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
-        invalid && 'border-destructive ring-3 ring-destructive/20',
-        disabled && 'cursor-not-allowed opacity-50',
-      )"
+      :class="
+        cn(
+          'flex h-9 w-full min-w-0 items-center rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
+          invalid && 'border-destructive ring-3 ring-destructive/20',
+          disabled && 'cursor-not-allowed opacity-50',
+        )
+      "
     >
       <ComboboxInput
         :id="id"

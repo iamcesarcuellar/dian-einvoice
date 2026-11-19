@@ -9,16 +9,7 @@ import FormError from '@/components/FormError.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableEmpty, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatInteger } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -29,55 +20,65 @@ import { cn } from '@/lib/utils'
  * by default; a #cell-<key> slot replaces it, #actions adds a column of actions per row, #toolbar
  * sits next to the search and #footer adds rows at the foot (totals).
  */
-const props = withDefaults(defineProps<{
-  columns: DataTableColumn[]
-  rows: T[]
-  meta?: PageMeta
-  loading?: boolean
-  /** The error of the query; with no rows to show, the table offers a retry. */
-  error?: unknown
-  searchPlaceholder?: string
-  emptyTitle: string
-  emptyDescription?: string
-  /** Adds a column for the #actions slot. */
-  actions?: boolean
-  /** Skeleton rows while the first page loads. */
-  skeletonRows?: number
-}>(), {
-  skeletonRows: 5,
-})
+const props = withDefaults(
+  defineProps<{
+    columns: DataTableColumn[]
+    rows: T[]
+    meta?: PageMeta
+    loading?: boolean
+    /** The error of the query; with no rows to show, the table offers a retry. */
+    error?: unknown
+    searchPlaceholder?: string
+    emptyTitle: string
+    emptyDescription?: string
+    /** Adds a column for the #actions slot. */
+    actions?: boolean
+    /** Skeleton rows while the first page loads. */
+    skeletonRows?: number
+    /** v-model:search, bound only by lists that search on the server; without it there is no search box. */
+    search?: string
+    /** v-model:page, bound by paginated lists; without it there is no pagination. */
+    page?: number
+  }>(),
+  {
+    skeletonRows: 5,
+  },
+)
 
+// Explicit props and events rather than defineModel, whose optional models type their updates
+// as possibly undefined; the table only ever sends a search string or a page number.
 const emit = defineEmits<{
   retry: []
+  'update:search': [value: string]
+  'update:page': [value: number]
 }>()
-
-/** Bound only by lists that search on the server; without it there is no search box. */
-const search = defineModel<string>('search')
-const page = defineModel<number>('page')
 
 const { t } = useI18n()
 
 // The search box updates the list 300 ms after the last keystroke.
-const term = ref(search.value ?? '')
+const term = ref(props.search ?? '')
 const commitSearch = useDebounceFn((value: string) => {
-  search.value = value
+  emit('update:search', value)
 }, 300)
 
 watch(term, (value) => {
-  commitSearch(value)
+  void commitSearch(value)
 })
 
-watch(search, (value) => {
-  if (value !== undefined && value !== term.value) {
-    term.value = value
-  }
-})
+watch(
+  () => props.search,
+  (value) => {
+    if (value !== undefined && value !== term.value) {
+      term.value = value
+    }
+  },
+)
 
 const columnCount = computed(() => props.columns.length + (props.actions ? 1 : 0))
-const searching = computed(() => Boolean(search.value))
+const searching = computed(() => Boolean(props.search))
 const showSkeleton = computed(() => props.loading && props.rows.length === 0)
 const showError = computed(() => !props.loading && props.rows.length === 0 && Boolean(props.error))
-const hasToolbar = computed(() => search.value !== undefined)
+const hasToolbar = computed(() => props.search !== undefined)
 
 function cellClass(column: DataTableColumn): string {
   return cn(column.align === 'right' && 'text-right', column.class)
@@ -176,13 +177,15 @@ const SKELETON_WIDTHS = ['w-24', 'w-32', 'w-20', 'w-28', 'w-16']
     </div>
 
     <div v-if="meta && meta.total > 0 && page !== undefined" class="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-      <p class="tabular-nums">{{ t('table.showing', { from: formatInteger(meta.from ?? 0), to: formatInteger(meta.to ?? 0), total: formatInteger(meta.total) }) }}</p>
+      <p class="tabular-nums">
+        {{ t('table.showing', { from: formatInteger(meta.from ?? 0), to: formatInteger(meta.to ?? 0), total: formatInteger(meta.total) }) }}
+      </p>
       <div v-if="meta.last_page > 1" class="flex items-center gap-2">
-        <Button variant="outline" size="sm" :disabled="meta.current_page <= 1" @click="page = meta.current_page - 1">
+        <Button variant="outline" size="sm" :disabled="meta.current_page <= 1" @click="emit('update:page', meta.current_page - 1)">
           <ChevronLeftIcon />
           {{ t('table.previous') }}
         </Button>
-        <Button variant="outline" size="sm" :disabled="meta.current_page >= meta.last_page" @click="page = meta.current_page + 1">
+        <Button variant="outline" size="sm" :disabled="meta.current_page >= meta.last_page" @click="emit('update:page', meta.current_page + 1)">
           {{ t('table.next') }}
           <ChevronRightIcon />
         </Button>

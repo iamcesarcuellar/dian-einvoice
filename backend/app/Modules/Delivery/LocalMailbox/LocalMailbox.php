@@ -2,6 +2,7 @@
 
 namespace App\Modules\Delivery\LocalMailbox;
 
+use App\Support\Json;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -40,8 +41,8 @@ final class LocalMailbox
 
             return [
                 'reachable' => true,
-                'messages' => (int) ($messages['total'] ?? 0),
-                'version' => isset($info['Version']) ? (string) $info['Version'] : null,
+                'messages' => Json::int($messages, 'total') ?? 0,
+                'version' => Json::text($info, 'Version'),
             ];
         } catch (LocalMailboxUnavailable) {
             return ['reachable' => false, 'messages' => null, 'version' => null];
@@ -57,17 +58,17 @@ final class LocalMailbox
     /**
      * Summaries of the emails that match a Mailpit search, such as to:"a@b.example", newest first.
      *
-     * @return list<array<string, mixed>>
+     * @return list<array<mixed>>
      */
     public function search(string $query, int $limit = 50): array
     {
-        return $this->json('get', '/api/v1/search', ['query' => $query, 'limit' => $limit])['messages'] ?? [];
+        return Json::objects($this->json('get', '/api/v1/search', ['query' => $query, 'limit' => $limit]), 'messages');
     }
 
     /**
      * One email with its headers, bodies and the list of its attachments.
      *
-     * @return array<string, mixed>
+     * @return array<mixed>
      */
     public function message(string $id): array
     {
@@ -82,13 +83,13 @@ final class LocalMailbox
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
+     * @return array<mixed>
      */
     private function json(string $method, string $path, array $data = []): array
     {
-        $response = $this->send($method, $path, $data);
+        $json = $this->send($method, $path, $data)->json();
 
-        return $response->json() ?? [];
+        return is_array($json) ? $json : [];
     }
 
     /**

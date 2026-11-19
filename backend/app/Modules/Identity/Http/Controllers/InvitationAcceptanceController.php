@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use LogicException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -30,13 +31,15 @@ final class InvitationAcceptanceController
     public function show(string $token, TeamInvitations $invitations): JsonResponse
     {
         $invitation = $invitations->findByToken($token) ?? throw new NotFoundHttpException;
+        // Deleting a company deletes its invitations (foreign keys cascade).
+        $company = $invitation->company ?? throw new LogicException("Invitation {$invitation->id} has no company.");
 
         return response()->json(['data' => [
             'email' => $invitation->email,
             'role' => $invitation->role,
             'status' => $invitation->status(),
             'expires_at' => $invitation->expires_at,
-            'company' => ['id' => $invitation->company->getKey(), 'name' => $invitation->company->name],
+            'company' => ['id' => $company->id, 'name' => $company->name],
             'invited_by' => $invitation->inviter?->name,
             'existing_user' => $invitations->hasAccount($invitation),
         ]]);
@@ -71,6 +74,7 @@ final class InvitationAcceptanceController
 
             $invitations->acceptAs($invitation, $user);
         } else {
+            /** @var array{name: string, password: string} $account */
             $account = $request->validate([
                 'name' => ['required', 'string', 'max:120'],
                 'password' => ['required', 'string', 'confirmed', Password::defaults()],

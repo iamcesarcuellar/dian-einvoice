@@ -39,7 +39,7 @@ final class ElectronicDocumentPipeline
         $current = $document->electronic_status;
 
         if ($current === null || ! $current->canMoveTo($state)) {
-            throw new LogicException(sprintf('The electronic document %s cannot move from %s to %s.', $document->getKey(), $current->value ?? 'none', $state->value));
+            throw new LogicException(sprintf('The electronic document %s cannot move from %s to %s.', $document->id, $current->value ?? 'none', $state->value));
         }
 
         $document->fill([...$attributes, 'electronic_status' => $state, 'electronic_status_at' => Carbon::now()])->save();
@@ -66,7 +66,7 @@ final class ElectronicDocumentPipeline
      */
     public function emit(Document $document, string $type, array $payload = [], ?DateTimeInterface $availableAt = null): void
     {
-        $this->outbox->record($document->company_id, 'document', $document->getKey(), $type, [
+        $this->outbox->record($document->company_id, 'document', $document->id, $type, [
             'document_id' => $document->getKey(),
             'run' => $document->electronic_run,
             ...$payload,
@@ -128,6 +128,6 @@ final class ElectronicDocumentPipeline
     {
         $delays = config('dian.retry_delays', []);
 
-        return is_array($delays) && $delays !== [] ? array_values($delays) : [2, 5, 15, 45, 120];
+        return $delays !== [] ? $delays : [2, 5, 15, 45, 120];
     }
 }

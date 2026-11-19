@@ -126,10 +126,13 @@ export const invoicesApi = documentApi('/invoices')
 
 /** A credit or debit note not saved yet, for an accepted invoice: its lines, terms and balance. */
 function prefill(path: string) {
-  return async (invoiceId: string, voidInvoice = false): Promise<NotePrefill> => (await request<DataEnvelope<NotePrefill>>('GET', `${path}/prefill`, undefined, {
-    invoice_id: invoiceId,
-    void: voidInvoice ? 1 : undefined,
-  })).data
+  return async (invoiceId: string, voidInvoice = false): Promise<NotePrefill> =>
+    (
+      await request<DataEnvelope<NotePrefill>>('GET', `${path}/prefill`, undefined, {
+        invoice_id: invoiceId,
+        void: voidInvoice ? 1 : undefined,
+      })
+    ).data
 }
 
 export const creditNotesApi = { ...documentApi('/credit-notes'), prefill: prefill('/credit-notes') }

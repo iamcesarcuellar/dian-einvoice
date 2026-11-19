@@ -75,7 +75,7 @@ final class GlobalSearch
 
         return [
             'total' => $total,
-            'items' => $documents->map(fn (Document $document): array => [
+            'items' => array_values($documents->map(fn (Document $document): array => [
                 'id' => $document->id,
                 'type' => $document->type->value,
                 'status' => $document->status->value,
@@ -86,9 +86,9 @@ final class GlobalSearch
                 'payable_amount' => (string) $document->payable_amount,
                 'electronic_status' => $document->electronic_status?->value,
                 'related_number' => $notes
-                    ? ($document->relatedDocument?->full_number ?? $document->related_snapshot['full_number'] ?? null)
+                    ? ($document->relatedDocument->full_number ?? $document->related_snapshot['full_number'] ?? null)
                     : null,
-            ])->values()->all(),
+            ])->all()),
         ];
     }
 
@@ -115,14 +115,14 @@ final class GlobalSearch
 
         return [
             'total' => $total,
-            'items' => $payments->map(fn (Payment $payment): array => [
+            'items' => array_values($payments->map(fn (Payment $payment): array => [
                 'id' => $payment->id,
                 'full_number' => $payment->full_number,
                 'customer_name' => $payment->customer_name,
                 'payment_date' => $payment->payment_date->toDateString(),
                 'amount' => (string) $payment->amount,
                 'status' => $payment->status->value,
-            ])->values()->all(),
+            ])->all()),
         ];
     }
 
@@ -149,7 +149,7 @@ final class GlobalSearch
 
         return [
             'total' => $total,
-            'items' => $contacts->map(fn (Contact $contact): array => [
+            'items' => array_values($contacts->map(fn (Contact $contact): array => [
                 'id' => $contact->id,
                 'legal_name' => $contact->legal_name,
                 'trade_name' => $contact->trade_name,
@@ -158,7 +158,7 @@ final class GlobalSearch
                 'check_digit' => $contact->check_digit,
                 'email' => $contact->email,
                 'is_active' => $contact->is_active,
-            ])->values()->all(),
+            ])->all()),
         ];
     }
 
@@ -183,7 +183,7 @@ final class GlobalSearch
 
         return [
             'total' => $total,
-            'items' => $items->map(fn (Item $item): array => [
+            'items' => array_values($items->map(fn (Item $item): array => [
                 'id' => $item->id,
                 'code' => $item->code,
                 'name' => $item->name,
@@ -191,7 +191,7 @@ final class GlobalSearch
                 // Decimal string with 6 decimals, as the items list answers it.
                 'unit_price' => (string) $item->unit_price,
                 'is_active' => $item->is_active,
-            ])->values()->all(),
+            ])->all()),
         ];
     }
 }

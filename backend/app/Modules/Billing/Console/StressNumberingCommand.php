@@ -2,8 +2,8 @@
 
 namespace App\Modules\Billing\Console;
 
-use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\DocumentStatus;
+use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Models\NumberTemplate;
@@ -55,13 +55,13 @@ final class StressNumberingCommand extends Command
 
             for ($index = 1; $index <= $count; $index++) {
                 $ids[] = $drafts->create(DocumentType::Invoice, [
-                    'contact_id' => $customer->getKey(),
-                    'number_template_id' => $template->getKey(),
+                    'contact_id' => $customer->id,
+                    'number_template_id' => $template->id,
                     'lines' => [
                         ['description' => 'Stress test product', 'quantity' => '2', 'unit_price' => '15000', 'tax_id' => $taxId],
                         ['description' => 'Stress test service', 'quantity' => '1', 'unit_price' => (string) (1000 * $index), 'tax_id' => null],
                     ],
-                ], $temporary->user)->getKey();
+                ], $temporary->user)->id;
             }
 
             $this->line("Temporary company {$temporary->company->name}: {$count} drafts created.");
@@ -128,7 +128,9 @@ final class StressNumberingCommand extends Command
 
         foreach ($children as $pid) {
             pcntl_waitpid($pid, $status);
-            $failed += pcntl_wifexited($status) ? pcntl_wexitstatus($status) : 1;
+            // A process that did not exit on its own counts as one failure.
+            $code = is_int($status) && pcntl_wifexited($status) ? pcntl_wexitstatus($status) : false;
+            $failed += $code === false ? 1 : $code;
         }
 
         return $failed;
@@ -140,7 +142,7 @@ final class StressNumberingCommand extends Command
             ->where('status', DocumentStatus::Issued)
             ->orderBy('number')
             ->pluck('number')
-            ->map(fn ($number): int => (int) $number)
+            ->map(fn (mixed $number): int => is_numeric($number) ? (int) $number : 0)
             ->all();
 
         $issued = count($numbers);
@@ -192,7 +194,8 @@ final class StressNumberingCommand extends Command
 
         $seconds = (hrtime(true) - $started) / 1e9;
         $accepted = $states[ElectronicStatus::Accepted->value] ?? 0;
-        $calls = DianTransmission::query()->toBase()->selectRaw('operation, count(*) as total')->groupBy('operation')->pluck('total', 'operation');
+        $calls = DianTransmission::query()->toBase()->selectRaw('operation, count(*) as total')->groupBy('operation')->pluck('total', 'operation')
+            ->map(fn (mixed $total): int => is_numeric($total) ? (int) $total : 0);
 
         $this->line(sprintf(
             'Chain: %d of %d accepted by the local DIAN simulator, %d rejected, %d failed, %d still processing, in %.2f s from the first issue: %.2f invoices per second.',
@@ -212,7 +215,7 @@ final class StressNumberingCommand extends Command
     }
 
     /**
-     * @return array<string, int> Issued invoices by electronic status.
+     * @return array<array-key, int> Issued invoices by electronic status.
      */
     private function states(): array
     {
@@ -222,7 +225,7 @@ final class StressNumberingCommand extends Command
             ->selectRaw('electronic_status, count(*) as total')
             ->groupBy('electronic_status')
             ->pluck('total', 'electronic_status')
-            ->map(fn ($total): int => (int) $total)
+            ->map(fn (mixed $total): int => is_numeric($total) ? (int) $total : 0)
             ->all();
     }
 

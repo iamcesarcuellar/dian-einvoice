@@ -2,8 +2,8 @@
 
 namespace App\Modules\Dian\Console;
 
-use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\DocumentStatus;
+use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Services\DocumentDrafts;
 use App\Modules\Billing\Services\IssueDocument;
@@ -11,6 +11,7 @@ use App\Modules\Billing\Tools\TemporaryCompany;
 use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Dian\Transmission\TransmissionOutcome;
+use App\Support\Json;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
@@ -65,13 +66,13 @@ final class DianChaosCommand extends Command
 
             for ($index = 1; $index <= $count; $index++) {
                 $ids[] = $drafts->create(DocumentType::Invoice, [
-                    'contact_id' => $customer->getKey(),
-                    'number_template_id' => $template->getKey(),
+                    'contact_id' => $customer->id,
+                    'number_template_id' => $template->id,
                     'lines' => [
                         ['description' => 'Chaos test product', 'quantity' => '3', 'unit_price' => '12000', 'tax_id' => $taxId],
                         ['description' => 'Chaos test service', 'quantity' => '1', 'unit_price' => (string) (500 * $index), 'tax_id' => null],
                     ],
-                ], $temporary->user)->getKey();
+                ], $temporary->user)->id;
             }
 
             Cache::put($this->startedKey($temporary), microtime(true), 3600);
@@ -86,7 +87,7 @@ final class DianChaosCommand extends Command
         }
 
         $this->progress("Temporary company {$temporary->company->name} (NIT {$temporary->company->identification_number}): {$count} invoices issued; the chain is running.");
-        $this->line($temporary->company->getKey());
+        $this->line($temporary->company->id);
 
         return self::SUCCESS;
     }
@@ -125,31 +126,34 @@ final class DianChaosCommand extends Command
         } while (microtime(true) - $waitStarted < $timeout);
 
         $now = microtime(true);
-        $started = (float) Cache::get($this->startedKey($temporary), $waitStarted);
+        $cached = Cache::get($this->startedKey($temporary));
+        $started = is_numeric($cached) ? (float) $cached : $waitStarted;
         $count = $documents->count();
         $byStatus = $documents->countBy(fn (Document $document): string => $document->electronic_status->value ?? 'none')->all();
         $accepted = $byStatus['accepted'] ?? 0;
 
         // Numbers: consecutive from the start of the range, no gaps, no repeats.
-        $numbers = $documents->pluck('number')->map(fn ($number): int => (int) $number)->all();
+        $numbers = $documents->pluck('number')->map(fn (mixed $number): int => is_numeric($number) ? (int) $number : 0)->all();
         $first = $numbers[0] ?? 0;
         $gaps = $numbers === [] ? [] : array_values(array_diff(range($first, max($numbers)), $numbers));
         $repeats = count($numbers) - count(array_unique($numbers));
 
         // The simulator: exactly one accepted record per invoice, all distinct, nothing else.
         try {
-            $records = collect($simulator->documents($temporary->company->identification_number));
+            $simulated = $simulator->documents($temporary->company->identification_number);
         } catch (Throwable $exception) {
             $this->error('The simulator did not answer: '.$exception->getMessage());
-            $records = collect();
+            $simulated = [];
         }
+
+        $records = collect($simulated);
 
         $simulatorAccepted = $records->where('status', 'accepted');
         $ours = $documents->pluck('cufe')->filter()->all();
         $distinctCufes = $simulatorAccepted->pluck('cufe')->unique()->count();
         $distinctNumbers = $simulatorAccepted->pluck('number')->unique()->count();
         $foreign = $simulatorAccepted->reject(fn (array $record): bool => in_array($record['cufe'] ?? null, $ours, true))->count();
-        $repeatedSubmissions = (int) $records->sum(fn (array $record): int => max(0, (int) ($record['submissions'] ?? 1) - 1));
+        $repeatedSubmissions = (int) $records->sum(fn (array $record): int => max(0, (Json::int($record, 'submissions') ?? 1) - 1));
 
         // Calls and attempts recorded by the chain.
         $calls = DianTransmission::query()->get();
@@ -207,16 +211,16 @@ final class DianChaosCommand extends Command
     }
 
     /**
-     * @param  array<string, int>  $byStatus
+     * @param  array<array-key, int>  $byStatus
      */
     private function states(array $byStatus): string
     {
-        return collect($byStatus)->map(fn (int $total, string $state): string => "{$total} {$state}")->implode(', ') ?: 'none';
+        return collect($byStatus)->map(fn (int $total, int|string $state): string => "{$total} {$state}")->implode(', ') ?: 'none';
     }
 
     private function startedKey(TemporaryCompany $temporary): string
     {
-        return 'dian-chaos:started:'.$temporary->company->getKey();
+        return 'dian-chaos:started:'.$temporary->company->id;
     }
 
     private function progress(string $message): void

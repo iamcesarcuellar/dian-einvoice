@@ -33,7 +33,7 @@ final class SigningCertificateController
     {
         $certificate = $certificates->upload(
             (string) $request->file('file')?->get(),
-            (string) $request->validated('password', ''),
+            $request->safe()->string('password')->toString(),
         );
 
         return SigningCertificateResource::make($certificate)->response()->setStatusCode(201);

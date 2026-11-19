@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
-import { formatDate, formatDateTime, formatMoney } from '@/lib/format'
+import { formatDate, formatDateTime, formatMoney, payloadText } from '@/lib/format'
 
 /**
  * A payment: its data, the invoices it was applied to, its timeline, and Void payment for owners
@@ -29,11 +29,7 @@ const { label } = useReference()
 
 const voidOpen = ref(false)
 
-const crumbs = computed(() => [
-  { label: t('nav.sales') },
-  { label: t('nav.payments'), to: { name: 'payments' } },
-  { label: props.payment.full_number },
-])
+const crumbs = computed(() => [{ label: t('nav.sales') }, { label: t('nav.payments'), to: { name: 'payments' } }, { label: props.payment.full_number }])
 
 const allocationColumns = computed<DataTableColumn[]>(() => [
   { key: 'invoice', label: t('payments.editor.columns.invoice') },
@@ -50,7 +46,7 @@ function eventLabel(event: PaymentEvent): string {
 
   return event.type === 'voided'
     ? t('payments.view.events.voided', { count: invoices })
-    : t('payments.view.events.recorded', { amount: formatMoney(String(payload.amount ?? '0')), count: invoices })
+    : t('payments.view.events.recorded', { amount: formatMoney(payloadText(payload.amount, '0')), count: invoices })
 }
 
 function eventDetail(event: PaymentEvent): string | null {
@@ -60,7 +56,11 @@ function eventDetail(event: PaymentEvent): string | null {
 
 <template>
   <div class="grid gap-6">
-    <PageHeader :title="payment.full_number" :description="t('payments.view.subtitle', { date: formatDate(payment.payment_date), customer: payment.customer_name })" :breadcrumbs="crumbs">
+    <PageHeader
+      :title="payment.full_number"
+      :description="t('payments.view.subtitle', { date: formatDate(payment.payment_date), customer: payment.customer_name })"
+      :breadcrumbs="crumbs"
+    >
       <template #badge>
         <StatusBadge domain="payment" :status="payment.status" />
       </template>
@@ -86,7 +86,9 @@ function eventDetail(event: PaymentEvent): string | null {
             <div class="grid gap-0.5 sm:col-span-2">
               <dt class="text-xs text-muted-foreground">{{ t('payments.columns.customer') }}</dt>
               <dd>
-                <RouterLink :to="{ name: 'contact-edit', params: { id: payment.contact_id } }" class="font-medium hover:underline">{{ payment.customer_name }}</RouterLink>
+                <RouterLink :to="{ name: 'contact-edit', params: { id: payment.contact_id } }" class="font-medium hover:underline">{{
+                  payment.customer_name
+                }}</RouterLink>
                 <span v-if="payment.customer_identification" class="ml-2 text-muted-foreground tabular-nums">{{ payment.customer_identification }}</span>
               </dd>
             </div>
@@ -113,10 +115,15 @@ function eventDetail(event: PaymentEvent): string | null {
           </dl>
         </FormSection>
 
-        <FormSection :title="t('payments.view.invoices')" :description="payment.status === 'voided' ? t('payments.view.invoicesVoided') : t('payments.view.invoicesDescription')">
+        <FormSection
+          :title="t('payments.view.invoices')"
+          :description="payment.status === 'voided' ? t('payments.view.invoicesVoided') : t('payments.view.invoicesDescription')"
+        >
           <DataTable :columns="allocationColumns" :rows="payment.allocations ?? []" :empty-title="t('payments.view.noInvoices')">
             <template #cell-invoice="{ row }">
-              <RouterLink :to="{ name: 'invoice', params: { id: row.document_id } }" class="font-medium whitespace-nowrap tabular-nums hover:underline">{{ row.document_number }}</RouterLink>
+              <RouterLink :to="{ name: 'invoice', params: { id: row.document_id } }" class="font-medium whitespace-nowrap tabular-nums hover:underline">{{
+                row.document_number
+              }}</RouterLink>
             </template>
             <template #cell-date="{ row }">
               <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.document_issue_date) || '—' }}</span>
@@ -125,7 +132,9 @@ function eventDetail(event: PaymentEvent): string | null {
               <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.document_due_date ?? row.document_issue_date) || '—' }}</span>
             </template>
             <template #cell-amount="{ row }">
-              <span class="whitespace-nowrap tabular-nums" :class="payment.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{ formatMoney(row.amount) }}</span>
+              <span class="whitespace-nowrap tabular-nums" :class="payment.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{
+                formatMoney(row.amount)
+              }}</span>
             </template>
             <template #cell-balance_after="{ row }">
               <span class="whitespace-nowrap text-muted-foreground tabular-nums">{{ formatMoney(row.balance_after) }}</span>
@@ -142,7 +151,9 @@ function eventDetail(event: PaymentEvent): string | null {
                 <p v-if="eventDetail(event)" class="text-xs break-words text-muted-foreground">{{ eventDetail(event) }}</p>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDateTime(event.occurred_at) }}
-                  <template v-if="event.actor">· {{ t(event.actor.type === 'api_key' ? 'invoices.view.byApiKey' : 'invoices.view.by', { name: event.actor.name }) }}</template>
+                  <template v-if="event.actor"
+                    >· {{ t(event.actor.type === 'api_key' ? 'invoices.view.byApiKey' : 'invoices.view.by', { name: event.actor.name }) }}</template
+                  >
                 </p>
               </div>
             </li>
@@ -153,7 +164,9 @@ function eventDetail(event: PaymentEvent): string | null {
       <div class="lg:sticky lg:top-20">
         <div class="grid gap-2 rounded-xl border p-5">
           <p class="text-sm font-medium">{{ t('payments.view.amount') }}</p>
-          <p class="text-2xl font-semibold tabular-nums" :class="payment.status === 'voided' ? 'text-muted-foreground line-through' : ''">{{ formatMoney(payment.amount) }}</p>
+          <p class="text-2xl font-semibold tabular-nums" :class="payment.status === 'voided' ? 'text-muted-foreground line-through' : ''">
+            {{ formatMoney(payment.amount) }}
+          </p>
           <p class="text-xs text-muted-foreground">{{ t('payments.editor.totalHint', { count: payment.allocations?.length ?? 0 }) }}</p>
         </div>
       </div>

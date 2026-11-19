@@ -5,7 +5,7 @@ namespace App\Support\ApiDocs;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Operation;
-use Dedoc\Scramble\Support\Generator\SecurityScheme;
+use Dedoc\Scramble\Support\Generator\SecuritySchemes\HttpSecurityScheme;
 use Dedoc\Scramble\Support\Generator\Tag;
 use Dedoc\Scramble\Support\RouteInfo;
 use Illuminate\Routing\Route;
@@ -36,11 +36,12 @@ final class ApiDocumentation
 
     public static function configure(): void
     {
-        Scramble::configure()
-            ->routes(fn (Route $route): bool => self::isPublic($route))
-            ->withTags(self::tags())
+        // routes() and SecurityScheme::http() of Scramble declare no return type, so they are not chained.
+        $config = Scramble::configure();
+        $config->routes(fn (Route $route): bool => self::isPublic($route));
+        $config->withTags(self::tags())
             ->withDocumentTransformers(function (OpenApi $openApi): void {
-                $openApi->secure(SecurityScheme::http('bearer', 'API key')
+                $openApi->secure((new HttpSecurityScheme('bearer', 'API key'))
                     ->as('apiKey')
                     ->setDescription('An API key of the company, created by an owner or admin in Settings → Developers: Authorization: Bearer dei_...'));
             });

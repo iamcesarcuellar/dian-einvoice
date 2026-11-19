@@ -7,6 +7,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use LogicException;
 
 /**
  * The email that invites someone to a company: who invites, the company, the role and until when
@@ -28,8 +29,8 @@ final class TeamInvitationMail extends Mailable
     {
         $replace = [
             'inviter' => (string) $this->invitation->inviter?->name,
-            'company' => $this->invitation->company->name,
-            'app' => (string) config('app.name'),
+            'company' => $this->companyName(),
+            'app' => config()->string('app.name'),
         ];
 
         return new Envelope(
@@ -46,15 +47,21 @@ final class TeamInvitationMail extends Mailable
             view: 'identity::mail.invitation',
             text: 'identity::mail.invitation-text',
             with: [
-                'app' => (string) config('app.name'),
-                'company' => $this->invitation->company->name,
+                'app' => config()->string('app.name'),
+                'company' => $this->companyName(),
                 'inviter' => $this->invitation->inviter?->name,
                 'email' => $this->invitation->email,
                 'role' => (string) __("identity::invitation.roles.{$role}"),
                 'roleDescription' => (string) __("identity::invitation.role_descriptions.{$role}"),
                 'expires' => $this->invitation->expires_at->copy()->setTimezone(self::TIMEZONE)->format('d/m/Y H:i'),
-                'url' => rtrim((string) config('app.url'), '/').'/invitations/'.$this->token,
+                'url' => rtrim(config()->string('app.url'), '/').'/invitations/'.$this->token,
             ],
         );
+    }
+
+    /** The company that invites: deleting it deletes its invitations (foreign keys cascade). */
+    private function companyName(): string
+    {
+        return ($this->invitation->company ?? throw new LogicException("Invitation {$this->invitation->id} has no company."))->name;
     }
 }

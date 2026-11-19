@@ -17,7 +17,6 @@ use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Support\Storage\DocumentStorage;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Throwable;
 
 /**
  * Step 3: signed → sending, one transmission attempt to the DIAN web service, which in this
@@ -92,7 +91,7 @@ final class TransmitDocument extends ChainStep
                 return null;
             }
 
-            $names = $package->nextNames($document->company_id, $document->company_snapshot['identification_number'], (int) Carbon::now(NumberTemplate::TIMEZONE)->format('Y'), $document->type->filePrefix());
+            $names = $package->nextNames($document->company_id, $document->companySnapshot()['identification_number'], (int) Carbon::now(NumberTemplate::TIMEZONE)->format('Y'), $document->type->filePrefix());
 
             $pipeline->move($document, ElectronicStatus::Sending, [
                 'dian_zip_file_name' => $names['zip'],
@@ -185,7 +184,7 @@ final class TransmitDocument extends ChainStep
 
         if ($call->answer?->applicationResponse !== null && $call->outcome !== TransmissionOutcome::NotFound) {
             $row->response_path = $storage->put(
-                sprintf('%s/%s/responses/%s-%s.xml', $document->company_id, $document->type->value, $document->full_number, $row->getKey()),
+                sprintf('%s/%s/responses/%s-%s.xml', $document->company_id, $document->type->value, $document->full_number, $row->id),
                 $call->answer->applicationResponse,
             )->path;
         }
@@ -306,7 +305,7 @@ final class TransmitDocument extends ChainStep
      */
     private function failNow(Document $document, DianTransmission $row, array $payload, ElectronicDocumentPipeline $pipeline): array
     {
-        $reason = sprintf('Attempt %d of %d: %s', $row->attempt, $pipeline->maxAttempts(), $row->error ?? $row->outcome?->value ?? 'no answer');
+        $reason = sprintf('Attempt %d of %d: %s', $row->attempt, $pipeline->maxAttempts(), $row->error ?? $row->outcome->value ?? 'no answer');
 
         $pipeline->timeline($document, DocumentEventType::TransmissionAttempt, $payload);
         $pipeline->fail($document, 'transmit', $reason, $row->attempt);

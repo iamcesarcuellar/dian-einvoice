@@ -11,9 +11,7 @@ export function useSession() {
 
   const user = computed(() => data.value ?? null)
   const companies = computed(() => user.value?.companies ?? [])
-  const currentCompany = computed(
-    () => companies.value.find((company) => company.id === store.currentCompanyId) ?? null,
-  )
+  const currentCompany = computed(() => companies.value.find((company) => company.id === store.currentCompanyId) ?? null)
 
   /** Whether the user's role in the current company allows the permission; reading is always allowed. */
   function can(permission: Permission): boolean {

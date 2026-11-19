@@ -12,15 +12,17 @@ const { t } = useI18n()
 const route = useRoute()
 const { can } = useSession()
 
-const tabs = computed<PageTab[]>(() => [
-  { name: 'company-settings', label: 'settings.tabs.company' },
-  { name: 'taxes', label: 'settings.tabs.taxes' },
-  { name: 'withholdings', label: 'settings.tabs.withholdings' },
-  { name: 'numbering', label: 'settings.tabs.numbering' },
-  { name: 'dian-settings', label: 'settings.tabs.dian' },
-  ...(can('manage-team') ? [{ name: 'team', label: 'settings.tabs.team' }] : []),
-  { name: 'developers', label: 'settings.tabs.developers' },
-].map((tab) => ({ key: tab.name, label: t(tab.label), to: { name: tab.name }, active: route.name === tab.name })))
+const tabs = computed<PageTab[]>(() =>
+  [
+    { name: 'company-settings', label: 'settings.tabs.company' },
+    { name: 'taxes', label: 'settings.tabs.taxes' },
+    { name: 'withholdings', label: 'settings.tabs.withholdings' },
+    { name: 'numbering', label: 'settings.tabs.numbering' },
+    { name: 'dian-settings', label: 'settings.tabs.dian' },
+    ...(can('manage-team') ? [{ name: 'team', label: 'settings.tabs.team' }] : []),
+    { name: 'developers', label: 'settings.tabs.developers' },
+  ].map((tab) => ({ key: tab.name, label: t(tab.label), to: { name: tab.name }, active: route.name === tab.name })),
+)
 </script>
 
 <template>

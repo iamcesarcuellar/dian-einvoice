@@ -26,7 +26,7 @@ export const authApi = {
   },
 
   /** Changes the password; the current one is asked again. */
-  changePassword(input: { current_password: string, password: string, password_confirmation: string }): Promise<void> {
+  changePassword(input: { current_password: string; password: string; password_confirmation: string }): Promise<void> {
     return request<void>('PUT', '/auth/password', input)
   },
 }

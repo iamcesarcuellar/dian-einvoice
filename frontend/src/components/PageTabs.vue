@@ -25,10 +25,12 @@ defineProps<{
       :key="tab.key"
       :to="tab.to"
       :aria-current="tab.active ? 'page' : undefined"
-      :class="cn(
-        '-mb-px rounded-t-sm border-b-2 px-3 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors',
-        tab.active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
-      )"
+      :class="
+        cn(
+          '-mb-px rounded-t-sm border-b-2 px-3 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors',
+          tab.active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+        )
+      "
     >
       {{ tab.label }}
     </RouterLink>

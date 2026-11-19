@@ -48,7 +48,13 @@ final class InlineChain
             }
 
             foreach ($this->subscribers->jobsFor($event) as $job) {
-                app()->call([$job, 'handle']);
+                $handle = [$job, 'handle'];
+
+                if (! is_callable($handle)) {
+                    throw new LogicException($job::class.' has no handle() method.');
+                }
+
+                app()->call($handle);
             }
         }
 

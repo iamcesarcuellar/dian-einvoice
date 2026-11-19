@@ -29,9 +29,12 @@ const { data: payment } = useQuery({
 })
 
 // Another company has other payments: go back to the list.
-watch(() => session.currentCompanyId, () => {
-  void router.push({ name: 'payments' })
-})
+watch(
+  () => session.currentCompanyId,
+  () => {
+    void router.push({ name: 'payments' })
+  },
+)
 </script>
 
 <template>

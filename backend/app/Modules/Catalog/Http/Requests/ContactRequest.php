@@ -37,6 +37,7 @@ final class ContactRequest extends FormRequest
     {
         $contact = $this->contact();
         $required = $contact === null ? ['required'] : ['sometimes', 'required'];
+        /** @var array<mixed>|bool|float|int|string|null $type Not validated yet: any value of the body. */
         $type = $this->input('identification_type', $contact?->identification_type?->value);
         $isNit = $type === IdentificationType::Nit->value;
 
@@ -84,7 +85,7 @@ final class ContactRequest extends FormRequest
             }
 
             $contact = $this->contact();
-            $country = $this->input('country_code', $contact?->country_code ?? Contact::COLOMBIA);
+            $country = $this->input('country_code', $contact->country_code ?? Contact::COLOMBIA);
             $municipality = $this->exists('municipality_code') ? $this->input('municipality_code') : $contact?->municipality_code;
 
             if ($country === Contact::COLOMBIA && blank($municipality)) {

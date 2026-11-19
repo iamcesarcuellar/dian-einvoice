@@ -8,6 +8,7 @@ use App\Modules\Developers\Http\Middleware\HandleIdempotency;
 use App\Modules\Developers\Http\Middleware\RateLimitApiKeys;
 use App\Modules\Developers\Http\Middleware\RejectApiKeys;
 use App\Modules\Developers\Idempotency\PruneIdempotencyKeys;
+use App\Modules\Developers\Models\ApiKey;
 use App\Modules\Developers\Receiver\LocalWebhookReceiver;
 use App\Modules\Developers\Webhooks\DeliverWebhook;
 use App\Modules\Developers\Webhooks\PublishWebhookEvent;
@@ -16,6 +17,7 @@ use App\Modules\Developers\Webhooks\WebhookEventTypes;
 use App\Modules\Developers\Webhooks\WebhookPublisher;
 use App\Support\Outbox\OutboxSubscribers;
 use App\Support\Outbox\Sweeper;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -47,7 +49,7 @@ final class DevelopersServiceProvider extends ServiceProvider
 
         // API keys authenticate through their own guard; Sanctum keeps the session of the web app
         // only and never reads bearer tokens, which all belong to API keys.
-        Auth::viaRequest(ApiKeyAuthenticator::GUARD, fn ($request) => $this->app->make(ApiKeyAuthenticator::class)($request));
+        Auth::viaRequest(ApiKeyAuthenticator::GUARD, fn (Request $request): ?ApiKey => $this->app->make(ApiKeyAuthenticator::class)($request));
         Sanctum::getAccessTokenFromRequestUsing(fn (): ?string => null);
 
         Route::aliasMiddleware('api-rate-limit', RateLimitApiKeys::class);

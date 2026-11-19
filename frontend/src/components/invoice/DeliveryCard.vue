@@ -91,7 +91,12 @@ const fileRows = computed(() => {
   }
 
   return [
-    { key: 'attached', label: t('invoices.delivery.fileAttached'), name: value.attached_document?.package_name ?? null, detail: describe(value.attached_document) },
+    {
+      key: 'attached',
+      label: t('invoices.delivery.fileAttached'),
+      name: value.attached_document?.package_name ?? null,
+      detail: describe(value.attached_document),
+    },
     { key: 'pdf', label: t('invoices.delivery.filePdf'), name: value.pdf?.package_name ?? null, detail: describe(value.pdf) },
     { key: 'package', label: t('invoices.delivery.filePackage'), name: value.package?.package_name ?? null, detail: describe(value.package) },
   ]
@@ -196,7 +201,13 @@ const error = computed(() => downloadPdf.error.value ?? downloadPackage.error.va
           <SendIcon />
           {{ t('invoices.delivery.sendAgain') }}
         </Button>
-        <Button v-if="canManage && delivery?.can_regenerate_pdf" size="sm" variant="secondary" :disabled="regenerate.isPending.value" @click="regenerate.mutate()">
+        <Button
+          v-if="canManage && delivery?.can_regenerate_pdf"
+          size="sm"
+          variant="secondary"
+          :disabled="regenerate.isPending.value"
+          @click="regenerate.mutate()"
+        >
           <RefreshCwIcon />
           {{ regenerate.isPending.value ? t('invoices.delivery.regenerating') : t('invoices.delivery.regeneratePdf') }}
         </Button>

@@ -8,21 +8,24 @@ import { cn } from '@/lib/utils'
  * A decimal amount shown the Colombian way ("1.234.567,50") and kept as an API decimal string
  * ("1234567.5"). While focused it shows the plain number for editing.
  */
-const props = withDefaults(defineProps<{
-  id?: string
-  /** Decimals accepted: 6 for prices, 4 for rates. */
-  scale: number
-  /** Decimals shown when the amount has any: 2 for money. */
-  minFraction?: number
-  prefix?: string
-  suffix?: string
-  disabled?: boolean
-  invalid?: boolean
-}>(), {
-  minFraction: 0,
-  disabled: false,
-  invalid: false,
-})
+const props = withDefaults(
+  defineProps<{
+    id?: string
+    /** Decimals accepted: 6 for prices, 4 for rates. */
+    scale: number
+    /** Decimals shown when the amount has any: 2 for money. */
+    minFraction?: number
+    prefix?: string
+    suffix?: string
+    disabled?: boolean
+    invalid?: boolean
+  }>(),
+  {
+    minFraction: 0,
+    disabled: false,
+    invalid: false,
+  },
+)
 
 const model = defineModel<string>({ required: true })
 

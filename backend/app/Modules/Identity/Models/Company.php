@@ -12,6 +12,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * The tenant. Every business record belongs to exactly one company. Its country is always CO.
+ *
+ * @property int $check_digit
+ * @property list<string>|null $fiscal_responsibilities
  */
 class Company extends Model
 {

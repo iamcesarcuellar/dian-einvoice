@@ -4,6 +4,8 @@ namespace App\Support\ApiDocs;
 
 use Dedoc\Scramble\Extensions\ExceptionToResponseExtension;
 use Dedoc\Scramble\Support\Generator\Reference;
+use Dedoc\Scramble\Support\Generator\Response;
+use Dedoc\Scramble\Support\Type\Generic;
 use Dedoc\Scramble\Support\Type\Literal\LiteralIntegerType;
 use Dedoc\Scramble\Support\Type\ObjectType;
 use Dedoc\Scramble\Support\Type\Type;
@@ -62,7 +64,7 @@ final class ProblemDetailsExceptionExtension extends ExceptionToResponseExtensio
         return $type instanceof ObjectType && $type->isInstanceOf(Throwable::class) && $this->status($type) !== null;
     }
 
-    public function toResponse(Type $type)
+    public function toResponse(Type $type): Response
     {
         /** @var ObjectType $type */
         $status = (int) $this->status($type);
@@ -84,7 +86,8 @@ final class ProblemDetailsExceptionExtension extends ExceptionToResponseExtensio
 
     private function status(ObjectType $type): ?int
     {
-        $code = count($type->templateTypes ?? []) > 3 ? ($type->templateTypes[7] ?? null) : ($type->templateTypes[0] ?? null);
+        $templates = $type instanceof Generic ? $type->templateTypes : [];
+        $code = count($templates) > 3 ? ($templates[7] ?? null) : ($templates[0] ?? null);
 
         if ($type->isInstanceOf(HttpException::class) && $code instanceof LiteralIntegerType) {
             return $code->value;

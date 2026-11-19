@@ -26,17 +26,19 @@ const FILL: Record<string, string> = {
   warning: 'bg-warning',
 }
 
-const segments = computed(() => STATES.map((state) => {
-  const style = statusStyle('electronic', state)
+const segments = computed(() =>
+  STATES.map((state) => {
+    const style = statusStyle('electronic', state)
 
-  return {
-    state,
-    count: props.electronic[state],
-    share: props.electronic.total > 0 ? (props.electronic[state] * 100) / props.electronic.total : 0,
-    icon: style.icon,
-    fill: FILL[style.tone] ?? 'bg-muted',
-  }
-}))
+    return {
+      state,
+      count: props.electronic[state],
+      share: props.electronic.total > 0 ? (props.electronic[state] * 100) / props.electronic.total : 0,
+      icon: style.icon,
+      fill: FILL[style.tone] ?? 'bg-muted',
+    }
+  }),
+)
 </script>
 
 <template>
