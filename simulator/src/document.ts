@@ -1,5 +1,6 @@
 // What the validation reads from a UBL 2.1 Invoice, CreditNote or DebitNote with the DIAN extensions
 // (annex 1.9, sections 6.1 to 6.3).
+import { join } from 'node:path'
 import { micros } from './money.ts'
 import { attribute, child, children, descendants, NS, path, text } from './xml.ts'
 import type { XmlDocument, XmlNode } from './xml.ts'
@@ -16,6 +17,13 @@ const KINDS: Record<DocumentKind, { root: string, namespace: string, line: strin
 /** The name of the official XSD of a kind, such as UBL-CreditNote-2.1.xsd. */
 export function schemaName(kind: DocumentKind): string {
   return `UBL-${KINDS[kind].root}-2.1.xsd`
+}
+
+/** The official XSD of each kind in the directory of the schemas: maindoc/UBL-Invoice-2.1.xsd and the others. */
+export function schemaPaths(directory: string): Record<DocumentKind, string> {
+  const schema = (kind: DocumentKind): string => join(directory, 'maindoc', schemaName(kind))
+
+  return { invoice: schema('invoice'), credit_note: schema('credit_note'), debit_note: schema('debit_note') }
 }
 
 export interface DocumentData {

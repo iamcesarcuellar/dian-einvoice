@@ -16,6 +16,15 @@ export default defineConfig(
     },
   },
   {
+    files: ['test/**/*.ts'],
+    rules: {
+      // describe() and it() of node:test return promises that the test runner awaits.
+      '@typescript-eslint/no-floating-promises': ['error', {
+        allowForKnownSafeCalls: [{ from: 'package', package: 'node:test', name: ['describe', 'it'] }],
+      }],
+    },
+  },
+  {
     // This file is JavaScript outside tsconfig.json: no type information for it.
     files: ['**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],

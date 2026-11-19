@@ -10,7 +10,8 @@
     "start": "node src/server.ts",
     "lint": "eslint --max-warnings=0 .",
     "typecheck": "tsc --noEmit",
-    "fix": "eslint --fix ."
+    "fix": "eslint --fix .",
+    "test": "node --test --test-reporter=spec --test-timeout=20000 test/"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.8",

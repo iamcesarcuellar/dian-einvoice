@@ -118,7 +118,15 @@ export function parseDecimal(text: string, scale: number): string | null {
   }
 
   if (value.includes(',')) {
-    value = value.replace(/\./g, '').replace(',', '.')
+    // A decimal comma, with any dots before it grouping thousands three digits at a time. Anything
+    // else, such as "1,234.56", is not taken for some other amount.
+    const match = /^(\d+|\d{1,3}(?:\.\d{3})+),(\d*)$/.exec(value)
+
+    if (!match) {
+      return null
+    }
+
+    value = `${(match[1] ?? '').replace(/\./g, '')}.${match[2] ?? ''}`
   } else if (/^\d{1,3}(\.\d{3})+$/.test(value)) {
     value = value.replace(/\./g, '')
   }

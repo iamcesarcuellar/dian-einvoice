@@ -11,7 +11,7 @@ import type { Socket } from 'node:net'
 import { join } from 'node:path'
 import { unzipSync } from 'fflate'
 import { applicationResponse } from './application-response.ts'
-import { readDocument, schemaName } from './document.ts'
+import { readDocument, schemaPaths } from './document.ts'
 import type { DocumentKind } from './document.ts'
 import { ALL, MODE_NAMES, currentMode, normalMode, takeMode } from './modes.ts'
 import { RULES, finding, formatFinding, rule } from './rules.ts'
@@ -26,8 +26,8 @@ import { parseXml } from './xml.ts'
 
 const PORT = Number(process.env.PORT ?? 8602)
 const TOKEN = process.env.SIMULATOR_ADMIN_TOKEN ?? ''
-const SCHEMAS = Object.fromEntries((['invoice', 'credit_note', 'debit_note'] as const)
-  .map((kind) => [kind, join(import.meta.dirname, '..', 'xsd', 'maindoc', schemaName(kind))])) as Record<DocumentKind, string>
+/** The official XSDs: the xsd folder of the image, or SIMULATOR_XSD_DIR. */
+const SCHEMAS = schemaPaths(process.env.SIMULATOR_XSD_DIR ?? join(import.meta.dirname, '..', 'xsd'))
 
 /** How the DIAN names each kind in the answer of an authorized document. */
 const AUTHORIZED: Record<DocumentKind, string> = {

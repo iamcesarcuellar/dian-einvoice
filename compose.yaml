@@ -67,6 +67,29 @@ services:
     depends_on:
       - api
 
+  # Optional (profile e2e): the end-to-end test of the web app in a browser, against the running stack
+  # and its synthetic demo data. Playwright publishes no Alpine image: this one is Ubuntu (noble), with
+  # the browsers of the exact @playwright/test version of e2e/package.json.
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    profiles: ["e2e"]
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 2g
+    shm_size: 1gb
+    init: true
+    working_dir: /e2e
+    environment:
+      HOME: /tmp
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+      # The browser opens the app at http://localhost:8601, the origin the API accepts for session
+      # sign-in; e2e/forward.mjs passes that port on to the web service.
+      WEB_URL: http://web:5173
+    volumes:
+      - ./e2e:/e2e
+    depends_on:
+      - web
+
   # The DIAN of this project: a local simulator of its SOAP web service. Nothing reaches the DIAN.
   simulator:
     build:
@@ -89,8 +112,9 @@ services:
       timeout: 3s
       retries: 20
 
-  # Optional (profile tools): lint and type check of the simulator over its mounted sources. The dev
-  # dependencies live in the development image, so nothing is installed into the repo.
+  # Optional (profile tools): lint, type check and tests of the simulator over its mounted sources. The
+  # dev dependencies live in the development image, so nothing is installed into the repo; the XSDs
+  # are the single copy of the backend, read-only.
   simulator-dev:
     build:
       context: ./simulator
@@ -99,8 +123,11 @@ services:
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart: "no"
     mem_limit: 512m
+    environment:
+      SIMULATOR_XSD_DIR: /workspace/xsd
     volumes:
       - ./simulator:/workspace/simulator
+      - ./backend/resources/dian/xsd:/workspace/xsd:ro
 
   # Local development mailbox (Mailpit): it keeps every email the app sends over SMTP and relays
   # none, so nothing leaves this machine. Web interface and API on 127.0.0.1:8603; SMTP (1025) only

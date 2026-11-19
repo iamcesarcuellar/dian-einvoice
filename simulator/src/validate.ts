@@ -246,7 +246,9 @@ async function signature(xml: string, invoice: DocumentData, kind: DocumentKind)
     findings.push(finding('ZD02'))
   }
 
-  if (certificate.checkIssued(certificate) && certificate.verify(certificate.publicKey)) {
+  // ZD05: self-signed, its own issuer and verified by its own key. checkIssued() does not tell: OpenSSL
+  // also asks the issuer for keyCertSign, which a signing certificate such as the synthetic ones lacks.
+  if (certificate.issuer === certificate.subject && certificate.verify(certificate.publicKey)) {
     findings.push(finding('ZD05'))
   }
 

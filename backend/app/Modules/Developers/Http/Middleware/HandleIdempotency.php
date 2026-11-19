@@ -3,6 +3,7 @@
 namespace App\Modules\Developers\Http\Middleware;
 
 use App\Http\ProblemDetails;
+use App\Modules\Developers\Idempotency\IdempotencyFingerprint;
 use App\Modules\Developers\Idempotency\IdempotencyStore;
 use App\Modules\Identity\Tenancy\CurrentCompany;
 use Closure;
@@ -52,7 +53,7 @@ final class HandleIdempotency
             throw new BadRequestHttpException('Idempotency-Key must be 1 to 255 visible ASCII characters, such as a UUID.');
         }
 
-        [$outcome, $row] = $this->store->reserve($this->currentCompany->id(), $key, $this->fingerprint($request), $request->method(), $request->getPathInfo());
+        [$outcome, $row] = $this->store->reserve($this->currentCompany->id(), $key, IdempotencyFingerprint::of($request->method(), $request->getPathInfo(), (string) $request->getContent()), $request->method(), $request->getPathInfo());
 
         return match ($outcome) {
             'mismatch' => ProblemDetails::response(422, 'This Idempotency-Key was already used with another request (method, path or body). Use a new key for a new request.'),
@@ -104,33 +105,5 @@ final class HandleIdempotency
             is_numeric($status) ? (int) $status : 0,
             [...(is_array($headers) ? $headers : []), self::REPLAYED => 'true'],
         );
-    }
-
-    /** SHA-256 of the method, the path and the body; a JSON body in a canonical form. */
-    private function fingerprint(Request $request): string
-    {
-        $content = (string) $request->getContent();
-        $decoded = json_decode($content, true);
-
-        $body = json_last_error() === JSON_ERROR_NONE && $content !== ''
-            ? json_encode(self::canonical($decoded), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-            : $content;
-
-        return hash('sha256', $request->method()."\n".$request->getPathInfo()."\n".$body);
-    }
-
-    private static function canonical(mixed $value): mixed
-    {
-        if (! is_array($value)) {
-            return $value;
-        }
-
-        $value = array_map(self::canonical(...), $value);
-
-        if (! array_is_list($value)) {
-            ksort($value, SORT_STRING);
-        }
-
-        return $value;
     }
 }

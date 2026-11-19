@@ -66,7 +66,8 @@ final class RecordPayment
         return DB::transaction(function () use ($input, $allocations, $total, $contact, $actor): Payment {
             // 1. The receipt number: the numbering stays locked until the end.
             $number = $this->numbering->next();
-            $paymentId = (string) Str::ulid();
+            // Lowercase, as HasUlids writes every other id.
+            $paymentId = Str::lower((string) Str::ulid());
             $reference = new PaymentReference($paymentId, $number->full(), $input['payment_date'], $input['payment_means_code']);
 
             // 2. The invoices, always in the order of their ids.

@@ -1,0 +1,21 @@
+{
+  "nit": "990000001",
+  "check_digit": "1",
+  "legal_name": "Demo Comercial SAS",
+  "software": {
+    "id": "00000000-0000-4000-8000-0000000d1a01",
+    "pin": "10101"
+  },
+  "ranges": [
+    {
+      "resolution_number": "18760000001",
+      "prefix": "SETP",
+      "from": 990000000,
+      "to": 995000000,
+      "valid_from": "2019-01-19",
+      "valid_to": "2030-01-19",
+      "technical_key": "fc8eac422eba16e22ffd8c6f94b3f40a6e38162c"
+    }
+  ],
+  "registered_at": "2026-11-19T18:47:06.510Z"
+}

@@ -1,0 +1,5 @@
+# Installed by npm ci inside the e2e container.
+node_modules/
+# Traces of failed runs and reports, written by Playwright.
+test-results/
+playwright-report/

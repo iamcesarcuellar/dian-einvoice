@@ -18,10 +18,15 @@ const props = defineProps<{
   hint?: string
 }>()
 
-const { t } = useI18n()
+const i18n = useI18n()
 
 const style = computed(() => statusStyle(props.domain, props.status))
-const label = computed(() => t(statusKey(props.domain, props.status)))
+// A state this version of the app has no label for shows as the API sends it.
+const label = computed(() => {
+  const key = statusKey(props.domain, props.status)
+
+  return i18n.te(key) ? i18n.t(key) : props.status
+})
 const title = computed(() => (props.hint ? `${label.value}: ${props.hint}` : undefined))
 </script>
 

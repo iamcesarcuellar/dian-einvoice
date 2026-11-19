@@ -9,6 +9,7 @@ parameters:
         - config
         - database
         - routes
+        - tests
     # Each module keeps its own migrations; Larastan reads the columns of the models from them.
     databaseMigrationsPath:
         - database/migrations

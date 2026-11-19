@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Unit tests: pure domain, no framework and no database.
+    Integration tests: the real MySQL (database dian_einvoice_test, recreated on each run), Redis
+    (databases 3 and 4, never the 0 and 1 of the local stack) and the local DIAN simulator. Every
+    test works in a synthetic company of its own. Run them with make test-backend.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         cacheDirectory="storage/framework/cache/phpunit"
+         colors="true"
+         executionOrder="defects"
+         failOnRisky="true"
+         failOnWarning="true"
+         beStrictAboutOutputDuringTests="true">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <ini name="memory_limit" value="384M"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_DEBUG" value="true" force="true"/>
+        <env name="DB_DATABASE" value="dian_einvoice_test" force="true"/>
+        <env name="REDIS_DB" value="3" force="true"/>
+        <env name="REDIS_CACHE_DB" value="4" force="true"/>
+        <env name="CACHE_STORE" value="redis" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="LOG_CHANNEL" value="single" force="true"/>
+        <env name="LOG_LEVEL" value="warning" force="true"/>
+    </php>
+</phpunit>

@@ -1,0 +1,87 @@
+name: Prepare the stack
+description: >-
+  Build the images with the Docker layer cache of GitHub Actions, restore the dependency caches and install what is
+  missing, as make up does locally. Every later step runs the make targets of the repository in containers.
+
+inputs:
+  images:
+    description: Services of compose.yaml whose images the job builds, separated by spaces.
+    required: true
+  backend:
+    description: Install the backend dependencies and its environment file.
+    default: "false"
+  frontend:
+    description: Install the web app dependencies.
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Run the containers as the runner user
+      shell: bash
+      run: |
+        echo "HOST_UID=$(id -u)" >> "$GITHUB_ENV"
+        echo "HOST_GID=$(id -g)" >> "$GITHUB_ENV"
+
+    - uses: docker/setup-buildx-action@v3
+
+    - name: Cache scopes of the images
+      id: images
+      shell: bash
+      run: |
+        {
+          echo "targets=$(echo '${{ inputs.images }}' | tr ' ' ',')"
+          echo 'set<<EOF'
+          for image in ${{ inputs.images }}; do
+            echo "${image}.cache-from=type=gha,scope=${image}"
+            echo "${image}.cache-to=type=gha,mode=max,scope=${image}"
+            echo "${image}.tags=dian-einvoice-${image}:latest"
+          done
+          echo 'EOF'
+        } >> "$GITHUB_OUTPUT"
+
+    # Built with the layer cache of GitHub Actions and loaded with the names docker compose gives them; the
+    # workflow sets BUILD empty, so the make targets use these images instead of building them again.
+    - name: Build the images
+      uses: docker/bake-action@v6
+      with:
+        source: .
+        files: compose.yaml
+        targets: ${{ steps.images.outputs.targets }}
+        set: ${{ steps.images.outputs.set }}
+        load: true
+
+    # worker and relay run the image of api.
+    - name: Name the image of api for worker and relay
+      if: contains(format(' {0} ', inputs.images), ' api ')
+      shell: bash
+      run: |
+        docker tag dian-einvoice-api:latest dian-einvoice-worker:latest
+        docker tag dian-einvoice-api:latest dian-einvoice-relay:latest
+
+    - name: Cache the backend dependencies
+      if: inputs.backend == 'true'
+      uses: actions/cache@v4
+      with:
+        path: backend/vendor
+        key: vendor-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+
+    - name: Install the backend dependencies and its environment file
+      if: inputs.backend == 'true'
+      shell: bash
+      run: |
+        test -f backend/.env || cp backend/.env.example backend/.env
+        docker compose run --rm --no-deps -T api composer install --no-interaction --no-progress
+        grep -Eq '^APP_KEY=.+' backend/.env || docker compose run --rm --no-deps -T api php artisan key:generate --no-interaction
+
+    - name: Cache the web app dependencies
+      if: inputs.frontend == 'true'
+      uses: actions/cache@v4
+      with:
+        path: frontend/node_modules
+        key: web-modules-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+    - name: Install the web app dependencies
+      if: inputs.frontend == 'true'
+      shell: bash
+      run: docker compose run --rm --no-deps -T web pnpm install --frozen-lockfile

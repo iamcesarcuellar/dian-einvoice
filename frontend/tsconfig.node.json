@@ -14,5 +14,5 @@
     // Type checking runs in build mode (vue-tsc --build), which keeps an incremental state file.
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
   },
-  "include": ["vite.config.ts", "eslint.config.ts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "eslint.config.ts"]
 }

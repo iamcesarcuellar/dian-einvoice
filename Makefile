@@ -12,12 +12,16 @@ CONCURRENCY ?= 20
 # Size of make chaos.
 CHAOS_INVOICES ?= 40
 
-.PHONY: up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix
+# docker compose builds the images that changed before using them. CI builds them beforehand with its layer
+# cache and sets BUILD empty, so compose uses them as they are.
+BUILD ?= --build
+
+.PHONY: up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator e2e checks
 
 # Build images if needed, start the stack, wait for the database, Redis and the local mailbox, install missing dependencies,
 # generate the key, migrate, and start the queue workers and the outbox relay with the current code.
 up:
-	$(COMPOSE) build
+	$(if $(BUILD),$(COMPOSE) build)
 	$(COMPOSE) up -d --wait db redis mail
 	test -f backend/.env || cp backend/.env.example backend/.env
 	test -d backend/vendor || $(COMPOSE) run --rm --no-deps api composer install --no-interaction
@@ -127,19 +131,52 @@ ui-check:
 lint:
 	$(COMPOSE) run --rm --no-deps -T api vendor/bin/pint --test
 	$(COMPOSE) run --rm --no-deps -T web sh -c 'pnpm lint && pnpm format:check'
-	$(COMPOSE) --profile tools run --rm --build -T simulator-dev npm run lint
+	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm run lint
 
 # Static analysis: PHPStan with Larastan (level in backend/phpstan.neon, no baseline), vue-tsc and tsc, all strict.
 analyse:
 	$(COMPOSE) run --rm --no-deps -T api vendor/bin/phpstan analyse --no-progress --memory-limit=448M
 	$(COMPOSE) run --rm --no-deps -T web pnpm typecheck
-	$(COMPOSE) --profile tools run --rm --build -T simulator-dev npm run typecheck
+	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm run typecheck
 
 # Apply the formatters and the automatic fixes of the linters.
 fix:
 	$(COMPOSE) run --rm --no-deps -T api vendor/bin/pint
 	$(COMPOSE) run --rm --no-deps -T web pnpm fix
-	$(COMPOSE) --profile tools run --rm --build -T simulator-dev npm run fix
+	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm run fix
+
+# Every test that needs no browser: backend, web app and simulator.
+test: test-backend test-frontend test-simulator
+
+# Unit tests of the backend, then its integration tests against the real MySQL (database dian_einvoice_test, created
+# here and recreated by the tests), Redis (databases 3 and 4, not those of the stack) and the local DIAN simulator.
+test-backend:
+	$(COMPOSE) up -d $(BUILD) --wait db redis simulator
+	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < backend/tests/database.sql
+	$(COMPOSE) run --rm $(BUILD) --no-deps -T api vendor/bin/phpunit
+
+# Unit tests of the web app (Vitest).
+test-frontend:
+	$(COMPOSE) run --rm --no-deps -T web pnpm test
+
+# Tests of the simulator (node:test): its rules, failure modes and webhook receiver.
+test-simulator:
+	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm test
+
+# The end-to-end test in a browser (Playwright, profile e2e) against the full stack with the demo data (make demo):
+# sign in, issue an invoice, see it accepted and delivered, open its PDF, record its payment and see it paid.
+e2e:
+	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e sh -c 'npm ci --no-audit --no-fund && npx playwright test'
+
+# The checks of the stack, in a row, against the demo data (make demo). make dian-schematron stays optional, apart.
+checks:
+	@$(MAKE) --no-print-directory ui-check
+	@$(MAKE) --no-print-directory dian-check
+	@$(MAKE) --no-print-directory delivery-check
+	@$(MAKE) --no-print-directory payments-check
+	@$(MAKE) --no-print-directory api-check
+	@$(MAKE) --no-print-directory stress
+	@$(MAKE) --no-print-directory chaos
 
 # Export the public API reference (Scramble) to openapi.json at the root of the repository.
 openapi:

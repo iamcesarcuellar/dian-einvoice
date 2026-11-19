@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<CreditNote xmlns="urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:sts="dian:gov:co:facturaelectronica:Structures-2-1" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" xmlns:xades141="http://uri.etsi.org/01903/v1.4.1#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2 http://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/UBL-CreditNote-2.1.xsd">
+  <ext:UBLExtensions>
+    <ext:UBLExtension>
+      <ext:ExtensionContent>
+        <sts:DianExtensions>
+          <sts:InvoiceSource>
+            <cbc:IdentificationCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listSchemeURI="urn:oasis:names:specification:ubl:codelist:gc:CountryIdentificationCode-2.1">CO</cbc:IdentificationCode>
+          </sts:InvoiceSource>
+          <sts:SoftwareProvider>
+            <sts:ProviderID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="1" schemeName="31">990000001</sts:ProviderID>
+            <sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">00000000-0000-4000-8000-0000000d1a01</sts:SoftwareID>
+          </sts:SoftwareProvider>
+          <sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">62206d8f440ed39568d9405f2963c73391d5bdcaba9f6d4f8a93636d5e5583ddf40966e23a802538e68a46a322b7ebf2</sts:SoftwareSecurityCode>
+          <sts:AuthorizationProvider>
+            <sts:AuthorizationProviderID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="4" schemeName="31">800197268</sts:AuthorizationProviderID>
+          </sts:AuthorizationProvider>
+          <sts:QRCode>https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=babcf0d16556195d8b3c2620d3f38bb235e4ee9dc4948f6949444f8a1c27bc0d59e881d41ddca077386fbc938d5f189f</sts:QRCode>
+        </sts:DianExtensions>
+      </ext:ExtensionContent>
+    </ext:UBLExtension>
+    <ext:UBLExtension>
+      <ext:ExtensionContent><ds:Signature Id="xmldsig-71892b72-4ff2-4d2f-b51a-0ebbbb2d92d3">
+<ds:SignedInfo>
+<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+<ds:Reference Id="xmldsig-71892b72-4ff2-4d2f-b51a-0ebbbb2d92d3-ref0" URI="">
+<ds:Transforms>
+<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+</ds:Transforms>
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+<ds:DigestValue>3r3Jo6Ujvgq0vI2Vb3W4ErG/uBxJlFfuh2ZDkOkPxNU=</ds:DigestValue>
+</ds:Reference>
+<ds:Reference URI="#xmldsig-d3b9096b-eb8e-4dde-8ca2-c29874ab8c6b-keyinfo">
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+<ds:DigestValue>kdTSnId5XdRmHYtW0URl1NWY18GlQgh64/r8gGB4dXw=</ds:DigestValue>
+</ds:Reference>
+<ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#xmldsig-71892b72-4ff2-4d2f-b51a-0ebbbb2d92d3-signedprops">
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+<ds:DigestValue>erneOL61Bl7PvjMKVS7CoFitayoiWVCoJ0LEzppok5k=</ds:DigestValue>
+</ds:Reference>
+</ds:SignedInfo>
+<ds:SignatureValue Id="xmldsig-71892b72-4ff2-4d2f-b51a-0ebbbb2d92d3-sigvalue">
+iod8Phk0A5oPmGaGJyyuehbTme9JzF+gphtARp61fNNCjH60YS/IfatwBmqyrts2OogoIxckrZxi
+bvR4jbj0ZGXD7QpjNZQvepFgELl9YhKngLM0U87Q/JXwQCpZbrgJjneiaLvTof57GKXHPioVJM7A
+YlVWJ9BA7If49akHXC4cFsqcr0ljQJUuu5LV8XoAuKKz747UKJGgPgRsKpVqLfS9n7Ky8TqUgP4/
+l0EBbSeELdHTkGsrmU3N9j/5Fg7EDUEXhbcF+WJZHWG+gA0peKKRhnVP7M98t4pVGf7zOGEGl+hO
+9mEU4m1CCXrbXbCXvjKURdKK5cpmh1+4rlYs4w==
+</ds:SignatureValue>
+<ds:KeyInfo Id="xmldsig-d3b9096b-eb8e-4dde-8ca2-c29874ab8c6b-keyinfo">
+<ds:X509Data>
+<ds:X509Certificate>
+MIIDmTCCAoGgAwIBAgIIb0WDng6dZdIwDQYJKoZIhvcNAQELBQAwbDELMAkGA1UEBhMCQ08xGzAZ
+BgNVBAoMEkRlbW8gQ29tZXJjaWFsIFNBUzEsMCoGA1UEAwwjRGVtbyBDb21lcmNpYWwgU0FTIFRF
+U1QgQ0VSVElGSUNBVEUxEjAQBgNVBAUTCTk5MDAwMDAwMTAeFw0yNjA1MDMwMDAwMDBaFw0yODA1
+MDMwMDAwMDBaMGwxCzAJBgNVBAYTAkNPMRswGQYDVQQKDBJEZW1vIENvbWVyY2lhbCBTQVMxLDAq
+BgNVBAMMI0RlbW8gQ29tZXJjaWFsIFNBUyBURVNUIENFUlRJRklDQVRFMRIwEAYDVQQFEwk5OTAw
+MDAwMDEwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC6OyU2JOBz883QDh98ivjWdTaG
+Y4UcsIxL1ee1uwPgAZuHTOVJwvqi4o80KNZTCCsXM11Od9aIWHVBJwrNHH/8WLjfaED5kQ2bgom5
+fWvi99707UX4QDQDx8aOyOl8sJ4gQ1M2v7vaxBF9xoglQCRxaOwgheR+DgqGAusKOuUN/ijE7VVP
+WATRmYIZ39VrawThob0PT3mv2POIRJ849J7/kyP/KAl6JgpDTi7a5fd+b6CaVw5jNFH6LNKV6Bp1
+8YIpGsLSXAaNX4oj6tupDeOuFraGlclwIYfV4XKqC1ymIjgDCq98xB8+33CCynWTEq+Q/rGcm8JI
+nKrGRE62j8qzAgMBAAGjPzA9MAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgbAMB0GA1UdDgQW
+BBRqtGO6xNVlF17y4xvmuohPrRL8gjANBgkqhkiG9w0BAQsFAAOCAQEAaNVmMEDIrQai8wsZierd
+EAY1vd5Sjk9GaPdOUU5RcwBg+oKmVzJx5K/lA7IkEPoepGtOQ81wzkZpLo7QOI2S+LxLjS4WgChn
+sj2NRsopIR4JaHX3SdRbIyrrsb96sxrLiyK2WF8hF2zayHYO8Wm3FefVyHkr22SswDWXk+rUQZQg
+Rn8nxsZkX11b3ohoQ6FuaTZrVYNrHD6Xs8zjUPGi0q3gr/YlRzz3HMHezx8khoFI3qhMylqo8wdq
+jQpMMLJr75rGFEDywmMpqzCHf7TE5R2DMaFBvumyu77xP7Law0O9Ww9TEBBqKXhEQj2YWWM0bwTI
+lTxxzsCsGbllUS9E3w==
+</ds:X509Certificate>
+</ds:X509Data>
+</ds:KeyInfo>
+<ds:Object><xades:QualifyingProperties Target="#xmldsig-71892b72-4ff2-4d2f-b51a-0ebbbb2d92d3"><xades:SignedProperties Id="xmldsig-71892b72-4ff2-4d2f-b51a-0ebbbb2d92d3-signedprops"><xades:SignedSignatureProperties><xades:SigningTime>2026-09-10T10:30:00.000-05:00</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>k4tDpBpKZ3WlC4UtaPahj/8wR+bdXpnm5k5Xs0ZMRn8=</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>2.5.4.5=#1309393930303030303031,CN=Demo Comercial SAS TEST CERTIFICATE,O=Demo Comercial SAS,C=CO</ds:X509IssuerName><ds:X509SerialNumber>8017959426476303826</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate><xades:SignaturePolicyIdentifier><xades:SignaturePolicyId><xades:SigPolicyId><xades:Identifier>https://facturaelectronica.dian.gov.co/politicadefirma/v2/politicadefirmav2.pdf</xades:Identifier><xades:Description>Política de firma para facturas electrónicas de la República de Colombia</xades:Description></xades:SigPolicyId><xades:SigPolicyHash><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>dMoMvtcG5aIzgYo0tIsSQeVJBDnUnfSOfBpxXrmor0Y=</ds:DigestValue></xades:SigPolicyHash></xades:SignaturePolicyId></xades:SignaturePolicyIdentifier><xades:SignerRole><xades:ClaimedRoles><xades:ClaimedRole>supplier</xades:ClaimedRole></xades:ClaimedRoles></xades:SignerRole></xades:SignedSignatureProperties></xades:SignedProperties></xades:QualifyingProperties></ds:Object>
+</ds:Signature></ext:ExtensionContent>
+    </ext:UBLExtension>
+  </ext:UBLExtensions>
+  <cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>20</cbc:CustomizationID>
+  <cbc:ProfileID>DIAN 2.1: Nota Crédito de Factura Electrónica de Venta</cbc:ProfileID>
+  <cbc:ProfileExecutionID>2</cbc:ProfileExecutionID>
+  <cbc:ID>NC1</cbc:ID>
+  <cbc:UUID schemeID="2" schemeName="CUDE-SHA384">babcf0d16556195d8b3c2620d3f38bb235e4ee9dc4948f6949444f8a1c27bc0d59e881d41ddca077386fbc938d5f189f</cbc:UUID>
+  <cbc:IssueDate>2026-09-10</cbc:IssueDate>
+  <cbc:IssueTime>10:30:00-05:00</cbc:IssueTime>
+  <cbc:CreditNoteTypeCode>91</cbc:CreditNoteTypeCode>
+  <cbc:Note>Discount of 10% on the twenty-five packs of paper, agreed for a late delivery.</cbc:Note>
+  <cbc:DocumentCurrencyCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listID="ISO 4217 Alpha">COP</cbc:DocumentCurrencyCode>
+  <cbc:LineCountNumeric>1</cbc:LineCountNumeric>
+  <cac:DiscrepancyResponse>
+    <cbc:ReferenceID>SETP990000020</cbc:ReferenceID>
+    <cbc:ResponseCode>3</cbc:ResponseCode>
+    <cbc:Description>Rebaja o descuento parcial o total</cbc:Description>
+  </cac:DiscrepancyResponse>
+  <cac:BillingReference>
+    <cac:InvoiceDocumentReference>
+      <cbc:ID>SETP990000020</cbc:ID>
+      <cbc:UUID schemeName="CUFE-SHA384">8bf9e9a06e0ee3b32927d0a63250ae0833553a96e72d1df02db14ae7c895255c2d75e352481c5db46528b062acb649fa</cbc:UUID>
+      <cbc:IssueDate>2026-09-02</cbc:IssueDate>
+    </cac:InvoiceDocumentReference>
+  </cac:BillingReference>
+  <cac:AccountingSupplierParty>
+    <cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>
+    <cac:Party>
+      <cac:PartyName>
+        <cbc:Name>Demo Comercial SAS</cbc:Name>
+      </cac:PartyName>
+      <cac:PhysicalLocation>
+        <cac:Address>
+          <cbc:ID>05001</cbc:ID>
+          <cbc:CityName>Medellín</cbc:CityName>
+          <cbc:PostalZone>050021</cbc:PostalZone>
+          <cbc:CountrySubentity>Antioquia</cbc:CountrySubentity>
+          <cbc:CountrySubentityCode>05</cbc:CountrySubentityCode>
+          <cac:AddressLine>
+            <cbc:Line>Carrera 48 # 10-45</cbc:Line>
+          </cac:AddressLine>
+          <cac:Country>
+            <cbc:IdentificationCode>CO</cbc:IdentificationCode>
+            <cbc:Name languageID="es">Colombia</cbc:Name>
+          </cac:Country>
+        </cac:Address>
+      </cac:PhysicalLocation>
+      <cac:PartyTaxScheme>
+        <cbc:RegistrationName>Demo Comercial SAS</cbc:RegistrationName>
+        <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="1" schemeName="31">990000001</cbc:CompanyID>
+        <cbc:TaxLevelCode>O-48</cbc:TaxLevelCode>
+        <cac:RegistrationAddress>
+          <cbc:ID>05001</cbc:ID>
+          <cbc:CityName>Medellín</cbc:CityName>
+          <cbc:PostalZone>050021</cbc:PostalZone>
+          <cbc:CountrySubentity>Antioquia</cbc:CountrySubentity>
+          <cbc:CountrySubentityCode>05</cbc:CountrySubentityCode>
+          <cac:AddressLine>
+            <cbc:Line>Carrera 48 # 10-45</cbc:Line>
+          </cac:AddressLine>
+          <cac:Country>
+            <cbc:IdentificationCode>CO</cbc:IdentificationCode>
+            <cbc:Name languageID="es">Colombia</cbc:Name>
+          </cac:Country>
+        </cac:RegistrationAddress>
+        <cac:TaxScheme>
+          <cbc:ID>01</cbc:ID>
+          <cbc:Name>IVA</cbc:Name>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>Demo Comercial SAS</cbc:RegistrationName>
+        <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="1" schemeName="31">990000001</cbc:CompanyID>
+        <cac:CorporateRegistrationScheme>
+          <cbc:ID>NC</cbc:ID>
+          <cbc:Name>0000001</cbc:Name>
+        </cac:CorporateRegistrationScheme>
+      </cac:PartyLegalEntity>
+      <cac:Contact>
+        <cbc:Telephone>6045550101</cbc:Telephone>
+        <cbc:ElectronicMail>billing@demo-comercial.example</cbc:ElectronicMail>
+      </cac:Contact>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>
+    <cac:Party>
+      <cac:PartyName>
+        <cbc:Name>Cordillera Plata</cbc:Name>
+      </cac:PartyName>
+      <cac:PhysicalLocation>
+        <cac:Address>
+          <cbc:ID>05001</cbc:ID>
+          <cbc:CityName>Medellín</cbc:CityName>
+          <cbc:PostalZone>050021</cbc:PostalZone>
+          <cbc:CountrySubentity>Antioquia</cbc:CountrySubentity>
+          <cbc:CountrySubentityCode>05</cbc:CountrySubentityCode>
+          <cac:AddressLine>
+            <cbc:Line>Carrera 43A # 1-50</cbc:Line>
+          </cac:AddressLine>
+          <cac:Country>
+            <cbc:IdentificationCode>CO</cbc:IdentificationCode>
+            <cbc:Name languageID="es">Colombia</cbc:Name>
+          </cac:Country>
+        </cac:Address>
+      </cac:PhysicalLocation>
+      <cac:PartyTaxScheme>
+        <cbc:RegistrationName>Distribuidora Cordillera Plata SAS</cbc:RegistrationName>
+        <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="8" schemeName="31">990000101</cbc:CompanyID>
+        <cbc:TaxLevelCode>O-13</cbc:TaxLevelCode>
+        <cac:RegistrationAddress>
+          <cbc:ID>05001</cbc:ID>
+          <cbc:CityName>Medellín</cbc:CityName>
+          <cbc:PostalZone>050021</cbc:PostalZone>
+          <cbc:CountrySubentity>Antioquia</cbc:CountrySubentity>
+          <cbc:CountrySubentityCode>05</cbc:CountrySubentityCode>
+          <cac:AddressLine>
+            <cbc:Line>Carrera 43A # 1-50</cbc:Line>
+          </cac:AddressLine>
+          <cac:Country>
+            <cbc:IdentificationCode>CO</cbc:IdentificationCode>
+            <cbc:Name languageID="es">Colombia</cbc:Name>
+          </cac:Country>
+        </cac:RegistrationAddress>
+        <cac:TaxScheme>
+          <cbc:ID>01</cbc:ID>
+          <cbc:Name>IVA</cbc:Name>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>Distribuidora Cordillera Plata SAS</cbc:RegistrationName>
+        <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="8" schemeName="31">990000101</cbc:CompanyID>
+      </cac:PartyLegalEntity>
+      <cac:Contact>
+        <cbc:Telephone>6045550103</cbc:Telephone>
+        <cbc:ElectronicMail>billing@cordillera-plata.example</cbc:ElectronicMail>
+      </cac:Contact>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:PaymentMeans>
+    <cbc:ID>2</cbc:ID>
+    <cbc:PaymentMeansCode>42</cbc:PaymentMeansCode>
+    <cbc:PaymentDueDate>2026-10-02</cbc:PaymentDueDate>
+  </cac:PaymentMeans>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="COP">10212.50</cbc:TaxAmount>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="COP">53750.00</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="COP">10212.50</cbc:TaxAmount>
+      <cac:TaxCategory>
+        <cbc:Percent>19.00</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>01</cbc:ID>
+          <cbc:Name>IVA</cbc:Name>
+        </cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>
+  </cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="COP">53750.00</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="COP">53750.00</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="COP">63962.50</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="COP">63962.50</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  <cac:CreditNoteLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:CreditedQuantity unitCode="PK">25.000000</cbc:CreditedQuantity>
+    <cbc:LineExtensionAmount currencyID="COP">53750.00</cbc:LineExtensionAmount>
+    <cbc:FreeOfChargeIndicator>false</cbc:FreeOfChargeIndicator>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="COP">10212.50</cbc:TaxAmount>
+      <cac:TaxSubtotal>
+        <cbc:TaxableAmount currencyID="COP">53750.00</cbc:TaxableAmount>
+        <cbc:TaxAmount currencyID="COP">10212.50</cbc:TaxAmount>
+        <cac:TaxCategory>
+          <cbc:Percent>19.00</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>01</cbc:ID>
+            <cbc:Name>IVA</cbc:Name>
+          </cac:TaxScheme>
+        </cac:TaxCategory>
+      </cac:TaxSubtotal>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Description>Letter paper, 500 sheets</cbc:Description>
+      <cac:SellersItemIdentification>
+        <cbc:ID>P-002</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:StandardItemIdentification>
+        <cbc:ID schemeID="999">P-002</cbc:ID>
+      </cac:StandardItemIdentification>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="COP">2150.00</cbc:PriceAmount>
+      <cbc:BaseQuantity unitCode="PK">25.000000</cbc:BaseQuantity>
+    </cac:Price>
+  </cac:CreditNoteLine>
+</CreditNote>

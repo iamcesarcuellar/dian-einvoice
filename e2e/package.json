@@ -1,0 +1,12 @@
+{
+  "name": "dian-einvoice-e2e",
+  "private": true,
+  "description": "End-to-end test of the web app in a browser, against the local stack and its synthetic demo data (compose service e2e).",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0"
+  }
+}

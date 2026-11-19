@@ -87,7 +87,7 @@ final class InvoiceBalance
             return;
         }
 
-        $remaining = BigDecimal::of($this->of($invoice, $note->id)['remaining_to_credit']);
+        $remaining = BigDecimal::of($this->of($invoice, $note->id, $this->lockedNotes($invoice))['remaining_to_credit']);
 
         if ($payable->isGreaterThan($remaining)) {
             throw ValidationException::withMessages(['lines' => [sprintf(
@@ -119,7 +119,7 @@ final class InvoiceBalance
     {
         $voided = $note->type === DocumentType::CreditNote && $note->reason_code === CreditNoteConcept::Void->value;
         $wasVoided = $invoice->balance_status === BalanceStatus::Voided;
-        $balance = $this->of($invoice);
+        $balance = $this->of($invoice, null, $this->lockedNotes($invoice));
         $status = match (true) {
             $voided || $invoice->balance_status === BalanceStatus::Voided => BalanceStatus::Voided,
             ! BigDecimal::of($balance['credited'])->isPositive() => BalanceStatus::Open,
@@ -163,6 +163,26 @@ final class InvoiceBalance
             ->where('related_document_id', $invoice->getKey())
             ->where('status', DocumentStatus::Issued)
             ->orderBy('issued_at')
+            ->get();
+    }
+
+    /**
+     * The issued notes of an invoice the caller holds locked, read with a locking read, which sees
+     * the latest committed rows. A plain read inside the transaction would see its snapshot, taken at
+     * its first read, often before the invoice lock was granted: a note another transaction issued or
+     * accepted meanwhile would be missed, and two simultaneous credit notes could both take what is
+     * left. A deadlock with a transaction issuing another note of the same invoice is retried by the
+     * transaction of the caller.
+     *
+     * @return iterable<Document>
+     */
+    private function lockedNotes(Document $invoice): iterable
+    {
+        return Document::query()
+            ->where('related_document_id', $invoice->getKey())
+            ->where('status', DocumentStatus::Issued)
+            ->orderBy('issued_at')
+            ->sharedLock()
             ->get();
     }
 }

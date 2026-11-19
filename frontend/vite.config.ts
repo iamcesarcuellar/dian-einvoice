@@ -3,7 +3,7 @@ import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
-import product from './src/config/product.json'
+import product from './src/config/product.json' with { type: 'json' }
 
 // The browser only talks to this dev server. API, CSRF cookie and API docs requests are
 // forwarded to the backend, so the session cookie lives on a single origin.
