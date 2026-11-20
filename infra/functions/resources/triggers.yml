@@ -1,0 +1,66 @@
+# The triggers of the consumers and of the scheduled functions, written as CloudFormation: the queues come
+# from parameters of the template (osls names a mapping after the ARN it is given, which a parameter is
+# not), and the schedules retry nothing (osls sets no retry policy on a schedule). The trigger of the API
+# is its httpApi event in serverless.yml.
+Resources:
+  # Batches of up to 10 messages, as soon as there are any (no batching window: each step of the chain
+  # waits for the previous one), with a partial batch response, so a message that fails never sends the
+  # others back. At most as many invocations at once as the reserved concurrency of the function.
+  ChainQueueMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      FunctionName: !Ref ChainLambdaFunction
+      EventSourceArn: !Ref ChainQueueArn
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 0
+      FunctionResponseTypes: [ReportBatchItemFailures]
+      ScalingConfig:
+        MaximumConcurrency: 10
+      Enabled: true
+  WebhooksQueueMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      FunctionName: !Ref WebhooksLambdaFunction
+      EventSourceArn: !Ref WebhooksQueueArn
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 0
+      FunctionResponseTypes: [ReportBatchItemFailures]
+      ScalingConfig:
+        MaximumConcurrency: 5
+      Enabled: true
+
+  # Once a minute, invoked asynchronously with the role of the stack compute. The event is the command
+  # line of php artisan (the console runtime of Bref). A run that fails is not retried, by the schedule
+  # or by the invocation (maximumRetryAttempts of the function): the next minute is its retry.
+  RelaySchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: dian-einvoice-${sls:stage}-relay
+      Description: The safety net of the outbox of dian-einvoice
+      ScheduleExpression: rate(1 minute)
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      State: ENABLED
+      Target:
+        Arn: !GetAtt RelayLambdaFunction.Arn
+        RoleArn: !Ref SchedulesRoleArn
+        Input: '"outbox:publish-pending"'
+        RetryPolicy:
+          MaximumRetryAttempts: 0
+          MaximumEventAgeInSeconds: 60
+  SchedulerSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: dian-einvoice-${sls:stage}-scheduler
+      Description: The Laravel scheduler of dian-einvoice
+      ScheduleExpression: rate(1 minute)
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      State: ENABLED
+      Target:
+        Arn: !GetAtt SchedulerLambdaFunction.Arn
+        RoleArn: !Ref SchedulesRoleArn
+        Input: '"schedule:run"'
+        RetryPolicy:
+          MaximumRetryAttempts: 0
+          MaximumEventAgeInSeconds: 60

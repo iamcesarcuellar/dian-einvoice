@@ -1,6 +1,6 @@
 # Threat model
 
-The platform as it runs here: a Laravel API, a Vue web app, MySQL, Redis, queue workers and an outbox relay, a local simulator of the DIAN and a local mailbox; in the emulated cloud ([infrastructure.md](infrastructure.md)), SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager in a local emulator instead of Redis, the local disk and the local mailbox. The compute, the network and the managed database of production arrive with Infrastructure task 2; where a mitigation depends on them, this page says so. The known gaps are in [limitations.md](limitations.md).
+The platform as it runs here: a Laravel API, a Vue web app, MySQL, Redis, queue workers and an outbox relay, a local simulator of the DIAN and a local mailbox; in the emulated cloud ([infrastructure.md](infrastructure.md)), the application as Lambda functions behind API Gateway, fed by SQS and EventBridge Scheduler, each with a role of its own, with SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager in a local emulator instead of Redis, the local disk and the local mailbox. The network, the managed database, the edge and the delivery pipeline of production arrive with Infrastructure task 3; where a mitigation depends on them, this page says so. The known gaps are in [limitations.md](limitations.md).
 
 ## Assets
 
@@ -66,6 +66,6 @@ An anonymous visitor of the API or the web app; a signed-in user of another comp
 - APP_KEY protects every encrypted secret and cannot be rotated without re-encrypting them; a copy of backend/.env and the database together exposes them.
 - Webhook endpoints are chosen by tenants: a public endpoint that answers slowly or with a lot of data costs a worker up to 5 seconds per attempt.
 - The API reference loads a third-party script without Subresource Integrity on the origin of the API.
-- Until Infrastructure task 2: no TLS between services, no WS-Security toward the DIAN, no security headers on the static web app, fixed local database credentials, and no roles of the compute that the managed policies attach to; until task 3, no metrics or alerts.
+- Until Infrastructure task 3: no TLS between services in the emulator, no WS-Security toward the DIAN, no security headers on the static web app, fixed local database credentials, and no private network around the functions; until task 4, no metrics or alerts. The roles of the functions attach the managed policies of task 1, one role per function (task 2).
 - The emulated cloud proves the wiring, not the permissions: the emulator evaluates no IAM, resource or key policy.
 - The DIAN side is simulated: answers, failures and rules of the real service may differ.

@@ -1,0 +1,6 @@
+# What osls packages (make cdk-check, make cloud-up), the image make cloud-up deployed, and the settings it
+# writes for the proxy in front of API Gateway.
+/.serverless/
+/.package/
+/.image
+/.env.cloud

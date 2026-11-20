@@ -20,9 +20,10 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
 
-  # The web app (pnpm), the simulator, the CDK app and the end-to-end test: one pull request for the four.
+  # The web app (pnpm), the simulator, the CDK app, the serverless service of the functions and the
+  # end-to-end test: one pull request for the five.
   - package-ecosystem: npm
-    directories: [/frontend, /simulator, /infra/cdk, /e2e]
+    directories: [/frontend, /simulator, /infra/cdk, /infra/functions, /e2e]
     schedule:
       interval: weekly
       day: monday
@@ -38,7 +39,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: docker
-    directories: [/backend, /frontend, /simulator, /infra/cdk]
+    directories: [/backend, /frontend, /simulator, /infra/cdk, /infra/functions, /infra/cfn-lint]
     schedule:
       interval: weekly
       day: monday
@@ -50,6 +51,23 @@ updates:
         applies-to: version-updates
         patterns: ["*"]
       docker-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # cfn-lint, the linter of the templates (make cdk-check).
+  - package-ecosystem: pip
+    directory: /infra/cfn-lint
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    open-pull-requests-limit: 2
+    groups:
+      pip:
+        applies-to: version-updates
+        patterns: ["*"]
+      pip-security:
         applies-to: security-updates
         patterns: ["*"]
 

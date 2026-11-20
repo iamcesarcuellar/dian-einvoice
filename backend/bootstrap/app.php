@@ -7,7 +7,9 @@ use App\Modules\Developers\Http\Middleware\HandleIdempotency;
 use App\Modules\Developers\Http\Middleware\RateLimitApiKeys;
 use App\Modules\Developers\Http\Middleware\RejectApiKeys;
 use App\Modules\Identity\Http\Middleware\ResolveCurrentCompany;
+use App\Support\Health\SchedulerHeartbeat;
 use App\Support\Secrets\LoadSecrets;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -25,6 +27,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // Every answer, errors included: an X-Request-Id that the logs carry too, and the security headers.
         $middleware->prepend(AssignRequestId::class);
         $middleware->append(SecurityHeaders::class);
+
+        // Of the forwarded headers, only the address of the client and the scheme, and only from the proxies
+        // of config/trustedproxy.php (none locally): a client can never choose the host of generated URLs.
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO);
 
         // The web app signs in with Sanctum: a session in an httpOnly cookie plus a CSRF token.
         $middleware->statefulApi();
@@ -51,10 +57,20 @@ $app = Application::configure(basePath: dirname(__DIR__))
 
             return ProblemDetails::fromThrowable($e);
         });
+    })
+    ->withSchedule(function (Schedule $schedule): void {
+        // The scheduler function runs php artisan schedule:run once a minute. A schedule may fire twice or
+        // overlap with the previous run, so each task runs on one process per minute (onOneServer) and
+        // never alongside itself (withoutOverlapping), both through the locks of the shared cache, and
+        // nothing runs in the background: a function is frozen as soon as it answers. Locally nothing
+        // runs the scheduler; the relay process sweeps.
+        $schedule->command('outbox:sweep')->everyMinute()->onOneServer()->withoutOverlapping(10);
+        $schedule->call(new SchedulerHeartbeat)->name('scheduler-heartbeat')->everyMinute()->onOneServer();
     })->create();
 
 // The emulated cloud and production read the secrets of the application from AWS Secrets Manager
-// (APP_SECRETS=secrets-manager) after the environment file and before the configuration.
-$app->afterBootstrapping(LoadEnvironmentVariables::class, fn () => LoadSecrets::bootstrap());
+// (APP_SECRETS=secrets-manager) after the environment file and before the configuration, unless the
+// configuration is cached with them already (the functions, once per cold start).
+$app->afterBootstrapping(LoadEnvironmentVariables::class, fn (Application $app) => LoadSecrets::bootstrap($app));
 
 return $app;

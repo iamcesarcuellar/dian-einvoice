@@ -1,12 +1,13 @@
 # Continuous integration: every job runs the same make targets as the local stack, in the containers of
 # compose.yaml. No secrets and no paid services: the DIAN is the local simulator, email goes to the local mailbox,
 # the AWS services of the emulated cloud are a local emulator, and the secrets of the stack are random values make
-# env writes to backend/.env on each runner.
+# env writes to backend/.env on each runner. Artifacts are uploaded only when a job fails, and kept for 3 days.
 name: CI
 
+# While the repository is private, CI runs only when dispatched by hand: its automatic triggers (push and
+# pull_request) are restored when the repository is public.
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -28,7 +29,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare
         with:
-          images: api web simulator-dev cdk
+          images: api web simulator-dev cdk functions
           backend: "true"
           frontend: "true"
       - name: Formatters and linters (make lint)
@@ -82,17 +83,17 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare
         with:
-          images: cdk
-      - name: Tests, cdk-nag and synthesis of both stages without a network (make cdk-check)
+          images: cdk functions cfn-lint
+      - name: The functions packaged by osls for both stages, tests and cdk-nag of the CDK app and of the functions, synthesis and cfn-lint, all without a network or credentials (make cdk-check)
         run: make cdk-check
       - name: Report of cdk-nag
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: cdk-nag-report
           path: infra/cdk/cdk.out/validation-report.json
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
   security:
     name: Dependencies, licenses and secrets
@@ -105,7 +106,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/prepare
         with:
-          images: api web simulator-dev cdk
+          images: api web simulator-dev cdk functions
           backend: "true"
           frontend: "true"
       - name: Vulnerabilities, licenses and secrets (make security)
@@ -143,26 +144,31 @@ jobs:
           name: e2e-test-results
           path: e2e/test-results
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
-  # On main only: the emulated cloud end to end. The local AWS emulator, the CDK stage local deployed to it, and
-  # 30 invoices through SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager (make cloud-check).
+  # On main only: the emulated cloud end to end, where the application runs as Lambda functions. The local AWS
+  # emulator with the Docker socket of the runner, the CDK stage local and the functions deployed to it, and the
+  # invoices through API Gateway, Lambda, SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager (make cloud-check).
   cloud:
     name: Emulated cloud
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare
         with:
-          images: api web simulator cdk
-          backend: "true"
+          images: web simulator cdk functions lambda
           frontend: "true"
-      - name: The emulated cloud (make cloud-up)
+      - name: The emulated cloud, its functions deployed with osls (make cloud-up)
         run: make cloud-up
-      - name: Invoices through the AWS services, consumers killed mid-process, a dead letter (make cloud-check)
+      - name: No permanent process, the functions and their triggers, the fast path, a partial batch, the functions killed mid-process, the relay function and the scheduler (make cloud-check)
         run: make cloud-check
-      - name: Logs of the emulated cloud
+      - name: Logs of the emulated cloud and of its functions
         if: failure()
-        run: docker compose --env-file backend/.env --profile cloud logs --no-color --tail=300
+        run: |
+          docker compose --env-file backend/.env --profile cloud logs --no-color --tail=300
+          for container in $(sh scripts/cloud/containers.sh list | cut -d' ' -f2); do
+            echo "== $container"
+            docker logs --tail 100 "$container" 2>&1
+          done

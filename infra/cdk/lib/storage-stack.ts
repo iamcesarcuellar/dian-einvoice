@@ -1,7 +1,7 @@
 // Storage: the bucket of the files of electronic documents (signed XML, ApplicationResponse,
-// AttachedDocument, PDF and zip), private, encrypted, versioned and with lifecycle rules, and the bucket of
-// its server access logs.
-import { Stack, type StackProps, Validations } from 'aws-cdk-lib'
+// AttachedDocument, PDF and zip), private, encrypted, versioned and with lifecycle rules; the bucket of the
+// deployments of the serverless service of the functions; and the bucket of their server access logs.
+import { Duration, Stack, type StackProps, Validations } from 'aws-cdk-lib'
 import { ManagedPolicy, PolicyStatement } from 'aws-cdk-lib/aws-iam'
 import { BlockPublicAccess, Bucket, BucketEncryption, type CfnBucket, ObjectOwnership, StorageClass } from 'aws-cdk-lib/aws-s3'
 import type { Construct } from 'constructs'
@@ -58,6 +58,20 @@ export class StorageStack extends Stack {
       removalPolicy: removalPolicy(stage),
     })
 
+    // The artifacts of the deployments of the serverless service of the functions (osls): its templates
+    // and state, which the CLI uploads before each deployment. Nothing of the application reads it.
+    const deployments = new Bucket(this, 'Deployments', {
+      bucketName: bucketName(stage, 'deployments'),
+      encryption: BucketEncryption.S3_MANAGED,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      objectOwnership: ObjectOwnership.BUCKET_OWNER_ENFORCED,
+      enforceSSL: true,
+      serverAccessLogsBucket: accessLogs,
+      serverAccessLogsPrefix: 'deployments/',
+      lifecycleRules: [{ id: 'expire-deployments', expiration: stage.deployments.expireAfter, abortIncompleteMultipartUploadAfter: Duration.days(1) }],
+      removalPolicy: removalPolicy(stage),
+    })
+
     // The document storage of the application: read, write and delete objects, and list them to delete
     // the files of a company. Nothing else, and only over TLS (bucket policy).
     const readWrite = new ManagedPolicy(this, 'DocumentsReadWritePolicy', {
@@ -74,6 +88,7 @@ export class StorageStack extends Stack {
       reason: 'The application stores one object per file under a key of its company; the objects of the bucket are the resource, not a wildcard over other buckets.',
     })
 
+    published.add('DeploymentsBucketName', 'deployments-bucket-name', deployments.bucketName, 'Bucket of the deployment artifacts of the serverless service of the functions')
     published.add('DocumentsBucketName', 'documents-bucket-name', this.documents.bucketName, 'Bucket of the files of electronic documents')
     published.add('DocumentsBucketArn', 'documents-bucket-arn', this.documents.bucketArn, 'ARN of the bucket of the files of electronic documents')
     published.add('DocumentsReadWritePolicyArn', 'policies/documents-read-write', readWrite.managedPolicyArn, 'Managed policy for the document storage of the application')

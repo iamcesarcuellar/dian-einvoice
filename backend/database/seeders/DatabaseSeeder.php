@@ -12,6 +12,7 @@ use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Support\Cloud\EmulatedCloud;
 use App\Support\Console\LocalOnly;
+use App\Support\Outbox\OutboxPause;
 use App\Support\Storage\DocumentStorage;
 use Illuminate\Contracts\Queue\ClearableQueue;
 use Illuminate\Database\Seeder;
@@ -21,6 +22,9 @@ use Throwable;
 
 class DatabaseSeeder extends Seeder
 {
+    /** Longest the outbox stays paused if the seeder dies without resuming it. */
+    private const int PAUSE_SECONDS = 900;
+
     /**
      * Synthetic demo data for local development only. DIAN settings and test certificates come
      * before the invoices: issuing needs them, and every issued demo invoice goes through the real
@@ -34,6 +38,23 @@ class DatabaseSeeder extends Seeder
         // Synthetic users with a known password and test certificates: never outside local development.
         LocalOnly::ensure('The demo seeder');
 
+        // The chain of every demo document runs in line (InlineChain), which must be the only one taking
+        // their outbox events: make seed stops the local relay and workers, and in the emulated cloud the
+        // seeder publishes nothing after its commits and holds back the relay function and the scheduled
+        // sweepers until it ends (the consumer functions then have nothing to receive).
+        config(['outbox.publish_after_commit' => false]);
+        $pause = app(OutboxPause::class);
+        $pause->pause(self::PAUSE_SECONDS);
+
+        try {
+            $this->seed($storage, $simulator, $mailbox, $cloud);
+        } finally {
+            $pause->resume();
+        }
+    }
+
+    private function seed(DocumentStorage $storage, DianSimulator $simulator, LocalMailbox $mailbox, EmulatedCloud $cloud): void
+    {
         // make seed has just recreated the database, so every stored file is an orphan. The guard
         // keeps the files of a database that still has documents.
         if (DB::table('documents')->doesntExist()) {

@@ -12,9 +12,10 @@ use RuntimeException;
 /**
  * A development tool for make cloud-check and make cloud-demo: what the local AWS emulator holds, read
  * through the same AWS APIs the adapters use (queue depths, dead letters, objects of the bucket, items of
- * the tables, the secret), plus the one thing only the emulator has, the list of the emails SES took
- * (its /_aws/ses endpoint, as a local mailbox). It never runs against AWS: every method refuses when no
- * emulator endpoint is configured.
+ * the tables, the secret), plus what only the emulator has: its version, the list of the emails SES took
+ * (its /_aws/ses endpoint, as a local mailbox) and the messages of a queue, in flight included (its
+ * /_aws/sqs/messages endpoint). It never runs against AWS: every method refuses when no emulator endpoint
+ * is configured.
  */
 final class EmulatedCloud
 {
@@ -103,22 +104,41 @@ final class EmulatedCloud
         return $taken;
     }
 
-    /** Publishes a message to the topic of document events with the given type attribute; returns its id. */
-    public function publish(string $type, string $body): string
+    /**
+     * Sends messages to a queue in one SendMessageBatch call, so they arrive together; returns the id of
+     * each message, in the order given.
+     *
+     * @param  list<array{body: string, type?: string}>  $messages  The body, and a type attribute when given.
+     * @return list<string>
+     */
+    public function sendMessages(string $queueUrl, array $messages): array
     {
-        $topic = $this->aws['events_topic'] ?? null;
+        $this->endpoint() ?? throw new RuntimeException('No local AWS emulator is configured (AWS_ENDPOINT_URL).');
 
-        if (! is_string($topic) || $topic === '') {
-            throw new RuntimeException('EVENTS_TOPIC_ARN is not set.');
-        }
-
-        $result = $this->sdk->createSns()->publish([
-            'TopicArn' => $topic,
-            'Message' => $body,
-            'MessageAttributes' => [OutboxMessage::TYPE => ['DataType' => 'String', 'StringValue' => $type]],
+        $result = $this->sdk->createSqs()->sendMessageBatch([
+            'QueueUrl' => $queueUrl,
+            'Entries' => array_map(fn (array $message, int $index): array => array_filter([
+                'Id' => 'm'.$index,
+                'MessageBody' => $message['body'],
+                'MessageAttributes' => isset($message['type']) ? [OutboxMessage::TYPE => ['DataType' => 'String', 'StringValue' => $message['type']]] : null,
+            ]), $messages, array_keys($messages)),
         ]);
 
-        return is_string($result['MessageId'] ?? null) ? $result['MessageId'] : '';
+        $ids = [];
+
+        foreach (is_array($result['Successful'] ?? null) ? $result['Successful'] : [] as $entry) {
+            if (is_array($entry) && is_string($entry['Id'] ?? null) && is_string($entry['MessageId'] ?? null)) {
+                $ids[(int) substr($entry['Id'], 1)] = $entry['MessageId'];
+            }
+        }
+
+        if (count($ids) !== count($messages)) {
+            throw new RuntimeException(sprintf('The queue took %d of %d messages.', count($ids), count($messages)));
+        }
+
+        ksort($ids);
+
+        return array_values($ids);
     }
 
     /**
@@ -202,6 +222,58 @@ final class EmulatedCloud
         }
 
         return $emails;
+    }
+
+    /** The version of the emulator, from its health endpoint. */
+    public function version(): string
+    {
+        $version = $this->emulator()->get('/_floci/health')->throw()->json('version');
+
+        return is_string($version) ? $version : '';
+    }
+
+    /**
+     * Whether the emulator keeps the visibility a function set on an SQS record it reported as failed, as
+     * AWS does. Floci 2.5.0 and earlier reset it to the visibility timeout of the queue
+     * (docs/limitations.md); an unknown version is taken to keep it.
+     */
+    public function keepsVisibilityOfFailedRecords(): bool
+    {
+        if (preg_match('/^\d+\.\d+\.\d+/', $this->version(), $match) !== 1) {
+            return true;
+        }
+
+        return version_compare($match[0], '2.5.0', '>');
+    }
+
+    /**
+     * The messages of a queue, waiting and in flight, with how many times each was received: a look the
+     * emulator gives without receiving them.
+     *
+     * @return list<array{id: string, receives: int}>
+     */
+    public function peek(string $queueUrl): array
+    {
+        $messages = $this->emulator()->get('/_aws/sqs/messages', ['QueueUrl' => $queueUrl])->throw()->json('messages');
+        $peeked = [];
+
+        foreach (is_array($messages) ? $messages : [] as $message) {
+            if (! is_array($message) || ! is_string($message['MessageId'] ?? null)) {
+                continue;
+            }
+
+            $attributes = is_array($message['Attributes'] ?? null) ? $message['Attributes'] : [];
+            $receives = $attributes['ApproximateReceiveCount'] ?? null;
+            $peeked[] = ['id' => $message['MessageId'], 'receives' => is_numeric($receives) ? (int) $receives : 0];
+        }
+
+        return $peeked;
+    }
+
+    /** Deletes every message of a queue, those in flight included, through the emulator. */
+    public function purge(string $queueUrl): void
+    {
+        $this->emulator()->delete('/_aws/sqs/messages?'.http_build_query(['QueueUrl' => $queueUrl]))->throw();
     }
 
     /** Forgets every email SES took, as make seed clears the local mailbox. */

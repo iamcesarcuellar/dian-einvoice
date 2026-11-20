@@ -1,12 +1,20 @@
-# Image of the API: FrankenPHP in classic mode (no worker), one container without nginx. The same image
-# runs the queue workers and the outbox relay (compose services worker and relay).
+# Images of the backend, from one Dockerfile.
 #
-# Two targets. production: what the API, the workers and the relay need. development (the one compose
-# builds): production plus php.ini-development and the tools of the local checks.
+# production and development: FrankenPHP in classic mode (no worker), one container without nginx, for the
+# local stack. The same image runs the API, the queue workers and the outbox relay (compose services api,
+# worker and relay); the code is mounted, nothing is copied. development (the one compose builds) adds
+# php.ini-development and the tools of the local checks.
 #
-# redis is the client of the queue, the cache and the sessions. pcntl stays in production: queue:work
-# needs it to enforce --timeout and to stop gracefully on SIGTERM, and the outbox relay to stop between
-# batches; billing:stress and payments:check also use it to fork, and are development tools.
+# lambda: the image of the functions of the emulated cloud and of production (Infrastructure task 2), on
+# the official image of Bref for the same PHP version, with the application and its production
+# dependencies only. One image for every function: each one chooses its Bref runtime (BREF_RUNTIME) and its
+# handler (the command of the image). It is the artifact that would go to Amazon ECR: the emulator runs it
+# from its own ECR.
+#
+# redis is the client of the queue, the cache and the sessions of the local stack. pcntl stays in
+# production: queue:work needs it to enforce --timeout and to stop gracefully on SIGTERM, the outbox relay
+# to stop between batches, and the consumer functions to stop a job that outlives its timeout;
+# billing:stress and payments:check also use it to fork, and are development tools.
 FROM dunglas/frankenphp:1-php8.5-alpine AS production
 
 # expose_php off: answers do not name the PHP version (X-Powered-By).
@@ -32,3 +40,50 @@ FROM production AS development
 
 RUN apk add --no-cache xmlsec poppler-utils \
     && cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+
+# The functions, built in two steps: Composer and the build-time artisan commands stay in this one.
+FROM bref/php-85:3.0.12 AS lambda-build
+
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
+WORKDIR /var/task
+
+# Bref ships intl and redis disabled; the application uses them, as the local image does.
+COPY docker/lambda/php.ini php/conf.d/zz-application.ini
+
+# Production dependencies only, from the lock file; the autoloader comes once the code is in.
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --no-progress --prefer-dist
+
+COPY artisan ./
+COPY app app
+COPY bootstrap/app.php bootstrap/providers.php bootstrap/
+RUN mkdir bootstrap/cache
+COPY config config
+COPY database database
+COPY public public
+COPY resources resources
+COPY routes routes
+COPY docker/lambda/check-extensions.php /tmp/check-extensions.php
+
+# The build fails when PHP lacks an extension the application requires (the ext-* of composer.json) or one
+# its dependencies require. The manifests of the packages and of the service providers are written now,
+# into bootstrap/cache, because the file system of a function is read-only but for /tmp; the configuration
+# is cached in /tmp when each execution environment starts (Bref's Laravel bridge), with its secrets.
+RUN php /tmp/check-extensions.php composer.json \
+    && composer check-platform-reqs --no-dev --no-interaction \
+    && composer dump-autoload --no-dev --classmap-authoritative --no-interaction \
+    && LOG_CHANNEL=stderr php artisan list --raw > /dev/null \
+    && test -f bootstrap/cache/packages.php && test -f bootstrap/cache/services.php
+
+FROM bref/php-85:3.0.12 AS lambda
+
+# Root owns every file and nobody else can write them: the functions run as an unprivileged user, as
+# Lambda does, and write only to /tmp.
+COPY --from=lambda-build /var/task /var/task
+
+# Nothing depends on the working directory: Bref finds the application in LAMBDA_TASK_ROOT (/var/task)
+# and Laravel runs its commands from its base path. The local emulator checks that the user of Lambda may
+# enter every directory of the working directory by copying each one out of the container, which for
+# /var/task takes seconds at every cold start; from / it checks nothing.
+WORKDIR /

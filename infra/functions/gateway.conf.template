@@ -1,0 +1,33 @@
+# The address of the API in the emulated cloud (compose service cloud-gateway, 127.0.0.1:8600 and api:8000 on
+# the network of compose): every request goes to API Gateway in the local emulator, which serves an API by
+# its host name, <api id>.execute-api.localhost.floci.io; make cloud-up writes API_GATEWAY_HOST from the API
+# it deployed. In AWS there is no such proxy: clients call API Gateway (and in Infrastructure task 3 the
+# content delivery network in front of it) directly.
+server {
+    listen 8000;
+
+    # The largest body API Gateway takes.
+    client_max_body_size 10m;
+
+    # The emulator is found again by name if it restarts with another address.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $emulator floci;
+
+    # The healthcheck of the container, which never wakes a function.
+    location = /_gateway/health {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location / {
+        proxy_pass http://$emulator:4566;
+        proxy_http_version 1.1;
+        proxy_set_header Host ${API_GATEWAY_HOST};
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Longer than the 30 s API Gateway gives an integration.
+        proxy_read_timeout 35s;
+        proxy_buffering off;
+    }
+}

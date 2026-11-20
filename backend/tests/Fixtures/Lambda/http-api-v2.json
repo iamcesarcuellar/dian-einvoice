@@ -1,0 +1,42 @@
+{
+  "version": "2.0",
+  "routeKey": "$default",
+  "rawPath": "/sanctum/csrf-cookie",
+  "rawQueryString": "",
+  "cookies": [
+    "theme=dark",
+    "laravel_session=eyJpdiI6InN5bnRoZXRpYyJ9"
+  ],
+  "headers": {
+    "accept": "application/json",
+    "accept-encoding": "gzip, deflate",
+    "content-length": "0",
+    "host": "a1b2c3d4e5.execute-api.us-east-1.amazonaws.com",
+    "origin": "http://localhost:8601",
+    "referer": "http://localhost:8601/",
+    "user-agent": "Mozilla/5.0 (synthetic test)",
+    "x-amzn-trace-id": "Root=1-6734c1f0-0123456789abcdef01234567",
+    "x-forwarded-for": "198.51.100.66, 203.0.113.9",
+    "x-forwarded-port": "443",
+    "x-forwarded-proto": "https"
+  },
+  "requestContext": {
+    "accountId": "000000000000",
+    "apiId": "a1b2c3d4e5",
+    "domainName": "a1b2c3d4e5.execute-api.us-east-1.amazonaws.com",
+    "domainPrefix": "a1b2c3d4e5",
+    "http": {
+      "method": "GET",
+      "path": "/sanctum/csrf-cookie",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "203.0.113.9",
+      "userAgent": "Mozilla/5.0 (synthetic test)"
+    },
+    "requestId": "Bq3f9jYzoAMEVxA=",
+    "routeKey": "$default",
+    "stage": "$default",
+    "time": "20/Nov/2026:10:00:00 +0000",
+    "timeEpoch": 1795255200000
+  },
+  "isBase64Encoded": false
+}

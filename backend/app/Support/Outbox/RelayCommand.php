@@ -9,10 +9,10 @@ use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
- * The relay process (compose service relay): publishes batches of outbox events while there are
- * any, sleeps briefly when there are none, and every half minute runs the sweepers, such as the
- * one that restarts stalled chains. Errors are reported and retried; SIGTERM stops it between
- * batches.
+ * The relay process of the local stack (compose service relay): publishes batches of outbox events while
+ * there are any, sleeps briefly when there are none, and every half minute runs the sweepers, such as the
+ * one that restarts stalled chains. Errors are reported and retried; SIGTERM stops it between batches.
+ * The functions have no such process: see outbox:publish-pending and outbox:sweep.
  */
 final class RelayCommand extends Command
 {
@@ -26,7 +26,7 @@ final class RelayCommand extends Command
 
     private bool $stopping = false;
 
-    public function handle(OutboxRelay $relay): int
+    public function handle(OutboxRelay $relay, OutboxPause $pause, Sweepers $sweepers): int
     {
         if (function_exists('pcntl_async_signals')) {
             pcntl_async_signals(true);
@@ -44,15 +44,17 @@ final class RelayCommand extends Command
             Heartbeat::beat('relay');
 
             try {
-                $published = $relay->publishBatch();
+                if (! $pause->active()) {
+                    $published = $relay->publishBatch();
 
-                if ($published > 0) {
-                    $this->line(sprintf('[%s] Published %d events.', Carbon::now()->toDateTimeString(), $published));
-                }
+                    if ($published > 0) {
+                        $this->line(sprintf('[%s] Published %d events.', Carbon::now()->toDateTimeString(), $published));
+                    }
 
-                if (microtime(true) - $lastSweep >= self::SWEEP_SECONDS || $this->option('once')) {
-                    $lastSweep = microtime(true);
-                    $this->sweep();
+                    if (microtime(true) - $lastSweep >= self::SWEEP_SECONDS || $this->option('once')) {
+                        $lastSweep = microtime(true);
+                        $this->sweep($sweepers);
+                    }
                 }
             } catch (Throwable $exception) {
                 report($exception);
@@ -74,15 +76,10 @@ final class RelayCommand extends Command
         return self::SUCCESS;
     }
 
-    private function sweep(): void
+    private function sweep(Sweepers $sweepers): void
     {
-        foreach ($this->laravel->tagged(Sweeper::class) as $sweeper) {
-            /** @var Sweeper $sweeper */
-            $fixed = $sweeper->sweep();
-
-            if ($fixed > 0) {
-                $this->warn(sprintf('[%s] %s restarted %d stalled items.', Carbon::now()->toDateTimeString(), class_basename($sweeper), $fixed));
-            }
+        foreach (array_filter($sweepers->run()) as $sweeper => $fixed) {
+            $this->warn(sprintf('[%s] %s restarted %d stalled items.', Carbon::now()->toDateTimeString(), $sweeper, $fixed));
         }
     }
 }

@@ -1,0 +1,97 @@
+# What the functions take from the CDK app (infra/cdk), as parameters of the template whose defaults are the
+# names of the SSM parameters the CDK app publishes (/dian-einvoice/<stage>/<stack>/...): CloudFormation
+# reads their values when it deploys, so the service is packaged without credentials, and the CDK app stays
+# the only definition of these resources.
+Metadata:
+  cfn-lint:
+    config:
+      # osls writes a DependsOn on the log group of the stage of the HTTP API and on the integration of its
+      # route, which the GetAtt and the Ref next to it already imply (W3005); harmless, and not osls'
+      # configuration to change.
+      ignore_checks: [W3005]
+
+Parameters:
+  ApiRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/api
+    Description: Role of the function api (stack compute)
+  ChainRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/chain
+    Description: Role of the function chain (stack compute)
+  WebhooksRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/webhooks
+    Description: Role of the function webhooks (stack compute)
+  RelayRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/relay
+    Description: Role of the function relay (stack compute)
+  SchedulerRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/scheduler
+    Description: Role of the function scheduler (stack compute)
+  ConsoleRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/console
+    Description: Role of the function console (stack compute)
+  SchedulesRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/schedules
+    Description: Role EventBridge Scheduler invokes the scheduled functions with (stack compute)
+  ChainQueueArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/messaging/chain-queue-arn
+    Description: SQS queue of the chain channel (stack messaging)
+  WebhooksQueueArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/messaging/webhooks-queue-arn
+    Description: SQS queue of the webhooks channel (stack messaging)
+  ChainQueueUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/messaging/chain-queue-url
+    Description: URL of the SQS queue of the chain channel (stack messaging)
+  WebhooksQueueUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/messaging/webhooks-queue-url
+    Description: URL of the SQS queue of the webhooks channel (stack messaging)
+  ChainDeadLetterQueueUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/messaging/chain-dlq-url
+    Description: URL of the dead-letter queue of the chain channel (stack messaging)
+  WebhooksDeadLetterQueueUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/messaging/webhooks-dlq-url
+    Description: URL of the dead-letter queue of the webhooks channel (stack messaging)
+  EventsTopicArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/messaging/events-topic-arn
+    Description: Topic of document events (stack messaging)
+  DocumentsBucketName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/storage/documents-bucket-name
+    Description: Bucket of the files of electronic documents (stack storage)
+  CacheTableName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/data/cache-table-name
+    Description: DynamoDB table of the cache (stack data)
+  SessionsTableName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/data/sessions-table-name
+    Description: DynamoDB table of the sessions of the web app (stack data)
+  LimitsTableName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/data/limits-table-name
+    Description: DynamoDB table of the rate limits (stack data)
+  SigningKeyAlias:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/security/signing-key-alias
+    Description: KMS key of the signing certificates (stack security)
+  AppSecretArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/security/app-secret-arn
+    Description: Secret of the application (stack security)
+  MailFromAddress:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/mail/from-address
+    Description: Sender address of the email of the platform (stack mail)

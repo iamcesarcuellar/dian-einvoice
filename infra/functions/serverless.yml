@@ -1,0 +1,260 @@
+# The functions of dian-einvoice and their triggers (Infrastructure task 2), as the serverless service
+# dian-einvoice-<stage>-functions, deployed with osls, the free fork of the Serverless Framework. Every
+# function runs the same container image (the target lambda of backend/Dockerfile, Bref on PHP 8.5) with a
+# runtime and a handler of its own. The stage local is deployed to the local AWS emulator by make cloud-up;
+# prod is packaged and validated without a network or credentials (make cdk-check), never deployed.
+#
+# One definition for every stage, with differences only in parameters: the scalar settings below (params),
+# the image (--param image=<repository>@sha256:<digest>), and what stages/<stage>.yml adds (prod runs in the
+# private subnets of Infrastructure task 3). The roles, queues, topic, bucket, tables, key and secret are
+# defined once, in the CDK app (infra/cdk), which publishes their names in SSM Parameter Store;
+# resources/parameters.yml declares them as parameters of the template, which CloudFormation reads when it
+# deploys, so packaging needs no credentials.
+service: dian-einvoice
+frameworkVersion: '4'
+
+params:
+  local:
+    # The default account of the local emulator; the deployments bucket of the CDK app carries it.
+    account: '000000000000'
+    appEnv: local
+    appDebug: 'true'
+    appUrl: http://localhost:8601
+    logLevel: debug
+    logRetentionDays: 7
+    # The emulator, on the network of compose: every AWS client of the application goes there.
+    awsEndpoint: http://floci:4566
+    pathStyle: 'true'
+    secureCookies: 'false'
+    statefulDomains: localhost:8601,127.0.0.1:8601
+    # The MySQL of compose, its database of the emulated cloud; the credentials come from the secret of
+    # the application (Secrets Manager).
+    dbHost: db
+    dbPort: '3306'
+    dbName: dian_einvoice_cloud
+    dbSecret: ''
+    # The DIAN is always the local simulator; its admin token is the random one of backend/.env, given by
+    # make cloud-up (--param dianSimulatorToken=...), as a development tool.
+    dianSoapUrl: http://simulator:8602/WcfDianCustomerServices.svc
+    dianSimulatorUrl: http://simulator:8602
+    dianSimulatorToken: ${param:simulatorToken, ''}
+    webhookPrivateTargets: 'true'
+    webhookReceiverUrl: http://simulator:8602/webhook-receiver
+    # make cloud-check signs in and downloads through API Gateway, by the host the emulator answers it on.
+    apiCheckUrl: !Sub http://${HttpApi}.execute-api.localhost.floci.io:4566/api/v1
+  prod:
+    # Placeholder: this stage is never deployed (docs/infrastructure.md), as in the CDK app.
+    account: '111111111111'
+    appEnv: production
+    appDebug: 'false'
+    appUrl: https://app.dian-einvoice.example
+    logLevel: info
+    logRetentionDays: 365
+    awsEndpoint: ''
+    pathStyle: 'false'
+    secureCookies: 'true'
+    statefulDomains: app.dian-einvoice.example
+    # The managed database of Infrastructure task 3, through the parameters it publishes (stages/prod.yml).
+    dbHost: !Ref DatabaseHost
+    dbPort: !Ref DatabasePort
+    dbName: !Ref DatabaseName
+    dbSecret: !Ref DatabaseSecretArn
+    # This project never talks to the DIAN: placeholders, until a certified deployment sets them.
+    dianSoapUrl: https://dian-web-service.invalid/WcfDianCustomerServices.svc
+    dianSimulatorUrl: ''
+    dianSimulatorToken: ''
+    webhookPrivateTargets: 'false'
+    webhookReceiverUrl: ''
+    apiCheckUrl: ''
+
+provider:
+  name: aws
+  region: us-east-1
+  stage: ${opt:stage}
+  stackName: dian-einvoice-${sls:stage}-functions
+  # The bucket of the CDK app (stack storage) that keeps the templates of each deployment.
+  deploymentBucket:
+    name: dian-einvoice-${sls:stage}-deployments-${param:account}-us-east-1
+  # The image is deployed by digest; versions and aliases add nothing here.
+  versionFunctions: false
+  architecture: x86_64
+  logRetentionInDays: ${param:logRetentionDays}
+  httpApi:
+    payload: '2.0'
+  # Access logs of API Gateway, in a log group of this service.
+  logs:
+    httpApi: true
+  vpc: ${file(./stages/${sls:stage}.yml):vpc, null}
+  stackTags:
+    project: dian-einvoice
+    stage: ${sls:stage}
+    component: functions
+    managed-by: osls
+  tags:
+    project: dian-einvoice
+    stage: ${sls:stage}
+    managed-by: osls
+  # The settings every function shares: the AWS adapters of the application (backend/config/adapters.php),
+  # the resources of the CDK app, and the fast path of the outbox. APP_KEY and the database credentials
+  # come from Secrets Manager when each execution environment starts.
+  environment:
+    APP_NAME: dian-einvoice
+    APP_ENV: ${param:appEnv}
+    APP_DEBUG: ${param:appDebug}
+    APP_URL: ${param:appUrl}
+    APP_LOCALE: en
+    APP_FALLBACK_LOCALE: en
+    LOG_CHANNEL: stderr
+    LOG_LEVEL: ${param:logLevel}
+    APP_SECRETS: secrets-manager
+    APP_SECRETS_ID: !Ref AppSecretArn
+    DB_CONNECTION: mysql
+    DB_HOST: ${param:dbHost}
+    DB_PORT: ${param:dbPort}
+    DB_DATABASE: ${param:dbName}
+    DB_SECRETS_ID: ${param:dbSecret}
+    AWS_ENDPOINT_URL: ${param:awsEndpoint}
+    AWS_USE_PATH_STYLE_ENDPOINT: ${param:pathStyle}
+    DOCUMENT_STORAGE: s3
+    DOCUMENTS_BUCKET: !Ref DocumentsBucketName
+    KEY_STORE: kms
+    SIGNING_KEY_ID: !Ref SigningKeyAlias
+    OUTBOX_PUBLISHER: sns
+    OUTBOX_PUBLISH_AFTER_COMMIT: 'true'
+    EVENTS_TOPIC_ARN: !Ref EventsTopicArn
+    QUEUE_CONNECTION: sqs
+    SQS_CHAIN_QUEUE_URL: !Ref ChainQueueUrl
+    SQS_WEBHOOKS_QUEUE_URL: !Ref WebhooksQueueUrl
+    CACHE_STORE: dynamodb
+    DYNAMODB_CACHE_TABLE: !Ref CacheTableName
+    SESSION_DRIVER: dynamodb
+    SESSION_STORE: dynamodb-sessions
+    DYNAMODB_SESSIONS_TABLE: !Ref SessionsTableName
+    SESSION_SECURE_COOKIE: ${param:secureCookies}
+    SANCTUM_STATEFUL_DOMAINS: ${param:statefulDomains}
+    CACHE_LIMITER: dynamodb-limits
+    DYNAMODB_LIMITS_TABLE: !Ref LimitsTableName
+    API_KEY_LIMITS: cache
+    MAIL_MAILER: ses
+    MAIL_FROM_ADDRESS: !Ref MailFromAddress
+    MAIL_FROM_NAME: dian-einvoice
+    HEALTH_CHECKS: database,cache,queue
+    # PHP-FPM sees every request come from 127.0.0.1 (the Bref runtime): the address API Gateway saw is
+    # the last one of X-Forwarded-For (backend/config/trustedproxy.php).
+    TRUSTED_PROXIES: 127.0.0.1
+    # The configuration is cached in /tmp when each execution environment starts, secrets included: they
+    # are read once per cold start, not on every request.
+    BREF_LARAVEL_CACHE_CONFIG: '1'
+    DIAN_SOAP_URL: ${param:dianSoapUrl}
+    DIAN_SIMULATOR_URL: ${param:dianSimulatorUrl}
+    DIAN_SIMULATOR_TOKEN: ${param:dianSimulatorToken}
+    WEBHOOK_ALLOW_PRIVATE_TARGETS: ${param:webhookPrivateTargets}
+    LOCAL_WEBHOOK_RECEIVER_URL: ${param:webhookReceiverUrl}
+
+# Memory, timeout and concurrency of each function, with their reasons, are in docs/infrastructure.md.
+# Every function has a role of its own from the CDK app (stack compute) and a concurrency limit; together
+# they hold at most 60 connections to the database (one per execution environment).
+functions:
+  # The whole HTTP API (/api/v1, the CSRF cookie of the web app, the reference at /docs/api) behind
+  # API Gateway, in PHP-FPM. Below the 30 s API Gateway waits for an integration.
+  api:
+    name: dian-einvoice-${sls:stage}-api
+    description: HTTP API of dian-einvoice behind API Gateway (PHP-FPM)
+    image:
+      uri: ${param:image}
+      command: [public/index.php]
+    role: !Sub '${ApiRoleArn}'
+    memorySize: 1024
+    timeout: 28
+    reservedConcurrency: 40
+    environment:
+      BREF_RUNTIME: fpm
+      # Answers may be binary (PDF, zip): every body goes to API Gateway in base64.
+      BREF_BINARY_RESPONSES: '1'
+    events:
+      - httpApi: '*'
+
+  # The consumer of the chain queue (electronic document chain and delivery), in batches with a partial
+  # batch response (resources/triggers.yml). One job may run 35 s; the batch stops starting jobs it could
+  # not finish and hands them back.
+  chain:
+    name: dian-einvoice-${sls:stage}-chain
+    description: Consumer of the chain queue of dian-einvoice
+    image:
+      uri: ${param:image}
+      command: ['App\Support\Outbox\Sqs\SqsEventsHandler']
+    role: !Sub '${ChainRoleArn}'
+    memorySize: 1024
+    timeout: 60
+    reservedConcurrency: 10
+    environment:
+      BREF_RUNTIME: function
+
+  # The consumer of the webhooks queue (webhook events and their deliveries), the same handler.
+  webhooks:
+    name: dian-einvoice-${sls:stage}-webhooks
+    description: Consumer of the webhooks queue of dian-einvoice
+    image:
+      uri: ${param:image}
+      command: ['App\Support\Outbox\Sqs\SqsEventsHandler']
+    role: !Sub '${WebhooksRoleArn}'
+    memorySize: 512
+    timeout: 60
+    reservedConcurrency: 5
+    environment:
+      BREF_RUNTIME: function
+
+  # The safety net of the outbox, once a minute (resources/triggers.yml): the events the fast path left behind.
+  # Its next run is its retry, so the asynchronous invocation never retries.
+  relay:
+    name: dian-einvoice-${sls:stage}-relay
+    description: Publishes the outbox events of dian-einvoice left behind, once a minute
+    image:
+      uri: ${param:image}
+      command: [artisan]
+    role: !Sub '${RelayRoleArn}'
+    memorySize: 512
+    timeout: 60
+    reservedConcurrency: 1
+    maximumRetryAttempts: 0
+    maximumEventAge: 60
+    environment:
+      BREF_RUNTIME: console
+
+  # The Laravel scheduler, once a minute: the sweepers and the pruning (backend/bootstrap/app.php).
+  scheduler:
+    name: dian-einvoice-${sls:stage}-scheduler
+    description: Runs the Laravel scheduler of dian-einvoice, once a minute
+    image:
+      uri: ${param:image}
+      command: [artisan]
+    role: !Sub '${SchedulerRoleArn}'
+    memorySize: 512
+    timeout: 120
+    reservedConcurrency: 2
+    maximumRetryAttempts: 0
+    maximumEventAge: 60
+    environment:
+      BREF_RUNTIME: console
+
+  # Migrations and operation commands, on demand: the event is the command line of php artisan.
+  console:
+    name: dian-einvoice-${sls:stage}-console
+    description: php artisan of dian-einvoice, on demand (migrations and operations)
+    image:
+      uri: ${param:image}
+      command: [artisan]
+    role: !Sub '${ConsoleRoleArn}'
+    memorySize: 1024
+    timeout: 900
+    reservedConcurrency: 2
+    environment:
+      BREF_RUNTIME: console
+      SQS_CHAIN_DLQ_URL: !Ref ChainDeadLetterQueueUrl
+      SQS_WEBHOOKS_DLQ_URL: !Ref WebhooksDeadLetterQueueUrl
+      API_CHECK_URL: ${param:apiCheckUrl}
+
+resources:
+  - ${file(./resources/parameters.yml)}
+  - ${file(./resources/triggers.yml)}
+  - ${file(./stages/${sls:stage}.yml):resources}

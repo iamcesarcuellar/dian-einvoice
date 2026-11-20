@@ -13,10 +13,10 @@ for (const name of ['local', 'prod'] as const) {
 
   describe(`stage ${name}`, () => {
     it('deploys to its account and region, with names and tags that carry the stage', () => {
-      for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail]) {
+      for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.compute]) {
         assert.equal(stack.account, config.account)
         assert.equal(stack.region, config.region)
-        assert.match(stack.stackName, new RegExp(`^${prefix}(messaging|storage|data|security|mail)$`))
+        assert.match(stack.stackName, new RegExp(`^${prefix}(messaging|storage|data|security|mail|compute)$`))
         assert.equal(stack.terminationProtection, name === 'prod')
         assert.deepEqual(stack.tags.tagValues(), { project: 'dian-einvoice', stage: name, component: stack.stackName.slice(prefix.length), 'managed-by': 'aws-cdk' })
       }
@@ -51,7 +51,7 @@ for (const name of ['local', 'prod'] as const) {
 
         messaging.hasResourceProperties('AWS::SQS::Queue', {
           QueueName: `${prefix}${channel}`,
-          VisibilityTimeout: 45,
+          VisibilityTimeout: config.queues.visibilityTimeout.toSeconds(),
           MessageRetentionPeriod: 4 * 24 * 3600,
           SqsManagedSseEnabled: true,
           RedrivePolicy: { deadLetterTargetArn: { 'Fn::GetAtt': [deadLetterQueue, 'Arn'] }, maxReceiveCount: 10 },
@@ -135,7 +135,20 @@ for (const name of ['local', 'prod'] as const) {
 
       storage.resourcePropertiesCountIs('AWS::S3::BucketPolicy', {
         PolicyDocument: { Statement: Match.arrayWith([Match.objectLike({ Effect: 'Deny', Action: 's3:*', Condition: { Bool: { 'aws:SecureTransport': 'false' } } })]) },
-      }, 2)
+      }, 3)
+    })
+
+    it('storage: a private bucket for the deployments of the functions, whose artifacts expire', () => {
+      const storage = template(stacks.storage)
+      const logs = logicalId(stacks.storage, 'AWS::S3::Bucket', { BucketName: `${prefix}access-logs-${config.account}-${config.region}` })
+
+      storage.hasResourceProperties('AWS::S3::Bucket', {
+        BucketName: `${prefix}deployments-${config.account}-${config.region}`,
+        BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } }] },
+        PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true },
+        LoggingConfiguration: { DestinationBucketName: { Ref: logs }, LogFilePrefix: 'deployments/' },
+        LifecycleConfiguration: { Rules: [Match.objectLike({ Id: 'expire-deployments', ExpirationInDays: config.deployments.expireAfter.toDays() })] },
+      })
     })
 
     it('storage: the application may read, write, delete and list the documents, nothing more', () => {
@@ -238,10 +251,10 @@ for (const name of ['local', 'prod'] as const) {
       })
     })
 
-    it('publishes the names of its resources and policies as parameters, for the compute of task 2', () => {
+    it('publishes the names of its resources and policies as parameters, for the functions', () => {
       const names: string[] = []
 
-      for (const [stack, group] of [[stacks.messaging, 'messaging'], [stacks.storage, 'storage'], [stacks.data, 'data'], [stacks.security, 'security'], [stacks.mail, 'mail']] as const) {
+      for (const [stack, group] of [[stacks.messaging, 'messaging'], [stacks.storage, 'storage'], [stacks.data, 'data'], [stacks.security, 'security'], [stacks.mail, 'mail'], [stacks.compute, 'compute']] as const) {
         const parameters = Object.values(template(stack).findResources('AWS::SSM::Parameter')) as { Properties: { Name: string, Type: string } }[]
         const outputs = Object.keys(template(stack).findOutputs('*'))
 
@@ -256,11 +269,11 @@ for (const name of ['local', 'prod'] as const) {
 
       assert.equal(new Set(names).size, names.length)
 
-      for (const wanted of ['messaging/events-topic-arn', 'messaging/chain-queue-url', 'messaging/webhooks-queue-url', 'storage/documents-bucket-name', 'data/cache-table-name', 'data/sessions-table-name', 'data/limits-table-name', 'security/signing-key-arn', 'security/app-secret-arn', 'mail/identity']) {
+      for (const wanted of ['messaging/events-topic-arn', 'messaging/chain-queue-url', 'messaging/webhooks-queue-url', 'storage/documents-bucket-name', 'storage/deployments-bucket-name', 'data/cache-table-name', 'data/sessions-table-name', 'data/limits-table-name', 'security/signing-key-arn', 'security/app-secret-arn', 'mail/identity', 'compute/roles/api', 'compute/roles/schedules', 'compute/functions-repository-uri']) {
         assert.ok(names.includes(`/dian-einvoice/${name}/${wanted}`), wanted)
       }
 
-      // Every managed policy is published, so the compute attaches them by name.
+      // Every managed policy is published, so the roles of the functions attach them by name.
       const policies = [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail].reduce((count, stack) => count + Object.keys(template(stack).findResources('AWS::IAM::ManagedPolicy')).length, 0)
       assert.equal(names.filter((parameter) => parameter.includes('/policies/')).length, policies)
     })

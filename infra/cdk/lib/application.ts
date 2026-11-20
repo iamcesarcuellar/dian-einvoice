@@ -1,11 +1,13 @@
-// The CDK app: one CDK stage per stage of the platform, with the five stacks of Infrastructure task 1,
-// common tags, names with the stage and the AWS Solutions checks of cdk-nag. Every finding of cdk-nag
+// The CDK app: one CDK stage per stage of the platform, with the five stacks of Infrastructure task 1 and
+// the compute stack of task 2 (the roles and the image repository of the functions, which the serverless
+// service in infra/functions defines), common tags, names with the stage and the AWS Solutions checks of cdk-nag. Every finding of cdk-nag
 // must be fixed or acknowledged with its reason next to the resource; any other one stops synthesis.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { App, Stage, Tags, Validations } from 'aws-cdk-lib'
 import { AwsSolutionsChecks } from 'cdk-nag'
 import { loadEventRoutes, type EventRoutes } from './event-routes.ts'
+import { ComputeStack } from './compute-stack.ts'
 import { DataStack } from './data-stack.ts'
 import { MailStack } from './mail-stack.ts'
 import { MessagingStack } from './messaging-stack.ts'
@@ -20,6 +22,7 @@ export interface PlatformStacks {
   readonly data: DataStack
   readonly security: SecurityStack
   readonly mail: MailStack
+  readonly compute: ComputeStack
 }
 
 export function tagsOf(config: StageConfig, component: string): Record<string, string> {
@@ -31,7 +34,7 @@ export function addStage(app: App, config: StageConfig, routes: EventRoutes): Pl
   const stage = new Stage(app, config.name, { env: { account: config.account, region: config.region } })
   const common = (component: string) => ({
     stackName: `${PROJECT}-${config.name}-${component}`,
-    description: `dian-einvoice ${config.name}: ${component} (Infrastructure task 1)`,
+    description: `dian-einvoice ${config.name}: ${component} (Infrastructure task ${component === 'compute' ? 2 : 1})`,
     terminationProtection: config.terminationProtection,
     tags: tagsOf(config, component),
     stage: config,
@@ -44,6 +47,12 @@ export function addStage(app: App, config: StageConfig, routes: EventRoutes): Pl
     data: new DataStack(stage, 'data', common('data')),
     security: new SecurityStack(stage, 'security', common('security')),
     mail: new MailStack(stage, 'mail', common('mail')),
+    compute: new ComputeStack(stage, 'compute', common('compute')),
+  }
+
+  // The roles attach the managed policies of the other stacks by name, so they deploy after them.
+  for (const dependency of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail]) {
+    stacks.compute.addStackDependency(dependency)
   }
 
   Tags.of(stage).add('project', PROJECT)

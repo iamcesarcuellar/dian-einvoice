@@ -1,0 +1,4 @@
+# Settings of cfn-lint over the templates of the CDK app and of the serverless service (make cdk-check). Every
+# rule runs, warnings included, and fails the check; the regions are those of the stages.
+regions:
+  - us-east-1

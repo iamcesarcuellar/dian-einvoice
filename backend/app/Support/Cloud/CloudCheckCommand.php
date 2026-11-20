@@ -24,50 +24,82 @@ use App\Modules\Developers\Webhooks\WebhookEventTypes;
 use App\Modules\Developers\Webhooks\WebhookSubscriptions;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Support\Console\LocalOnly;
+use App\Support\Health\SchedulerHeartbeat;
 use App\Support\Json;
 use App\Support\Keys\KeyStoreEntry;
 use App\Support\Keys\KmsKeyStoreEntry;
+use App\Support\Outbox\Outbox;
 use App\Support\Outbox\OutboxEvent;
 use App\Support\Outbox\OutboxSubscribers;
+use App\Support\Outbox\Sqs\SqsEventsQueue;
 use App\Support\Storage\DocumentStorage;
 use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * The steps of make cloud-check (scripts/cloud-check.sh), the end-to-end check of the emulated cloud, on a
+ * The steps of make cloud-check (scripts/cloud-check.sh), the end-to-end check of the emulated cloud,
+ * where every step runs in the console function and every invoice goes through the functions, on a
  * temporary company of its own that is deleted at the end:
  *  - start: issues the invoices to a customer with an email, with a webhook subscription of the local
- *    receiver to every event, signs in over HTTP (a session) and calls the API with a key (a rate limit),
- *    waits until a few invoices are accepted and prints only the company id, so the script kills the
- *    consumers of both queues mid-process and starts them again;
- *  - finish: waits until every invoice is accepted and delivered and every webhook delivered, then checks
- *    that the events went through the topic and both queues, the files are in the bucket, the emails went
- *    out through SES, the dead-letter queues are empty, the tables hold keys, the secrets and the signing
- *    key come from Secrets Manager and KMS, and nothing happened twice; then publishes a message no
- *    handler can read and checks it ends in the dead-letter queue of the chain;
+ *    receiver to every event, and prints the company id;
+ *  - fast: waits until those invoices are accepted and delivered, reports the time from issue to delivery
+ *    (median and 95th percentile), checks that the writers published every outbox event themselves (the
+ *    fast path, without waiting for the relay function), and, through API Gateway, signs in with the
+ *    session cookie and the CSRF token, downloads the XML, the PDF and the zip of an invoice and checks
+ *    their SHA-256, and calls the API with a key;
+ *  - partial: sends the chain queue, in one batch, a message no handler can read with a few valid ones:
+ *    the valid ones run once and the unreadable one ends in the dead-letter queue (on Floci 2.5.0, which
+ *    holds a failed record for the visibility timeout of its queue, it is received again and purged);
+ *  - chaos: issues more invoices, leaves one outbox event unpublished as if its writer died right after
+ *    its commit, and returns once a few are accepted, so the script kills the containers of the functions;
+ *  - finish: waits until everything is accepted, delivered and notified, then checks the topic, both
+ *    queues, the bucket, SES, the tables, KMS and Secrets Manager, that nothing happened twice, that the
+ *    relay function published the event left behind within two minutes, and that the scheduler ran;
  *  - cleanup: deletes the company when the script stopped before finish.
  */
 final class CloudCheckCommand extends Command
 {
     protected $signature = 'cloud:check
-        {action : start, finish or cleanup}
-        {company? : The id start printed, for finish and cleanup}
-        {--invoices=30 : Invoices to issue}
-        {--until-accepted=5 : start returns once this many invoices are accepted, so the consumers die mid-process}
-        {--timeout=300 : Seconds finish waits for every invoice to be accepted and delivered}';
+        {action : start, fast, partial, chaos, finish or cleanup}
+        {company? : The id start printed, for fast, chaos, finish and cleanup}
+        {--invoices=30 : Invoices to issue (start and chaos)}
+        {--until-accepted=3 : chaos returns once this many of its invoices are accepted, so the functions die mid-process}
+        {--timeout=300 : Seconds fast and finish wait for every invoice to be accepted and delivered}';
 
-    protected $description = 'Steps of make cloud-check: invoices through SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager on the local AWS emulator, with the consumers killed mid-process and a message for the dead-letter queue';
+    protected $description = 'Steps of make cloud-check: invoices through the functions, API Gateway, SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager on the local AWS emulator';
 
     /** The origin of the web app, one of SANCTUM_STATEFUL_DOMAINS. */
     private const string WEB_ORIGIN = 'http://localhost:8601';
 
-    /** Seconds the poison message may take to reach the dead-letter queue. */
-    private const int DEAD_LETTER_TIMEOUT = 120;
+    /**
+     * Seconds the messages of the partial batch may take: the unreadable one is received maxReceiveCount times
+     * (twice where the emulator holds a failed record for the visibility timeout of its queue).
+     */
+    private const int PARTIAL_TIMEOUT = 150;
+
+    /** The relay function must publish an event left behind within this many seconds. */
+    private const int SAFETY_NET_SECONDS = 120;
+
+    /** Valid messages sent with the unreadable one. */
+    private const int PROBES = 4;
+
+    /** What the body of every unreadable message of the partial step starts with. */
+    private const string POISON = 'cloud-check-poison-';
+
+    /**
+     * Seconds finish waits for the queues to drain: a message a killed function held comes back after the
+     * visibility timeout of its queue (60 s), possibly once every invoice is done, and runs again as a no-op.
+     */
+    private const int DRAIN_SECONDS = 90;
 
     private int $failures = 0;
 
@@ -80,28 +112,48 @@ final class CloudCheckCommand extends Command
         }
 
         if (! $cloud->enabled()) {
-            $this->error('cloud:check runs in the emulated cloud only: make cloud-check runs it in the cloud-api container.');
+            $this->error('cloud:check runs in the emulated cloud only: make cloud-check runs it in the console function.');
 
             return self::FAILURE;
         }
 
-        return match ($this->argument('action')) {
-            'start' => $this->start(),
+        $result = match ($this->argument('action')) {
+            'start' => $this->start($cloud),
+            'fast' => $this->withCompany(fn (TemporaryCompany $company) => $this->fast($company)),
+            'partial' => $this->partial($cloud),
+            'chaos' => $this->withCompany(fn (TemporaryCompany $company) => $this->chaos($company)),
             'finish' => $this->finish($cloud),
             'cleanup' => $this->cleanup(),
             default => $this->unknownAction(),
         };
+
+        if ($result === self::SUCCESS && $this->failures > 0) {
+            $this->error("{$this->failures} checks FAILED.");
+
+            return self::FAILURE;
+        }
+
+        return $result;
     }
 
     private function unknownAction(): int
     {
-        $this->error('The action is start, finish or cleanup.');
+        $this->error('The action is start, fast, partial, chaos, finish or cleanup.');
 
         return self::FAILURE;
     }
 
-    private function start(): int
+    private function start(EmulatedCloud $cloud): int
     {
+        // The unreadable message of a partial step that was interrupted ends in the dead-letter queue of the
+        // chain, which finish expects empty.
+        $dlq = config('aws.dead_letter_queues.chain');
+        $leftovers = is_string($dlq) ? count($cloud->takeDeadLetters($dlq, self::POISON)) : 0;
+
+        if ($leftovers > 0) {
+            $this->line("Took {$leftovers} unreadable messages an earlier make cloud-check left in the dead-letter queue of the chain.");
+        }
+
         $count = max(1, (int) $this->option('invoices'));
         $temporary = TemporaryCompany::create('Cloud Check', 'CLD');
         $companyId = $temporary->company->id;
@@ -125,46 +177,103 @@ final class CloudCheckCommand extends Command
                 'description' => 'make cloud-check',
             ], $temporary->user);
 
-            Cache::put($this->startedKey($companyId), microtime(true), 3600);
-            $this->http($temporary);
+            Cache::put($this->key($companyId, 'customer'), $customer->id, 7200);
+            Cache::put($this->key($companyId, 'started'), microtime(true), 7200);
+            $issued = $this->issue($temporary, $customer, $count, 1);
+            Cache::put($this->key($companyId, 'fast'), $issued, 7200);
 
-            $template = $temporary->numbering();
-            $taxId = $temporary->iva();
-            $ids = [];
-
-            for ($index = 1; $index <= $count; $index++) {
-                $ids[] = app(DocumentDrafts::class)->create(DocumentType::Invoice, [
-                    'contact_id' => $customer->id,
-                    'number_template_id' => $template->id,
-                    'lines' => [
-                        ['description' => 'Cloud check product', 'quantity' => '2', 'unit_price' => '15000', 'tax_id' => $taxId],
-                        ['description' => 'Cloud check service', 'quantity' => '1', 'unit_price' => (string) (700 * $index), 'tax_id' => null],
-                    ],
-                ], $temporary->user)->id;
-            }
-
-            foreach ($ids as $id) {
-                app(IssueDocument::class)($id, $temporary->user);
-            }
-
-            $this->progress("Temporary company {$temporary->company->name} (NIT {$temporary->company->identification_number}): {$count} invoices issued; the relay publishes their events to the topic.");
-            $this->waitForAccepted(min($count, max(1, (int) $this->option('until-accepted'))));
+            $this->line("{$count} invoices issued by Cloud Check (NIT {$temporary->company->identification_number}); the writers publish their events to the topic as they commit.");
         } catch (Throwable $exception) {
             $temporary->delete();
 
             throw $exception;
         }
 
-        $this->line($companyId);
+        $this->line("company: {$companyId}");
 
         return self::SUCCESS;
     }
 
     /**
-     * A session of the web app (the sessions table) and a request with an API key (the limits table),
-     * over HTTP to the API of this container, as the owner of the company.
+     * Issues invoices and returns when each one was issued, by document id.
+     *
+     * @return array<string, float>
      */
-    private function http(TemporaryCompany $temporary): void
+    private function issue(TemporaryCompany $temporary, Contact $customer, int $count, int $first): array
+    {
+        $template = $temporary->numbering();
+        $taxId = $temporary->iva();
+        $ids = [];
+
+        for ($index = $first; $index < $first + $count; $index++) {
+            $ids[] = app(DocumentDrafts::class)->create(DocumentType::Invoice, [
+                'contact_id' => $customer->id,
+                'number_template_id' => $template->id,
+                'lines' => [
+                    ['description' => 'Cloud check product', 'quantity' => '2', 'unit_price' => '15000', 'tax_id' => $taxId],
+                    ['description' => 'Cloud check service', 'quantity' => '1', 'unit_price' => (string) (700 * $index), 'tax_id' => null],
+                ],
+            ], $temporary->user)->id;
+        }
+
+        $issued = [];
+
+        foreach ($ids as $id) {
+            app(IssueDocument::class)($id, $temporary->user);
+            $issued[$id] = microtime(true);
+        }
+
+        return $issued;
+    }
+
+    private function fast(TemporaryCompany $temporary): int
+    {
+        $companyId = $temporary->company->id;
+        $issued = Cache::get($this->key($companyId, 'fast'));
+        $issued = is_array($issued) ? array_filter($issued, 'is_float') : [];
+
+        $this->waitForChain($companyId, array_keys($issued));
+        $documents = Document::query()->whereKey(array_keys($issued))->get();
+        $count = count($issued);
+
+        $accepted = $documents->filter(fn (Document $document): bool => $document->electronic_status?->value === 'accepted')->count();
+        $delivered = $documents->filter(fn (Document $document): bool => $document->delivery_status === DeliveryStatus::Delivered)->count();
+        $this->verify($count > 0 && $accepted === $count && $delivered === $count, "{$accepted} of {$count} invoices accepted by the local DIAN simulator and {$delivered} delivered to the customer.");
+
+        // From the issue until SES took the email of the invoice.
+        $sent = DeliveryAttempt::query()->whereIn('document_id', array_keys($issued))->where('outcome', EmailOutcome::Sent)->get()->keyBy('document_id');
+        $latencies = [];
+
+        foreach ($issued as $id => $at) {
+            $attempt = $sent->get($id);
+
+            if ($attempt instanceof DeliveryAttempt && $attempt->finished_at !== null) {
+                $latencies[] = $attempt->finished_at->getTimestampMs() / 1000 - $at;
+            }
+        }
+
+        sort($latencies);
+        $this->verify(count($latencies) === $count, sprintf('Time from issue to delivery of the %d invoices: median %.1f s, 95th percentile %.1f s, slowest %.1f s.', count($latencies), $this->percentile($latencies, 50), $this->percentile($latencies, 95), $latencies === [] ? 0 : max($latencies)));
+
+        // Every event went out with the commit of its writer: the relay function takes only older ones.
+        $after = max(1, config()->integer('outbox.pending_after_seconds'));
+        $events = OutboxEvent::query()->where('company_id', $companyId)->get();
+        $slow = $events->filter(fn (OutboxEvent $event): bool => $event->published_at === null || $event->published_at->getTimestamp() - $event->created_at->getTimestamp() >= $after);
+        $this->verify($events->isNotEmpty() && $slow->isEmpty(), sprintf('The writers published all %d outbox events of these invoices as they committed (the fast path); none waited for the relay function, which takes events older than %d s (%d did).', $events->count(), $after, $slow->count()));
+
+        $this->http($temporary, $documents);
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Through API Gateway, as the web app does: the CSRF cookie, the sign-in with the session cookie and
+     * the token, the current user, and the downloads of an invoice; then a request with an API key (the
+     * limits table).
+     *
+     * @param  Collection<int, Document>  $documents
+     */
+    private function http(TemporaryCompany $temporary, Collection $documents): void
     {
         $api = rtrim((string) config('developers.api_check_url'), '/');
         $parts = parse_url($api);
@@ -179,31 +288,186 @@ final class CloudCheckCommand extends Command
             ->connectTimeout(5)
             ->timeout(30);
 
-        $browser()->get($origin.'/sanctum/csrf-cookie')->throw();
+        $csrf = $browser()->get($origin.'/sanctum/csrf-cookie');
         $token = urldecode((string) $cookies->getCookieByName('XSRF-TOKEN')?->getValue());
-        $browser()->withHeaders(['X-XSRF-TOKEN' => $token])->post($api.'/auth/login', ['email' => $temporary->user->email, 'password' => $password])->throw();
+        $refused = $browser()->post($api.'/auth/login', ['email' => $temporary->user->email, 'password' => $password]);
+        $login = $browser()->withHeaders(['X-XSRF-TOKEN' => $token])->post($api.'/auth/login', ['email' => $temporary->user->email, 'password' => $password]);
+        $me = $browser()->withHeaders(['X-XSRF-TOKEN' => $token])->get($api.'/auth/me');
+        $this->verify(
+            $csrf->successful() && $token !== '' && $refused->status() === 419 && $login->successful() && $me->successful() && $me->json('data.email', $me->json('email')) === $temporary->user->email && $cookies->getCookieByName(config()->string('session.cookie')) !== null && $this->throughApiGateway($login),
+            sprintf('Through API Gateway (%s), the session cookie and the CSRF token sign in: the CSRF cookie answered %d, a sign-in without the token %d, with it %d, and the current user %d.', $origin, $csrf->status(), $refused->status(), $login->status(), $me->status()),
+        );
+
+        $document = $documents->first();
+
+        if ($document instanceof Document) {
+            $files = DocumentFile::query()->where('document_id', $document->id)->get()->keyBy(fn (DocumentFile $file): string => $file->kind->value);
+            $downloads = [];
+
+            foreach (['xml' => $document->xml_sha256, 'pdf' => $files->get(DocumentFileKind::Pdf->value)?->sha256, 'package' => $files->get(DocumentFileKind::Package->value)?->sha256] as $file => $expected) {
+                $response = $browser()->withHeaders(['X-Company-Id' => $temporary->company->id, 'Accept' => '*/*'])->get("{$api}/invoices/{$document->id}/{$file}");
+                $downloads[$file] = $response->successful() && is_string($expected) && hash('sha256', $response->body()) === $expected && $this->throughApiGateway($response);
+                $this->line(sprintf('   %s: HTTP %d, %s, %d bytes, SHA-256 %s.', $file, $response->status(), $response->header('Content-Type'), strlen($response->body()), $downloads[$file] ? 'as stored' : 'DIFFERENT'));
+            }
+
+            $this->verify(! in_array(false, $downloads, true) && str_starts_with($browser()->withHeaders(['X-Company-Id' => $temporary->company->id, 'Accept' => '*/*'])->get("{$api}/invoices/{$document->id}/pdf")->body(), '%PDF-'), "The XML, the PDF and the zip of invoice {$document->full_number}, downloaded through API Gateway with the session, have the SHA-256 the database keeps.");
+        }
+
+        $reference = Http::connectTimeout(5)->timeout(30)->get($origin.'/docs/api');
+        $this->verify($reference->successful() && str_contains($reference->body(), '"openapi"') && $this->throughApiGateway($reference), sprintf('The API reference answers at /docs/api through API Gateway (HTTP %d, %d bytes).', $reference->status(), strlen($reference->body())));
 
         [, $key] = app(ApiKeys::class)->create('Cloud check (read only)', ApiKeyLevel::ReadOnly, creator: $temporary->user);
-        Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/invoices', ['per_page' => 1])->throw();
+        $listing = Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/invoices', ['per_page' => 1]);
+        $this->verify($listing->successful() && $this->throughApiGateway($listing), sprintf('An API key lists the invoices through API Gateway (HTTP %d).', $listing->status()));
+
+        // The session of the sign-in and the rate limits of the sign-in and of the key, in their tables.
+        $this->tables(app(EmulatedCloud::class), ['sessions' => 'dynamodb-sessions', 'limits' => 'dynamodb-limits']);
     }
 
-    private function waitForAccepted(int $wanted): void
+    /**
+     * Each table of DynamoDB holds keys.
+     *
+     * @param  array<string, string>  $stores  Use => cache store of its table.
+     */
+    private function tables(EmulatedCloud $cloud, array $stores): void
     {
+        foreach ($stores as $use => $store) {
+            $table = config("cache.stores.{$store}.table");
+            $items = is_string($table) ? $cloud->items($table) : 0;
+            $this->verify($items > 0, sprintf('The %s table (%s) holds %s keys.', $use, is_string($table) ? $table : '?', $items >= 100 ? '100 or more' : (string) $items));
+        }
+    }
+
+    /** API Gateway adds a request id of its own to every answer; the application sets none of these. */
+    private function throughApiGateway(Response $response): bool
+    {
+        return $response->header('apigw-requestid') !== '' || $response->header('x-amzn-RequestId') !== '';
+    }
+
+    private function partial(EmulatedCloud $cloud): int
+    {
+        $marker = self::POISON.Str::lower((string) Str::ulid());
+        $queue = Queue::connection('sqs');
+        $url = config('queue.connections.sqs.queues.chain');
+        $dlq = config('aws.dead_letter_queues.chain');
+
+        if (! $queue instanceof SqsEventsQueue || ! is_string($url) || ! is_string($dlq)) {
+            $this->recordFailure('the chain queue or its dead-letter queue is not configured.');
+
+            return self::SUCCESS;
+        }
+
+        // An event no handler can read, in the middle of valid jobs, all in one call so they arrive together.
+        $messages = [];
+
+        for ($index = 0; $index < self::PROBES; $index++) {
+            $messages[] = ['body' => $queue->bodyOf(new CloudCheckProbe($marker, $index), 'chain')];
+        }
+
+        array_splice($messages, 2, 0, [['body' => '{"marker": "'.$marker.'", not an event', 'type' => 'electronic_document.sign_due']]);
+        // AWS keeps the visibility the function sets on a failed record, so the unreadable message comes back a
+        // second later and reaches the dead-letter queue after its 10 receives. Floci 2.5.0 holds it for the
+        // visibility timeout of the queue instead, 60 s per receive: there the step waits for its second
+        // receive only (docs/limitations.md).
+        $keeps = $cloud->keepsVisibilityOfFailedRecords();
+        $ids = $cloud->sendMessages($url, $messages);
+        $poison = $ids[2];
+        $started = microtime(true);
+        $taken = [];
+        $held = [];
+
+        do {
+            sleep(2);
+            $ran = array_filter(range(0, self::PROBES - 1), fn (int $index): bool => Cache::get(CloudCheckProbe::runsKey($marker, $index)) !== null);
+
+            if ($keeps) {
+                $taken = $taken === [] ? $cloud->takeDeadLetters($dlq, $marker) : $taken;
+                $done = $taken !== [];
+            } else {
+                $held = $cloud->peek($url);
+                $done = $this->receivesOf($held, $poison) >= 2;
+            }
+        } while ((! $done || count($ran) < self::PROBES) && microtime(true) - $started < self::PARTIAL_TIMEOUT);
+
+        $runs = array_map(function (int $index) use ($marker): int {
+            $runs = Cache::get(CloudCheckProbe::runsKey($marker, $index));
+
+            return is_numeric($runs) ? (int) $runs : 0;
+        }, range(0, self::PROBES - 1));
+        $batches = array_map(function (int $index) use ($marker): array {
+            $batch = Cache::get(CloudCheckProbe::batchKey($marker, $index));
+
+            return is_array($batch) ? $batch : [];
+        }, range(0, self::PROBES - 1));
+        $together = array_filter($batches, fn (array $batch): bool => in_array($poison, $batch, true));
+
+        $this->verify($runs === array_fill(0, self::PROBES, 1), sprintf('The %d valid messages sent with an unreadable one ran once each (%s).', self::PROBES, implode(', ', $runs)));
+        $this->verify($together !== [], sprintf('%d of them ran in the same batch as the unreadable message: the chain function answered a partial batch response, so the failure did not send them back.', count($together)));
+
+        if ($keeps) {
+            $receives = $taken[0]['receives'] ?? 0;
+            $this->verify(count($taken) === 1, sprintf('The unreadable message %s reached the dead-letter queue of the chain after %.1f s%s, retried on its own.', $poison, microtime(true) - $started, $taken === [] ? '' : " and {$receives} receives"));
+        } else {
+            $receives = $this->receivesOf($held, $poison);
+            $this->verify($receives >= 2 && count($held) === 1, sprintf('The chain function reported the unreadable message %s as failed: the chain queue kept it, alone, and gave it back on its own (%d receives in %.1f s).', $poison, $receives, microtime(true) - $started));
+            $this->note(sprintf('Floci %s returns a record a function reported as failed after the visibility timeout of its queue (60 s), not after the 1 s the function set, so the 10 receives that take the unreadable message to the dead-letter queue would last about 10 minutes: the step stops at its second receive and purges the chain queue (docs/limitations.md).', $cloud->version()));
+
+            if (count($held) === 1) {
+                $cloud->purge($url);
+            }
+        }
+
+        $depth = $cloud->depth($url);
+        $dead = $cloud->depth($dlq);
+        $this->verify(array_sum($depth) === 0 && array_sum($dead) === 0, sprintf('After taking it, the chain queue and its dead-letter queue are empty (%d and %d messages).', array_sum($depth), array_sum($dead)));
+
+        return self::SUCCESS;
+    }
+
+    private function chaos(TemporaryCompany $temporary): int
+    {
+        $companyId = $temporary->company->id;
+        $count = max(1, (int) $this->option('invoices'));
+        $customerId = Cache::get($this->key($companyId, 'customer'));
+        $customer = is_string($customerId) ? Contact::query()->find($customerId) : null;
+
+        if (! $customer instanceof Contact) {
+            $this->recordFailure('start did not leave the customer of the company.');
+
+            return self::SUCCESS;
+        }
+
+        $first = Document::query()->where('status', DocumentStatus::Issued)->count() + 1;
+
+        // An event left in the outbox as if its writer died right after its commit: only the relay
+        // function can publish it. A no-op for the chain: the document is past that step.
+        $accepted = Document::query()->where('electronic_status', 'accepted')->orderBy('number')->firstOrFail();
+        $fastPath = config()->boolean('outbox.publish_after_commit');
+        config(['outbox.publish_after_commit' => false]);
+        $orphan = app(Outbox::class)->record($companyId, 'document', $accepted->id, 'electronic_document.sign_due', ['document_id' => $accepted->id, 'run' => $accepted->electronic_run]);
+        config(['outbox.publish_after_commit' => $fastPath]);
+        Cache::put($this->key($companyId, 'orphan'), $orphan->id, 7200);
+
+        $issued = $this->issue($temporary, $customer, $count, $first);
+        Cache::put($this->key($companyId, 'chaos'), $issued, 7200);
+        $this->line("{$count} more invoices issued, and one outbox event left unpublished as if its writer had died after its commit.");
+
+        $wanted = min($count, max(1, (int) $this->option('until-accepted')));
         $started = microtime(true);
 
         do {
-            $accepted = Document::query()->where('status', DocumentStatus::Issued)->where('electronic_status', 'accepted')->count();
+            $done = Document::query()->whereKey(array_keys($issued))->where('electronic_status', 'accepted')->count();
 
-            if ($accepted >= $wanted) {
-                $this->progress(sprintf('%d invoices accepted after %.1f s; the consumers can die now.', $accepted, microtime(true) - $started));
-
-                return;
+            if ($done >= $wanted) {
+                break;
             }
 
             usleep(250_000);
         } while (microtime(true) - $started < 120);
 
-        $this->progress("Fewer than {$wanted} invoices were accepted within 120 s; going on.");
+        $this->line(sprintf('%d of them accepted after %.1f s; the functions can die now.', $done, microtime(true) - $started));
+
+        return self::SUCCESS;
     }
 
     private function finish(EmulatedCloud $cloud): int
@@ -226,9 +490,7 @@ final class CloudCheckCommand extends Command
         $this->newLine();
 
         if ($this->failures > 0) {
-            $this->error("make cloud-check: {$this->failures} checks FAILED.");
-
-            return self::FAILURE;
+            return self::SUCCESS;
         }
 
         $this->info('make cloud-check passed.');
@@ -239,34 +501,18 @@ final class CloudCheckCommand extends Command
     private function check(TemporaryCompany $temporary, EmulatedCloud $cloud): void
     {
         $companyId = $temporary->company->id;
-        $timeout = max(1, (int) $this->option('timeout'));
         $waitStarted = microtime(true);
-        $this->line("Waiting up to {$timeout} s for every invoice to be accepted and delivered and every webhook to arrive...");
-
-        do {
-            $documents = Document::query()->where('status', DocumentStatus::Issued)->orderBy('number')->get();
-            $open = $documents->filter(fn (Document $document): bool => $document->electronic_status?->isFinal() !== true || $document->delivery_status === null || $document->delivery_status === DeliveryStatus::Pending)->count();
-            $pendingHooks = WebhookDelivery::query()->where('status', WebhookDeliveryStatus::Pending)->count();
-            $unpublished = OutboxEvent::query()->where('company_id', $companyId)->whereNull('published_at')->count();
-
-            if ($documents->isNotEmpty() && $open === 0 && $pendingHooks === 0 && $unpublished === 0) {
-                break;
-            }
-
-            usleep(500_000);
-        } while (microtime(true) - $waitStarted < $timeout);
-
-        $cached = Cache::get($this->startedKey($companyId));
-        $started = is_numeric($cached) ? (float) $cached : $waitStarted;
-        $elapsed = microtime(true) - $started;
-        $waited = microtime(true) - $waitStarted;
+        $this->waitForChain($companyId, null);
+        $documents = Document::query()->where('status', DocumentStatus::Issued)->orderBy('number')->get();
+        $cached = Cache::get($this->key($companyId, 'started'));
+        $elapsed = microtime(true) - (is_numeric($cached) ? (float) $cached : $waitStarted);
         $count = $documents->count();
         $this->newLine();
 
         // 1. The chain: every invoice accepted once by the simulator, numbers without gaps, and delivered.
         $accepted = $documents->filter(fn (Document $document): bool => $document->electronic_status?->value === 'accepted')->count();
         $delivered = $documents->filter(fn (Document $document): bool => $document->delivery_status === DeliveryStatus::Delivered)->count();
-        $this->verify($count > 0 && $accepted === $count, "{$accepted} of {$count} invoices accepted by the local DIAN simulator.");
+        $this->verify($count > 0 && $accepted === $count, "{$accepted} of {$count} invoices accepted by the local DIAN simulator, those killed mid-process included.");
         $this->verify($count > 0 && $delivered === $count, "{$delivered} of {$count} invoices delivered to the customer.");
 
         $numbers = $documents->pluck('number')->map(fn (mixed $number): int => is_numeric($number) ? (int) $number : 0)->all();
@@ -276,7 +522,7 @@ final class CloudCheckCommand extends Command
         $simulated = collect(app(DianSimulator::class)->documents($temporary->company->identification_number));
         $simulatedAccepted = $simulated->where('status', 'accepted');
         $repeated = (int) $simulated->sum(fn (array $record): int => max(0, (Json::int($record, 'submissions') ?? 1) - 1));
-        $this->verify($simulatedAccepted->count() === $count && $simulatedAccepted->pluck('cufe')->unique()->count() === $count && $simulated->count() === $count, sprintf('The simulator holds %d distinct accepted documents of the company and nothing else (%d records; %d repeated submissions answered by rule 90).', $simulatedAccepted->pluck('cufe')->unique()->count(), $simulated->count(), $repeated));
+        $this->verify($simulatedAccepted->count() === $count && $simulatedAccepted->pluck('cufe')->unique()->count() === $count && $simulated->count() === $count, sprintf('The simulator holds %d distinct accepted documents of the company and nothing else (%d records; %d repeated submissions answered by rule 90): nothing was issued twice.', $simulatedAccepted->pluck('cufe')->unique()->count(), $simulated->count(), $repeated));
 
         // 2. Events through the topic and both queues.
         $events = OutboxEvent::query()->where('company_id', $companyId)->get();
@@ -286,25 +532,36 @@ final class CloudCheckCommand extends Command
         $sources = $events->filter(fn (OutboxEvent $event): bool => in_array($event->type, WebhookEventTypes::SOURCES, true))->pluck('id')->all();
         $webhookEvents = WebhookEvent::query()->whereIn('source_event_id', $sources)->count();
         $this->verify($events->isNotEmpty() && $events->whereNull('published_at')->isEmpty(), sprintf('%d outbox events published to the topic of document events: %d routed to the chain queue, %d to the webhooks queue.', $events->count(), $toChain, $toWebhooks));
-        $this->verify($toChain > 0 && $accepted === $count && $delivered === $count, sprintf('The chain queue fed every step: XML, signature, transmission, answer, AttachedDocument, PDF and email of %d invoices.', $count));
-        $this->verify($sources !== [] && $webhookEvents === count($sources), sprintf('The webhooks queue fed every webhook: %d webhook events for %d source events.', $webhookEvents, count($sources)));
+        $this->verify($toChain > 0 && $accepted === $count && $delivered === $count, sprintf('The chain function took every step from its queue: XML, signature, transmission, answer, AttachedDocument, PDF and email of %d invoices.', $count));
+        $this->verify($sources !== [] && $webhookEvents === count($sources), sprintf('The webhooks function took every webhook from its queue: %d webhook events for %d source events.', $webhookEvents, count($sources)));
 
         $hooks = WebhookDelivery::query()->get();
         $succeeded = $hooks->where('status', WebhookDeliveryStatus::Succeeded)->count();
         $this->verify($hooks->isNotEmpty() && $succeeded === $hooks->count(), sprintf('%d of %d webhook deliveries succeeded at the local receiver.', $succeeded, $hooks->count()));
 
+        $drainedBy = microtime(true) + self::DRAIN_SECONDS;
+
+        while (! $this->drained($cloud) && microtime(true) < $drainedBy) {
+            sleep(2);
+        }
+
         foreach (OutboxSubscribers::CHANNELS as $channel) {
             $url = config("queue.connections.sqs.queues.{$channel}");
             $dlq = config("aws.dead_letter_queues.{$channel}");
-            $url = is_string($url) ? $url : '';
-            $dlq = is_string($dlq) ? $dlq : '';
-            $depth = $cloud->depth($url);
-            $dead = $cloud->depth($dlq);
-            $this->verify(array_sum($depth) === 0, sprintf('The %s queue is drained (%d waiting, %d in flight, %d delayed).', $channel, $depth['visible'], $depth['in_flight'], $depth['delayed']));
+            $depth = $cloud->depth(is_string($url) ? $url : '');
+            $dead = $cloud->depth(is_string($dlq) ? $dlq : '');
+            $this->verify(array_sum($depth) === 0, sprintf('The %s queue is drained (%d waiting, %d in flight, %d delayed), every message a killed function held done again.', $channel, $depth['visible'], $depth['in_flight'], $depth['delayed']));
             $this->verify(array_sum($dead) === 0, sprintf('The dead-letter queue of %s is empty (%d messages).', $channel, array_sum($dead)));
         }
 
-        // 3. Files in the bucket: the signed XML and the answer of each invoice, its AttachedDocument, PDF and zip.
+        // 3. The safety net: the event left behind went out through the relay function.
+        $orphanId = Cache::get($this->key($companyId, 'orphan'));
+        $orphan = is_string($orphanId) ? $events->firstWhere('id', $orphanId) : null;
+        $after = max(1, config()->integer('outbox.pending_after_seconds'));
+        $waited = $orphan instanceof OutboxEvent && $orphan->published_at !== null ? $orphan->published_at->getTimestamp() - $orphan->created_at->getTimestamp() : null;
+        $this->verify($waited !== null && $waited >= $after && $waited < self::SAFETY_NET_SECONDS, sprintf('The outbox event left unpublished after its commit was published by the relay function %s s after it was recorded (it takes events older than %d s, once a minute).', $waited ?? 'never', $after));
+
+        // 4. Files in the bucket: the signed XML and the answer of each invoice, its AttachedDocument, PDF and zip.
         $storage = app(DocumentStorage::class);
         $keys = $cloud->objectKeys($companyId.'/');
         $files = DocumentFile::query()->get();
@@ -322,12 +579,11 @@ final class CloudCheckCommand extends Command
             $intact += hash('sha256', $storage->get($file->path)) === $file->sha256 ? 1 : 0;
         }
 
-        $pdfs = $files->where('kind', DocumentFileKind::Pdf);
-        $firstPdf = $pdfs->first();
+        $firstPdf = $files->where('kind', DocumentFileKind::Pdf)->first();
         $this->verify($files->count() === 3 * $count && $intact === $expected, sprintf('%d objects of the company in the bucket; %d of %d files of the invoices read back with their SHA-256 (signed XML, answer, AttachedDocument, PDF and zip).', count($keys), $intact, $expected));
         $this->verify($firstPdf instanceof DocumentFile && str_starts_with($storage->get($firstPdf->path), '%PDF-'), 'A PDF read back from the bucket is a PDF.');
 
-        // 4. Email through SES: one per invoice, to the customer, as the delivery attempts recorded.
+        // 5. Email through SES: one per invoice, to the customer, as the delivery attempts recorded.
         $attempts = DeliveryAttempt::query()->get();
         $sent = $attempts->where('outcome', EmailOutcome::Sent);
         $abandoned = $attempts->where('outcome', EmailOutcome::Abandoned)->count();
@@ -336,53 +592,77 @@ final class CloudCheckCommand extends Command
         $perInvoice = $documents->map(fn (Document $document): int => $emails->filter(fn (array $email): bool => str_contains($email['subject'], ';'.$document->full_number.';'))->count())->all();
         $emailed = array_sum($perInvoice);
         $this->verify($sent->count() === $count && $sent->pluck('document_id')->unique()->count() === $count && $sent->every(fn (DeliveryAttempt $attempt): bool => $attempt->mailer === config('mail.default')), sprintf('%d emails sent through the %s mailer, one per invoice.', $sent->count(), (string) config('mail.default')));
-        $this->verify($perInvoice !== [] && min($perInvoice) >= 1 && $emailed <= $count + $abandoned, sprintf('SES took %d emails for the customer, every invoice at least once (%d repeated after a consumer died during the call, which delivery at least once allows).', $emailed, max(0, $emailed - $count)));
+        $this->verify($perInvoice !== [] && min($perInvoice) >= 1 && $emailed <= $count + $abandoned, sprintf('SES took %d emails for the customer, every invoice at least once (%d repeated after a function died during the call, which delivery at least once allows).', $emailed, max(0, $emailed - $count)));
 
-        // 5. Keys in the tables of DynamoDB, the secrets and the signing key.
-        foreach (['cache' => 'dynamodb', 'sessions' => 'dynamodb-sessions', 'limits' => 'dynamodb-limits'] as $use => $store) {
-            $table = config("cache.stores.{$store}.table");
-            $items = is_string($table) ? $cloud->items($table) : 0;
-            $this->verify($items > 0, sprintf('The %s table (%s) holds %s keys.', $use, is_string($table) ? $table : '?', $items >= 100 ? '100 or more' : (string) $items));
-        }
+        // 6. Keys in the cache table (the sessions and the rate limits are checked right after the
+        // requests of fast, as they expire within minutes), the secrets and the signing key.
+        $this->tables($cloud, ['cache' => 'dynamodb']);
 
         $secret = $cloud->secret();
-        $this->verify(($secret['APP_KEY'] ?? null) === config('app.key') && ($secret['DB_PASSWORD'] ?? null) === config('database.connections.mysql.password'), 'APP_KEY and the database password of this process come from Secrets Manager.');
+        $this->verify(($secret['APP_KEY'] ?? null) === config('app.key') && ($secret['DB_PASSWORD'] ?? null) === config('database.connections.mysql.password'), 'APP_KEY and the database password of this function come from Secrets Manager.');
         $this->verify(KmsKeyStoreEntry::query()->count() === 1 && KeyStoreEntry::query()->count() === 0, 'The signing certificate of the company is in the KMS key store (envelope encryption), not in the local one.');
 
-        // 6. A message no handler can read ends in the dead-letter queue of the chain.
-        $this->deadLetter($cloud);
+        // 7. The scheduler function runs the Laravel scheduler once a minute.
+        $lastRun = SchedulerHeartbeat::lastRun();
+        $this->verify($lastRun !== null && Carbon::now()->getTimestamp() - $lastRun <= 150, sprintf('The scheduler function ran the Laravel scheduler (%s).', $lastRun === null ? 'never' : (Carbon::now()->getTimestamp() - $lastRun).' s ago'));
 
         $this->newLine();
-        $this->line(sprintf('   Time: %.1f s from the first issue until every invoice was accepted, delivered and notified (%.1f s of it after the consumers died: the messages they held came back after the visibility timeout of their queue).', $elapsed, $waited));
+        $this->line(sprintf('   Time: %.1f s from the first issue until every invoice was accepted, delivered and notified (%.1f s of it in this last wait, after the functions died: the messages they held came back after the visibility timeout of their queue).', $elapsed, microtime(true) - $waitStarted));
     }
 
-    private function deadLetter(EmulatedCloud $cloud): void
+    /**
+     * Waits until the given invoices (every issued one when null) are accepted or failed for good and
+     * delivered, no webhook is pending and no outbox event of the company is unpublished.
+     *
+     * @param  list<string>|null  $ids
+     */
+    private function waitForChain(string $companyId, ?array $ids): void
     {
-        $marker = 'cloud-check-poison-'.Str::lower((string) Str::ulid());
-        $dlq = config('aws.dead_letter_queues.chain');
-        $queue = config('queue.connections.sqs.queues.chain');
-
-        if (! is_string($dlq) || ! is_string($queue)) {
-            $this->recordFailure('the chain queue or its dead-letter queue is not configured.');
-
-            return;
-        }
-
-        $messageId = $cloud->publish('electronic_document.sign_due', '{"marker": "'.$marker.'", not an event');
+        $timeout = max(1, (int) $this->option('timeout'));
         $started = microtime(true);
-        $taken = [];
+        $this->line("Waiting up to {$timeout} s for every invoice to be accepted and delivered and every webhook to arrive...");
 
         do {
-            sleep(2);
-            $taken = $cloud->takeDeadLetters($dlq, $marker);
-        } while ($taken === [] && microtime(true) - $started < self::DEAD_LETTER_TIMEOUT);
+            $query = Document::query()->where('status', DocumentStatus::Issued);
+            $documents = ($ids === null ? $query : $query->whereKey($ids))->get();
+            $open = $documents->filter(fn (Document $document): bool => $document->electronic_status?->isFinal() !== true || $document->delivery_status === null || $document->delivery_status === DeliveryStatus::Pending)->count();
+            $pendingHooks = WebhookDelivery::query()->where('status', WebhookDeliveryStatus::Pending)->count();
+            $unpublished = OutboxEvent::query()->where('company_id', $companyId)->whereNull('published_at')->count();
 
-        $receives = $taken[0]['receives'] ?? 0;
-        $this->verify(count($taken) === 1, sprintf('An unreadable message (SNS %s, type electronic_document.sign_due) reached the dead-letter queue of the chain after %.1f s%s.', $messageId, microtime(true) - $started, $taken === [] ? '' : " and {$receives} receives"));
+            if ($documents->isNotEmpty() && $open === 0 && $pendingHooks === 0 && $unpublished === 0) {
+                $this->line(sprintf('Done after %.1f s.', microtime(true) - $started));
 
-        $depth = $cloud->depth($queue);
-        $dead = $cloud->depth($dlq);
-        $this->verify(array_sum($depth) === 0 && array_sum($dead) === 0, sprintf('After taking it, the chain queue and its dead-letter queue are empty (%d and %d messages).', array_sum($depth), array_sum($dead)));
+                return;
+            }
+
+            usleep(500_000);
+        } while (microtime(true) - $started < $timeout);
+
+        $this->line(sprintf('Still open after %d s: %d invoices, %d webhooks, %d unpublished events.', $timeout, $open, $pendingHooks, $unpublished));
+    }
+
+    /**
+     * @param  list<float>  $values  Sorted.
+     */
+    private function percentile(array $values, int $percentile): float
+    {
+        if ($values === []) {
+            return 0.0;
+        }
+
+        $rank = (int) ceil($percentile / 100 * count($values)) - 1;
+
+        return $values[max(0, min(count($values) - 1, $rank))];
+    }
+
+    /**
+     * @param  callable(TemporaryCompany): int  $action
+     */
+    private function withCompany(callable $action): int
+    {
+        $temporary = $this->temporary();
+
+        return $temporary === null ? self::FAILURE : $action($temporary);
     }
 
     private function cleanup(): int
@@ -399,6 +679,8 @@ final class CloudCheckCommand extends Command
 
         if ($temporary === null) {
             $this->error("There is no temporary company {$id}.");
+
+            return null;
         }
 
         return $temporary;
@@ -416,19 +698,50 @@ final class CloudCheckCommand extends Command
         $this->failures++;
     }
 
+    /** Whether both queues are empty. */
+    private function drained(EmulatedCloud $cloud): bool
+    {
+        foreach (OutboxSubscribers::CHANNELS as $channel) {
+            $url = config("queue.connections.sqs.queues.{$channel}");
+
+            if (array_sum($cloud->depth(is_string($url) ? $url : '')) > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** An emulator difference the step allows for: not a failure. */
+    private function note(string $message): void
+    {
+        $this->warn("   NOTE  {$message}");
+    }
+
+    /**
+     * How many times a queue received a message, from a look at the queue.
+     *
+     * @param  list<array{id: string, receives: int}>  $messages
+     */
+    private function receivesOf(array $messages, string $messageId): int
+    {
+        foreach ($messages as $message) {
+            if ($message['id'] === $messageId) {
+                return $message['receives'];
+            }
+        }
+
+        return 0;
+    }
+
     private function recordFailure(string $message): void
     {
         $this->error("   FAIL  {$message}");
         $this->failures++;
     }
 
-    private function startedKey(string $companyId): string
+    private function key(string $companyId, string $what): string
     {
-        return 'cloud-check:started:'.$companyId;
-    }
-
-    private function progress(string $message): void
-    {
-        $this->getOutput()->getErrorStyle()->writeln($message);
+        return "cloud-check:{$what}:{$companyId}";
     }
 }

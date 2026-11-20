@@ -107,7 +107,19 @@ export class MessagingStack extends Stack {
       statements: [new PolicyStatement({ actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'], resources: [this.queues.chain.queueArn] })],
     })
 
+    // The console function (migrations and operations): the depth of every queue, and what waits in the
+    // dead-letter queues, to read and remove.
+    const inspect = new ManagedPolicy(this, 'InspectQueuesPolicy', {
+      managedPolicyName: resourceName(stage, 'inspect-queues'),
+      description: `Read the depth of the queues of dian-einvoice and take the messages of their dead-letter queues (${stage.name})`,
+      statements: [
+        new PolicyStatement({ actions: ['sqs:GetQueueAttributes', 'sqs:GetQueueUrl'], resources: [...Object.values(this.queues), ...Object.values(this.deadLetterQueues)].map((queue) => queue.queueArn) }),
+        new PolicyStatement({ actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:ChangeMessageVisibility'], resources: Object.values(this.deadLetterQueues).map((queue) => queue.queueArn) }),
+      ],
+    })
+
     published.add('EventsTopicArn', 'events-topic-arn', this.topic.topicArn, 'ARN of the topic of document events')
+    published.add('InspectQueuesPolicyArn', 'policies/inspect-queues', inspect.managedPolicyArn, 'Managed policy for the console function, which reads the queues and their dead letters')
     published.add('PublishEventsPolicyArn', 'policies/publish-document-events', publish.managedPolicyArn, 'Managed policy for the outbox relay')
     published.add('SendJobsPolicyArn', 'policies/send-jobs', sendJobs.managedPolicyArn, 'Managed policy for the processes that dispatch jobs of their own')
   }

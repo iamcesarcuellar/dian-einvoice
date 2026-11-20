@@ -9,17 +9,19 @@ use Aws\Sqs\SqsClient;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Queue\SqsQueue;
 use JsonException;
+use LogicException;
+use RuntimeException;
 
 /**
- * The SQS queues of the emulated cloud and of production, through Laravel's queue: queue:work sqs
- * --queue=chain (or webhooks) consumes one queue with the same workers, timeouts and handlers as the local
- * Redis queue. A message is one of two kinds:
+ * The SQS queues of the emulated cloud and of production, through Laravel's queue: the application
+ * dispatches jobs of its own to them (invitation and password reset emails go to the chain queue), and
+ * the consumer functions (SqsEventsHandler) turn each message they receive into a job with jobFor(). A
+ * message is one of two kinds:
  *
  *  - an outbox event the topic of document events routed here (attribute "type"): it becomes the job its
  *    channel subscribed to that type, built with fromOutboxEvent() exactly as the local relay builds it.
  *    One scheduled for later (available_at) is left invisible in the queue until then;
- *  - a job the application dispatched to the queue itself, such as an invitation email: Laravel's own
- *    payload, run as it is.
+ *  - a job the application dispatched to the queue itself: Laravel's own payload, run as it is.
  *
  * Retries and the dead-letter queue are those of SQS: a job that throws becomes visible again after the
  * wait of its backoff (ChangeMessageVisibility), each receive counts as an attempt, and after the
@@ -38,7 +40,6 @@ final class SqsEventsQueue extends SqsQueue
         SqsClient $sqs,
         private readonly array $queues,
         private readonly OutboxSubscribers $subscribers,
-        private readonly int $waitSeconds,
         string $default = OutboxSubscribers::CHAIN,
     ) {
         parent::__construct($sqs, $default);
@@ -56,28 +57,38 @@ final class SqsEventsQueue extends SqsQueue
         return $this->queues[$name] ?? (string) parent::getQueue($name);
     }
 
+    /** The URL of the configured queue an event source ARN names, as a Lambda SQS record carries it. */
+    public function urlOfArn(string $arn): string
+    {
+        $name = substr($arn, (int) strrpos($arn, ':') + 1);
+
+        foreach ($this->queues as $url) {
+            if ($name !== '' && basename((string) parse_url($url, PHP_URL_PATH)) === $name) {
+                return $url;
+            }
+        }
+
+        throw new RuntimeException("The queue {$name} of {$arn} is not one of the queues of config queue.connections.sqs.queues.");
+    }
+
     /**
+     * The consumer functions receive the messages (SqsEventsHandler): no process here polls a queue.
+     *
      * @param  string|null  $queue
      */
     public function pop($queue = null): ?Job
     {
-        $url = $this->getQueue($queue);
+        throw new LogicException('The SQS queues are consumed by the consumer functions (App\Support\Outbox\Sqs\SqsEventsHandler), not by queue:work.');
+    }
 
-        $response = $this->sqs->receiveMessage([
-            'QueueUrl' => $url,
-            'MessageSystemAttributeNames' => ['ApproximateReceiveCount'],
-            'MessageAttributeNames' => ['All'],
-            'MaxNumberOfMessages' => 1,
-            'WaitTimeSeconds' => $this->waitSeconds,
-        ]);
-
-        $messages = $response['Messages'] ?? null;
-        $message = is_array($messages) && is_array($messages[0] ?? null) ? $messages[0] : null;
-
-        if ($message === null) {
-            return null;
-        }
-
+    /**
+     * The job of a received message, or null when its event is due later: the message is then left
+     * invisible in its queue until it is due.
+     *
+     * @param  array<mixed>  $message  A message as ReceiveMessage returns it, with its attributes.
+     */
+    public function jobFor(array $message, string $url): ?SqsEventJob
+    {
         $maxReceives = $this->maxReceives($url);
 
         try {
@@ -91,6 +102,29 @@ final class SqsEventsQueue extends SqsQueue
         }
 
         return new SqsEventJob($this->container, $this->sqs, $message, $this->connectionName, $url, $payload, $maxReceives);
+    }
+
+    /**
+     * The body of the message that dispatching the job to a queue of this connection sends, so several
+     * can go in one SendMessageBatch call (make cloud-check).
+     */
+    public function bodyOf(object $job, ?string $queue = null): string
+    {
+        return $this->createPayload($job, $this->getQueue($queue));
+    }
+
+    /**
+     * Makes a received message visible again at once, for another invocation to take.
+     *
+     * @param  array<mixed>  $message
+     */
+    public function returnNow(array $message, string $url): void
+    {
+        $this->sqs->changeMessageVisibility([
+            'QueueUrl' => $url,
+            'ReceiptHandle' => is_string($message['ReceiptHandle'] ?? null) ? $message['ReceiptHandle'] : '',
+            'VisibilityTimeout' => 0,
+        ]);
     }
 
     /**

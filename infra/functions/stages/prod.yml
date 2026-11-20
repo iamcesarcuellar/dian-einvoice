@@ -1,0 +1,34 @@
+# What the stage prod adds to serverless.yml: the functions run in the private subnets of the network of
+# Infrastructure task 3 and reach its managed database. That task publishes these SSM parameters
+# (FUTURE_PARAMETERS in infra/cdk/lib/stage.ts, docs/infrastructure.md); this stage already reads them.
+vpc:
+  securityGroupIds:
+    - !Ref FunctionsSecurityGroupId
+  subnetIds: !Split [',', !Ref PrivateSubnetIds]
+
+resources:
+  Parameters:
+    PrivateSubnetIds:
+      Type: AWS::SSM::Parameter::Value<String>
+      Default: /dian-einvoice/prod/network/private-subnet-ids
+      Description: The private subnets of the functions, separated by commas (Infrastructure task 3)
+    FunctionsSecurityGroupId:
+      Type: AWS::SSM::Parameter::Value<String>
+      Default: /dian-einvoice/prod/network/functions-security-group-id
+      Description: Security group of the functions, which the database admits (Infrastructure task 3)
+    DatabaseHost:
+      Type: AWS::SSM::Parameter::Value<String>
+      Default: /dian-einvoice/prod/database/host
+      Description: Address of the managed database (Infrastructure task 3)
+    DatabasePort:
+      Type: AWS::SSM::Parameter::Value<String>
+      Default: /dian-einvoice/prod/database/port
+      Description: Port of the managed database (Infrastructure task 3)
+    DatabaseName:
+      Type: AWS::SSM::Parameter::Value<String>
+      Default: /dian-einvoice/prod/database/name
+      Description: Database of the application in the managed database (Infrastructure task 3)
+    DatabaseSecretArn:
+      Type: AWS::SSM::Parameter::Value<String>
+      Default: /dian-einvoice/prod/database/secret-arn
+      Description: Secret with the credentials of the managed database, rotated (Infrastructure task 3)

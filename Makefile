@@ -14,19 +14,25 @@ CONCURRENCY ?= 20
 # Size of make chaos.
 CHAOS_INVOICES ?= 40
 
-# The emulated cloud (compose profile cloud): the local AWS emulator, the CDK app and the processes of the
-# application with the AWS adapters, configured by backend/.env.cloud (written by make cloud-up).
+# The emulated cloud (compose profile cloud): the local AWS emulator, which runs the application as Lambda
+# functions, the CDK app, the serverless service of the functions (osls) and the proxy in front of API Gateway.
 CLOUD := $(COMPOSE) --profile cloud
-CLOUD_APP := cloud-api cloud-relay cloud-chain cloud-webhooks
+# What make up stops of the emulated cloud: the proxy on the port of the API, and the emulator, which runs the
+# functions (scripts/cloud/containers.sh then removes the containers it started for them).
+CLOUD_APP := cloud-gateway floci
+# osls and the scripts of the functions, on the network of the stack.
+FUNCTIONS := $(CLOUD) run --rm --no-deps -T functions-deploy
 
-# Size of make cloud-check.
+# Size of make cloud-check: invoices of the fast path, then those issued while the functions are killed.
 CLOUD_INVOICES ?= 30
+CLOUD_CHAOS_INVOICES ?= 10
+export CLOUD_CHAOS_INVOICES
 
 # docker compose builds the images that changed before using them. CI builds them beforehand with its layer
 # cache and sets BUILD empty, so compose uses them as they are.
 BUILD ?= --build
 
-TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security cloud-up cloud-demo cloud-down cloud-clean cloud-check cdk-check
+TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-artisan cdk-check
 
 .PHONY: env $(TARGETS)
 
@@ -43,6 +49,7 @@ env:
 up:
 	$(if $(BUILD),$(COMPOSE) build)
 	$(CLOUD) stop $(CLOUD_APP)
+	@sh scripts/cloud/containers.sh remove
 	$(COMPOSE) up -d --wait db redis mail
 	test -d backend/vendor || $(COMPOSE) run --rm --no-deps api composer install --no-interaction
 	grep -Eq '^APP_KEY=.+' backend/.env || $(COMPOSE) run --rm --no-deps api php artisan key:generate --no-interaction
@@ -52,8 +59,10 @@ up:
 	$(COMPOSE) up -d --force-recreate worker relay
 	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8600/docs/api  DIAN simulator and webhook receiver: http://localhost:8602/health  Local mailbox: http://localhost:8603"
 
-# Stop and remove this project's containers, those of the emulated cloud too; every volume is kept.
+# Stop and remove this project's containers, those of the emulated cloud and those its emulator started for
+# the functions too; every volume is kept.
 down:
+	@sh scripts/cloud/containers.sh remove
 	$(CLOUD) down
 
 # Follow the logs of every service.
@@ -147,12 +156,14 @@ ui-check:
 	$(COMPOSE) exec -T api php artisan ui:check
 
 # Formatters and linters, checking only: Laravel Pint for the backend, ESLint and Prettier for the web app, ESLint
-# for the simulator and the CDK app. Each one runs in a throwaway container of its service; the stack need not be up.
+# for the simulator and the CDK app, and the syntax of the scripts of the functions. Each one runs in a throwaway
+# container of its service; the stack need not be up.
 lint:
 	$(COMPOSE) run --rm --no-deps -T api vendor/bin/pint --test
 	$(COMPOSE) run --rm --no-deps -T web sh -c 'pnpm lint && pnpm format:check'
 	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm run lint
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk npm run lint
+	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'for script in scripts/*.mjs; do node --check "$$script" || exit 1; done'
 
 # Static analysis: PHPStan with Larastan (level in backend/phpstan.neon, no baseline), vue-tsc and tsc (simulator and
 # CDK app), all strict.
@@ -170,7 +181,8 @@ fix:
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk npm run fix
 
 # Security of the dependencies and the repository, also a job of CI. Known vulnerabilities of the backend, the
-# web app, the simulator, the CDK app and the end-to-end test: high and critical ones fail. Production dependencies whose
+# web app, the simulator, the CDK app, the serverless service of the functions and the end-to-end test: high and
+# critical ones fail. Production dependencies whose
 # license is only GPL or AGPL fail (scripts/security/licenses.mjs). Secrets in the git history and in the
 # changes not committed yet fail (gitleaks, profile security, rules in .gitleaks.toml). Each step runs in a
 # container; the audits ask the public advisory databases of Packagist and npm.
@@ -179,11 +191,13 @@ security:
 	$(COMPOSE) run --rm --no-deps -T web pnpm audit --audit-level high
 	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev sh -c 'cd /workspace && npm audit --audit-level=high'
 	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/infra/cdk:/infra:ro web sh -c 'cd /infra && npm audit --audit-level=high --package-lock-only'
+	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/infra/functions:/infra:ro web sh -c 'cd /infra && npm audit --audit-level=high --package-lock-only'
 	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/e2e:/e2e:ro web sh -c 'cd /e2e && npm audit --audit-level=high --package-lock-only'
 	$(COMPOSE) run --rm --no-deps -T api composer licenses --no-dev --format=json | $(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/scripts/security:/security:ro web node /security/licenses.mjs composer backend
 	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/scripts/security:/security:ro web sh -c 'pnpm licenses list --prod --json | node /security/licenses.mjs pnpm web-app'
 	$(COMPOSE) --profile tools run --rm -T -v $(CURDIR)/scripts/security:/security:ro simulator-dev sh -c 'cd /workspace && npm ls --omit=dev --all --parseable | node /security/licenses.mjs npm simulator'
 	$(CLOUD) run --rm --no-deps -T -v $(CURDIR)/scripts/security:/security:ro cdk sh -c 'cd /workspace && npm ls --omit=dev --all --parseable | node /security/licenses.mjs npm cdk-app'
+	$(CLOUD) run --rm --no-deps -T -v $(CURDIR)/scripts/security:/security:ro functions sh -c 'cd /workspace && npm ls --omit=dev --all --parseable | node /security/licenses.mjs npm functions'
 	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner
 	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner --pre-commit
 	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner --pre-commit --staged
@@ -206,15 +220,20 @@ test-frontend:
 test-simulator:
 	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm test
 
-# Tests of the CDK app (node:test), without a network: assertions on the synthesized templates of both stages,
-# and cdk-nag (AWS Solutions) with every exception acknowledged with its reason.
+# Tests of the CDK app (node:test), without a network: assertions on the synthesized templates of both stages, on
+# the templates osls packages for the functions (both stages, packaged first, without a network or credentials),
+# and cdk-nag (AWS Solutions) over both, with every exception acknowledged with its reason.
 test-infra:
+	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm run --silent package:local && npm run --silent package:prod'
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk npm test
 
-# The CDK app as the CI job of the infrastructure checks it, without a network: its tests, then cdk synth of
-# both stages, which stops on any finding of cdk-nag (report in infra/cdk/cdk.out/validation-report.json).
+# The infrastructure as code as the CI job of the infrastructure checks it, without a network: the templates of the
+# functions packaged by osls for both stages, the tests of the CDK app, cdk synth of both stages, which stops on any
+# finding of cdk-nag (report in infra/cdk/cdk.out/validation-report.json), and cfn-lint over every template.
 cdk-check:
+	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm run --silent package:local && npm run --silent package:prod'
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk sh -c 'npm test && npm run synth'
+	$(CLOUD) run --rm --no-deps $(BUILD) -T cfn-lint
 
 # The end-to-end test in a browser (Playwright, profile e2e) against the full stack with the demo data (make demo):
 # sign in, issue an invoice, see it accepted and delivered, open its PDF, record its payment and see it paid.
@@ -236,59 +255,79 @@ openapi:
 	$(COMPOSE) exec -T api sh -c 'php artisan scramble:export --path=/tmp/openapi.json >/dev/null && cat /tmp/openapi.json' > openapi.json
 	@echo "openapi.json written; the reference is also served at http://localhost:8600/docs/api"
 
-# The emulated cloud, one environment at a time with the local one (the same ports): stop the processes of the
-# application of the local stack, start the local AWS emulator (Floci, 127.0.0.1:8604), deploy the CDK stage local
-# to it with the normal CDK commands (cdk bootstrap, cdk deploy), write backend/.env.cloud from its outputs, give
-# it a database of its own, and start the API, the relay and the consumers of both queues with the AWS adapters:
-# SNS and SQS, S3, SES, DynamoDB, KMS and Secrets Manager. make up goes back to the local stack.
+# The emulated cloud, one environment at a time with the local one (the same ports), where the application runs as
+# Lambda functions: stop the processes of the application of the local stack, start the local AWS emulator (Floci,
+# 127.0.0.1:8604, with the Docker socket), deploy the CDK stage local to it with the normal CDK commands (cdk
+# bootstrap, cdk deploy), give it a database of its own, push the image of the functions to its ECR, deploy the
+# functions and their triggers with osls, start the proxy in front of API Gateway on the port of the API, and run the
+# migrations with the console function. Nothing of the application runs all the time. make up goes back to the local stack.
 cloud-up:
-	$(if $(BUILD),$(CLOUD) build cdk api)
+	$(if $(BUILD),$(CLOUD) build cdk functions lambda)
 	$(COMPOSE) stop api worker relay
 	$(CLOUD) up -d --wait db floci simulator
-	test -d backend/vendor || $(COMPOSE) run --rm --no-deps api composer install --no-interaction
 	test -d frontend/node_modules || $(COMPOSE) run --rm --no-deps web pnpm install --frozen-lockfile
 	$(CLOUD) run --rm --no-deps -T cdk-deploy sh -c 'cdk bootstrap aws://000000000000/us-east-1 && cdk deploy "local/*" --require-approval never --outputs-file cdk.out/outputs-local.json'
-	$(CLOUD) run --rm --no-deps -T cdk-deploy node scripts/env-file.ts cdk.out/outputs-local.json > backend/.env.cloud
 	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < scripts/cloud/database.sql
-	$(CLOUD) up -d --wait cloud-api
-	$(CLOUD) exec -T cloud-api php artisan migrate --force --no-interaction
-	$(CLOUD) up -d --force-recreate cloud-relay cloud-chain cloud-webhooks
+	sh scripts/cloud/push-image.sh > infra/functions/.image
+	$(FUNCTIONS) sh -c 'osls deploy --stage local --param="image=$$(cat .image)" --param="simulatorToken=$$SIMULATOR_TOKEN"'
+	$(FUNCTIONS) node scripts/gateway-env.mjs > infra/functions/.env.cloud
+	$(CLOUD) up -d --wait --force-recreate cloud-gateway
+	$(FUNCTIONS) node scripts/console.mjs migrate --force --no-interaction
 	$(CLOUD) up -d --no-deps web
-	@echo "Emulated cloud. Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  DIAN simulator: http://localhost:8602/health  AWS emulator: http://localhost:8604/_localstack/health  Emails taken by SES: http://localhost:8604/_aws/ses"
+	@echo "Emulated cloud. Web app: http://localhost:8601  API (API Gateway and Lambda): http://localhost:8600/api/v1/health  API reference: http://localhost:8600/docs/api  DIAN simulator: http://localhost:8602/health  AWS emulator: http://localhost:8604/_floci/health  Its web console: http://localhost:8604/_floci/ui  Emails taken by SES: http://localhost:8604/_aws/ses"
 
-# The emulated cloud with the synthetic demo data, through the real chain with the AWS adapters (the demo
-# documents in the bucket, their emails in SES); the relay and the consumers are stopped meanwhile, as in make seed.
+# The emulated cloud with the synthetic demo data, through the real chain with the AWS adapters (the demo documents
+# in the bucket, their emails in SES), run by the console function. The seeder runs the chain of its documents in
+# line and holds back the relay function and the scheduled sweepers meanwhile, as make seed stops the local relay.
 cloud-demo: cloud-up
-	$(CLOUD) stop cloud-relay cloud-chain cloud-webhooks
-	$(CLOUD) exec -T cloud-api php artisan migrate:fresh --seed --force --no-interaction || { $(CLOUD) up -d cloud-relay cloud-chain cloud-webhooks; exit 1; }
-	$(CLOUD) up -d cloud-relay cloud-chain cloud-webhooks
+	$(FUNCTIONS) node scripts/console.mjs migrate:fresh --seed --force --no-interaction
 
-# Stop and remove the containers of the emulated cloud and of the stack it uses; every volume is kept.
+# Stop and remove the containers of the emulated cloud and of the stack it uses, and those its emulator started for
+# the functions; every volume is kept.
 cloud-down:
+	@sh scripts/cloud/containers.sh remove
 	$(CLOUD) down
+	@sh scripts/cloud/containers.sh remove
 
-# Like cloud-down, and also remove the state of the emulated cloud: the volume of the emulator (every resource
-# of the stage local, the documents, the emails, the keys and the secret) and its database.
+# Like cloud-down, and also remove the state of the emulated cloud: the volume of the emulator (every resource of the
+# stage local, the documents, the emails, the keys and the secret), the volume of the registry behind its ECR, its
+# database, and the settings make cloud-up wrote.
 cloud-clean:
 	$(CLOUD) up -d --wait db
 	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot -e "DROP DATABASE IF EXISTS dian_einvoice_cloud"'
+	@sh scripts/cloud/containers.sh remove
 	$(CLOUD) down
+	@sh scripts/cloud/containers.sh remove
 	docker volume rm --force dian-einvoice_floci-data
+	@sh scripts/cloud/containers.sh remove-volumes
+	rm -f infra/functions/.env.cloud infra/functions/.image
 
-# In the emulated cloud (make cloud-up first), on a temporary company of its own, deleted at the end:
-# CLOUD_INVOICES invoices through the topic, both queues, the bucket, SES, the tables, KMS and Secrets Manager;
-# the consumers of both queues killed mid-process and started again, with nothing done twice; and a message no
-# handler can read, which must end in the dead-letter queue of the chain.
+# In the emulated cloud (make cloud-up first), on a temporary company of its own, deleted at the end, every step in
+# the console function: no process of the application running all the time, every function and trigger present, the
+# cold start and warm answers of the API, CLOUD_INVOICES invoices through the fast path of the outbox (their time
+# from issue to delivery), the session cookie with CSRF and the downloads through API Gateway, a partial batch
+# response with an unreadable message, CLOUD_CHAOS_INVOICES more invoices with the containers of the functions killed
+# mid-process and an outbox event left for the relay function, nothing done twice, the scheduler run, and the topic,
+# the queues, the bucket, SES, the tables, KMS and Secrets Manager.
 cloud-check:
 	@sh scripts/cloud-check.sh $(CLOUD_INVOICES)
 
-# Remove this project's containers and volumes, which deletes the database, the queue, the simulator state and the mailbox.
+# Run php artisan in the console function of the emulated cloud, as an operator would: make cloud-artisan ARGS="migrate:status".
+cloud-artisan:
+	$(FUNCTIONS) node scripts/console.mjs $(ARGS)
+
+# Remove this project's containers and volumes, which deletes the database, the queue, the simulator state and the mailbox,
+# and what the emulator of the emulated cloud created for this project.
 clean:
+	@sh scripts/cloud/containers.sh remove
 	$(CLOUD) down --volumes --remove-orphans
+	@sh scripts/cloud/containers.sh remove-volumes
 
 # Like clean, and also remove the images built for this project.
 nuke:
+	@sh scripts/cloud/containers.sh remove
 	$(CLOUD) down --volumes --remove-orphans --rmi local
+	@sh scripts/cloud/containers.sh remove-volumes
 
 # Open a shell in the api container.
 sh-api:

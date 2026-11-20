@@ -11,14 +11,17 @@ use App\Support\Health\Heartbeat;
 use App\Support\Keys\KeyStore;
 use App\Support\Keys\KmsKeyStore;
 use App\Support\Keys\LocalKeyStore;
+use App\Support\Outbox\OutboxFastPath;
 use App\Support\Outbox\OutboxPublisher;
 use App\Support\Outbox\OutboxRoutesCommand;
 use App\Support\Outbox\OutboxSubscribers;
 use App\Support\Outbox\PruneOutboxEvents;
+use App\Support\Outbox\PublishPendingCommand;
 use App\Support\Outbox\QueueOutboxPublisher;
 use App\Support\Outbox\RelayCommand;
 use App\Support\Outbox\SnsOutboxPublisher;
 use App\Support\Outbox\Sqs\SqsEventsConnector;
+use App\Support\Outbox\SweepCommand;
 use App\Support\Outbox\Sweeper;
 use App\Support\Retention\PruneCommand;
 use App\Support\Retention\PruneFailedJobs;
@@ -28,6 +31,7 @@ use App\Support\Storage\DocumentStorage;
 use App\Support\Storage\LocalDocumentStorage;
 use App\Support\Storage\S3DocumentStorage;
 use Aws\Sdk;
+use Bref\LaravelBridge\BrefServiceProvider;
 use Illuminate\Cache\CacheManager;
 use Illuminate\Cache\DynamoDbStore;
 use Illuminate\Contracts\Bus\Dispatcher;
@@ -43,6 +47,14 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // Inside AWS Lambda (the functions of the emulated cloud and of production), Bref's Laravel bridge:
+        // storage, compiled views and the file cache in /tmp (the rest of the file system is read-only),
+        // logs to stderr for CloudWatch, the failed jobs of the consumer functions in failed_jobs. Its
+        // package is not discovered, so nothing of it touches the local stack.
+        if (self::runningInLambda()) {
+            $this->app->register(BrefServiceProvider::class);
+        }
+
         // The AWS services of the emulated cloud and of production, with the shared settings of config/aws.php.
         $this->app->singleton(Sdk::class, fn (Application $app): Sdk => AwsSdk::make($this->aws()));
 
@@ -72,7 +84,10 @@ class AppServiceProvider extends ServiceProvider
         // Modules subscribe their jobs to outbox event types in their providers.
         $this->app->singleton(OutboxSubscribers::class);
 
-        // Retention: modules tag their pruners; the relay runs them once an hour (ScheduledPruning).
+        // The events a process records, kept until its transaction commits (config outbox.publish_after_commit).
+        $this->app->singleton(OutboxFastPath::class);
+
+        // Retention: modules tag their pruners; the sweepers run them once an hour (ScheduledPruning).
         $this->app->tag([PruneOutboxEvents::class, PruneFailedJobs::class], Pruner::class);
         $this->app->tag([ScheduledPruning::class], Sweeper::class);
     }
@@ -110,8 +125,14 @@ class AppServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([RelayCommand::class, HealthCheckCommand::class, PruneCommand::class, OutboxRoutesCommand::class, CloudCheckCommand::class]);
+            $this->commands([RelayCommand::class, PublishPendingCommand::class, SweepCommand::class, HealthCheckCommand::class, PruneCommand::class, OutboxRoutesCommand::class, CloudCheckCommand::class]);
         }
+    }
+
+    /** Whether this process runs inside AWS Lambda, which sets LAMBDA_TASK_ROOT (the emulator too). */
+    public static function runningInLambda(): bool
+    {
+        return isset($_SERVER['LAMBDA_TASK_ROOT']) && is_string($_SERVER['LAMBDA_TASK_ROOT']) && $_SERVER['LAMBDA_TASK_ROOT'] !== '';
     }
 
     /**

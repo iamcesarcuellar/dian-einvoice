@@ -1,0 +1,11 @@
+# The build context of the images of the backend. The images of the local stack copy nothing (compose mounts
+# the code); the image of the functions copies the application and installs its own production
+# dependencies. Secrets, local state and development files never enter a build.
+.env
+.env.*
+vendor/
+storage/
+tests/
+bootstrap/cache/
+.phpunit.cache/
+.phpunit.result.cache

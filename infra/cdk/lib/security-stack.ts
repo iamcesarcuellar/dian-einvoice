@@ -49,7 +49,7 @@ export class SecurityStack extends Stack {
 
     Validations.of(this.appSecret).acknowledge({
       id: 'AwsSolutions::AwsSolutions-SMG4',
-      reason: 'APP_KEY encrypts stored values (PINs, technical keys, webhook secrets): rotating it needs a rotation function that re-encrypts them, which belongs to the compute of Infrastructure task 2 (docs/limitations.md).',
+      reason: 'APP_KEY encrypts stored values (PINs, technical keys, webhook secrets): rotating it needs a function that re-encrypts all of them, so it is not rotated (docs/limitations.md); the credentials of the managed database get a secret of their own, rotated, in Infrastructure task 3.',
     })
 
     // The key store only: a data key per certificate, with the encryption context the application

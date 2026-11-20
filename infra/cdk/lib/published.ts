@@ -1,5 +1,5 @@
 // What a stack publishes for the rest of the platform: each name or ARN as an SSM parameter under
-// /dian-einvoice/<stage>/<stack>/ (Infrastructure task 2 reads them for the compute), and as a stack
+// /dian-einvoice/<stage>/<stack>/ (the serverless service of the functions reads them), and as a stack
 // output (make cloud-up writes backend/.env.cloud from the outputs of the stage local).
 import { CfnOutput } from 'aws-cdk-lib'
 import { StringParameter } from 'aws-cdk-lib/aws-ssm'

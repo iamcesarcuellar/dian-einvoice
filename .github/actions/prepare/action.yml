@@ -42,8 +42,11 @@ runs:
 
     # Built with the layer cache of GitHub Actions and loaded with the names docker compose gives them; the
     # workflow sets BUILD empty, so the make targets use these images instead of building them again.
+    # No build record artifact: artifacts are uploaded only when a job fails (.github/workflows/ci.yml).
     - name: Build the images
       uses: docker/bake-action@v6
+      env:
+        DOCKER_BUILD_RECORD_UPLOAD: "false"
       with:
         source: .
         files: compose.yaml

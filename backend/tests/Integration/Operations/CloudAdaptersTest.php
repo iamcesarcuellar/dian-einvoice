@@ -37,6 +37,7 @@ use Illuminate\Cache\Repository;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use LogicException;
 use RuntimeException;
 use Tests\IntegrationTestCase;
 use Throwable;
@@ -124,16 +125,13 @@ final class CloudAdaptersTest extends IntegrationTestCase
         $this->assertSame([10, 10, 3], $calls);
     }
 
-    public function test_the_sqs_queue_runs_the_job_of_its_channel_with_the_retries_of_the_redrive_policy(): void
+    public function test_the_sqs_queue_turns_each_message_into_the_job_of_its_channel_with_the_retries_of_the_redrive_policy(): void
     {
         $queues = ['chain' => 'http://floci:4566/000000000000/chain', 'webhooks' => 'http://floci:4566/000000000000/webhooks'];
-        /** @var list<array<string, mixed>> $inbox */
-        $inbox = [];
         $visibility = [];
 
-        $sqs = new SqsClient($this->client(function (CommandInterface $command) use (&$inbox, &$visibility): Result {
+        $sqs = new SqsClient($this->client(function (CommandInterface $command) use (&$visibility): Result {
             return match ($command->getName()) {
-                'ReceiveMessage' => new Result(['Messages' => array_filter([array_shift($inbox)])]),
                 'GetQueueAttributes' => new Result(['Attributes' => ['RedrivePolicy' => '{"deadLetterTargetArn":"arn:aws:sqs:us-east-1:000000000000:chain-dlq","maxReceiveCount":10}']]),
                 'ChangeMessageVisibility' => (function () use ($command, &$visibility): Result {
                     $visibility[] = [$this->text($command['ReceiptHandle']), $command['VisibilityTimeout']];
@@ -144,38 +142,38 @@ final class CloudAdaptersTest extends IntegrationTestCase
             };
         }));
 
-        // The messages here come from memory, not signed with the MD5s SQS adds.
-        $sqs->getHandlerList()->remove('sqs.md5');
-        $queue = new SqsEventsQueue($sqs, $queues, app(OutboxSubscribers::class), waitSeconds: 0);
+        $queue = new SqsEventsQueue($sqs, $queues, app(OutboxSubscribers::class));
         $queue->setContainer(app());
         $queue->setConnectionName('sqs');
 
         // invoice.issued starts the generation of the XML on the chain queue and a webhook event on the
         // other; the attempts of a job are the receives of its message, up to the maxReceiveCount.
         $issued = $this->event('invoice.issued', ['document_id' => 'doc', 'run' => 1]);
-        $inbox = [$this->message($issued, 'issued-1', receives: 3), $this->message($issued, 'issued-2')];
-        $job = $queue->pop('chain');
+        $job = $queue->jobFor($this->message($issued, 'issued-1', receives: 3), $queues['chain']);
         $this->assertSame(GenerateXml::class, $this->commandOf($job));
         $this->assertInstanceOf(SqsEventJob::class, $job);
         $this->assertSame(10, $job->maxTries());
         $this->assertSame(3, $job->attempts());
-        $this->assertSame(PublishWebhookEvent::class, $this->commandOf($queue->pop('webhooks')));
+        $this->assertSame(PublishWebhookEvent::class, $this->commandOf($queue->jobFor($this->message($issued, 'issued-2'), $queues['webhooks'])));
 
         // A transmission retry for later stays invisible in the queue until it is due.
         Carbon::setTestNow('2026-11-20 10:00:00');
-        $inbox = [$this->message($this->event('electronic_document.transmit_due', ['document_id' => 'doc'], availableAt: '2026-11-20 10:00:15'), 'retry')];
-        $this->assertNull($queue->pop('chain'));
+        $this->assertNull($queue->jobFor($this->message($this->event('electronic_document.transmit_due', ['document_id' => 'doc'], availableAt: '2026-11-20 10:00:15'), 'retry'), $queues['chain']));
         $this->assertSame([['retry', 15]], $visibility);
 
         // A message no job of the queue takes (webhook.delivery_due belongs to the webhooks channel), or
         // that is not an event at all, fails on every receive and ends in the dead-letter queue.
         foreach ([$this->message($this->event('webhook.delivery_due'), 'misrouted'), ['MessageId' => 'm', 'ReceiptHandle' => 'garbage', 'Body' => 'garbage', 'Attributes' => ['ApproximateReceiveCount' => '1']]] as $message) {
-            $inbox = [$message];
-            $this->assertSame(RejectUnreadableMessage::class, $this->commandOf($queue->pop('chain')));
+            $this->assertSame(RejectUnreadableMessage::class, $this->commandOf($queue->jobFor($message, $queues['chain'])));
         }
 
-        $inbox = [$this->message($this->event('electronic_document.sign_due', ['document_id' => 'doc']), 'sign')];
-        $this->assertSame(SignXml::class, $this->commandOf($queue->pop('chain')));
+        $this->assertSame(SignXml::class, $this->commandOf($queue->jobFor($this->message($this->event('electronic_document.sign_due', ['document_id' => 'doc']), 'sign'), $queues['chain'])));
+
+        // The queues are consumed by the consumer functions, never by queue:work; a Lambda record names
+        // its queue by ARN.
+        $this->assertSame($queues['webhooks'], $queue->urlOfArn('arn:aws:sqs:us-east-1:000000000000:webhooks'));
+        $this->assertThrows(fn () => $queue->urlOfArn('arn:aws:sqs:us-east-1:000000000000:elsewhere'), RuntimeException::class);
+        $this->assertThrows(fn () => $queue->pop('chain'), LogicException::class);
     }
 
     public function test_the_kms_key_store_encrypts_each_certificate_with_a_data_key_of_its_own(): void
