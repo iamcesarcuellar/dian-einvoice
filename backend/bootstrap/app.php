@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\EdgeClientAddress;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\ProblemDetails;
 use App\Modules\Developers\Http\Middleware\HandleIdempotency;
@@ -25,11 +26,14 @@ $app = Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // Every answer, errors included: an X-Request-Id that the logs carry too, and the security headers.
-        $middleware->prepend(AssignRequestId::class);
+        // Behind the edge, the address of the client is the one the edge saw (config/edge.php), before anything
+        // counts a request by its address.
+        $middleware->prepend([AssignRequestId::class, EdgeClientAddress::class]);
         $middleware->append(SecurityHeaders::class);
 
         // Of the forwarded headers, only the address of the client and the scheme, and only from the proxies
-        // of config/trustedproxy.php (none locally): a client can never choose the host of generated URLs.
+        // of config/trustedproxy.php (none locally): a client can never choose the host of generated URLs, which
+        // behind the edge take APP_URL (AppServiceProvider).
         $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO);
 
         // The web app signs in with Sanctum: a session in an httpOnly cookie plus a CSRF token.

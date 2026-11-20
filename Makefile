@@ -15,11 +15,14 @@ CONCURRENCY ?= 20
 CHAOS_INVOICES ?= 40
 
 # The emulated cloud (compose profile cloud): the local AWS emulator, which runs the application as Lambda
-# functions, the CDK app, the serverless service of the functions (osls) and the proxy in front of API Gateway.
+# functions behind the edge, the CDK app, the serverless service of the functions (osls) and the proxy in front of
+# the edge.
 CLOUD := $(COMPOSE) --profile cloud
-# What make up stops of the emulated cloud: the proxy on the port of the API, and the emulator, which runs the
-# functions (scripts/cloud/containers.sh then removes the containers it started for them).
+# What make up stops of the emulated cloud: the proxy on the ports of the web app and the API, and the emulator,
+# which runs the functions (scripts/cloud/containers.sh then removes the containers it started for them).
 CLOUD_APP := cloud-gateway floci
+# The stacks of the CDK app deployed before the functions; the stack edge fronts their HTTP API, so it goes after.
+CDK_BEFORE_FUNCTIONS := local/messaging local/storage local/data local/security local/mail local/compute
 # osls and the scripts of the functions, on the network of the stack.
 FUNCTIONS := $(CLOUD) run --rm --no-deps -T functions-deploy
 
@@ -32,7 +35,7 @@ export CLOUD_CHAOS_INVOICES
 # cache and sets BUILD empty, so compose uses them as they are.
 BUILD ?= --build
 
-TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-artisan cdk-check
+TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-e2e cloud-artisan cdk-check
 
 .PHONY: env $(TARGETS)
 
@@ -165,13 +168,14 @@ lint:
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk npm run lint
 	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'for script in scripts/*.mjs; do node --check "$$script" || exit 1; done'
 
-# Static analysis: PHPStan with Larastan (level in backend/phpstan.neon, no baseline), vue-tsc and tsc (simulator and
-# CDK app), all strict.
+# Static analysis: PHPStan with Larastan (level in backend/phpstan.neon, no baseline), vue-tsc and tsc (simulator, CDK
+# app and the origin verifier of the edge), all strict.
 analyse:
 	$(COMPOSE) --profile tools run --rm --no-deps -T api-analyse vendor/bin/phpstan analyse --no-progress --memory-limit=1800M
 	$(COMPOSE) run --rm --no-deps -T web pnpm typecheck
 	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm run typecheck
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk npm run typecheck
+	$(CLOUD) run --rm --no-deps $(BUILD) -T functions npm run --silent typecheck
 
 # Apply the formatters and the automatic fixes of the linters.
 fix:
@@ -220,18 +224,20 @@ test-frontend:
 test-simulator:
 	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm test
 
-# Tests of the CDK app (node:test), without a network: assertions on the synthesized templates of both stages, on
-# the templates osls packages for the functions (both stages, packaged first, without a network or credentials),
-# and cdk-nag (AWS Solutions) over both, with every exception acknowledged with its reason.
+# Tests of the infrastructure as code (node:test), without a network: the origin verifier of the edge, then the CDK
+# app: assertions on the synthesized templates of both stages, on the templates osls packages for the functions
+# (both stages, packaged first, without a network or credentials), the CloudFront Function of the routes of the web
+# app with its cases, and cdk-nag (AWS Solutions) over both, with every exception acknowledged with its reason.
 test-infra:
-	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm run --silent package:local && npm run --silent package:prod'
+	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm test && npm run --silent package:local && npm run --silent package:prod'
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk npm test
 
-# The infrastructure as code as the CI job of the infrastructure checks it, without a network: the templates of the
-# functions packaged by osls for both stages, the tests of the CDK app, cdk synth of both stages, which stops on any
-# finding of cdk-nag (report in infra/cdk/cdk.out/validation-report.json), and cfn-lint over every template.
+# The infrastructure as code as the CI job of the infrastructure checks it, without a network: the tests of the origin
+# verifier, the templates of the functions packaged by osls for both stages, the tests of the CDK app, cdk synth of
+# both stages, which stops on any finding of cdk-nag (report in infra/cdk/cdk.out/validation-report.json), and
+# cfn-lint over every template.
 cdk-check:
-	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm run --silent package:local && npm run --silent package:prod'
+	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm test && npm run --silent package:local && npm run --silent package:prod'
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk sh -c 'npm test && npm run synth'
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cfn-lint
 
@@ -256,29 +262,37 @@ openapi:
 	@echo "openapi.json written; the reference is also served at http://localhost:8600/docs/api"
 
 # The emulated cloud, one environment at a time with the local one (the same ports), where the application runs as
-# Lambda functions: stop the processes of the application of the local stack, start the local AWS emulator (Floci,
-# 127.0.0.1:8604, with the Docker socket), deploy the CDK stage local to it with the normal CDK commands (cdk
-# bootstrap, cdk deploy), give it a database of its own with the migrations identity from its secret, push the image
-# of the functions to its ECR, deploy the functions and their triggers with osls, start the proxy in front of API
-# Gateway on the port of the API, and with the console function run the migrations and create the application
-# identity, which every other function connects as. Nothing of the application runs all the time. make up goes back
-# to the local stack. The SQL of the migrations identity holds its password: it goes to MySQL, never to the terminal.
+# Lambda functions behind the edge: stop the processes of the application and the development server of the web app
+# of the local stack, start the local AWS emulator (Floci, 127.0.0.1:8604, with the Docker socket), deploy the stacks
+# of the CDK stage local the functions need to it with the normal CDK commands (cdk bootstrap, cdk deploy), give it a
+# database of its own with the migrations identity from its secret, push the image of the functions to its ECR,
+# deploy the functions, their triggers and the origin verifier with osls, deploy the stack edge (the distribution in
+# front of the web app and the API, with the value of the secret of the edge as a parameter, piped and never
+# printed) and give its distribution the settings of its behaviours the emulator drops, build the web app for
+# production and upload it to the bucket of the edge with the script of every stage, start the proxy in front of the
+# edge on the ports of the web app and the API, and with the console function run the migrations and create the
+# application identity, which every other function connects as. Nothing of the application runs all the time. make
+# up goes back to the local stack. The SQL of the migrations identity holds its password: it goes to MySQL, never to
+# the terminal.
 cloud-up:
 	$(if $(BUILD),$(CLOUD) build cdk functions lambda)
-	$(COMPOSE) stop api worker relay
+	$(COMPOSE) stop api worker relay web
 	$(CLOUD) up -d --wait db floci simulator
 	test -d frontend/node_modules || $(COMPOSE) run --rm --no-deps web pnpm install --frozen-lockfile
-	$(CLOUD) run --rm --no-deps -T cdk-deploy sh -c 'cdk bootstrap aws://000000000000/us-east-1 && cdk deploy "local/*" --require-approval never --outputs-file cdk.out/outputs-local.json'
+	$(CLOUD) run --rm --no-deps -T cdk-deploy sh -c 'cdk bootstrap aws://000000000000/us-east-1 && cdk deploy $(CDK_BEFORE_FUNCTIONS) --require-approval never --outputs-file cdk.out/outputs-local.json'
 	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < scripts/cloud/database.sql
 	@identity="$$($(FUNCTIONS) node scripts/database.mjs migrations-identity)" && printf '%s\n' "$$identity" | $(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' && echo "The migrations identity of the database, created from its secret."
 	sh scripts/cloud/push-image.sh > infra/functions/.image
-	$(FUNCTIONS) sh -c 'osls deploy --stage local --param="image=$$(cat .image)" --param="simulatorToken=$$SIMULATOR_TOKEN"'
+	$(FUNCTIONS) sh -c 'npm run --silent build && osls deploy --stage local --param="image=$$(cat .image)" --param="simulatorToken=$$SIMULATOR_TOKEN"'
+	@$(FUNCTIONS) node scripts/edge.mjs origin-secret | $(CLOUD) run --rm --no-deps -T cdk-deploy sh -c 'origin="$$(cat)" && exec cdk deploy local/edge --require-approval never --parameters "OriginVerifyValue=$$origin"' && echo "The stack edge, with the value of the secret of the edge as its parameter."
+	$(FUNCTIONS) node scripts/edge.mjs reconcile
+	$(COMPOSE) run --rm --no-deps -T web pnpm build
+	$(FUNCTIONS) node scripts/panel.mjs upload /workspace/web/dist
 	$(FUNCTIONS) node scripts/gateway-env.mjs > infra/functions/.env.cloud
 	$(CLOUD) up -d --wait --force-recreate cloud-gateway
 	$(FUNCTIONS) node scripts/console.mjs migrate --force --no-interaction
 	$(FUNCTIONS) node scripts/console.mjs db:application-identity
-	$(CLOUD) up -d --no-deps web
-	@echo "Emulated cloud. Web app: http://localhost:8601  API (API Gateway and Lambda): http://localhost:8600/api/v1/health  API reference: http://localhost:8600/docs/api  DIAN simulator: http://localhost:8602/health  AWS emulator: http://localhost:8604/_floci/health  Its web console: http://localhost:8604/_floci/ui  Emails taken by SES: http://localhost:8604/_aws/ses"
+	@echo "Emulated cloud, behind the edge. Web app and API on one origin: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8601/docs/api  DIAN simulator: http://localhost:8602/health  AWS emulator: http://localhost:8604/_floci/health  Its web console: http://localhost:8604/_floci/ui  Emails taken by SES: http://localhost:8604/_aws/ses"
 
 # The emulated cloud with the synthetic demo data, through the real chain with the AWS adapters (the demo documents
 # in the bucket, their emails in SES), run by the console function. The seeder runs the chain of its documents in
@@ -318,6 +332,15 @@ cloud-clean:
 # warm, requests and invoices working before and after each.
 cloud-check:
 	@sh scripts/cloud-check.sh $(CLOUD_INVOICES)
+
+# The end-to-end test in a browser against the emulated cloud with the demo data (make cloud-demo first): the web app
+# as the edge serves it on http://localhost:8601, built for production and under its Content-Security-Policy, the
+# same journey as make e2e (sign in, issue an invoice through the functions, see it accepted and delivered, open its
+# PDF, record its payment), the API reference, and a tour of every route the router of the web app declares, each a
+# deep link with the demo data, with its main dialogs, menus and lists, the command palette, the themes and the hover
+# card of a chart; it fails on the first violation of a policy the browser reports.
+cloud-e2e:
+	$(COMPOSE) --profile e2e run --rm --no-deps -T -e WEB_URL=http://cloud-gateway:8000 -e EDGE=1 e2e sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 
 # Run php artisan in the console function of the emulated cloud, as an operator would: make cloud-artisan ARGS="migrate:status".
 cloud-artisan:

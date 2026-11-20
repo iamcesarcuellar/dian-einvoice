@@ -1,0 +1,15 @@
+{
+  "description": "The paths the application serves, as path patterns of CloudFront: the edge sends these to API Gateway (each a cache behaviour of the distribution, infra/cdk/lib/edge-stack.ts), and everything else to the web app in the panel bucket. The proxy of the emulated cloud reads them too (infra/functions/scripts/gateway-env.mjs). authentication lists the sign-in points, POST routes of the application as Laravel writes them, which the firewall of the edge limits more strictly per address. A backend test holds every route of the application to one of the paths and each sign-in point to a POST route with a rate limit of its own (tests/Integration/Security/EdgeTest.php), so no route of the API can fall into the bucket.",
+  "api": [
+    "/api/*",
+    "/sanctum/*",
+    "/docs/*"
+  ],
+  "authentication": [
+    "/api/v1/auth/login",
+    "/api/v1/auth/register",
+    "/api/v1/auth/forgot-password",
+    "/api/v1/auth/reset-password",
+    "/api/v1/invitations/{token}/accept"
+  ]
+}

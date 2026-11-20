@@ -4,20 +4,26 @@
 #  1. no process of the application runs all the time: only the emulator, the database, the DIAN simulator,
 #     the web app and the proxy in front of API Gateway are up; the image of the functions starts on a
 #     read-only file system and carries the bundle of the RDS certificate authorities;
-#  2. every function, mapping, route and schedule of the stage local exists for real in the emulator, and each
-#     function connects to the database as its identity;
-#  3. the two identities of the database: the migrations run through the console function with the migrations
+#  2. every function, mapping, route, authorizer and schedule of the stage local exists for real in the emulator,
+#     and each function connects to the database as its identity;
+#  3. the edge: the distribution holds the behaviours of its template; API Gateway refuses a request without the
+#     secret of the edge or with a wrong one, before the application; through the edge the API answers with the
+#     headers of the application, the web app comes from its bucket with every security header of
+#     backend/resources/http/security-headers.json, a deep link answers index.html (the cases of the CloudFront
+#     Function), and the errors of the API stay problems of the API;
+#  4. the two identities of the database: the migrations run through the console function with the migrations
 #     identity, which provisions the application identity; the application identity cannot change the schema;
-#  4. the cold start and the warm answers of the API through API Gateway (figures of the emulator);
-#  5. the fast path: CLOUD_INVOICES invoices through the chain, each step published by its writer as it
-#     commits, with the time from issue to delivery; the session cookie with CSRF and the downloads of an
-#     invoice through API Gateway;
-#  6. a partial batch response: an unreadable message among valid ones in one batch;
-#  7. chaos: more invoices, one outbox event left unpublished, and the containers of the functions killed
+#  5. the cold start and the warm answers of the API through the edge (figures of the emulator);
+#  6. the fast path: CLOUD_INVOICES invoices through the chain, each step published by its writer as it
+#     commits, with the time from issue to delivery; through the edge, on the origin of the web app, the session
+#     cookie with CSRF, the downloads of an invoice, a 403 of the API, and an address the client writes, which
+#     the rate limits do not count by;
+#  7. a partial batch response: an unreadable message among valid ones in one batch;
+#  8. chaos: more invoices, one outbox event left unpublished, and the containers of the functions killed
 #     mid-process;
-#  8. everything ends accepted, delivered and notified once, the relay function published the event left
+#  9. everything ends accepted, delivered and notified once, the relay function published the event left
 #     behind, the scheduler ran, and the AWS services hold what they should;
-#  9. a simulated rotation of the application identity, twice, with the functions warm: requests and
+# 10. a simulated rotation of the application identity, twice, with the functions warm: requests and
 #     invoices work before and after each, and the functions whose password went read their secret again.
 # Every step runs in the console function; the temporary companies are deleted at the end, whatever happens.
 set -eu
@@ -58,7 +64,7 @@ echo "1. No process of the application runs all the time"
 running=$($compose ps --status running --services | sort | tr '\n' ' ')
 permanent=""
 
-for service in api worker relay; do
+for service in api worker relay web; do
   case " $running" in
     *" $service "*) permanent="$permanent $service" ;;
   esac
@@ -100,13 +106,17 @@ esac
 echo "2. The functions and their triggers exist for real in the emulator"
 step tools node scripts/cloud-check.mjs resources
 
-echo "3. The two identities of the database"
+echo "3. The edge: the distribution, the origin verifier and the web app"
+step tools node scripts/edge.mjs check
+step tools node scripts/cloud-check.mjs edge
+
+echo "4. The two identities of the database"
 step console migrate --force --no-interaction
 step console db:application-identity
 step console cloud:check identities
 elapsed
 
-echo "4. Cold start and warm answers of the API (figures of the emulator, not of AWS)"
+echo "5. Cold start and warm answers of the API through the edge (figures of the emulator, not of AWS)"
 api=$(docker ps -q --filter label=dian-einvoice=floci --filter name=^dian-einvoice-dian-einvoice-dian-einvoice-local-api-)
 if [ -n "$api" ]; then
   # shellcheck disable=SC2086
@@ -116,7 +126,7 @@ step tools node scripts/cloud-check.mjs cold
 step tools node scripts/cloud-check.mjs warm
 elapsed
 
-echo "5. The fast path: $invoices invoices"
+echo "6. The fast path: $invoices invoices"
 output=$(console cloud:check start --invoices="$invoices") || status=1
 echo "$output"
 company=$(echo "$output" | sed -n 's/^company: //p' | tail -1)
@@ -129,22 +139,22 @@ fi
 step console cloud:check fast "$company" --timeout=300
 elapsed
 
-echo "6. A partial batch response"
+echo "7. A partial batch response"
 step console cloud:check partial
 elapsed
 
-echo "7. Chaos: $chaos_invoices more invoices, an outbox event left behind, the functions killed mid-process"
+echo "8. Chaos: $chaos_invoices more invoices, an outbox event left behind, the functions killed mid-process"
 step console cloud:check chaos "$company" --invoices="$chaos_invoices" --until-accepted=3
 killed=$(sh scripts/cloud/containers.sh kill-functions)
 echo "   Killed $killed containers of functions of this project; the messages they held come back after the visibility timeout of their queue."
 elapsed
 
-echo "8. Everything ends once"
+echo "9. Everything ends once"
 step console cloud:check finish "$company" --timeout=300
 finished=1
 elapsed
 
-echo "9. A rotation of the application identity, twice, with the functions warm"
+echo "10. A rotation of the application identity, twice, with the functions warm"
 step console cloud:check rotation --timeout=300
 elapsed
 

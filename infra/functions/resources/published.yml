@@ -1,0 +1,11 @@
+# What the service publishes for the CDK app, as SSM parameters under /dian-einvoice/<stage>/functions/: the HTTP API
+# the stack edge of the CDK app puts behind the distribution (its origin), which is deployed after this service.
+Resources:
+  HttpApiIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /dian-einvoice/${sls:stage}/functions/http-api-id
+      Type: String
+      Value: !Ref HttpApi
+      Description: Id of the HTTP API of API Gateway of the functions, the origin of the API behind the edge
+

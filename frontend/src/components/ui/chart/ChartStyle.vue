@@ -10,8 +10,10 @@ defineProps<{
 
 const { config } = useChart()
 
+// Only the per-theme colors: ChartContainer sets the others as variables of its own, since the
+// Content-Security-Policy of the edge refuses a style element with content. Use theme variables as colors.
 const colorConfig = computed(() => {
-  return Object.entries(config.value).filter(([, config]) => config.theme || config.color)
+  return Object.entries(config.value).filter(([, config]) => config.theme)
 })
 </script>
 

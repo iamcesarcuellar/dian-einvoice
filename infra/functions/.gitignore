@@ -1,6 +1,7 @@
-# What osls packages (make cdk-check, make cloud-up), the image make cloud-up deployed, and the settings it
-# writes for the proxy in front of API Gateway.
+# What osls packages (make cdk-check, make cloud-up), the build of the origin verifier it packages, the image make
+# cloud-up deployed, and the settings it writes for the proxy in front of the edge.
 /.serverless/
 /.package/
+/origin-verifier/dist/
 /.image
 /.env.cloud

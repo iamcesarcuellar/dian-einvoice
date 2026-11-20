@@ -35,6 +35,10 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /dian-einvoice/${sls:stage}/compute/roles/console
     Description: Role of the function console (stack compute)
+  OriginVerifierRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/origin-verifier
+    Description: Role of the function origin-verifier, the authorizer of the HTTP API (stack compute)
   SchedulesRoleArn:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /dian-einvoice/${sls:stage}/compute/roles/schedules
@@ -91,6 +95,10 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /dian-einvoice/${sls:stage}/security/app-secret-arn
     Description: Secret of the application (stack security)
+  OriginSecretArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/security/origin-secret-arn
+    Description: Secret of the edge, which the distribution sends in X-Origin-Verify and the origin verifier checks (stack security)
   DatabaseSecretArn:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /dian-einvoice/${sls:stage}/database/secret-arn

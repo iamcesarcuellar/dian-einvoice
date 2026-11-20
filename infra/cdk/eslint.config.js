@@ -30,4 +30,9 @@ export default defineConfig(
     files: ['**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],
   },
+  {
+    // The CloudFront Functions: scripts of the runtime cloudfront-js-2.0, which calls their handler.
+    files: ['edge/**/*.js'],
+    languageOptions: { sourceType: 'script' },
+  },
 )

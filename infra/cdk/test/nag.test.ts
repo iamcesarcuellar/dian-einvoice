@@ -4,7 +4,7 @@
 // template of the functions goes through the same rules in test/functions.test.ts.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { FUNCTIONS, STAGES, type StageConfig } from '../lib/stage.ts'
+import { FUNCTIONS, ORIGIN_VERIFIER, STAGES, type StageConfig } from '../lib/stage.ts'
 import { built, validationReport } from './support.ts'
 
 /** The exceptions of each stage: the rule and the resource it is acknowledged on. */
@@ -14,11 +14,27 @@ const EXCEPTIONS = [
   'AwsSolutions-DDB3 data/SessionsTable/Resource',
   'AwsSolutions-IAM5[Resource::<Documents7E5B2978.Arn>/*] storage/DocumentsReadWritePolicy/Resource',
   'AwsSolutions-SMG4 security/AppSecret/Resource',
+  'AwsSolutions-SMG4 security/OriginSecret/Resource',
+  'AwsSolutions-CFR1 edge/Distribution/Resource',
 ]
 
-/** Each function writes its logs to its own log group, in streams Lambda names: one exception per role and stage. */
+/**
+ * Each function writes its logs to its own log group, in streams Lambda names: one exception per role and stage,
+ * the origin verifier included.
+ */
 function logStreamExceptions(stage: StageConfig): string[] {
-  return FUNCTIONS.map((fn) => `AwsSolutions-IAM5[Resource::arn:aws:logs:${stage.region}:${stage.account}:log-group:/aws/lambda/dian-einvoice-${stage.name}-${fn}:*] ${stage.name}/compute/${fn.charAt(0).toUpperCase()}${fn.slice(1)}FunctionRole/Resource`)
+  return [...FUNCTIONS, ORIGIN_VERIFIER].map((fn) => `AwsSolutions-IAM5[Resource::arn:aws:logs:${stage.region}:${stage.account}:log-group:/aws/lambda/dian-einvoice-${stage.name}-${fn}:*] ${stage.name}/compute/${fn.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('')}FunctionRole/Resource`)
+}
+
+/**
+ * The edge of a stage without a domain of its own answers with the default certificate of CloudFront (TLSv1, which
+ * AWS sets), and one without a firewall (the emulator applies none) has no web ACL.
+ */
+function edgeExceptions(stage: StageConfig): string[] {
+  return [
+    ...(stage.edge.domain === null ? [`AwsSolutions-CFR4 ${stage.name}/edge/Distribution/Resource`] : []),
+    ...(stage.edge.firewall === null ? [`AwsSolutions-CFR2 ${stage.name}/edge/Distribution/Resource`] : []),
+  ]
 }
 
 /** In prod the functions run in a VPC: Lambda creates their network interfaces, which EC2 scopes to no resource. */
@@ -60,15 +76,16 @@ describe('cdk-nag', () => {
       ...logStreamExceptions(stage),
       ...networkExceptions(stage),
       ...databaseExceptions(stage),
+      ...edgeExceptions(stage),
     ])
     assert.deepEqual([...new Set(suppressed)].sort(), expected.sort())
   })
 
-  it('synthesized the six stacks of the stage local and the eight of prod, which adds the network and the database', () => {
+  it('synthesized the seven stacks of the stage local and the nine of prod, which adds the network and the database', () => {
     assert.deepEqual(assembly.nestedAssemblies.map((nested) => nested.directoryName).sort(), ['assembly-local', 'assembly-prod'])
     assert.deepEqual(assembly.nestedAssemblies.flatMap((nested) => nested.nestedAssembly.stacks.map((stack) => stack.stackName)).sort(), [
-      'dian-einvoice-local-compute', 'dian-einvoice-local-data', 'dian-einvoice-local-mail', 'dian-einvoice-local-messaging', 'dian-einvoice-local-security', 'dian-einvoice-local-storage',
-      'dian-einvoice-prod-compute', 'dian-einvoice-prod-data', 'dian-einvoice-prod-database', 'dian-einvoice-prod-mail', 'dian-einvoice-prod-messaging', 'dian-einvoice-prod-network', 'dian-einvoice-prod-security', 'dian-einvoice-prod-storage',
+      'dian-einvoice-local-compute', 'dian-einvoice-local-data', 'dian-einvoice-local-edge', 'dian-einvoice-local-mail', 'dian-einvoice-local-messaging', 'dian-einvoice-local-security', 'dian-einvoice-local-storage',
+      'dian-einvoice-prod-compute', 'dian-einvoice-prod-data', 'dian-einvoice-prod-database', 'dian-einvoice-prod-edge', 'dian-einvoice-prod-mail', 'dian-einvoice-prod-messaging', 'dian-einvoice-prod-network', 'dian-einvoice-prod-security', 'dian-einvoice-prod-storage',
     ])
   })
 

@@ -295,8 +295,10 @@ services:
 
   # The CDK app (infra/cdk), without a network: lint, type check, its tests and cdk synth of both stages
   # (make cdk-check, make lint, make analyse). Read-only: the event routes of the backend, the AWS services
-  # its adapters call, the templates osls packaged for the functions, and the documentation, whose table of
-  # those services a test checks. ESLint with the types of aws-cdk-lib needs more than the default heap of Node.
+  # its adapters call, the security headers and the paths of the edge, the templates osls packaged for the
+  # functions, the documentation, whose table of those services a test checks, and the index.html of the web
+  # app, whose inline script the Content-Security-Policy of the edge allows by its hash. ESLint with the types
+  # of aws-cdk-lib needs more than the default heap of Node.
   cdk:
     build:
       context: ./infra/cdk
@@ -311,14 +313,18 @@ services:
       NODE_OPTIONS: --max-old-space-size=1536
       EVENT_ROUTES: /workspace/outbox/routes.json
       AWS_SERVICES: /workspace/aws/services.json
+      HTTP_RESOURCES: /workspace/http
       FUNCTIONS_TEMPLATES: /workspace/functions
       DOCS: /workspace/docs
+      WEB_APP_INDEX: /workspace/frontend/index.html
     volumes:
       - ./infra/cdk:/workspace/cdk
       - ./backend/resources/outbox:/workspace/outbox:ro
       - ./backend/resources/aws:/workspace/aws:ro
+      - ./backend/resources/http:/workspace/http:ro
       - ./infra/functions:/workspace/functions:ro
       - ./docs:/workspace/docs:ro
+      - ./frontend/index.html:/workspace/frontend/index.html:ro
 
   # The same, on the network of the stack: cdk bootstrap and cdk deploy of the stage local to the emulator
   # (make cloud-up), which takes any credentials.
@@ -333,6 +339,7 @@ services:
       HOME: /tmp
       EVENT_ROUTES: /workspace/outbox/routes.json
       AWS_SERVICES: /workspace/aws/services.json
+      HTTP_RESOURCES: /workspace/http
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: "000000000000"
@@ -341,6 +348,7 @@ services:
       - ./infra/cdk:/workspace/cdk
       - ./backend/resources/outbox:/workspace/outbox:ro
       - ./backend/resources/aws:/workspace/aws:ro
+      - ./backend/resources/http:/workspace/http:ro
     depends_on:
       floci:
         condition: service_healthy
@@ -375,8 +383,10 @@ services:
       - ./infra/functions:/workspace/functions
 
   # The same, on the network of the stack: osls deploy of the stage local to the emulator, and the scripts
-  # that invoke the console function and read the functions (make cloud-up, make cloud-check). The admin
-  # token of the DIAN simulator (backend/.env) is given to the functions of the stage local.
+  # that invoke the console function and read the functions, upload the web app to the edge and check it (make
+  # cloud-up, make cloud-check). The admin token of the DIAN simulator (backend/.env) is given to the functions
+  # of the stage local. Read-only: the web app (its build, frontend/dist), the paths and security headers of the
+  # edge, and the cases of the routes of the web app.
   functions-deploy:
     image: dian-einvoice-functions:latest
     pull_policy: never
@@ -393,6 +403,9 @@ services:
       SIMULATOR_TOKEN: ${DIAN_SIMULATOR_TOKEN:-}
     volumes:
       - ./infra/functions:/workspace/functions
+      - ./frontend:/workspace/web:ro
+      - ./backend/resources/http:/workspace/http:ro
+      - ./infra/cdk/edge:/workspace/edge:ro
     depends_on:
       floci:
         condition: service_healthy
@@ -413,10 +426,13 @@ services:
       - ./infra/functions/.package:/templates/functions:ro
       - ./infra/cfn-lint/.cfnlintrc.yaml:/templates/.cfnlintrc.yaml:ro
 
-  # The address of the API in the emulated cloud, in place of api: the same port, and the name api on the
-  # network, so the web app reaches it unchanged. A minimal reverse proxy in front of API Gateway, which the
-  # emulator serves by host name (<api id>.execute-api.localhost.floci.io); make cloud-up writes the id of the
-  # API it deployed to infra/functions/.env.cloud. Every request goes through API Gateway to the api function.
+  # The edge of the emulated cloud as a browser reaches it, in place of the development server of the web app and
+  # of the API: 8601 serves the web app and the API on one origin, as in production, and 8600, the address of the
+  # API, the same edge; the name api on the network too. A minimal reverse proxy in front of the CloudFront
+  # distribution, which the emulator serves by host name (<id>.cloudfront.localhost.floci.io) and whose CloudFront
+  # Function it does not run: the proxy gives the host name and rewrites the routes of the web app as the function
+  # does (infra/functions/gateway.conf.template). make cloud-up writes the id of the distribution it deployed and
+  # the paths of the API to infra/functions/.env.cloud. Every request goes through the distribution.
   cloud-gateway:
     image: nginx:1.30.6-alpine-slim
     profiles: ["cloud"]
@@ -426,11 +442,12 @@ services:
       - path: ./infra/functions/.env.cloud
         required: false
     environment:
-      NGINX_ENVSUBST_FILTER: ^API_GATEWAY_
+      NGINX_ENVSUBST_FILTER: ^EDGE_
     volumes:
       - ./infra/functions/gateway.conf.template:/etc/nginx/templates/default.conf.template:ro
     ports:
       - "127.0.0.1:8600:8000"
+      - "127.0.0.1:8601:8000"
     networks:
       default:
         aliases:

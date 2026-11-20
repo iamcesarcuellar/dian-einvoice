@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
+import { expect, test } from './policy'
 
 // The synthetic demo account of make demo, owner of Demo Comercial SAS, and what it sells: an
 // office chair (450.000) and a pack of paper (21.500), both at IVA 19 %.

@@ -1,21 +1,31 @@
 {
   "name": "dian-einvoice-functions",
   "private": true,
-  "description": "The serverless service of dian-einvoice: its Lambda functions and their triggers, deployed with osls to the local AWS emulator (stage local) or packaged and validated without a network (stage prod).",
+  "description": "The serverless service of dian-einvoice: its Lambda functions and their triggers, the origin verifier of the edge (TypeScript on Node.js), and the scripts that deploy the web app to the edge, deployed with osls to the local AWS emulator (stage local) or packaged and validated without a network (stage prod).",
   "type": "module",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "package:local": "osls package --stage local --package .package/local --param=image=000000000000.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-local-functions@sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "package:prod": "osls package --stage prod --package .package/prod --param=image=111111111111.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-prod-functions@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    "build": "tsc -p origin-verifier/tsconfig.build.json",
+    "typecheck": "tsc -p origin-verifier/tsconfig.json",
+    "test": "node --test --test-reporter=spec origin-verifier/test/",
+    "package:local": "npm run --silent build && osls package --stage local --package .package/local --param=image=000000000000.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-local-functions@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "package:prod": "npm run --silent build && osls package --stage prod --package .package/prod --param=image=111111111111.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-prod-functions@sha256:0000000000000000000000000000000000000000000000000000000000000000"
   },
   "dependencies": {
     "@aws-sdk/client-apigatewayv2": "^3.1173.0",
     "@aws-sdk/client-cloudformation": "^3.1173.0",
+    "@aws-sdk/client-cloudfront": "^3.1173.0",
     "@aws-sdk/client-lambda": "^3.1173.0",
+    "@aws-sdk/client-s3": "^3.1173.0",
     "@aws-sdk/client-scheduler": "^3.1173.0",
     "@aws-sdk/client-secrets-manager": "^3.1173.0",
+    "@aws-sdk/client-ssm": "^3.1173.0",
     "osls": "4.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "^6.0.3"
   }
 }

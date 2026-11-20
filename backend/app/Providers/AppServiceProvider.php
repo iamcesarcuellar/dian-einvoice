@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\PublicOrigin;
 use App\Support\ApiDocs\ApiDocumentation;
 use App\Support\Aws\AwsSdk;
 use App\Support\Cloud\CloudCheckCommand;
@@ -109,6 +110,13 @@ class AppServiceProvider extends ServiceProvider
 
         // The public API reference at /docs/api, and openapi.json through make openapi.
         ApiDocumentation::configure();
+
+        // Behind the edge (config/edge.php) the application sees the host of API Gateway, which refuses whoever does
+        // not come through the edge: every URL it generates, the links of the pages of a list and the servers of
+        // the API reference included, takes the public origin of the platform, APP_URL.
+        if (config()->boolean('edge.behind')) {
+            PublicOrigin::apply(config()->string('app.url'));
+        }
 
         // The queue workers beat while they loop, for the healthcheck of their containers.
         Event::listen(Looping::class, fn () => Heartbeat::beat('worker'));

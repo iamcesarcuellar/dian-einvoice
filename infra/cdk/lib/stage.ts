@@ -61,6 +61,42 @@ export interface DatabaseSettings {
   readonly managed: ManagedDatabaseSettings | null
 }
 
+/** The domain of the platform at the edge: the alternate name of the distribution and its certificate. */
+export interface EdgeDomain {
+  readonly name: string
+  // A certificate of ACM in us-east-1, as CloudFront requires, for that name. No lookup in an account: it is a
+  // deployment parameter (cdk deploy -c edgeDomainName=... -c edgeCertificateArn=...).
+  readonly certificateArn: string
+}
+
+/** The firewall of the edge (AWS WAF): its rate-based rules, per address of a client, in each window. */
+export interface FirewallSettings {
+  readonly window: Duration
+  // Every request of an address: a ceiling against floods, well above what the application allows an API key.
+  readonly requestsPerAddress: number
+  // The sign-in, sign-up, password reset and invitation points, stricter.
+  readonly authenticationRequestsPerAddress: number
+}
+
+/**
+ * The edge (stack edge): the content delivery network in front of the web app and the API, its firewall and its
+ * logs. The reasons of each setting are in docs/infrastructure.md.
+ */
+export interface EdgeSettings {
+  // null: the domain CloudFront gives the distribution, with its default certificate.
+  readonly domain: EdgeDomain | null
+  // How the value of the secret of the edge reaches the distribution, which sends it to API Gateway: a
+  // parameter of the deployment, which make cloud-up reads from the secret (the emulator expands no dynamic
+  // reference outside RDS), or a dynamic reference to Secrets Manager that CloudFormation resolves.
+  readonly originSecret: 'parameter' | 'dynamic-reference'
+  // The access logs of the distribution, and the server access logs of the bucket of the web app, kept this long.
+  readonly logsExpireAfter: Duration
+  // The versions an upload of the web app replaced stay this long, to go back to them.
+  readonly panelVersionsExpireAfter: Duration
+  // null: no firewall (the emulator applies none).
+  readonly firewall: FirewallSettings | null
+}
+
 export interface StageConfig {
   readonly name: StageName
   readonly account: string
@@ -103,10 +139,11 @@ export interface StageConfig {
   readonly mail: {
     readonly fromAddress: string
     // An email identity is verified at once by the emulator; in AWS the whole domain is verified with
-    // Easy DKIM and a MAIL FROM subdomain, whose DNS records belong to Infrastructure task 4.
+    // Easy DKIM and a MAIL FROM subdomain, whose DNS records the owner of the domain publishes (docs/limitations.md).
     readonly identity: 'email' | 'domain'
     readonly domain: string
   }
+  readonly edge: EdgeSettings
 }
 
 const QUEUES = {
@@ -119,6 +156,21 @@ const QUEUES = {
 export const FUNCTIONS = ['api', 'chain', 'webhooks', 'relay', 'scheduler', 'console'] as const
 
 export type FunctionName = (typeof FUNCTIONS)[number]
+
+/**
+ * The origin verifier of the edge (infra/functions/origin-verifier), the Lambda authorizer of the HTTP API: a
+ * function of its own in TypeScript on Node.js, apart from the functions of the application, without access to the
+ * database or to any resource but the secret of the edge.
+ */
+export const ORIGIN_VERIFIER = 'origin-verifier'
+
+/** The SSM parameter the serverless service publishes with the id of its HTTP API, the origin of the API behind the edge. */
+export const HTTP_API_PARAMETER = 'functions/http-api-id'
+
+/** The secret of the edge, whose value the distribution sends to API Gateway in X-Origin-Verify. */
+export function originSecretName(stage: StageConfig): string {
+  return `${PROJECT}/${stage.name}/edge/origin-verify`
+}
 
 /** The only function that uses the migrations identity of the database; every other one uses the application identity. */
 export const MIGRATIONS_FUNCTION: FunctionName = 'console'
@@ -170,6 +222,13 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
       accessLogsExpireAfter: Duration.days(30),
     },
     mail: { fromAddress: 'documents@dian-einvoice.example', identity: 'email', domain: 'dian-einvoice.example' },
+    edge: {
+      domain: null,
+      originSecret: 'parameter',
+      logsExpireAfter: Duration.days(30),
+      panelVersionsExpireAfter: Duration.days(7),
+      firewall: null,
+    },
   },
   prod: {
     name: 'prod',
@@ -216,6 +275,14 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
       accessLogsExpireAfter: Duration.days(365),
     },
     mail: { fromAddress: 'documents@dian-einvoice.example', identity: 'domain', domain: 'dian-einvoice.example' },
+    edge: {
+      // Placeholders of a domain and a certificate, replaced by the deployment parameters of a real account.
+      domain: { name: 'app.dian-einvoice.example', certificateArn: 'arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000' },
+      originSecret: 'dynamic-reference',
+      logsExpireAfter: Duration.days(365),
+      panelVersionsExpireAfter: Duration.days(90),
+      firewall: { window: Duration.minutes(5), requestsPerAddress: 3000, authenticationRequestsPerAddress: 100 },
+    },
   },
 }
 

@@ -16,7 +16,8 @@ use Tests\IntegrationTestCase;
 /**
  * What every answer carries, errors included: problem+json without traces or internal details for
  * 404, 405, 419 and 500 (429 in AccountsTest), an X-Request-Id that the logs carry too, and the
- * security headers; HSTS in production. The development tools refuse to run there.
+ * security headers of resources/http/security-headers.json; HSTS in production. The development tools
+ * refuse to run there. The page of the API reference has a policy of its own (EdgeTest).
  */
 final class ErrorsAndHeadersTest extends IntegrationTestCase
 {
@@ -71,16 +72,19 @@ final class ErrorsAndHeadersTest extends IntegrationTestCase
         $this->assertNotSame("bad\r\nid", $this->getJson('/api/v1/health', [AssignRequestId::HEADER => "bad\r\nid-0000"])->headers->get(AssignRequestId::HEADER));
     }
 
-    public function test_security_headers_on_data_files_and_the_reference_and_hsts_in_production(): void
+    public function test_security_headers_on_data_and_files_and_hsts_in_production(): void
     {
+        Route::get('api/v1/synthetic-file', fn () => response('%PDF-1.7', 200, ['Content-Type' => 'application/pdf']));
+
         $this->assertSecurityHeaders($this->getJson('/api/v1/health')->assertOk(), json: true);
-        $this->assertSecurityHeaders($this->get('/docs/api')->assertOk(), json: false);
+        $this->assertSecurityHeaders($this->get('/api/v1/synthetic-file')->assertOk(), json: false);
         $this->getJson('/api/v1/health')->assertHeaderMissing('Strict-Transport-Security');
 
         $this->app->detectEnvironment(fn (): string => 'production');
 
         try {
             $this->getJson('/api/v1/health')->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            $this->assertSame($this->declared()['common']['Strict-Transport-Security'], $this->getJson('/api/v1/health')->headers->get('Strict-Transport-Security'));
         } finally {
             $this->app->detectEnvironment(fn (): string => 'testing');
         }
@@ -110,6 +114,9 @@ final class ErrorsAndHeadersTest extends IntegrationTestCase
     }
 
     /**
+     * The headers of an answer of the API, as the single source of truth declares them for its kind of document
+     * (resources/http/security-headers.json), and their values as they always were.
+     *
      * @param  TestResponse<Response>  $response
      */
     private function assertSecurityHeaders(TestResponse $response, bool $json): void
@@ -118,5 +125,27 @@ final class ErrorsAndHeadersTest extends IntegrationTestCase
             ->assertHeader('Referrer-Policy', 'no-referrer')
             ->assertHeader('X-Frame-Options', 'DENY')
             ->assertHeader('Content-Security-Policy', $json ? "default-src 'none'; frame-ancestors 'none'" : "frame-ancestors 'none'");
+
+        $declared = $this->declared();
+        $document = $declared['documents'][$json ? 'api' : 'files'];
+        $policy = implode('; ', array_map(fn (string $directive, string $sources): string => "{$directive} {$sources}", array_keys($document['contentSecurityPolicy']), $document['contentSecurityPolicy']));
+        $response->assertHeader('Content-Security-Policy', $policy);
+
+        foreach (['X-Content-Type-Options', 'X-Frame-Options'] as $name) {
+            $response->assertHeader($name, $declared['common'][$name]);
+        }
+
+        foreach ($document['headers'] as $name => $value) {
+            $response->assertHeader($name, $value);
+        }
+    }
+
+    /**
+     * @return array{common: array<string, string>, documents: array<string, array{headers: array<string, string>, contentSecurityPolicy: array<string, string>}>}
+     */
+    private function declared(): array
+    {
+        /** @var array{common: array<string, string>, documents: array<string, array{headers: array<string, string>, contentSecurityPolicy: array<string, string>}>} */
+        return json_decode((string) file_get_contents(resource_path('http/security-headers.json')), true, flags: JSON_THROW_ON_ERROR);
     }
 }

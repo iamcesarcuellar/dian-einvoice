@@ -1,7 +1,8 @@
 // Compute: what the functions of the serverless service (infra/functions/serverless.yml) take from outside
 // it. Each function gets a role of its own, with the managed policies of the other stacks it needs and
-// nothing else; EventBridge Scheduler gets the role it invokes the scheduled functions with; and the image
-// of the functions gets its ECR repository. The functions and their triggers belong to the serverless
+// nothing else; the origin verifier of the edge a role that may only read the secret of the edge; EventBridge
+// Scheduler gets the role it invokes the scheduled functions with; and the image of the functions of the
+// application gets its ECR repository. The functions and their triggers belong to the serverless
 // service, which reads the names published here; every resource is defined in exactly one tool.
 import { ArnFormat, Stack, type StackProps, Validations } from 'aws-cdk-lib'
 import { Repository, TagMutability } from 'aws-cdk-lib/aws-ecr'
@@ -9,7 +10,7 @@ import { ManagedPolicy, PolicyDocument, PolicyStatement, Role, ServicePrincipal 
 import { StringParameter } from 'aws-cdk-lib/aws-ssm'
 import type { Construct } from 'constructs'
 import { Published } from './published.ts'
-import { DATABASE_PARAMETERS, FUNCTIONS, MIGRATIONS_FUNCTION, functionName, parameterPrefix, removalPolicy, resourceName, type FunctionName, type StageConfig } from './stage.ts'
+import { DATABASE_PARAMETERS, FUNCTIONS, MIGRATIONS_FUNCTION, ORIGIN_VERIFIER, functionName, parameterPrefix, removalPolicy, resourceName, type FunctionName, type StageConfig } from './stage.ts'
 
 export interface ComputeStackProps extends StackProps {
   readonly stage: StageConfig
@@ -56,6 +57,7 @@ export const SCHEDULED_FUNCTIONS: readonly FunctionName[] = ['relay', 'scheduler
 
 export class ComputeStack extends Stack {
   readonly roles: Readonly<Record<FunctionName, Role>>
+  readonly originVerifierRole: Role
   readonly repository: Repository
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
@@ -138,6 +140,32 @@ export class ComputeStack extends Stack {
     }
 
     this.roles = roles as Record<FunctionName, Role>
+
+    // The origin verifier, the authorizer of the HTTP API: its log group and the secret of the edge, nothing else.
+    // It runs outside the VPC and reaches no database.
+    const verifier = resourceName(stage, ORIGIN_VERIFIER)
+    const verifierLogs = this.formatArn({ service: 'logs', resource: 'log-group', resourceName: `/aws/lambda/${verifier}:*`, arnFormat: ArnFormat.COLON_RESOURCE_NAME })
+    const originSecretArn = StringParameter.valueForStringParameter(this, `${parameterPrefix(stage)}/security/origin-secret-arn`)
+    this.originVerifierRole = new Role(this, 'OriginVerifierFunctionRole', {
+      roleName: `${verifier}-function`,
+      description: `Role of the function ${verifier}: the authorizer of the HTTP API, which reads the secret of the edge`,
+      assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
+      inlinePolicies: {
+        function: new PolicyDocument({
+          statements: [
+            new PolicyStatement({ actions: ['logs:CreateLogStream', 'logs:PutLogEvents'], resources: [verifierLogs] }),
+            new PolicyStatement({ actions: ['secretsmanager:GetSecretValue'], resources: [originSecretArn] }),
+          ],
+        }),
+      },
+    })
+
+    Validations.of(this.originVerifierRole).acknowledge({
+      id: `AwsSolutions::AwsSolutions-IAM5[Resource::${verifierLogs}]`,
+      reason: 'Lambda writes the logs of each execution environment to a stream it names when the environment starts; the resource is the log group of this function only.',
+    })
+
+    published.add('OriginVerifierFunctionRoleArn', `roles/${ORIGIN_VERIFIER}`, this.originVerifierRole.roleArn, `Role of the function ${verifier}`)
 
     // EventBridge Scheduler invokes the scheduled functions with this role, from this account only.
     const schedules = new Role(this, 'SchedulesRole', {

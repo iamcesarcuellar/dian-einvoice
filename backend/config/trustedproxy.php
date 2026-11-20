@@ -6,7 +6,10 @@
 // comes last in X-Forwarded-For: trusting 127.0.0.1 alone (TRUSTED_PROXIES of the functions) makes the
 // request IP that last address, so a client cannot choose its own address for the rate limits by sending
 // the header itself. Bref's bridge would otherwise trust every address, and the first one of the header
-// is the client's to write. Infrastructure task 4 adds the hop of the content delivery network in front.
+// is the client's to write. Behind the edge (the functions, config/edge.php), the application first sets that
+// forwarded address to the entry the edge appended, counted from the end of X-Forwarded-For by the known hops of the
+// stage (App\Http\Middleware\EdgeClientAddress), so neither the address API Gateway saw, which is the edge's, nor
+// anything the client wrote counts for a client.
 return [
 
     'proxies' => env('TRUSTED_PROXIES'),

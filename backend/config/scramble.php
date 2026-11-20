@@ -2,6 +2,7 @@
 
 use App\Support\ApiDocs\ApiConventionsExtension;
 use App\Support\ApiDocs\ProblemDetailsExceptionExtension;
+use App\Support\ApiDocs\SecureApiReference;
 
 // Package defaults apply to every option not listed here. The routes, groups and security scheme
 // are set in App\Support\ApiDocs\ApiDocumentation.
@@ -60,8 +61,9 @@ Delivery is at least once and in no particular order: deduplicate by `webhook-id
 MARKDOWN,
     ],
 
-    // A public reference: anyone who reaches the API can read it.
-    'middleware' => [],
+    // A public reference: anyone who reaches the API can read it. Its page gets a Content-Security-Policy of its
+    // own and Subresource Integrity on the files of its renderer (resources/http/security-headers.json).
+    'middleware' => [SecureApiReference::class],
 
     'extensions' => [
         ProblemDetailsExceptionExtension::class,

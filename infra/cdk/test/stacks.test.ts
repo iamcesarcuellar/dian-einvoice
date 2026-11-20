@@ -14,10 +14,10 @@ for (const name of ['local', 'prod'] as const) {
 
   describe(`stage ${name}`, () => {
     it('deploys to its account and region, with names and tags that carry the stage', () => {
-      for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.compute, ...(stacks.network === null ? [] : [stacks.network]), ...(stacks.database === null ? [] : [stacks.database])]) {
+      for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.compute, stacks.edge, ...(stacks.network === null ? [] : [stacks.network]), ...(stacks.database === null ? [] : [stacks.database])]) {
         assert.equal(stack.account, config.account)
         assert.equal(stack.region, config.region)
-        assert.match(stack.stackName, new RegExp(`^${prefix}(messaging|storage|data|security|mail|compute|network|database)$`))
+        assert.match(stack.stackName, new RegExp(`^${prefix}(messaging|storage|data|security|mail|compute|edge|network|database)$`))
         assert.equal(stack.terminationProtection, name === 'prod')
         assert.deepEqual(stack.tags.tagValues(), { project: 'dian-einvoice', stage: name, component: stack.stackName.slice(prefix.length), 'managed-by': 'aws-cdk' })
       }
@@ -258,7 +258,7 @@ for (const name of ['local', 'prod'] as const) {
 
       // The stack security of a stage without a managed database (local) publishes the identities of the
       // database under the names the stack database uses in prod.
-      const groups: [Stack, string][] = [[stacks.messaging, 'messaging'], [stacks.storage, 'storage'], [stacks.data, 'data'], [stacks.security, config.database.managed === null ? '(security|database)' : 'security'], [stacks.mail, 'mail'], [stacks.compute, 'compute']]
+      const groups: [Stack, string][] = [[stacks.messaging, 'messaging'], [stacks.storage, 'storage'], [stacks.data, 'data'], [stacks.security, config.database.managed === null ? '(security|database)' : 'security'], [stacks.mail, 'mail'], [stacks.compute, 'compute'], [stacks.edge, 'edge']]
 
       if (stacks.network !== null && stacks.database !== null) {
         groups.push([stacks.network, 'network'], [stacks.database, 'database'])
@@ -279,7 +279,7 @@ for (const name of ['local', 'prod'] as const) {
 
       assert.equal(new Set(names).size, names.length)
 
-      for (const wanted of ['messaging/events-topic-arn', 'messaging/chain-queue-url', 'messaging/webhooks-queue-url', 'storage/documents-bucket-name', 'storage/deployments-bucket-name', 'data/cache-table-name', 'data/sessions-table-name', 'data/limits-table-name', 'security/signing-key-arn', 'security/app-secret-arn', 'mail/identity', 'compute/roles/api', 'compute/roles/schedules', 'compute/functions-repository-uri']) {
+      for (const wanted of ['messaging/events-topic-arn', 'messaging/chain-queue-url', 'messaging/webhooks-queue-url', 'storage/documents-bucket-name', 'storage/deployments-bucket-name', 'data/cache-table-name', 'data/sessions-table-name', 'data/limits-table-name', 'security/signing-key-arn', 'security/app-secret-arn', 'security/origin-secret-arn', 'mail/identity', 'compute/roles/api', 'compute/roles/origin-verifier', 'compute/roles/schedules', 'compute/functions-repository-uri', 'edge/distribution-id', 'edge/distribution-domain-name', 'edge/panel-bucket-name']) {
         assert.ok(names.includes(`/dian-einvoice/${name}/${wanted}`), wanted)
       }
 

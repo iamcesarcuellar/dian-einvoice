@@ -31,6 +31,12 @@ const SERIES = {
   collected: 'var(--chart-2)',
 } as const
 
+// The same colors as classes, for the swatches of the hover card, which is markup (ChartTooltip).
+const SWATCHES: Record<keyof typeof SERIES, string> = {
+  invoiced: 'bg-chart-1',
+  collected: 'bg-chart-2',
+}
+
 const data = computed<Datum[]>(() =>
   props.months.map((month, index) => ({
     index,
@@ -53,13 +59,13 @@ function template(hovered: unknown): string {
     {
       label: t('dashboard.monthly.invoiced'),
       value: formatMoney(month.invoiced),
-      color: SERIES.invoiced,
+      swatch: SWATCHES.invoiced,
       hint: t('dashboard.monthly.invoices', { n: formatInteger(month.invoices) }, month.invoices),
     },
     {
       label: t('dashboard.monthly.collected'),
       value: formatMoney(month.collected),
-      color: SERIES.collected,
+      swatch: SWATCHES.collected,
       hint: t('dashboard.monthly.payments', { n: formatInteger(month.payments) }, month.payments),
     },
   ])

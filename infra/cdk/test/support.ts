@@ -69,10 +69,13 @@ export function functionsTemplate(stage: 'local' | 'prod'): { Parameters: Record
   return JSON.parse(readFileSync(join(directory, '.package', stage, 'cloudformation-template-update-stack.json'), 'utf8')) as ReturnType<typeof functionsTemplate>
 }
 
-/** The connections the functions of a stage may hold at once: one per execution environment, their reserved concurrency. */
+/**
+ * The connections the functions of a stage may hold at once: one per execution environment of a function of the
+ * application, their reserved concurrency. The origin verifier of the edge never connects to the database.
+ */
 export function connectionBudget(stage: 'local' | 'prod'): number {
   return Object.values(functionsTemplate(stage).Resources)
-    .filter((resource) => resource.Type === 'AWS::Lambda::Function')
+    .filter((resource) => resource.Type === 'AWS::Lambda::Function' && resource.Properties.PackageType === 'Image')
     .reduce((sum, fn) => sum + Number(fn.Properties.ReservedConcurrentExecutions), 0)
 }
 

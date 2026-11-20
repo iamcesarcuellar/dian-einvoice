@@ -36,6 +36,15 @@ const COLORS: Record<AgingBucket, string> = {
   over_90: 'var(--chart-5)',
 }
 
+// The same colors as classes, for the swatch of the hover card, which is markup (ChartTooltip).
+const SWATCHES: Record<AgingBucket, string> = {
+  current: 'bg-[color-mix(in_oklab,var(--chart-5)_28%,var(--card))]',
+  days_1_30: 'bg-[color-mix(in_oklab,var(--chart-5)_46%,var(--card))]',
+  days_31_60: 'bg-[color-mix(in_oklab,var(--chart-5)_64%,var(--card))]',
+  days_61_90: 'bg-[color-mix(in_oklab,var(--chart-5)_82%,var(--card))]',
+  over_90: 'bg-chart-5',
+}
+
 const data = computed<Datum[]>(() => BUCKETS.map((bucket, index) => ({ index, bucket, amount: Number(props.aging[bucket]) })))
 
 const config = computed<ChartConfig>(() => ({
@@ -48,7 +57,7 @@ function template(hovered: unknown): string {
   const amount = props.aging[bucket]
 
   return tooltipHtml(`aging:${bucket}:${amount}`, t(`receivables.buckets.${bucket}`), [
-    { label: t('dashboard.aging.amount'), value: formatMoney(amount), color: COLORS[bucket] },
+    { label: t('dashboard.aging.amount'), value: formatMoney(amount), swatch: SWATCHES[bucket] },
   ])
 }
 

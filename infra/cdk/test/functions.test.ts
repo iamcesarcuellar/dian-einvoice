@@ -1,10 +1,11 @@
 // The serverless service of the functions (infra/functions), as osls packaged it for both stages without a
 // network or credentials (make test-infra and make cdk-check package it first): the same rules of cdk-nag
 // as the CDK app, over the template included in a stack of its own; every function bounded and with a role
-// of its own from the stack compute; the mappings of the queues with a partial batch response and a
-// visibility timeout of their queue that fits the function; the parameters it reads, all published by the
-// CDK app (in prod, those of the network and the database too); the identity of the database of each function
-// and its encrypted connection; and no IAM of its own.
+// of its own from the stack compute; the only route behind the origin verifier of the edge, a zip of its own
+// outside the VPC; the mappings of the queues with a partial batch response and a visibility timeout of their
+// queue that fits the function; the parameters it reads, all published by the CDK app (in prod, those of the
+// network and the database too); the identity of the database of each function and its encrypted connection;
+// and no IAM of its own.
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -16,7 +17,7 @@ import { CfnInclude } from 'aws-cdk-lib/cloudformation-include'
 import { AwsSolutionsChecks } from 'cdk-nag'
 import { cdkContext } from '../lib/application.ts'
 import { SCHEDULED_FUNCTIONS } from '../lib/compute-stack.ts'
-import { DATABASE_PARAMETERS, FUNCTIONS, MIGRATIONS_FUNCTION, NETWORK_PARAMETERS, STAGES, type StageName } from '../lib/stage.ts'
+import { DATABASE_PARAMETERS, FUNCTIONS, HTTP_API_PARAMETER, MIGRATIONS_FUNCTION, NETWORK_PARAMETERS, ORIGIN_VERIFIER, STAGES, type StageName } from '../lib/stage.ts'
 import { stageOf, template } from './support.ts'
 
 interface Resource {
@@ -37,7 +38,7 @@ const API_GATEWAY_TIMEOUT = 30
 
 /** The exceptions of cdk-nag on the template of the functions, the rule and the resource they are acknowledged on. */
 const EXCEPTIONS: Readonly<Record<string, string>> = {
-  'AwsSolutions-APIG4 HttpApiRouteDefault': 'The application authorizes every request itself: the session of the web app with its CSRF token, or an API key, and the health check and the API reference are public by design.',
+  'AwsSolutions-L1 OriginVerifierLambdaFunction': 'Node.js 24, the newest runtime the local emulator runs (Floci 2.5.0 has no image of nodejs26.x), and one definition serves every stage; Node.js 24 is a long-term support line until April 2028. A change of one line of serverless.yml moves it once the emulator runs 26.',
 }
 
 const directory = process.env.FUNCTIONS_TEMPLATES ?? join(import.meta.dirname, '../../functions')
@@ -80,11 +81,14 @@ function published(stage: StageName): Set<string> {
 for (const stage of ['local', 'prod'] as const) {
   const config = STAGES[stage]
   const body = packaged(stage)
-  const functions = resources(body, 'AWS::Lambda::Function')
+  const everyFunction = resources(body, 'AWS::Lambda::Function')
+  // The functions of the application, on the image of PHP; the origin verifier of the edge apart.
+  const functions = everyFunction.filter(([, fn]) => fn.Properties.FunctionName !== `dian-einvoice-${stage}-${ORIGIN_VERIFIER}`)
+  const verifier = everyFunction.find(([, fn]) => fn.Properties.FunctionName === `dian-einvoice-${stage}-${ORIGIN_VERIFIER}`)
 
   describe(`functions of the stage ${stage}`, () => {
     it('are the functions the stack compute gives a role to, each bounded in time, memory and concurrency', () => {
-      assert.deepEqual(functions.map(([, fn]) => fn.Properties.FunctionName).sort(), FUNCTIONS.map((fn) => `dian-einvoice-${stage}-${fn}`).sort())
+      assert.deepEqual(everyFunction.map(([, fn]) => fn.Properties.FunctionName).sort(), [...FUNCTIONS, ORIGIN_VERIFIER].map((fn) => `dian-einvoice-${stage}-${fn}`).sort())
       const roles = new Set<string>()
 
       for (const [id, fn] of functions) {
@@ -102,6 +106,59 @@ for (const stage of ['local', 'prod'] as const) {
       }
 
       assert.equal(roles.size, functions.length, 'no two functions share a role')
+    })
+
+    it('put every route behind the origin verifier, a small function of Node.js apart from the image, outside any VPC', () => {
+      const routes = resources(body, 'AWS::ApiGatewayV2::Route')
+      const authorizers = resources(body, 'AWS::ApiGatewayV2::Authorizer')
+      assert.equal(routes.length, 1)
+      assert.equal(authorizers.length, 1)
+      const [authorizerId, authorizer] = authorizers[0] as [string, Resource]
+      assert.deepEqual(routes.map(([, route]) => [route.Properties.RouteKey, route.Properties.AuthorizationType, parameterOf(route.Properties.AuthorizerId)]), [['$default', 'CUSTOM', authorizerId]])
+
+      // A request authorizer with simple answers, on the header the edge sends, its answer kept 5 minutes.
+      assert.equal(authorizer.Properties.AuthorizerType, 'REQUEST')
+      assert.equal(authorizer.Properties.AuthorizerPayloadFormatVersion, '2.0')
+      assert.equal(authorizer.Properties.EnableSimpleResponses, true)
+      assert.deepEqual(authorizer.Properties.IdentitySource, ['$request.header.X-Origin-Verify'])
+      assert.equal(authorizer.Properties.AuthorizerResultTtlInSeconds, 300)
+      assert.match(JSON.stringify(authorizer.Properties.AuthorizerUri), /OriginVerifierLambdaFunction/)
+
+      // TypeScript built to JavaScript and packaged as a zip of its own; the role of the stack compute, the secret of
+      // the edge and nothing of the application; outside the VPC, small and bounded.
+      assert.ok(verifier !== undefined)
+      const fn = verifier[1].Properties
+      assert.equal(fn.Runtime, 'nodejs24.x')
+      assert.equal(fn.Handler, 'origin-verifier/dist/handler.handler')
+      assert.equal(fn.PackageType, undefined)
+      assert.ok((fn.Code as { S3Key?: string }).S3Key?.endsWith('.zip'))
+      assert.equal(fn.VpcConfig, undefined)
+      assert.equal(fn.MemorySize, 128)
+      assert.ok(Number(fn.Timeout) <= 10)
+      assert.ok(Number(fn.ReservedConcurrentExecutions) >= 1)
+      assert.equal(body.Parameters[parameterOf(fn.Role) ?? '']?.Default, `/dian-einvoice/${stage}/compute/roles/${ORIGIN_VERIFIER}`)
+      const environment = (fn.Environment as { Variables: Record<string, unknown> }).Variables
+      assert.deepEqual(Object.keys(environment).sort(), ['AWS_ENDPOINT_URL', 'ORIGIN_SECRET_ID'])
+      assert.equal(body.Parameters[parameterOf(environment.ORIGIN_SECRET_ID) ?? '']?.Default, `/dian-einvoice/${stage}/security/origin-secret-arn`)
+
+      // Only its build goes in the zip.
+      const zip = readFileSync(join(directory, '.package', stage, 'dian-einvoice.zip'))
+      const names = [...zip.toString('latin1').matchAll(/origin-verifier\/dist\/[A-Za-z0-9_-]+\.mjs/g)].map((match) => match[0])
+      assert.deepEqual([...new Set(names)].sort(), ['origin-verifier/dist/handler.mjs', 'origin-verifier/dist/verify.mjs'])
+    })
+
+    it('publish the id of the HTTP API for the stack edge of the CDK app, and run the application behind the edge', () => {
+      const parameter = resources(body, 'AWS::SSM::Parameter').map(([, resource]) => resource.Properties)
+      assert.deepEqual(parameter.map((properties) => [properties.Name, properties.Value]), [[`/dian-einvoice/${stage}/${HTTP_API_PARAMETER}`, { Ref: 'HttpApi' }]])
+
+      for (const [id, fn] of functions) {
+        const environment = (fn.Properties.Environment as { Variables: Record<string, unknown> }).Variables
+        assert.equal(environment.BEHIND_EDGE, 'true', id)
+        assert.equal(environment.SCRAMBLE_DEV_TOOLS, 'false', id)
+        assert.equal(environment.TRUSTED_PROXIES, '127.0.0.1', id)
+        // The entries the known hops append to X-Forwarded-For: CloudFront, and in AWS API Gateway after it.
+        assert.equal(environment.EDGE_FORWARDED_HOPS, stage === 'prod' ? '2' : '1', id)
+      }
     })
 
     it('hold at most the connections of the budget of the database, and the API answers within API Gateway', () => {
@@ -178,6 +235,8 @@ for (const stage of ['local', 'prod'] as const) {
       for (const [id, fn] of functions) {
         assert.equal(fn.Properties.VpcConfig !== undefined, config.network !== null, `${id} runs in the private subnets in prod only`)
       }
+
+      assert.equal(verifier?.[1].Properties.VpcConfig, undefined, 'the origin verifier runs outside the VPC')
     })
 
     it('give the migrations identity of the database to the console function only, and the application identity to every other one', () => {

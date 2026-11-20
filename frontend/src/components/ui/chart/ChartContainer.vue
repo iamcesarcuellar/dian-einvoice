@@ -27,6 +27,17 @@ const { config } = toRefs(props)
 const uniqueId = useId()
 const chartId = computed(() => `chart-${props.id || uniqueId.replace(/:/g, '')}`)
 
+// The color of each series as a variable of the container (--color-<key>), set as a property from script: the
+// Content-Security-Policy of the edge refuses style elements with content, and a color that is a theme variable,
+// such as var(--chart-1), already follows the theme. Per-theme colors (theme) still go through ChartStyle.
+const colorVariables = computed(() =>
+  Object.fromEntries(
+    Object.entries(config.value)
+      .filter(([, item]) => item.color)
+      .map(([key, item]) => [`--color-${key}`, item.color]),
+  ),
+)
+
 provideChartContext({
   id: uniqueId,
   config,
@@ -53,6 +64,7 @@ provideChartContext({
       '--vis-crosshair-circle-stroke-color': '#0000',
       '--vis-crosshair-line-stroke-width': cursor ? '1px' : '0px',
       '--vis-font-family': 'var(--font-sans)',
+      ...colorVariables,
     }"
   >
     <slot :id="uniqueId" :config="config" />

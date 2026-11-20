@@ -1,6 +1,7 @@
 // Security: the KMS key that protects the signing certificates of the companies (each certificate is
 // encrypted with a data key of its own, which only this key can decrypt), the secret of the application in
-// Secrets Manager (APP_KEY, generated here), and, in a stage without a managed database (local, the MySQL of
+// Secrets Manager (APP_KEY, generated here), the secret of the edge (the value the distribution sends to API
+// Gateway, which the origin verifier checks), and, in a stage without a managed database (local, the MySQL of
 // compose), the secrets of the two identities of the database, which prod keeps in the stack database.
 import { Stack, type StackProps, Validations } from 'aws-cdk-lib'
 import { ManagedPolicy, PolicyStatement } from 'aws-cdk-lib/aws-iam'
@@ -9,7 +10,7 @@ import { Secret } from 'aws-cdk-lib/aws-secretsmanager'
 import type { Construct } from 'constructs'
 import { DatabaseIdentities } from './database-identities.ts'
 import { Published } from './published.ts'
-import { PROJECT, removalPolicy, resourceName, type StageConfig } from './stage.ts'
+import { originSecretName, PROJECT, removalPolicy, resourceName, type StageConfig } from './stage.ts'
 
 export interface SecurityStackProps extends StackProps {
   readonly stage: StageConfig
@@ -21,6 +22,7 @@ export const SIGNING_KEY_CONTEXT = { purpose: 'signing-certificate', keys: ['com
 export class SecurityStack extends Stack {
   readonly signingKey: Key
   readonly appSecret: Secret
+  readonly originSecret: Secret
   // The identities of the database where no stack database holds them (the stage local).
   readonly databaseIdentities: DatabaseIdentities | null
 
@@ -57,6 +59,21 @@ export class SecurityStack extends Stack {
       reason: 'APP_KEY encrypts stored values (PINs, technical keys, webhook secrets): rotating it needs a function that re-encrypts all of them, so it is not rotated (docs/limitations.md). The secret holds nothing else: the credentials of the database are in the secrets of its two identities, which the rotation functions of AWS rotate in prod.',
     })
 
+    // The secret of the edge: 64 letters and digits Secrets Manager generates, never in a template. The distribution
+    // sends it to API Gateway in X-Origin-Verify, and the origin verifier accepts its current and its previous
+    // version, so it rotates without a cut by the procedure of docs/infrastructure.md.
+    this.originSecret = new Secret(this, 'OriginSecret', {
+      secretName: originSecretName(stage),
+      description: `Value the edge of dian-einvoice (${stage.name}) sends to API Gateway in X-Origin-Verify, which the origin verifier checks`,
+      generateSecretString: { passwordLength: 64, excludePunctuation: true },
+      removalPolicy: removalPolicy(stage),
+    })
+
+    Validations.of(this.originSecret).acknowledge({
+      id: 'AwsSolutions::AwsSolutions-SMG4',
+      reason: 'Rotated by the documented procedure (docs/infrastructure.md): a new version first, which the origin verifier accepts with the previous one, then the deployment of the edge that sends it. A rotation function could not update the distribution, which CloudFormation owns.',
+    })
+
     this.databaseIdentities = stage.database.managed === null ? new DatabaseIdentities(this, 'DatabaseIdentities', stage) : null
 
     // The key store only: a data key per certificate, with the encryption context the application
@@ -83,6 +100,7 @@ export class SecurityStack extends Stack {
     published.add('SigningKeyArn', 'signing-key-arn', this.signingKey.keyArn, 'ARN of the KMS key of the signing certificates')
     published.add('SigningKeyAlias', 'signing-key-alias', `alias/${resourceName(stage, 'signing-keys')}`, 'Alias of the KMS key of the signing certificates')
     published.add('AppSecretArn', 'app-secret-arn', this.appSecret.secretArn, 'ARN of the secret of the application')
+    published.add('OriginSecretArn', 'origin-secret-arn', this.originSecret.secretArn, 'ARN of the secret of the edge, which the origin verifier checks')
     published.add('UseSigningKeyPolicyArn', 'policies/use-signing-key', useSigningKey.managedPolicyArn, 'Managed policy for the key store of the application')
     published.add('ReadAppSecretPolicyArn', 'policies/read-app-secret', readSecret.managedPolicyArn, 'Managed policy for the processes that read the secrets of the application')
   }

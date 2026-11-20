@@ -146,24 +146,36 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
-  # On main only: the emulated cloud end to end, where the application runs as Lambda functions. The local AWS
-  # emulator with the Docker socket of the runner, the CDK stage local and the functions deployed to it, and the
-  # invoices through API Gateway, Lambda, SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager (make cloud-check).
+  # On main only: the emulated cloud end to end, where the application runs as Lambda functions behind the edge.
+  # The local AWS emulator with the Docker socket of the runner, the CDK stage local, the functions and the edge
+  # deployed to it, the web app built and uploaded to its bucket, the edge checked and the invoices through it,
+  # CloudFront, API Gateway, Lambda, SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager (make cloud-check), and
+  # the end-to-end test in a browser under the Content-Security-Policy of the web app (make cloud-e2e).
   cloud:
     name: Emulated cloud
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare
         with:
           images: web simulator cdk functions lambda
           frontend: "true"
-      - name: The emulated cloud, its functions deployed with osls (make cloud-up)
-        run: make cloud-up
-      - name: No permanent process, the functions and their triggers, the fast path, a partial batch, the functions killed mid-process, the relay function and the scheduler (make cloud-check)
+      - name: The emulated cloud with the synthetic demo data, its functions deployed with osls behind the edge (make cloud-demo)
+        run: make cloud-demo
+      - name: No permanent process, the functions and their triggers, the edge, the fast path, a partial batch, the functions killed mid-process, the relay function and the scheduler (make cloud-check)
         run: make cloud-check
+      - name: End-to-end test and a tour of every route in the browser against the edge, under its Content-Security-Policy (make cloud-e2e)
+        run: make cloud-e2e
+      - name: Traces of the end-to-end test against the edge
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-e2e-test-results
+          path: e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Logs of the emulated cloud and of its functions
         if: failure()
         run: |

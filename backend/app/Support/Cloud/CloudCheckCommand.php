@@ -47,6 +47,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -59,9 +60,10 @@ use Throwable;
  *    receiver to every event, and prints the company id;
  *  - fast: waits until those invoices are accepted and delivered, reports the time from issue to delivery
  *    (median and 95th percentile), checks that the writers published every outbox event themselves (the
- *    fast path, without waiting for the relay function), and, through API Gateway, signs in with the
- *    session cookie and the CSRF token, downloads the XML, the PDF and the zip of an invoice and checks
- *    their SHA-256, and calls the API with a key;
+ *    fast path, without waiting for the relay function), and, through the edge on the origin of the web
+ *    app, signs in with the session cookie and the CSRF token, downloads the XML, the PDF and the zip of an
+ *    invoice and checks their SHA-256, calls the API with a key (a 403 stays a problem of the API), and
+ *    checks that an address the client writes does not change the one the rate limits count;
  *  - partial: sends the chain queue, in one batch, a message no handler can read with a few valid ones:
  *    the valid ones run once and the unreadable one ends in the dead-letter queue (on Floci 2.5.0, which
  *    holds a failed record for the visibility timeout of its queue, it is received again and purged);
@@ -268,9 +270,11 @@ final class CloudCheckCommand extends Command
     }
 
     /**
-     * Through API Gateway, as the web app does: the CSRF cookie, the sign-in with the session cookie and
-     * the token, the current user, and the downloads of an invoice; then a request with an API key (the
-     * limits table).
+     * Through the edge, as the web app does on its own origin: the CSRF cookie, the sign-in with the session cookie
+     * and the token, the current user, and the downloads of an invoice; then a request with an API key (the limits
+     * table), a 403 of the API that stays a problem of the API, and a sign-in whose client writes an address of its
+     * own, which the rate limit of the sign-in does not count by: it counts the address the edge saw (the proxy in
+     * front of the distribution, here).
      *
      * @param  Collection<int, Document>  $documents
      */
@@ -296,7 +300,7 @@ final class CloudCheckCommand extends Command
         $me = $browser()->withHeaders(['X-XSRF-TOKEN' => $token])->get($api.'/auth/me');
         $this->verify(
             $csrf->successful() && $token !== '' && $refused->status() === 419 && $login->successful() && $me->successful() && $me->json('data.email', $me->json('email')) === $temporary->user->email && $cookies->getCookieByName(config()->string('session.cookie')) !== null && $this->throughApiGateway($login),
-            sprintf('Through API Gateway (%s), the session cookie and the CSRF token sign in: the CSRF cookie answered %d, a sign-in without the token %d, with it %d, and the current user %d.', $origin, $csrf->status(), $refused->status(), $login->status(), $me->status()),
+            sprintf('Through the edge (%s, the origin %s of the web app), the session cookie and the CSRF token sign in: the CSRF cookie answered %d, a sign-in without the token %d, with it %d, and the current user %d.', $origin, self::WEB_ORIGIN, $csrf->status(), $refused->status(), $login->status(), $me->status()),
         );
 
         $document = $documents->first();
@@ -311,15 +315,49 @@ final class CloudCheckCommand extends Command
                 $this->line(sprintf('   %s: HTTP %d, %s, %d bytes, SHA-256 %s.', $file, $response->status(), $response->header('Content-Type'), strlen($response->body()), $downloads[$file] ? 'as stored' : 'DIFFERENT'));
             }
 
-            $this->verify(! in_array(false, $downloads, true) && str_starts_with($browser()->withHeaders(['X-Company-Id' => $temporary->company->id, 'Accept' => '*/*'])->get("{$api}/invoices/{$document->id}/pdf")->body(), '%PDF-'), "The XML, the PDF and the zip of invoice {$document->full_number}, downloaded through API Gateway with the session, have the SHA-256 the database keeps.");
+            $this->verify(! in_array(false, $downloads, true) && str_starts_with($browser()->withHeaders(['X-Company-Id' => $temporary->company->id, 'Accept' => '*/*'])->get("{$api}/invoices/{$document->id}/pdf")->body(), '%PDF-'), "The XML, the PDF and the zip of invoice {$document->full_number}, downloaded through the edge with the session, have the SHA-256 the database keeps.");
         }
 
         $reference = Http::connectTimeout(5)->timeout(30)->get($origin.'/docs/api');
-        $this->verify($reference->successful() && str_contains($reference->body(), '"openapi"') && $this->throughApiGateway($reference), sprintf('The API reference answers at /docs/api through API Gateway (HTTP %d, %d bytes).', $reference->status(), strlen($reference->body())));
+        $this->verify($reference->successful() && str_contains($reference->body(), '"openapi"') && str_contains($reference->body(), 'integrity="sha384-') && str_contains((string) $reference->header('Content-Security-Policy'), "'sha256-") && $this->throughApiGateway($reference), sprintf('The API reference answers at /docs/api through the edge, its renderer pinned by Subresource Integrity and its inline scripts by hash (HTTP %d, %d bytes).', $reference->status(), strlen($reference->body())));
 
         [, $key] = app(ApiKeys::class)->create('Cloud check (read only)', ApiKeyLevel::ReadOnly, creator: $temporary->user);
         $listing = Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/invoices', ['per_page' => 1]);
-        $this->verify($listing->successful() && $this->throughApiGateway($listing), sprintf('An API key lists the invoices through API Gateway (HTTP %d).', $listing->status()));
+        $next = $listing->json('links.first');
+        $next = is_string($next) ? $next : '';
+        $this->verify($listing->successful() && $this->throughApiGateway($listing) && str_starts_with($next, rtrim(config()->string('app.url'), '/').'/api/v1/invoices'), sprintf('An API key lists the invoices through the edge (HTTP %d), and the links of its pages name the public origin, not API Gateway (%s).', $listing->status(), $next));
+
+        // A 403 of the API is a problem of the API, not the web app: a key on a route of the web app session.
+        $forbidden = Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/api-keys');
+        $this->verify($forbidden->status() === 403 && str_contains((string) $forbidden->header('Content-Type'), 'application/problem+json') && $forbidden->json('status') === 403, sprintf('Through the edge a 403 of the API stays a problem of the API: %d %s.', $forbidden->status(), $forbidden->header('Content-Type')));
+
+        // The client writes addresses of its own, in X-Forwarded-For, in CloudFront-Viewer-Address and in both; the
+        // sign-in counts the address the edge saw, the entry it appended to X-Forwarded-For. Its limit counts every
+        // attempt before anything else, these included, which come without the session of the web app (400).
+        $seen = (string) gethostbyname((string) parse_url($api, PHP_URL_HOST));
+        $lasts = range(20, 250);
+        shuffle($lasts);
+        $spoofed = array_map(fn (int $last): string => '203.0.113.'.$last, array_slice($lasts, 0, 4));
+        $attempts = [
+            'X-Forwarded-For' => ['X-Forwarded-For' => $spoofed[0]],
+            'CloudFront-Viewer-Address' => ['CloudFront-Viewer-Address' => "{$spoofed[1]}:4321"],
+            'both, two entries' => ['X-Forwarded-For' => "{$spoofed[2]}, {$spoofed[3]}", 'CloudFront-Viewer-Address' => "{$spoofed[2]}:4321"],
+        ];
+        $before = $this->attempts('login', $seen);
+        $statuses = [];
+
+        foreach ($attempts as $headers) {
+            $statuses[] = Http::withHeaders($headers)->acceptJson()->connectTimeout(5)->timeout(30)
+                ->post($api.'/auth/login', ['email' => 'nobody-'.Str::lower(Str::random(8)).'@example.com', 'password' => Str::password(16)])
+                ->status();
+        }
+
+        $counted = $this->attempts('login', $seen) - $before;
+        $written = array_sum(array_map(fn (string $address): int => $this->attempts('login', $address), $spoofed));
+        $this->verify(
+            array_unique($statuses) === [400] && $counted === count($attempts) && $written === 0,
+            sprintf('A client that writes its address in %s changes nothing: the rate limit of the sign-in counted the %d attempts for the address the edge saw, %s (%d), and %d for the %d addresses the client wrote (HTTP %s).', implode(', ', array_keys($attempts)), count($attempts), $seen, $counted, $written, count($spoofed), implode(', ', array_unique($statuses))),
+        );
 
         // The session of the sign-in and the rate limits of the sign-in and of the key, in their tables.
         $this->tables(app(EmulatedCloud::class), ['sessions' => 'dynamodb-sessions', 'limits' => 'dynamodb-limits']);
@@ -339,7 +377,15 @@ final class CloudCheckCommand extends Command
         }
     }
 
-    /** API Gateway adds a request id of its own to every answer; the application sets none of these. */
+    /** The requests a named rate limit of the application counted for an address, as ThrottleRequests keys them. */
+    private function attempts(string $limiter, string $address): int
+    {
+        $attempts = RateLimiter::attempts(md5($limiter.$limiter.'|'.$address));
+
+        return is_numeric($attempts) ? (int) $attempts : 0;
+    }
+
+    /** API Gateway adds a request id of its own to every answer, which the edge passes on; the application sets none of these. */
     private function throughApiGateway(Response $response): bool
     {
         return $response->header('apigw-requestid') !== '' || $response->header('x-amzn-RequestId') !== '';
@@ -796,7 +842,7 @@ final class CloudCheckCommand extends Command
     }
 
     /**
-     * Requests through API Gateway (health, which reads the database, and a listing with an API key) and two
+     * Requests through the edge and API Gateway (health, which reads the database, and a listing with an API key) and two
      * invoices drafted and issued through the API, taken through the chain and the webhooks by their functions:
      * every answer must be a success and every invoice end accepted, delivered and notified.
      */
@@ -840,7 +886,7 @@ final class CloudCheckCommand extends Command
 
         $this->verify(
             $errors === [] && count($ids) === 2 && $done === 2 && $hooks->every(fn (WebhookDelivery $delivery): bool => $delivery->status === WebhookDeliveryStatus::Succeeded),
-            sprintf('%s: %d requests through API Gateway answered %s; the 2 invoices issued through the API ended accepted and delivered (%d), and %d webhooks arrived.', $when, count($statuses), $errors === [] ? 'without an error' : 'errors '.implode(', ', $errors), $done, $hooks->where('status', WebhookDeliveryStatus::Succeeded)->count()),
+            sprintf('%s: %d requests through the edge answered %s; the 2 invoices issued through the API ended accepted and delivered (%d), and %d webhooks arrived.', $when, count($statuses), $errors === [] ? 'without an error' : 'errors '.implode(', ', $errors), $done, $hooks->where('status', WebhookDeliveryStatus::Succeeded)->count()),
         );
     }
 

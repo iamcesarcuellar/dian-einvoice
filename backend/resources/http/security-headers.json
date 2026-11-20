@@ -1,0 +1,90 @@
+{
+  "description": "The security headers of every answer of the platform, the single source of truth: the backend sets those of its answers from here (App\\Http\\Middleware\\SecurityHeaders and App\\Support\\ApiDocs\\SecureApiReference), and the CDK app builds the response headers policy of the edge for the web app from here (infra/cdk/lib/edge-stack.ts). Tests on both sides hold each consumer to these values (tests/Integration/Security/ErrorsAndHeadersTest.php, infra/cdk/test/edge.test.ts), and make cloud-check reads them back through the edge. The edge adds nothing to the answers of the API, which carry the headers of the application only. Every source a policy allows beyond its own origin, and every relaxation, has its reason below.",
+  "common": {
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY"
+  },
+  "documents": {
+    "panel": {
+      "description": "The web app, built and served from the panel bucket by the edge: every file of it (index.html, its scripts, styles and fonts) gets these headers and the common ones from the response headers policy of the distribution.",
+      "headers": {
+        "Referrer-Policy": "same-origin",
+        "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+      },
+      "contentSecurityPolicy": {
+        "default-src": "'none'",
+        "script-src": "'self' 'sha256-F/p8u/qscdqKi4eII2h881edgy1OuoZi+tlsQdszZW8='",
+        "style-src": "'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=' 'sha256-0sLsI2a+NIcumVvBF9zD/ArGqlZR2xfnxsALPmK7nj8=' 'sha256-60LHlRjW/B3CtzIoE/Lf1/NEDvko9efWMFaGVhHu/cs=' 'sha256-skqujXORqzxt1aE0NNXxujEanPTX6raoqSscTV/Ww/Y='",
+        "img-src": "'self'",
+        "font-src": "'self'",
+        "connect-src": "'self'",
+        "frame-src": "blob:",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'self'",
+        "frame-ancestors": "'none'"
+      },
+      "reasons": {
+        "Referrer-Policy": "same-origin, not no-referrer: Sanctum tells a request of the web app from any other by its Referer or Origin, and a GET of the same origin carries no Origin, so without the Referer the session of the web app would not be recognized. Other origins get no referrer at all.",
+        "Strict-Transport-Security": "One year with subdomains, the value the API sends in production, so the panel and the API never disagree. No preload: it binds the whole domain for good, a decision of the owner of a real domain.",
+        "script-src 'sha256-F/p8u/qscdqKi4eII2h881edgy1OuoZi+tlsQdszZW8='": "The inline script of index.html that applies the saved theme before the first paint, so a page in dark mode never flashes white. It is allowed by its hash, never by 'unsafe-inline'; a test computes the hash from frontend/index.html (infra/cdk/test/edge.test.ts).",
+        "style-src 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='": "The hash of the empty string: the charts (Unovis) create one empty style element and add their rules to it through the CSS object model, which a Content-Security-Policy does not govern. The hash admits that empty element and no content; every other style of the web app is a file of its own origin or a property set from script.",
+        "style-src 'sha256-0sLsI2a+NIcumVvBF9zD/ArGqlZR2xfnxsALPmK7nj8='": "The fixed style element Reka UI renders with the list of a combobox (the search selects of the web app), which hides its scrollbar; allowed by the hash of that exact text. An upgrade of Reka UI that changes it shows as a violation in make cloud-e2e.",
+        "style-src 'sha256-60LHlRjW/B3CtzIoE/Lf1/NEDvko9efWMFaGVhHu/cs='": "The same fixed style element of Reka UI for the list of a select.",
+        "style-src 'sha256-skqujXORqzxt1aE0NNXxujEanPTX6raoqSscTV/Ww/Y='": "The fixed style element VueUse (useColorMode) adds for an instant while the theme changes, so nothing animates from one theme to the other; allowed by the hash of that exact text.",
+        "frame-src blob:": "The PDF of an invoice is shown in a frame from an object URL (blob:) of the file the API returned; a blob: URL can only be created by a script of this origin.",
+        "form-action 'self'": "Forms are sent by script to the API of the same origin; a form that a failed script left to the browser would still only reach this origin."
+      }
+    },
+    "api": {
+      "description": "Data and problems of the API (application/json and application/problem+json): none is meant to render as a page, so its policy allows nothing.",
+      "headers": {
+        "Referrer-Policy": "no-referrer"
+      },
+      "contentSecurityPolicy": {
+        "default-src": "'none'",
+        "frame-ancestors": "'none'"
+      },
+      "reasons": {}
+    },
+    "files": {
+      "description": "The files the API serves (XML, PDF, zip): their own content, never framed by another page.",
+      "headers": {
+        "Referrer-Policy": "no-referrer"
+      },
+      "contentSecurityPolicy": {
+        "frame-ancestors": "'none'"
+      },
+      "reasons": {}
+    },
+    "apiReference": {
+      "description": "The page of the API reference at /docs/api (Scramble with Stoplight Elements), served by the API. Its inline scripts are allowed by the hashes of each answer, which App\\Support\\ApiDocs\\SecureApiReference computes and adds to script-src; the two files of Stoplight Elements are pinned by their path and by Subresource Integrity.",
+      "headers": {
+        "Referrer-Policy": "no-referrer"
+      },
+      "contentSecurityPolicy": {
+        "default-src": "'none'",
+        "script-src": "https://unpkg.com/@stoplight/elements@8.4.2/web-components.min.js",
+        "style-src": "https://unpkg.com/@stoplight/elements@8.4.2/styles.min.css 'unsafe-inline'",
+        "img-src": "'self' data:",
+        "connect-src": "'self'",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'",
+        "frame-ancestors": "'none'"
+      },
+      "subresourceIntegrity": {
+        "https://unpkg.com/@stoplight/elements@8.4.2/web-components.min.js": "sha384-JQMvMNVvV8QXHXbrUyttKUojmPo2SI/3ztEsfv2seW/Gdqh8uvfVZSc/8rpCSYP4",
+        "https://unpkg.com/@stoplight/elements@8.4.2/styles.min.css": "sha384-4SEI8azIKLxyKQW9QIuPrsJaVzrXaKHhlf82/u3KR1Cw5T9lYqsgzg+4MWygH2N2"
+      },
+      "reasons": {
+        "script-src https://unpkg.com/@stoplight/elements@8.4.2/web-components.min.js": "The renderer of the reference, loaded by the page of Scramble from unpkg.com. The source names that exact file of that exact version, and Subresource Integrity (subresourceIntegrity, added to its tag by App\\Support\\ApiDocs\\SecureApiReference) makes the browser refuse any other content, so a compromise of the CDN cannot run other code on the origin of the session. No 'unsafe-inline' and no 'unsafe-eval': the inline scripts of the page (the interceptor of Scramble that sends the CSRF token, and the document of the API) are allowed by the hashes of each answer.",
+        "style-src https://unpkg.com/@stoplight/elements@8.4.2/styles.min.css": "The stylesheet of the renderer, pinned the same way.",
+        "style-src 'unsafe-inline'": "Stoplight Elements styles its components at run time, and the page of Scramble carries an inline style block and a style attribute. Styles cannot run code; img-src and connect-src keep what a style could load on this origin.",
+        "img-src 'self' data:": "Icons of the renderer drawn as data: URLs.",
+        "connect-src 'self'": "Try it calls the API of the same origin."
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "description": "The paths the routes of the web app rewrite, and those they leave as they are: the CloudFront Function (panel-routes.js, infra/cdk/test/edge.test.ts) and the proxy of the emulated cloud (infra/functions/gateway.conf.template, make cloud-check) must both give these. A path rewritten to /index.html is answered by the web app; any other keeps its path, a file of the bucket or a 404.",
+  "cases": [
+    { "uri": "/", "rewritten": "/index.html" },
+    { "uri": "/login", "rewritten": "/index.html" },
+    { "uri": "/invoices", "rewritten": "/index.html" },
+    { "uri": "/invoices/01JD5X3Q7ZK8M2N4P6R8T0V2W4", "rewritten": "/index.html" },
+    { "uri": "/invoices/credit-notes/new", "rewritten": "/index.html" },
+    { "uri": "/settings/developers", "rewritten": "/index.html" },
+    { "uri": "/reset-password/9f86d081884c7d659a2feaa0c55ad015", "rewritten": "/index.html" },
+    { "uri": "/payments/", "rewritten": "/index.html" },
+    { "uri": "/v1.2/notes", "rewritten": "/index.html" },
+    { "uri": "/index.html", "rewritten": "/index.html" },
+    { "uri": "/assets/index-00000000.js", "rewritten": "/assets/index-00000000.js" },
+    { "uri": "/assets/index-00000000.css", "rewritten": "/assets/index-00000000.css" },
+    { "uri": "/favicon.ico", "rewritten": "/favicon.ico" },
+    { "uri": "/robots.txt", "rewritten": "/robots.txt" }
+  ]
+}

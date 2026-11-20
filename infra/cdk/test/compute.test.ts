@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { Match } from 'aws-cdk-lib/assertions'
 import { FUNCTION_ACCESS, SCHEDULED_FUNCTIONS } from '../lib/compute-stack.ts'
-import { FUNCTIONS, MIGRATIONS_FUNCTION, STAGES } from '../lib/stage.ts'
+import { FUNCTIONS, MIGRATIONS_FUNCTION, ORIGIN_VERIFIER, STAGES } from '../lib/stage.ts'
 import { stageOf, template } from './support.ts'
 
 interface RoleProperties {
@@ -52,7 +52,8 @@ for (const name of ['local', 'prod'] as const) {
         }
       }
 
-      assert.equal(roles.length, FUNCTIONS.length + 1)
+      // The functions of the application, the origin verifier and EventBridge Scheduler.
+      assert.equal(roles.length, FUNCTIONS.length + 2)
 
       // The secrets of the identities come from the parameters of the stack that holds them (security locally,
       // database in prod), which compute deploys after.
@@ -101,6 +102,23 @@ for (const name of ['local', 'prod'] as const) {
           },
         },
       })
+    })
+
+    it('gives the origin verifier a role that may only write its logs and read the secret of the edge', () => {
+      const role = roles.find((candidate) => candidate.Properties.RoleName === `${prefix}${ORIGIN_VERIFIER}-function`)?.Properties
+      assert.ok(role !== undefined)
+      assert.deepEqual(role.AssumeRolePolicyDocument.Statement.map((statement) => statement.Principal.Service), ['lambda.amazonaws.com'])
+      assert.equal(role.ManagedPolicyArns, undefined)
+
+      const statements = role.Policies.flatMap((policy) => policy.PolicyDocument.Statement)
+      assert.deepEqual(statements[0], { Action: ['logs:CreateLogStream', 'logs:PutLogEvents'], Effect: 'Allow', Resource: `arn:aws:logs:${config.region}:${config.account}:log-group:/aws/lambda/${prefix}${ORIGIN_VERIFIER}:*` })
+      assert.deepEqual(statements[1]?.Action, 'secretsmanager:GetSecretValue')
+      assert.match(String((statements[1]?.Resource as { Ref?: string }).Ref), /originsecretarn/i)
+      assert.equal(statements.length, 2)
+
+      const parameters = compute.toJSON() as { Parameters?: Record<string, { Default?: string }> }
+      assert.ok(Object.values(parameters.Parameters ?? {}).some((parameter) => parameter.Default === `/dian-einvoice/${name}/security/origin-secret-arn`))
+      compute.hasResourceProperties('AWS::SSM::Parameter', { Name: `/dian-einvoice/${name}/compute/roles/${ORIGIN_VERIFIER}` })
     })
 
     it('deploys after the stacks whose policies its roles attach and whose parameters they read', () => {
