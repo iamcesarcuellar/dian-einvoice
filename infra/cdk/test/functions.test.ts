@@ -156,8 +156,9 @@ for (const stage of ['local', 'prod'] as const) {
         assert.equal(environment.BEHIND_EDGE, 'true', id)
         assert.equal(environment.SCRAMBLE_DEV_TOOLS, 'false', id)
         assert.equal(environment.TRUSTED_PROXIES, '127.0.0.1', id)
-        // The entries the known hops append to X-Forwarded-For: CloudFront, and in AWS API Gateway after it.
-        assert.equal(environment.EDGE_FORWARDED_HOPS, stage === 'prod' ? '2' : '1', id)
+        // The address of the client needs no count of the hops that append to X-Forwarded-For (the application drops
+        // an entry API Gateway appended for its peer): no setting that differs between stages.
+        assert.equal(environment.EDGE_FORWARDED_HOPS, undefined, id)
       }
     })
 

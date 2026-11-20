@@ -7,9 +7,9 @@
 // request IP that last address, so a client cannot choose its own address for the rate limits by sending
 // the header itself. Bref's bridge would otherwise trust every address, and the first one of the header
 // is the client's to write. Behind the edge (the functions, config/edge.php), the application first sets that
-// forwarded address to the entry the edge appended, counted from the end of X-Forwarded-For by the known hops of the
-// stage (App\Http\Middleware\EdgeClientAddress), so neither the address API Gateway saw, which is the edge's, nor
-// anything the client wrote counts for a client.
+// forwarded address to the entry the edge appended: the last one, once an entry API Gateway appended for its peer
+// is dropped (App\Http\Middleware\EdgeClientAddress), so neither the address API Gateway saw, which is the edge's,
+// nor anything the client wrote counts for a client.
 return [
 
     'proxies' => env('TRUSTED_PROXIES'),

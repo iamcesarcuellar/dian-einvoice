@@ -18,8 +18,8 @@ use Tests\IntegrationTestCase;
 /**
  * The application behind the edge (Infrastructure task 4): every route of the application is one the edge sends
  * to the API, never to the bucket of the web app (resources/http/paths.json); the address of the client is the entry
- * the edge appended to X-Forwarded-For, counted by the known hops of the stage, whatever headers the client sent; the URLs the application generates take the public
- * origin; the page of the API reference pins its renderer and allows its inline scripts by hash; and CORS is not
+ * the edge appended to X-Forwarded-For, whether API Gateway appended the address of its peer after it or not, and
+ * whatever headers the client sent; the URLs the application generates take the public origin; the page of the API reference pins its renderer and allows its inline scripts by hash; and CORS is not
  * offered where the web app, on the same origin, needs none.
  */
 final class EdgeTest extends IntegrationTestCase
@@ -65,48 +65,65 @@ final class EdgeTest extends IntegrationTestCase
     {
         config(['trustedproxy.proxies' => '127.0.0.1', 'edge.behind' => true]);
 
-        // In AWS (2 hops): CloudFront appends the address of the client, then API Gateway that of the edge location.
-        config(['edge.forwarded_hops' => 2]);
-        $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => '198.51.100.10, 130.176.0.5']));
-        // Whatever the client wrote, in either header, counts for nothing: one entry or many, an address or not.
-        $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, 198.51.100.10, 130.176.0.5', 'CloudFront-Viewer-Address' => '203.0.113.7:443']));
-        $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, 203.0.113.8, not-an-address, 198.51.100.10, 130.176.0.5']));
-        $this->assertSame('2001:db8::7', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, 2001:db8::7, 2600:9000::1']));
-        // Without the entry of the edge, or with one that is not an address, no forwarded address is believed.
-        $this->assertSame('127.0.0.1', $this->clientAddress(['X-Forwarded-For' => '130.176.0.5', 'CloudFront-Viewer-Address' => '203.0.113.7:443']));
-        $this->assertSame('127.0.0.1', $this->clientAddress(['CloudFront-Viewer-Address' => '203.0.113.7:443']));
-        $this->assertSame('127.0.0.1', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, not-an-address, 130.176.0.5']));
+        // CloudFront appends the address of the client; API Gateway, whose peer is the edge location, may append that
+        // address after it (as AWS documents) or not. The answer is the same both ways.
+        foreach (['API Gateway appends its peer' => ['130.176.0.5', ', 130.176.0.5', '2600:9000::1', ', 2600:9000::1'], 'API Gateway appends nothing' => ['130.176.0.5', '', '2600:9000::1', '']] as $case => [$peer, $appended, $peer6, $appended6]) {
+            $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => "198.51.100.10{$appended}"], $peer), $case);
+            // Whatever the client wrote, in either header, counts for nothing: one entry or many, an address or not.
+            $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => "203.0.113.7, 198.51.100.10{$appended}", 'CloudFront-Viewer-Address' => '203.0.113.7:443'], $peer), $case);
+            $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => "203.0.113.7, 203.0.113.8, not-an-address, 198.51.100.10{$appended}"], $peer), $case);
+            $this->assertSame('2001:db8::7', $this->clientAddress(['X-Forwarded-For' => "203.0.113.7, 2001:db8::7{$appended6}"], $peer6), $case);
+            // A client that writes the address of the edge location itself gains nothing: CloudFront appends the
+            // client's after it.
+            $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => "130.176.0.5, 198.51.100.10{$appended}"], $peer), $case);
+            // Without the entry of the edge, or with one that is not an address, no forwarded address is believed.
+            $this->assertSame('127.0.0.1', $this->clientAddress(['X-Forwarded-For' => "203.0.113.7, not-an-address{$appended}"], $peer), $case);
+            $this->assertSame('127.0.0.1', $this->clientAddress(['CloudFront-Viewer-Address' => '203.0.113.7:443'], $peer), $case);
+        }
 
-        // In the emulated cloud (1 hop): its CloudFront appends the address of the client, its API Gateway nothing.
-        config(['edge.forwarded_hops' => 1]);
-        $this->assertSame('172.24.0.6', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, 198.51.100.9, 172.24.0.6', 'CloudFront-Viewer-Address' => '203.0.113.7:443']));
-        $this->assertSame('127.0.0.1', $this->clientAddress([]));
+        // Only API Gateway's entry, without one of CloudFront: nothing is left to believe.
+        $this->assertSame('127.0.0.1', $this->clientAddress(['X-Forwarded-For' => '130.176.0.5', 'CloudFront-Viewer-Address' => '203.0.113.7:443'], '130.176.0.5'));
+        // The addresses are compared, and answered, in one spelling: IPv6 in any notation or case, IPv4 mapped into IPv6.
+        $this->assertSame('2001:db8::7', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, 2001:DB8:0:0::7, 2600:9000:0:0:0:0:0:1'], '2600:9000::1'));
+        $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, 198.51.100.10, ::ffff:130.176.0.5'], '130.176.0.5'));
+        $this->assertSame('198.51.100.10', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, ::FFFF:198.51.100.10'], '2600:9000::1'));
+        // Without the peer API Gateway reports (no request context, or one that is not an address), nothing is believed.
+        $this->assertSame('127.0.0.1', $this->clientAddress(['X-Forwarded-For' => '198.51.100.10, 130.176.0.5'], null));
+        $this->assertSame('127.0.0.1', $this->clientAddress(['X-Forwarded-For' => '198.51.100.10, 130.176.0.5'], 'test-invoke-source-ip'));
+
+        // In the emulated cloud: its CloudFront appends the address of the client, its API Gateway nothing, and it
+        // reports 127.0.0.1 as the peer of every request, which no entry the edge appends is.
+        $this->assertSame('172.24.0.6', $this->clientAddress(['X-Forwarded-For' => '203.0.113.7, 198.51.100.9, 172.24.0.6', 'CloudFront-Viewer-Address' => '203.0.113.7:443'], '127.0.0.1'));
+        $this->assertSame('127.0.0.1', $this->clientAddress([], '127.0.0.1'));
 
         // Without the edge, the address the proxy in front saw, as before.
         config(['edge.behind' => false]);
-        $this->assertSame('130.176.0.5', $this->clientAddress(['X-Forwarded-For' => '198.51.100.10, 130.176.0.5', 'CloudFront-Viewer-Address' => '203.0.113.7:443']));
+        $this->assertSame('130.176.0.5', $this->clientAddress(['X-Forwarded-For' => '198.51.100.10, 130.176.0.5', 'CloudFront-Viewer-Address' => '203.0.113.7:443'], '130.176.0.5'));
     }
 
     public function test_behind_the_edge_the_rate_limit_of_the_sign_in_counts_the_address_the_edge_saw(): void
     {
-        config(['trustedproxy.proxies' => '127.0.0.1', 'edge.behind' => true, 'edge.forwarded_hops' => 2]);
-        $seen = '198.51.100.'.random_int(20, 250);
-        $spoofed = ['203.0.113.'.random_int(20, 120), '203.0.113.'.random_int(121, 250)];
+        config(['trustedproxy.proxies' => '127.0.0.1', 'edge.behind' => true]);
 
-        foreach ([$seen, ...$spoofed] as $address) {
-            RateLimiter::clear(md5('loginlogin|'.$address));
-        }
+        foreach (['130.176.0.5' => ', 130.176.0.5', 'no entry of API Gateway' => ''] as $appended) {
+            $seen = '198.51.100.'.random_int(20, 250);
+            $spoofed = ['203.0.113.'.random_int(20, 120), '203.0.113.'.random_int(121, 250)];
 
-        // A client that writes addresses of its own in X-Forwarded-For and in CloudFront-Viewer-Address.
-        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->withHeaders(['X-Forwarded-For' => "{$spoofed[0]}, {$seen}, 130.176.0.5", 'CloudFront-Viewer-Address' => "{$spoofed[1]}:51000", 'Origin' => 'http://localhost:8601', 'Referer' => 'http://localhost:8601/login'])
-            ->postJson('/api/v1/auth/login', ['email' => 'nobody-'.Str::lower(Str::random(8)).'@example.com', 'password' => 'wrong-password-123'])
-            ->assertStatus(422);
+            foreach ([$seen, ...$spoofed] as $address) {
+                RateLimiter::clear(md5('loginlogin|'.$address));
+            }
 
-        $this->assertEquals(1, RateLimiter::attempts(md5('loginlogin|'.$seen)), 'The sign-in limit counts the address the edge saw.');
+            // A client that writes addresses of its own in X-Forwarded-For and in CloudFront-Viewer-Address.
+            $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1', 'LAMBDA_REQUEST_CONTEXT' => json_encode(['http' => ['sourceIp' => '130.176.0.5']], JSON_THROW_ON_ERROR)])
+                ->withHeaders(['X-Forwarded-For' => "{$spoofed[0]}, {$seen}{$appended}", 'CloudFront-Viewer-Address' => "{$spoofed[1]}:51000", 'Origin' => 'http://localhost:8601', 'Referer' => 'http://localhost:8601/login'])
+                ->postJson('/api/v1/auth/login', ['email' => 'nobody-'.Str::lower(Str::random(8)).'@example.com', 'password' => 'wrong-password-123'])
+                ->assertStatus(422);
 
-        foreach ($spoofed as $address) {
-            $this->assertEquals(0, RateLimiter::attempts(md5('loginlogin|'.$address)), "An address the client wrote ({$address}) counts nothing.");
+            $this->assertEquals(1, RateLimiter::attempts(md5('loginlogin|'.$seen)), 'The sign-in limit counts the address the edge saw.');
+
+            foreach ($spoofed as $address) {
+                $this->assertEquals(0, RateLimiter::attempts(md5('loginlogin|'.$address)), "An address the client wrote ({$address}) counts nothing.");
+            }
         }
     }
 
@@ -168,13 +185,18 @@ final class EdgeTest extends IntegrationTestCase
 
     /**
      * The address the application counts a request by, after the edge and the Bref runtime: PHP-FPM sees the
-     * request come from 127.0.0.1.
+     * request come from 127.0.0.1, and the runtime passes the request context of API Gateway, with the source address
+     * it reports (its peer), in LAMBDA_REQUEST_CONTEXT.
      *
      * @param  array<string, string>  $headers
      */
-    private function clientAddress(array $headers): string
+    private function clientAddress(array $headers, ?string $peer): string
     {
         $server = ['REMOTE_ADDR' => '127.0.0.1'];
+
+        if ($peer !== null) {
+            $server['LAMBDA_REQUEST_CONTEXT'] = json_encode(['http' => ['method' => 'GET', 'sourceIp' => $peer]], JSON_THROW_ON_ERROR);
+        }
 
         foreach ($headers as $name => $value) {
             $server['HTTP_'.strtoupper(str_replace('-', '_', $name))] = $value;

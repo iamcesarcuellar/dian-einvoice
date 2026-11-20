@@ -331,17 +331,19 @@ final class CloudCheckCommand extends Command
         $forbidden = Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/api-keys');
         $this->verify($forbidden->status() === 403 && str_contains((string) $forbidden->header('Content-Type'), 'application/problem+json') && $forbidden->json('status') === 403, sprintf('Through the edge a 403 of the API stays a problem of the API: %d %s.', $forbidden->status(), $forbidden->header('Content-Type')));
 
-        // The client writes addresses of its own, in X-Forwarded-For, in CloudFront-Viewer-Address and in both; the
-        // sign-in counts the address the edge saw, the entry it appended to X-Forwarded-For. Its limit counts every
-        // attempt before anything else, these included, which come without the session of the web app (400).
+        // The client writes addresses of its own, in X-Forwarded-For, in CloudFront-Viewer-Address and in both, and
+        // ends X-Forwarded-For with the peer API Gateway reports (127.0.0.1 in the emulator), the entry the application
+        // drops; the sign-in counts the address the edge saw, the entry it appended to X-Forwarded-For. Its limit
+        // counts every attempt before anything else, these included, which come without the session of the web app (400).
         $seen = (string) gethostbyname((string) parse_url($api, PHP_URL_HOST));
         $lasts = range(20, 250);
         shuffle($lasts);
-        $spoofed = array_map(fn (int $last): string => '203.0.113.'.$last, array_slice($lasts, 0, 4));
+        $spoofed = array_map(fn (int $last): string => '203.0.113.'.$last, array_slice($lasts, 0, 5));
         $attempts = [
             'X-Forwarded-For' => ['X-Forwarded-For' => $spoofed[0]],
             'CloudFront-Viewer-Address' => ['CloudFront-Viewer-Address' => "{$spoofed[1]}:4321"],
             'both, two entries' => ['X-Forwarded-For' => "{$spoofed[2]}, {$spoofed[3]}", 'CloudFront-Viewer-Address' => "{$spoofed[2]}:4321"],
+            'X-Forwarded-For ending with the peer of API Gateway' => ['X-Forwarded-For' => "{$spoofed[4]}, 127.0.0.1"],
         ];
         $before = $this->attempts('login', $seen);
         $statuses = [];

@@ -48,9 +48,6 @@ params:
     # make cloud-check signs in and downloads through the edge, as a browser does: the proxy in front of the
     # distribution, on the network of compose (its alias api).
     apiCheckUrl: http://api:8000/api/v1
-    # The entries the known hops append at the end of X-Forwarded-For: the CloudFront of the emulator appends the
-    # address of the client; its API Gateway appends nothing.
-    edgeForwardedHops: '1'
   prod:
     # Placeholder: this stage is never deployed (docs/infrastructure.md), as in the CDK app.
     account: '111111111111'
@@ -76,9 +73,6 @@ params:
     webhookPrivateTargets: 'false'
     webhookReceiverUrl: ''
     apiCheckUrl: ''
-    # CloudFront appends the address of the client, then API Gateway that of the edge location (as the documentation
-    # of CloudFront says of API Gateway origins).
-    edgeForwardedHops: '2'
 
 provider:
   name: aws
@@ -181,11 +175,11 @@ custom:
       HEALTH_CHECKS: database,cache,queue
       # PHP-FPM sees every request come from 127.0.0.1 (the Bref runtime), whose X-Forwarded-For it believes
       # (backend/config/trustedproxy.php); behind the edge the application takes from it the entry the edge
-      # appended, counted from the end by the known hops of the stage, ignores whatever the client wrote before it,
-      # and generates every URL from APP_URL (backend/config/edge.php).
+      # appended (the last one, once an entry API Gateway appended for its peer, the source address it reports, is
+      # dropped), ignores whatever the client wrote before it, and generates every URL from APP_URL
+      # (backend/config/edge.php). The same rule in every stage: no count of hops.
       TRUSTED_PROXIES: 127.0.0.1
       BEHIND_EDGE: 'true'
-      EDGE_FORWARDED_HOPS: ${param:edgeForwardedHops}
       # The development tools of the API reference load a script of their own; the functions never serve them.
       SCRAMBLE_DEV_TOOLS: 'false'
       # The configuration is cached in /tmp when each execution environment starts, secrets included: they
