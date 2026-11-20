@@ -38,7 +38,7 @@ final class TemporaryCompany
      * withholdings and numbering. Lines, events, transmissions and the
      * invoice side of the payments go with their documents; allocations and events with their payments.
      */
-    private const array TABLES = ['webhook_attempts', 'webhook_deliveries', 'webhook_events', 'webhook_subscriptions', 'idempotency_keys', 'payment_events', 'payment_allocations', 'payments', 'outbox_events', 'documents', 'dian_file_counters', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'dian_settings', 'signing_certificates', 'key_store_entries', 'api_keys', 'memberships'];
+    private const array TABLES = ['webhook_attempts', 'webhook_deliveries', 'webhook_events', 'webhook_subscriptions', 'idempotency_keys', 'payment_events', 'payment_allocations', 'payments', 'outbox_events', 'documents', 'dian_file_counters', 'number_templates', 'items', 'contacts', 'taxes', 'withholdings', 'dian_settings', 'signing_certificates', 'key_store_entries', 'kms_key_store_entries', 'api_keys', 'memberships'];
 
     private function __construct(
         public readonly Company $company,

@@ -7,14 +7,16 @@ use App\Modules\Developers\Http\Middleware\HandleIdempotency;
 use App\Modules\Developers\Http\Middleware\RateLimitApiKeys;
 use App\Modules\Developers\Http\Middleware\RejectApiKeys;
 use App\Modules\Identity\Http\Middleware\ResolveCurrentCompany;
+use App\Support\Secrets\LoadSecrets;
 use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 
-return Application::configure(basePath: dirname(__DIR__))
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         api: __DIR__.'/../routes/api.php',
         apiPrefix: 'api/v1',
@@ -50,3 +52,9 @@ return Application::configure(basePath: dirname(__DIR__))
             return ProblemDetails::fromThrowable($e);
         });
     })->create();
+
+// The emulated cloud and production read the secrets of the application from AWS Secrets Manager
+// (APP_SECRETS=secrets-manager) after the environment file and before the configuration.
+$app->afterBootstrapping(LoadEnvironmentVariables::class, fn () => LoadSecrets::bootstrap());
+
+return $app;

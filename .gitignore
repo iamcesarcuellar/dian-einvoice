@@ -20,6 +20,9 @@
 # Frontend build output
 /frontend/dist/
 
+# Cloud assembly of the CDK app (cdk synth, cdk deploy), and its outputs
+/infra/cdk/cdk.out/
+
 # Editors and operating systems
 .DS_Store
 .idea/

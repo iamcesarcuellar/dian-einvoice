@@ -2,25 +2,22 @@
 
 namespace App\Support\Outbox;
 
-use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Publishes outbox events to the queue. Each batch takes the oldest unpublished events in id order
- * with FOR UPDATE SKIP LOCKED, so two relays never take the same rows, dispatches their jobs
- * (delayed until available_at when it is in the future) and marks them published in the same
- * transaction. A crash between the dispatch and the commit publishes those events again: delivery
- * is at least once, and every consumer is idempotent.
+ * Publishes outbox events. Each batch takes the oldest unpublished events in id order with FOR UPDATE
+ * SKIP LOCKED, so two relays never take the same rows, hands them to the publisher (locally the jobs of
+ * each event go to the queue, delayed until available_at; in the emulated cloud each event goes to the
+ * topic of document events) and marks them published in the same transaction. A crash between the
+ * publish and the commit publishes those events again: delivery is at least once, and every consumer
+ * is idempotent.
  */
 final class OutboxRelay
 {
     public const int BATCH = 100;
 
-    public function __construct(
-        private readonly OutboxSubscribers $subscribers,
-        private readonly Dispatcher $bus,
-    ) {}
+    public function __construct(private readonly OutboxPublisher $publisher) {}
 
     /** Publishes up to $limit events; returns how many. */
     public function publishBatch(int $limit = self::BATCH): int
@@ -41,26 +38,11 @@ final class OutboxRelay
                 return 0;
             }
 
-            foreach ($events as $event) {
-                $this->publish($event);
-            }
+            $this->publisher->publish($events->all());
 
             OutboxEvent::query()->whereKey($events->modelKeys())->update(['published_at' => Carbon::now()]);
 
             return $events->count();
         });
-    }
-
-    private function publish(OutboxEvent $event): void
-    {
-        $delayed = $event->available_at !== null && $event->available_at->isFuture();
-
-        foreach ($this->subscribers->jobsFor($event) as $job) {
-            if ($delayed && method_exists($job, 'delay')) {
-                $job->delay($event->available_at);
-            }
-
-            $this->bus->dispatch($job);
-        }
     }
 }

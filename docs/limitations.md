@@ -35,7 +35,7 @@ What this project does not do, or does only in part, as it stands. It is a refer
 - The AttachedDocument is built from the table of the annex (the toolbox has no example); its ID repeats every year, its literals stay those of an invoice for notes, and ValidatorID names the simulator. The PDF is named after the XML.
 - dompdf: no OpenType layout, page numbers and watermark drawn by a page script, simplified SVG, fixed margins and page breaks, no PDF/UA or PDF/A. Its warnings are silenced while it draws; the result is checked to be a PDF of at least one page. The PDF is drawn inside the lock of its document.
 - Texts are in English until the Polish phase. The 2 MB limit of section 9.1 is checked but never reached by the demo.
-- Email is delivered at least once: a worker that dies after the mail server took the email sends it again. SPF, DKIM and DMARC belong to Infrastructure.
+- Email is delivered at least once: a worker that dies after the mail server took the email sends it again. SPF, DKIM and DMARC belong to Infrastructure task 2 (the DNS records of the domain identity of the stage prod).
 
 ## API and webhooks
 
@@ -58,13 +58,13 @@ What this project does not do, or does only in part, as it stands. It is a refer
 - No second factor (TOTP or WebAuthn).
 - No email verification at sign-up, by decision: the account is created and signed in at once, so sign-up still tells a refusal from a success, and a refusal means the email or the NIT is already registered. Mitigation: one message for a taken email and a taken NIT, without naming the field, and ten sign-up attempts an hour per address.
 - Passwords: bcrypt, 12 to 128 characters (bcrypt reads the first 72 bytes), no check against lists of breached passwords, which would need an external service.
-- No rotation of the encryption key. APP_KEY encrypts the key store (certificates and their passwords), the software PINs, the technical keys and the webhook secrets; changing it needs re-encrypting them, and the key lives in the memory of PHP. Infrastructure moves the key store behind a key management service.
+- No rotation of the encryption key. APP_KEY encrypts the software PINs, the technical keys and the webhook secrets, and locally the key store (certificates and their passwords) too; changing it needs re-encrypting them, and the key lives in the memory of PHP. In the emulated cloud the key store is envelope encryption under a KMS key and APP_KEY comes from Secrets Manager, whose secret has no rotation function yet (it belongs to the compute of Infrastructure task 2).
 - Accepting an invitation for a new address while signed in as someone else signs that person out; the page says so first.
-- Development tools without authentication, on 127.0.0.1 only: the local mailbox (it holds every reset and invitation link) and the webhook receiver. The simulator keeps the PINs and technical keys registered with it in plain text in its state file, as the DIAN, which issues them, knows them.
+- Development tools without authentication, on 127.0.0.1 only: the local mailbox (it holds every reset and invitation link), the webhook receiver, and in the emulated cloud the AWS emulator, which takes any credentials and keeps every email SES took. The simulator keeps the PINs and technical keys registered with it in plain text in its state file, as the DIAN, which issues them, knows them.
 - Local development uses fixed database credentials (dian/dian and root/root, in compose.yaml and backend/.env.example), and the application user owns the schema it migrates. The Redis password and the simulator token are random per checkout.
 - The security headers of the static web app (Content-Security-Policy, HSTS, frame options) belong to its host in Infrastructure; the Server header of FrankenPHP is left to the proxy in front.
 - CORS accepts any origin without credentials, for API keys; a session works only from the configured stateful origins.
-- Dependency audits fail on high and critical advisories. Moderate ones in development tools (minimatch through ESLint and @vue/test-utils when this was written) wait for their fixes upstream, which Dependabot proposes.
+- Dependency audits fail on high and critical advisories. Moderate ones in development tools (minimatch through ESLint and @vue/test-utils, and the copy of minimatch bundled in aws-cdk-lib, which runs at synthesis only, when this was written) wait for their fixes upstream, which Dependabot proposes.
 
 ## Operation and scale
 
@@ -76,6 +76,19 @@ What this project does not do, or does only in part, as it stands. It is a refer
 - Every service has a healthcheck; there are no metrics or alerts.
 - The production target of the backend image copies no code and installs no dependencies yet (Infrastructure).
 - The development tools (make stress, make chaos and the checks) and the demo seeder refuse to run outside APP_ENV local or testing. One that is interrupted leaves its synthetic company behind until the next make seed.
+
+## Emulated cloud
+
+- The local AWS emulator (Floci 2.5.0) accepts every resource of the templates but evaluates no IAM policy, resource policy or key policy: the least-privilege policies, the TLS-only policies of the topic, the queues and the bucket, the topic as the only sender to the queues and the encryption context of the signing key are checked on the synthesized templates only (the CDK tests and cdk-nag). The application reaches the emulator over plain HTTP, which those policies refuse in AWS.
+- Accepted but not applied by the emulator: the encryption key of the topic, the server access logs of the bucket and the storage classes of its lifecycle rules. SES keeps every email at /_aws/ses, an endpoint of the emulator that make cloud-check reads and make cloud-demo clears, and delivers none; the sender address is verified at once, and DKIM, SPF and DMARC are not emulated.
+- One environment at a time: both use the same ports and share the DIAN simulator, the MySQL server (each with a database of its own) and the web app; make cloud-demo resets the simulator, as make seed does.
+- The secret of the stage local keeps the fixed local database credentials (dian/dian); the simulator admin token stays in backend/.env, as a development tool. The AWS clients use the credentials 000000000000/emulated, which the emulator takes; in AWS the roles of task 2 replace them.
+- The secrets are read at boot and kept up to 5 minutes in a file only the user of the container can read, in its temporary directory: a rotated secret is seen within that time.
+- A message scheduled for later (a transmission or webhook retry) spends one receive of its queue while it waits, invisible: after such a wait its job has up to 9 attempts left of the 10 of maxReceiveCount. A message SNS cannot deliver ends in the same dead-letter queue.
+- One job per event type and queue: the SQS consumer sends to the dead-letter queue an event whose queue has no job for its type, or more than one; a backend test checks the subscriptions against the routes the CDK app filters on.
+- The CDK CLI reaches the bootstrap bucket of the emulator by its host name, which compose gives the emulator as an alias.
+- The stage prod is synthesized and validated, never deployed; its account (111111111111) is a placeholder. The DNS records of its domain identity (DKIM, MAIL FROM, SPF, DMARC), the rotation of the secret and the alarms on the dead-letter queues belong to tasks 2 and 3.
+- The tests of the AWS adapters run with the AWS SDK answering from memory; only make cloud-check runs the adapters against the emulator, and CI runs it on main only.
 
 ## Interface
 
@@ -89,7 +102,7 @@ What this project does not do, or does only in part, as it stands. It is a refer
 - Each make e2e run adds an invoice and its payment to Demo Comercial SAS. The end-to-end test opens the app at http://localhost:8601 inside its container, the origin the API takes for sessions; its files follow the Prettier configuration of the web app, but no linter runs over them.
 - The simulator tests use synthetic demo documents as fixtures, with the clock fixed inside the validity of their test certificate.
 - Not covered by a test: the 64 KB cap on webhook answers and the limits of the preview and the search.
-- PHPStan runs with one worker, inside the 512 MB of the api container. vue-tsc checkUnknownProps and checkUnknownEvents stay off (390 attributes and listeners pass through to the shadcn-vue and reka-ui wrappers); the ESLint rules turned off carry their reason in eslint.config.ts. Scramble shows the create rules for the PATCH bodies of taxes and withholdings.
+- PHPStan runs with one worker in the api-analyse container (2 GB): the type shapes of the AWS SDK take about 1.4 GB. vue-tsc checkUnknownProps and checkUnknownEvents stay off (390 attributes and listeners pass through to the shadcn-vue and reka-ui wrappers); the ESLint rules turned off carry their reason in eslint.config.ts. Scramble shows the create rules for the PATCH bodies of taxes and withholdings.
 - TypeScript is pinned to 6.x and pnpm runs with a build-script allow list.
 
 ## Data and demo

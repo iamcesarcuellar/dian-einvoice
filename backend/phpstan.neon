@@ -28,6 +28,6 @@ parameters:
     configDirectories:
         - config
     tmpDir: storage/framework/cache/phpstan
-    # The api container has 512 MB: one worker keeps the analysis inside it.
+    # One worker keeps the analysis inside the 2 GB of the api-analyse container (make analyse).
     parallel:
         maximumNumberOfProcesses: 1

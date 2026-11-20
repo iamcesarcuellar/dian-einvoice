@@ -3,42 +3,34 @@
 namespace App\Support\Health;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Redis;
-use Throwable;
 
 /**
- * The healthcheck of the containers without an HTTP port: the database and Redis answer, and, for
- * a queue worker or the outbox relay, its loop beat in the last MAX_AGE seconds (a job may hold a
- * worker for its 35 s timeout; the relay sleeps less than a second between batches). Exit code 0
+ * The healthcheck of the containers without an HTTP port: the services they need answer (HealthChecks:
+ * the database and Redis locally; the database, the cache store and the queue in the emulated cloud),
+ * and, for a queue worker or the outbox relay, its loop beat in the last MAX_AGE seconds (a job may hold
+ * a worker for its 35 s timeout; the relay sleeps less than a second between batches). Exit code 0
  * when healthy, 1 otherwise, one line saying why.
  */
 final class HealthCheckCommand extends Command
 {
     protected $signature = 'health:check {process? : worker or relay: also check the heartbeat of its loop}';
 
-    protected $description = 'Check the database, Redis and the heartbeat of a worker or the relay (healthcheck of their containers)';
+    protected $description = 'Check the database, Redis or the cloud services, and the heartbeat of a worker or the relay (healthcheck of their containers)';
 
     /** Seconds without a beat after which the process counts as stuck. */
     public const int MAX_AGE = 90;
 
-    public function handle(): int
+    public function handle(HealthChecks $health): int
     {
         $process = $this->argument('process');
         $checks = [];
 
-        try {
-            DB::select('select 1');
-            $checks[] = 'database ok';
-        } catch (Throwable) {
-            return $this->unhealthy('the database is not reachable');
-        }
+        foreach ($health->run() as $name => $passed) {
+            if (! $passed) {
+                return $this->unhealthy(HealthChecks::FAILURES[$name] ?? "the check {$name} failed");
+            }
 
-        try {
-            Redis::connection()->ping();
-            $checks[] = 'redis ok';
-        } catch (Throwable) {
-            return $this->unhealthy('Redis is not reachable');
+            $checks[] = "{$name} ok";
         }
 
         if (is_string($process)) {

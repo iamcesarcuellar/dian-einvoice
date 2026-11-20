@@ -1,0 +1,29 @@
+{
+  "name": "dian-einvoice-infra",
+  "private": true,
+  "description": "AWS CDK app of dian-einvoice: the messaging, storage, data, security and mail stacks of the stages local (deployed to the local AWS emulator) and prod (synthesized and validated, never deployed).",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "synth": "cdk synth --quiet",
+    "lint": "eslint --max-warnings=0 .",
+    "typecheck": "tsc --noEmit",
+    "fix": "eslint --fix .",
+    "test": "node --test --test-reporter=spec --test-timeout=120000 test/"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.277.0",
+    "cdk-nag": "3.0.2",
+    "constructs": "^10.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.6",
+    "aws-cdk": "2.1149.0",
+    "eslint": "10.15.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "8.73.0"
+  }
+}

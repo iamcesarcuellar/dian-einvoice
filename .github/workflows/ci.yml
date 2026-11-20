@@ -1,6 +1,7 @@
 # Continuous integration: every job runs the same make targets as the local stack, in the containers of
 # compose.yaml. No secrets and no paid services: the DIAN is the local simulator, email goes to the local mailbox,
-# and the secrets of the stack are random values make env writes to backend/.env on each runner.
+# the AWS services of the emulated cloud are a local emulator, and the secrets of the stack are random values make
+# env writes to backend/.env on each runner.
 name: CI
 
 on:
@@ -27,7 +28,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare
         with:
-          images: api web simulator-dev
+          images: api web simulator-dev cdk
           backend: "true"
           frontend: "true"
       - name: Formatters and linters (make lint)
@@ -73,6 +74,26 @@ jobs:
       - name: Rules, failure modes and webhook receiver (make test-simulator)
         run: make test-simulator
 
+  infra:
+    name: Infrastructure as code
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/prepare
+        with:
+          images: cdk
+      - name: Tests, cdk-nag and synthesis of both stages without a network (make cdk-check)
+        run: make cdk-check
+      - name: Report of cdk-nag
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-nag-report
+          path: infra/cdk/cdk.out/validation-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   security:
     name: Dependencies, licenses and secrets
     runs-on: ubuntu-24.04
@@ -84,7 +105,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/prepare
         with:
-          images: api web simulator-dev
+          images: api web simulator-dev cdk
           backend: "true"
           frontend: "true"
       - name: Vulnerabilities, licenses and secrets (make security)
@@ -123,3 +144,25 @@ jobs:
           path: e2e/test-results
           if-no-files-found: ignore
           retention-days: 7
+
+  # On main only: the emulated cloud end to end. The local AWS emulator, the CDK stage local deployed to it, and
+  # 30 invoices through SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager (make cloud-check).
+  cloud:
+    name: Emulated cloud
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/prepare
+        with:
+          images: api web simulator cdk
+          backend: "true"
+          frontend: "true"
+      - name: The emulated cloud (make cloud-up)
+        run: make cloud-up
+      - name: Invoices through the AWS services, consumers killed mid-process, a dead letter (make cloud-check)
+        run: make cloud-check
+      - name: Logs of the emulated cloud
+        if: failure()
+        run: docker compose --env-file backend/.env --profile cloud logs --no-color --tail=300

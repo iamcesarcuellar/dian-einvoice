@@ -3,25 +3,25 @@
 namespace App\Modules\Developers\Http\Middleware;
 
 use App\Http\ProblemDetails;
+use App\Modules\Developers\RateLimits\WindowLimiter;
 use App\Modules\Identity\Tenancy\Actor;
 use Closure;
-use Illuminate\Contracts\Redis\Factory as Redis;
 use Illuminate\Http\Request;
-use Illuminate\Redis\Limiters\DurationLimiter;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Requests per minute of each API key (120 unless the key sets its own), counted in Redis in fixed
- * windows of 60 seconds. Every response to a key carries the limit headers: X-RateLimit-Limit,
- * X-RateLimit-Remaining and X-RateLimit-Reset (Unix time), plus RateLimit-Policy and RateLimit of
- * the IETF draft. Above the limit: 429 with Retry-After. Alias "api-rate-limit"; requests of the
- * web app session are not limited here.
+ * Requests per minute of each API key (120 unless the key sets its own), counted in fixed windows of 60
+ * seconds: in Redis locally, in the limits table of DynamoDB in the emulated cloud (WindowLimiter).
+ * Every response to a key carries the limit headers: X-RateLimit-Limit, X-RateLimit-Remaining and
+ * X-RateLimit-Reset (Unix time), plus RateLimit-Policy and RateLimit of the IETF draft. Above the
+ * limit: 429 with Retry-After. Alias "api-rate-limit"; requests of the web app session are not limited
+ * here.
  */
 final class RateLimitApiKeys
 {
     private const int WINDOW = 60;
 
-    public function __construct(private readonly Redis $redis) {}
+    public function __construct(private readonly WindowLimiter $limiter) {}
 
     /**
      * @param  Closure(Request): Response  $next
@@ -35,12 +35,12 @@ final class RateLimitApiKeys
         }
 
         $limit = $key->rateLimit();
-        $limiter = new DurationLimiter($this->redis->connection(), 'api-key-rate:'.$key->id, $limit, self::WINDOW);
-        $allowed = $limiter->acquire();
+        $count = $this->limiter->hit('api-key-rate:'.$key->id, $limit, self::WINDOW);
+        $allowed = $count->allowed;
 
-        $reset = (int) $limiter->decaysAt;
+        $reset = $count->resetsAt;
         $resetIn = max(1, $reset - time());
-        $remaining = max(0, (int) $limiter->remaining);
+        $remaining = $count->remaining;
 
         $headers = [
             'X-RateLimit-Limit' => (string) $limit,

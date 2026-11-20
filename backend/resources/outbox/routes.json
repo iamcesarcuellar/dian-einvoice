@@ -1,0 +1,31 @@
+{
+    "channels": {
+        "chain": [
+            "credit_note.issued",
+            "debit_note.issued",
+            "delivery.attached_document_due",
+            "delivery.email_due",
+            "delivery.pdf_due",
+            "dian.taxpayer_changed",
+            "electronic_document.generate_due",
+            "electronic_document.response_received",
+            "electronic_document.sign_due",
+            "electronic_document.transmit_due",
+            "invoice.issued"
+        ],
+        "webhooks": [
+            "credit_note.issued",
+            "debit_note.issued",
+            "delivery.delivered",
+            "electronic_document.accepted",
+            "electronic_document.failed",
+            "electronic_document.rejected",
+            "invoice.issued",
+            "invoice.paid",
+            "invoice.voided",
+            "payment.recorded",
+            "payment.voided",
+            "webhook.delivery_due"
+        ]
+    }
+}

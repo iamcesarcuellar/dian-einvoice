@@ -8,7 +8,8 @@ name: dian-einvoice
 # Infrastructure reuses: the API and the simulator answer /health, the workers and the relay check a
 # heartbeat they write while they loop, plus the database and Redis (php artisan health:check).
 
-# The backend image and its settings, shared by api, worker and relay: one Dockerfile, one image.
+# The backend image and its settings, shared by api, worker and relay (and by their counterparts of the
+# emulated cloud): one Dockerfile, one image.
 x-backend: &backend
   build:
     context: ./backend
@@ -24,6 +25,23 @@ x-backend: &backend
     redis:
       condition: service_healthy
     mail:
+      condition: service_healthy
+
+# The processes of the application in the emulated cloud (profile cloud, make cloud-up): the same image and
+# code with the AWS adapters, configured by backend/.env.cloud, which make cloud-up writes from the outputs of
+# the CDK stage local. They need the database and the emulator, not Redis or the local mailbox.
+x-cloud-backend: &cloud-backend
+  <<: *backend
+  # The image of api, built once for both environments.
+  image: dian-einvoice-api:latest
+  profiles: ["cloud"]
+  env_file:
+    - path: ./backend/.env.cloud
+      required: false
+  depends_on:
+    db:
+      condition: service_healthy
+    floci:
       condition: service_healthy
 
 services:
@@ -66,6 +84,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # Optional (profile tools), only through make analyse: PHPStan over the mounted backend, in the image of api
+  # and with more memory than the api container (the type shapes of the AWS SDK take 1.4 GB to analyse).
+  api-analyse:
+    <<: *backend
+    image: dian-einvoice-api:latest
+    profiles: ["tools"]
+    mem_limit: 2g
 
   web:
     build:
@@ -217,6 +243,139 @@ services:
     volumes:
       - .:/repo:ro
 
+  # The emulated cloud (profile cloud, make cloud-up). Floci, an open-source local emulator of AWS (MIT, no
+  # account), serves SNS, SQS, S3, SES, DynamoDB, KMS, Secrets Manager, SSM, CloudFormation, IAM and STS to the
+  # CDK CLI and the application; its API is on 127.0.0.1:8604 and its state in a volume of its own. No Docker
+  # socket: nothing of this stage runs containers, so it warns at start that the container services are off.
+  floci:
+    image: floci/floci:2.5.0
+    profiles: ["cloud"]
+    restart: "no"
+    mem_limit: 512m
+    environment:
+      # The URLs it answers (queue URLs) name this service, which the other containers reach.
+      FLOCI_HOSTNAME: floci
+      FLOCI_STORAGE_MODE: persistent
+    volumes:
+      - floci-data:/app/data
+    ports:
+      - "127.0.0.1:8604:4566"
+    networks:
+      default:
+        aliases:
+          # The asset bucket of cdk bootstrap, which the CDK CLI reaches by host name.
+          - cdk-hnb659fds-assets-000000000000-us-east-1.floci
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # The CDK app (infra/cdk), without a network: lint, type check, its tests and cdk synth of both stages
+  # (make cdk-check, make lint, make analyse). The event routes of the backend, read-only. ESLint with the
+  # types of aws-cdk-lib needs more than the default heap of Node.
+  cdk:
+    build:
+      context: ./infra/cdk
+    image: dian-einvoice-cdk:latest
+    profiles: ["cloud"]
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 2g
+    network_mode: none
+    environment:
+      HOME: /tmp
+      NODE_OPTIONS: --max-old-space-size=1536
+      EVENT_ROUTES: /workspace/outbox/routes.json
+    volumes:
+      - ./infra/cdk:/workspace/cdk
+      - ./backend/resources/outbox:/workspace/outbox:ro
+
+  # The same, on the network of the stack: cdk bootstrap and cdk deploy of the stage local to the emulator
+  # (make cloud-up), which takes any credentials.
+  cdk-deploy:
+    image: dian-einvoice-cdk:latest
+    pull_policy: never
+    profiles: ["cloud"]
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 1g
+    environment:
+      HOME: /tmp
+      EVENT_ROUTES: /workspace/outbox/routes.json
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: "000000000000"
+      AWS_SECRET_ACCESS_KEY: emulated
+    volumes:
+      - ./infra/cdk:/workspace/cdk
+      - ./backend/resources/outbox:/workspace/outbox:ro
+    depends_on:
+      floci:
+        condition: service_healthy
+
+  # The API in the emulated cloud, in place of api: the same port, and the name api on the network, so the
+  # web app reaches it unchanged.
+  cloud-api:
+    <<: *cloud-backend
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:8600:8000"
+    networks:
+      default:
+        aliases:
+          - api
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # The outbox relay of the emulated cloud: publishes committed events to the topic of document events.
+  cloud-relay:
+    <<: *cloud-backend
+    mem_limit: 192m
+    init: true
+    command: ["sh", "docker/supervise.sh", "php", "artisan", "outbox:relay"]
+    healthcheck:
+      test: ["CMD", "php", "artisan", "health:check", "relay"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Consumers of the SQS queue of the chain (electronic document chain, delivery, and the jobs the
+  # application dispatches itself). A receive waits up to 10 s for a message, so stopping takes as long.
+  cloud-chain:
+    <<: *cloud-backend
+    mem_limit: 256m
+    init: true
+    stop_grace_period: 20s
+    deploy:
+      replicas: 2
+    command: ["sh", "docker/supervise.sh", "php", "artisan", "queue:work", "sqs", "--queue=chain", "--sleep=0.5", "--timeout=35", "--tries=10", "--memory=192"]
+    healthcheck:
+      test: ["CMD", "php", "artisan", "health:check", "worker"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Consumer of the SQS queue of the webhooks.
+  cloud-webhooks:
+    <<: *cloud-backend
+    mem_limit: 256m
+    init: true
+    stop_grace_period: 20s
+    command: ["sh", "docker/supervise.sh", "php", "artisan", "queue:work", "sqs", "--queue=webhooks", "--sleep=0.5", "--timeout=35", "--tries=10", "--memory=192"]
+    healthcheck:
+      test: ["CMD", "php", "artisan", "health:check", "worker"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   db:
     image: mysql:8.4
     restart: "no"
@@ -265,3 +424,5 @@ volumes:
   simulator-data:
   mail-data:
   schematron-tools:
+  # State of the local AWS emulator (profile cloud); make cloud-clean removes it.
+  floci-data:

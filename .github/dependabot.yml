@@ -20,9 +20,9 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
 
-  # The web app (pnpm), the simulator and the end-to-end test: one pull request for the three.
+  # The web app (pnpm), the simulator, the CDK app and the end-to-end test: one pull request for the four.
   - package-ecosystem: npm
-    directories: [/frontend, /simulator, /e2e]
+    directories: [/frontend, /simulator, /infra/cdk, /e2e]
     schedule:
       interval: weekly
       day: monday
@@ -38,7 +38,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: docker
-    directories: [/backend, /frontend, /simulator]
+    directories: [/backend, /frontend, /simulator, /infra/cdk]
     schedule:
       interval: weekly
       day: monday

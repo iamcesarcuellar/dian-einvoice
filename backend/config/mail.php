@@ -1,8 +1,8 @@
 <?php
 
 // Merged with the framework defaults. Email goes through Laravel's mailer over SMTP: locally to the
-// development mailbox (compose service mail, Mailpit), which keeps every message and relays none.
-// Infrastructure points this same mailer to a real service by changing the environment only.
+// development mailbox (compose service mail, Mailpit), which keeps every message and relays none. The
+// emulated cloud sends through SES instead (MAIL_MAILER=ses, the SES v2 API, config/services.php).
 return [
 
     'default' => env('MAIL_MAILER', 'smtp'),
@@ -20,6 +20,12 @@ return [
             // Seconds to wait for the mail server; well below the 35 s a queued job may run.
             'timeout' => (float) env('MAIL_TIMEOUT', 10),
             'local_domain' => env('MAIL_EHLO_DOMAIN', 'localhost'),
+        ],
+
+        // Amazon SES through its v2 API (SendEmail with the raw message), with the sending identity of
+        // the CDK app.
+        'ses' => [
+            'transport' => 'ses-v2',
         ],
 
     ],
