@@ -103,7 +103,7 @@ services:
   # and its synthetic demo data. Playwright publishes no Alpine image: this one is Ubuntu (noble), with
   # the browsers of the exact @playwright/test version of e2e/package.json.
   e2e:
-    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    image: mcr.microsoft.com/playwright:v1.65.1-noble
     profiles: ["e2e"]
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart: "no"
@@ -166,7 +166,7 @@ services:
   # none, so nothing leaves this machine. Web interface and API on 127.0.0.1:8603; SMTP (1025) only
   # on the internal network.
   mail:
-    image: axllent/mailpit:v1.33.0
+    image: axllent/mailpit:v1.34.0
     restart: "no"
     mem_limit: 128m
     environment:
@@ -216,7 +216,7 @@ services:
   # Optional (profile security), only through make security: the secret scan of the git history and of
   # the changes not committed yet, read-only, with the rules of .gitleaks.toml.
   gitleaks:
-    image: ghcr.io/gitleaks/gitleaks:v8.28.0
+    image: ghcr.io/gitleaks/gitleaks:v8.30.1
     profiles: ["security"]
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart: "no"
@@ -434,7 +434,7 @@ services:
   # does (infra/functions/gateway.conf.template). make cloud-up writes the id of the distribution it deployed and
   # the paths of the API to infra/functions/.env.cloud. Every request goes through the distribution.
   cloud-gateway:
-    image: nginx:1.30.6-alpine-slim
+    image: nginx:1.31.8-alpine-slim
     profiles: ["cloud"]
     restart: "no"
     mem_limit: 32m
@@ -462,7 +462,7 @@ services:
       retries: 6
 
   db:
-    image: mysql:8.4
+    image: mysql:26.10
     restart: "no"
     mem_limit: 1g
     command: ["--default-time-zone=+00:00"]
@@ -483,7 +483,7 @@ services:
   # Queue, cache and sessions. Append-only file, so queued jobs survive a restart. No published port, and
   # a password (REDIS_PASSWORD of backend/.env): it does not start without one.
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     restart: "no"
     mem_limit: 128m
     environment:
