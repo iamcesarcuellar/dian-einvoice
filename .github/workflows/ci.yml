@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: api web simulator-dev cdk functions
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: api simulator
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: web
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: simulator-dev
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: cdk functions cfn-lint
@@ -88,7 +88,7 @@ jobs:
         run: make cdk-check
       - name: Report of cdk-nag
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cdk-nag-report
           path: infra/cdk/cdk.out/validation-report.json
@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 15
     steps:
       # The whole history, for the secret scan.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/prepare
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # worker and relay are built from the image of api, so its cache serves them too.
       - uses: ./.github/actions/prepare
         with:
@@ -139,7 +139,7 @@ jobs:
         run: docker compose --env-file backend/.env logs --no-color --tail=300
       - name: Traces of the end-to-end test
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-test-results
           path: e2e/test-results
@@ -157,7 +157,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: web simulator cdk functions lambda
@@ -170,7 +170,7 @@ jobs:
         run: make cloud-e2e
       - name: Traces of the end-to-end test against the edge
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cloud-e2e-test-results
           path: e2e/test-results
