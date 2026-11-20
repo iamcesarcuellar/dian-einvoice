@@ -9,7 +9,7 @@ import { ManagedPolicy, PolicyDocument, PolicyStatement, Role, ServicePrincipal 
 import { StringParameter } from 'aws-cdk-lib/aws-ssm'
 import type { Construct } from 'constructs'
 import { Published } from './published.ts'
-import { FUNCTIONS, FUTURE_PARAMETERS, functionName, parameterPrefix, removalPolicy, resourceName, type FunctionName, type StageConfig } from './stage.ts'
+import { DATABASE_PARAMETERS, FUNCTIONS, MIGRATIONS_FUNCTION, functionName, parameterPrefix, removalPolicy, resourceName, type FunctionName, type StageConfig } from './stage.ts'
 
 export interface ComputeStackProps extends StackProps {
   readonly stage: StageConfig
@@ -82,9 +82,12 @@ export class ComputeStack extends Stack {
       conditions: { StringLike: { 'aws:sourceArn': this.formatArn({ service: 'lambda', resource: 'function', resourceName: resourceName(stage, '*'), arnFormat: ArnFormat.COLON_RESOURCE_NAME }) } },
     }))
 
-    const databaseSecretArn = stage.database === 'managed'
-      ? StringParameter.valueForStringParameter(this, `${parameterPrefix(stage)}/${FUTURE_PARAMETERS.databaseSecretArn}`)
-      : null
+    // The secrets of the two identities of the database, published by the stack that holds them (security
+    // locally, database in prod): the application identity for every function, the migrations identity for
+    // the console function only, which also reads the other to provision it. Inline, as a role takes at
+    // most 10 managed policies.
+    const applicationSecretArn = StringParameter.valueForStringParameter(this, `${parameterPrefix(stage)}/${DATABASE_PARAMETERS.secretArn}`)
+    const migrationsSecretArn = StringParameter.valueForStringParameter(this, `${parameterPrefix(stage)}/${DATABASE_PARAMETERS.migrationsSecretArn}`)
 
     const roles: Partial<Record<FunctionName, Role>> = {}
 
@@ -96,17 +99,18 @@ export class ComputeStack extends Stack {
         new PolicyStatement({ actions: ['logs:CreateLogStream', 'logs:PutLogEvents'], resources: [logStreams] }),
       ]
 
-      if (stage.network === 'private') {
+      statements.push(new PolicyStatement({
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: fn === MIGRATIONS_FUNCTION ? [migrationsSecretArn, applicationSecretArn] : [applicationSecretArn],
+      }))
+
+      if (stage.network !== null) {
         // A function in a VPC reaches it through network interfaces Lambda creates with its role; EC2
         // scopes none of these actions to a resource.
         statements.push(new PolicyStatement({
           actions: ['ec2:CreateNetworkInterface', 'ec2:DescribeNetworkInterfaces', 'ec2:DescribeSubnets', 'ec2:DeleteNetworkInterface', 'ec2:AssignPrivateIpAddresses', 'ec2:UnassignPrivateIpAddresses'],
           resources: ['*'],
         }))
-      }
-
-      if (databaseSecretArn !== null) {
-        statements.push(new PolicyStatement({ actions: ['secretsmanager:GetSecretValue'], resources: [databaseSecretArn] }))
       }
 
       const role = new Role(this, `${pascal(fn)}FunctionRole`, {
@@ -122,7 +126,7 @@ export class ComputeStack extends Stack {
         reason: 'Lambda writes the logs of each execution environment to a stream it names when the environment starts; the resource is the log group of this function only.',
       })
 
-      if (stage.network === 'private') {
+      if (stage.network !== null) {
         Validations.of(role).acknowledge({
           id: 'AwsSolutions::AwsSolutions-IAM5[Resource::*]',
           reason: 'The network interfaces of a function in a VPC are created and removed by Lambda with the role of the function, and EC2 allows no resource for these actions (as in AWSLambdaVPCAccessExecutionRole).',

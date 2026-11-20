@@ -51,6 +51,13 @@ WORKDIR /var/task
 # Bref ships intl and redis disabled; the application uses them, as the local image does.
 COPY docker/lambda/php.ini php/conf.d/zz-application.ini
 
+# The certificate authorities of Amazon RDS, which sign the server certificate of the managed database: the
+# functions verify it on every connection in prod (DB_SSL_CA), and encrypt the connection with it everywhere.
+# Pinned by its SHA-256 (docker/lambda/fetch-rds-bundle.php).
+ARG RDS_CA_BUNDLE_SHA256=90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b
+COPY docker/lambda/fetch-rds-bundle.php /tmp/fetch-rds-bundle.php
+RUN php /tmp/fetch-rds-bundle.php "$RDS_CA_BUNDLE_SHA256" /opt/rds/global-bundle.pem
+
 # Production dependencies only, from the lock file; the autoloader comes once the code is in.
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --no-progress --prefer-dist
@@ -81,6 +88,7 @@ FROM bref/php-85:3.0.12 AS lambda
 # Root owns every file and nobody else can write them: the functions run as an unprivileged user, as
 # Lambda does, and write only to /tmp.
 COPY --from=lambda-build /var/task /var/task
+COPY --from=lambda-build /opt/rds/global-bundle.pem /opt/rds/global-bundle.pem
 
 # Nothing depends on the working directory: Bref finds the application in LAMBDA_TASK_ROOT (/var/task)
 # and Laravel runs its commands from its base path. The local emulator checks that the user of Lambda may

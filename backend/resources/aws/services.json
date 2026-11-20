@@ -1,0 +1,12 @@
+{
+  "description": "The AWS services the adapters of the application call, by the name of their VPC endpoint (com.amazonaws.<region>.<name>), with what calls each one. tests/Unit/Support/AwsServicesTest.php checks this list against the code; the CDK app gives each service a path from the private subnets of the functions (infra/cdk/lib/network-stack.ts), and docs/infrastructure.md lists the paths.",
+  "services": {
+    "dynamodb": "The cache, the web sessions and the rate limits (Laravel's DynamoDB store)",
+    "email": "Email (Laravel's mailer over the SES v2 API)",
+    "kms": "The key store of the signing certificates (KmsKeyStore)",
+    "s3": "The files of electronic documents (S3DocumentStorage)",
+    "secretsmanager": "The secrets of the application and of the database identities (LoadSecrets, the MySQL connector of the functions)",
+    "sns": "The outbox events, published to the topic (SnsOutboxPublisher)",
+    "sqs": "The jobs the application dispatches to the chain queue, and the visibility of the messages of the consumers (SqsEventsQueue)"
+  }
+}

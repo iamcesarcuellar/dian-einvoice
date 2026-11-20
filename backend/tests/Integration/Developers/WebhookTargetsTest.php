@@ -6,9 +6,11 @@ use App\Modules\Developers\Enums\WebhookAttemptOutcome;
 use App\Modules\Developers\Enums\WebhookDeliveryStatus;
 use App\Modules\Developers\Models\WebhookAttempt;
 use App\Modules\Developers\Models\WebhookDelivery;
+use App\Modules\Developers\Models\WebhookSubscription;
 use App\Modules\Developers\Receiver\LocalWebhookReceiver;
 use App\Modules\Developers\Webhooks\WebhookSender;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Tests\IntegrationTestCase;
 
 /**
@@ -16,7 +18,7 @@ use Tests\IntegrationTestCase;
  * URL that names or resolves to a private, local, link-local or metadata address is refused when
  * the subscription is saved and again before every attempt, so one saved while allowed never
  * reaches its address; with them allowed (local development) the local receiver gets it. In
- * production only https endpoints, and a redirect is never followed.
+ * production only https endpoints on port 443, and a redirect is never followed.
  */
 final class WebhookTargetsTest extends IntegrationTestCase
 {
@@ -66,6 +68,25 @@ final class WebhookTargetsTest extends IntegrationTestCase
         config(['developers.webhooks.require_https' => true]);
         $api()->postJson('/api/v1/webhooks', ['url' => 'http://hooks.example.com/dian', 'events' => ['invoice.issued']])->assertStatus(422)->assertJsonValidationErrors('url');
         $this->assertSame(WebhookAttemptOutcome::Blocked, app(WebhookSender::class)->send('http://hooks.example.com/dian', 'msg_synthetic', '{}', 'whsec_'.base64_encode(random_bytes(24)))->outcome);
+
+        // And on port 443 only, the only one the functions may open toward the internet: refused when the
+        // subscription is created and when it is changed, with the reason in a problem+json...
+        $refused = fn (TestResponse $response): TestResponse => $response->assertStatus(422)
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJsonPath('status', 422)
+            ->assertJsonPath('detail', 'The given data was invalid.')
+            ->assertJsonPath('errors.url', [WebhookSender::HTTPS_PORT_ONLY]);
+        $refused($api()->postJson('/api/v1/webhooks', ['url' => 'https://hooks.example.com:8443/dian', 'events' => ['invoice.issued']]));
+        $saved = $this->text($api()->postJson('/api/v1/webhooks', ['url' => 'https://hooks.example.com:443/dian', 'events' => ['invoice.issued']])->assertCreated()->json('data.id'));
+        $refused($api()->patchJson("/api/v1/webhooks/{$saved}", ['url' => 'https://hooks.example.com:8443/dian']));
+        $this->assertSame('https://hooks.example.com:443/dian', WebhookSubscription::query()->findOrFail($saved)->url);
+
+        // ...and, for a subscription saved before the rule, before every attempt.
+        $blocked = app(WebhookSender::class)->send('https://hooks.example.com:8443/dian', 'msg_synthetic', '{}', 'whsec_'.base64_encode(random_bytes(24)));
+        $this->assertSame([WebhookAttemptOutcome::Blocked, WebhookSender::HTTPS_PORT_ONLY], [$blocked->outcome, $blocked->error]);
+
+        // The reference of the API says so, in its section on webhooks.
+        $this->assertStringContainsString('in production, an https URL on port 443', (string) config('scramble.info.description'));
 
         // A redirect is answered as it is: one request, and an HTTP error.
         config(['developers.webhooks.require_https' => false]);

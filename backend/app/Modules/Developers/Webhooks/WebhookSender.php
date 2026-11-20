@@ -26,10 +26,20 @@ final class WebhookSender
     /** Bytes of the answer read into memory; the rest is discarded as it arrives. */
     public const int MAX_ANSWER_BYTES = 64 * 1024;
 
+    /** The only port webhooks go to where https is required: the only one the functions may open toward the internet. */
+    public const int HTTPS_PORT = 443;
+
+    /** Why a webhook URL on another port is refused, when it is saved and before each attempt. */
+    public const string HTTPS_PORT_ONLY = 'Webhook URLs must use port 443, the default port of https: deliveries leave on no other port.';
+
     public function send(string $url, string $messageId, string $body, #[SensitiveParameter] string $secret): SendResult
     {
         if ((bool) config('developers.webhooks.require_https', false) && strtolower((string) parse_url($url, PHP_URL_SCHEME)) !== 'https') {
             return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: 'Only https endpoints receive webhooks here.');
+        }
+
+        if ((bool) config('developers.webhooks.require_https', false) && PrivateTargets::port($url) !== self::HTTPS_PORT) {
+            return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: self::HTTPS_PORT_ONLY);
         }
 
         $curl = [];

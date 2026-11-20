@@ -6,7 +6,7 @@
 // comes last in X-Forwarded-For: trusting 127.0.0.1 alone (TRUSTED_PROXIES of the functions) makes the
 // request IP that last address, so a client cannot choose its own address for the rate limits by sending
 // the header itself. Bref's bridge would otherwise trust every address, and the first one of the header
-// is the client's to write. Infrastructure task 3 adds the hop of the content delivery network in front.
+// is the client's to write. Infrastructure task 4 adds the hop of the content delivery network in front.
 return [
 
     'proxies' => env('TRUSTED_PROXIES'),

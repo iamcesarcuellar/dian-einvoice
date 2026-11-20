@@ -2,18 +2,24 @@
 # make cloud-check: the end-to-end check of the emulated cloud (make cloud-up first), where the application
 # runs as Lambda functions in the local AWS emulator and nothing of it runs all the time. In order:
 #  1. no process of the application runs all the time: only the emulator, the database, the DIAN simulator,
-#     the web app and the proxy in front of API Gateway are up;
-#  2. every function, mapping, route and schedule of the stage local exists for real in the emulator;
-#  3. the cold start and the warm answers of the API through API Gateway (figures of the emulator);
-#  4. the fast path: CLOUD_INVOICES invoices through the chain, each step published by its writer as it
+#     the web app and the proxy in front of API Gateway are up; the image of the functions starts on a
+#     read-only file system and carries the bundle of the RDS certificate authorities;
+#  2. every function, mapping, route and schedule of the stage local exists for real in the emulator, and each
+#     function connects to the database as its identity;
+#  3. the two identities of the database: the migrations run through the console function with the migrations
+#     identity, which provisions the application identity; the application identity cannot change the schema;
+#  4. the cold start and the warm answers of the API through API Gateway (figures of the emulator);
+#  5. the fast path: CLOUD_INVOICES invoices through the chain, each step published by its writer as it
 #     commits, with the time from issue to delivery; the session cookie with CSRF and the downloads of an
 #     invoice through API Gateway;
-#  5. a partial batch response: an unreadable message among valid ones in one batch;
-#  6. chaos: more invoices, one outbox event left unpublished, and the containers of the functions killed
+#  6. a partial batch response: an unreadable message among valid ones in one batch;
+#  7. chaos: more invoices, one outbox event left unpublished, and the containers of the functions killed
 #     mid-process;
-#  7. everything ends accepted, delivered and notified once, the relay function published the event left
-#     behind, the scheduler ran, and the AWS services hold what they should.
-# Every step runs in the console function; the temporary company is deleted at the end, whatever happens.
+#  8. everything ends accepted, delivered and notified once, the relay function published the event left
+#     behind, the scheduler ran, and the AWS services hold what they should;
+#  9. a simulated rotation of the application identity, twice, with the functions warm: requests and
+#     invoices work before and after each, and the functions whose password went read their secret again.
+# Every step runs in the console function; the temporary companies are deleted at the end, whatever happens.
 set -eu
 
 invoices="${1:-30}"
@@ -77,10 +83,30 @@ else
   status=1
 fi
 
+# The certificate authorities of Amazon RDS the functions verify the managed database of prod with, and encrypt
+# with here: the bundle in the image parses, and holds the authority that signs the instances of us-east-1.
+# shellcheck disable=SC2016
+bundle=$(docker run --rm --network none --entrypoint php dian-einvoice-lambda:latest -r '$pem = (string) file_get_contents("/opt/rds/global-bundle.pem"); preg_match_all("/-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----/s", $pem, $m); $names = array_map(fn ($c) => openssl_x509_parse($c)["subject"]["CN"] ?? "", $m[0]); echo count($names), " ", in_array("Amazon RDS us-east-1 Root CA RSA2048 G1", $names, true) ? "yes" : "no";' 2>/dev/null || true)
+case "$bundle" in
+  *" yes")
+    echo "   PASS  The image of the functions carries the bundle of the RDS certificate authorities (${bundle% yes} of them, Amazon RDS us-east-1 Root CA RSA2048 G1 included), with which prod verifies the managed database."
+    ;;
+  *)
+    echo "   FAIL  The image of the functions has no usable bundle of the RDS certificate authorities (${bundle:-none})."
+    status=1
+    ;;
+esac
+
 echo "2. The functions and their triggers exist for real in the emulator"
 step tools node scripts/cloud-check.mjs resources
 
-echo "3. Cold start and warm answers of the API (figures of the emulator, not of AWS)"
+echo "3. The two identities of the database"
+step console migrate --force --no-interaction
+step console db:application-identity
+step console cloud:check identities
+elapsed
+
+echo "4. Cold start and warm answers of the API (figures of the emulator, not of AWS)"
 api=$(docker ps -q --filter label=dian-einvoice=floci --filter name=^dian-einvoice-dian-einvoice-dian-einvoice-local-api-)
 if [ -n "$api" ]; then
   # shellcheck disable=SC2086
@@ -90,7 +116,7 @@ step tools node scripts/cloud-check.mjs cold
 step tools node scripts/cloud-check.mjs warm
 elapsed
 
-echo "4. The fast path: $invoices invoices"
+echo "5. The fast path: $invoices invoices"
 output=$(console cloud:check start --invoices="$invoices") || status=1
 echo "$output"
 company=$(echo "$output" | sed -n 's/^company: //p' | tail -1)
@@ -103,23 +129,29 @@ fi
 step console cloud:check fast "$company" --timeout=300
 elapsed
 
-echo "5. A partial batch response"
+echo "6. A partial batch response"
 step console cloud:check partial
 elapsed
 
-echo "6. Chaos: $chaos_invoices more invoices, an outbox event left behind, the functions killed mid-process"
+echo "7. Chaos: $chaos_invoices more invoices, an outbox event left behind, the functions killed mid-process"
 step console cloud:check chaos "$company" --invoices="$chaos_invoices" --until-accepted=3
 killed=$(sh scripts/cloud/containers.sh kill-functions)
 echo "   Killed $killed containers of functions of this project; the messages they held come back after the visibility timeout of their queue."
 elapsed
 
-echo "7. Everything ends once"
+echo "8. Everything ends once"
 step console cloud:check finish "$company" --timeout=300
 finished=1
 elapsed
 
+echo "9. A rotation of the application identity, twice, with the functions warm"
+step console cloud:check rotation --timeout=300
+elapsed
+
 if [ "$status" -ne 0 ]; then
   echo "make cloud-check FAILED."
+else
+  echo "make cloud-check passed."
 fi
 
 exit "$status"

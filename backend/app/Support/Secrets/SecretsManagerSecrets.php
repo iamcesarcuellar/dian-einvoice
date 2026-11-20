@@ -2,6 +2,7 @@
 
 namespace App\Support\Secrets;
 
+use Aws\SecretsManager\Exception\SecretsManagerException;
 use Aws\SecretsManager\SecretsManagerClient;
 use JsonException;
 use RuntimeException;
@@ -11,9 +12,10 @@ use RuntimeException;
  *  - the secret of the application, which the CDK app creates (stack security): a JSON object of
  *    environment settings, such as {"APP_KEY": "...", "DB_PASSWORD": "..."}; names are environment
  *    variable names and values are text;
- *  - the secret of a managed database (Infrastructure task 3), in the format of Amazon RDS: username and
- *    password, and host, port and dbname when the secret is attached to the database; they become the
- *    settings DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT and DB_DATABASE.
+ *  - the secret of an identity of the database, in the format of Amazon RDS: username and password, dbname,
+ *    and host and port once attached to the managed database; they become the settings DB_USERNAME,
+ *    DB_PASSWORD, DB_HOST, DB_PORT and DB_DATABASE. A rotation keeps the version before it as AWSPREVIOUS:
+ *    with alternating users, the other user, still valid until the next rotation.
  */
 final class SecretsManagerSecrets
 {
@@ -47,13 +49,14 @@ final class SecretsManagerSecrets
     }
 
     /**
-     * The settings of the database a secret in the format of Amazon RDS gives.
+     * The settings of the database a secret in the format of Amazon RDS gives, in its current version or in the
+     * version a staging label names.
      *
      * @return array<string, string>
      */
-    public function readDatabase(string $secretId): array
+    public function readDatabase(string $secretId, ?string $stage = null): array
     {
-        $secret = $this->object($secretId);
+        $secret = $this->object($secretId, $stage);
         $settings = [];
 
         foreach (self::DATABASE_FIELDS as $field => $setting) {
@@ -74,11 +77,30 @@ final class SecretsManagerSecrets
     }
 
     /**
+     * The user of a database secret in the version a staging label names, such as AWSPREVIOUS, or null when no
+     * version carries the label (a secret not rotated yet) or that version names no user of the database.
+     */
+    public function usernameOf(string $secretId, string $stage): ?string
+    {
+        try {
+            return $this->readDatabase($secretId, $stage)['DB_USERNAME'];
+        } catch (SecretsManagerException $exception) {
+            if ($exception->getAwsErrorCode() === 'ResourceNotFoundException') {
+                return null;
+            }
+
+            throw $exception;
+        } catch (RuntimeException) {
+            return null;
+        }
+    }
+
+    /**
      * @return array<array-key, mixed>
      */
-    private function object(string $secretId): array
+    private function object(string $secretId, ?string $stage = null): array
     {
-        $value = $this->client->getSecretValue(['SecretId' => $secretId])['SecretString'] ?? null;
+        $value = $this->client->getSecretValue(array_filter(['SecretId' => $secretId, 'VersionStage' => $stage]))['SecretString'] ?? null;
 
         if (! is_string($value)) {
             throw new RuntimeException("The secret {$secretId} has no text value.");

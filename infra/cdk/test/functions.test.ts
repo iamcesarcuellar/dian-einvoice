@@ -3,7 +3,8 @@
 // as the CDK app, over the template included in a stack of its own; every function bounded and with a role
 // of its own from the stack compute; the mappings of the queues with a partial batch response and a
 // visibility timeout of their queue that fits the function; the parameters it reads, all published by the
-// CDK app or listed for Infrastructure task 3; and no IAM of its own.
+// CDK app (in prod, those of the network and the database too); the identity of the database of each function
+// and its encrypted connection; and no IAM of its own.
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,7 +16,7 @@ import { CfnInclude } from 'aws-cdk-lib/cloudformation-include'
 import { AwsSolutionsChecks } from 'cdk-nag'
 import { cdkContext } from '../lib/application.ts'
 import { SCHEDULED_FUNCTIONS } from '../lib/compute-stack.ts'
-import { FUNCTIONS, FUTURE_PARAMETERS, STAGES, type StageName } from '../lib/stage.ts'
+import { DATABASE_PARAMETERS, FUNCTIONS, MIGRATIONS_FUNCTION, NETWORK_PARAMETERS, STAGES, type StageName } from '../lib/stage.ts'
 import { stageOf, template } from './support.ts'
 
 interface Resource {
@@ -67,7 +68,7 @@ function published(stage: StageName): Set<string> {
   const stacks = stageOf(stage)
   const names = new Set<string>()
 
-  for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.compute]) {
+  for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.compute, ...(stacks.network === null ? [] : [stacks.network]), ...(stacks.database === null ? [] : [stacks.database])]) {
     for (const parameter of Object.values(template(stack).findResources('AWS::SSM::Parameter')) as { Properties: { Name: string } }[]) {
       names.add(parameter.Properties.Name)
     }
@@ -161,21 +162,40 @@ for (const stage of ['local', 'prod'] as const) {
       }
     })
 
-    it('read only parameters the CDK app publishes, and in prod those Infrastructure task 3 will', () => {
+    it('read only parameters the CDK app publishes: in prod also those of the network and of the database', () => {
       const names = published(stage)
-      const future = Object.values(FUTURE_PARAMETERS).map((name) => `/dian-einvoice/${stage}/${name}`)
 
       for (const [id, parameter] of Object.entries(body.Parameters)) {
         assert.equal(parameter.Type, 'AWS::SSM::Parameter::Value<String>', id)
-        assert.ok(names.has(parameter.Default) || (stage === 'prod' && future.includes(parameter.Default)), `${id}: ${parameter.Default} is published`)
+        assert.ok(names.has(parameter.Default), `${id}: ${parameter.Default} is published`)
       }
 
-      if (stage === 'prod') {
-        assert.deepEqual(future.filter((name) => !Object.values(body.Parameters).some((parameter) => parameter.Default === name)), [], 'prod reads every parameter of task 3')
-      }
+      // Both stages read the secrets of the two identities; prod also the network and the managed database.
+      const wanted = stage === 'prod' ? [...Object.values(NETWORK_PARAMETERS), ...Object.values(DATABASE_PARAMETERS)] : [DATABASE_PARAMETERS.secretArn, DATABASE_PARAMETERS.migrationsSecretArn]
+      const read = Object.values(body.Parameters).map((parameter) => parameter.Default)
+      assert.deepEqual(wanted.map((name) => `/dian-einvoice/${stage}/${name}`).filter((name) => !read.includes(name)), [], 'every parameter of the network and the database is read')
 
       for (const [id, fn] of functions) {
-        assert.equal(fn.Properties.VpcConfig !== undefined, config.network === 'private', `${id} runs in the private subnets in prod only`)
+        assert.equal(fn.Properties.VpcConfig !== undefined, config.network !== null, `${id} runs in the private subnets in prod only`)
+      }
+    })
+
+    it('give the migrations identity of the database to the console function only, and the application identity to every other one', () => {
+      for (const [id, fn] of functions) {
+        const environment = (fn.Properties.Environment as { Variables: Record<string, unknown> }).Variables
+        const name = String(fn.Properties.FunctionName).replace(`dian-einvoice-${stage}-`, '')
+        const secret = parameterOf(environment.DB_SECRETS_ID)
+        assert.equal(body.Parameters[secret ?? '']?.Default, `/dian-einvoice/${stage}/${name === MIGRATIONS_FUNCTION ? DATABASE_PARAMETERS.migrationsSecretArn : DATABASE_PARAMETERS.secretArn}`, id)
+
+        // The console provisions the application identity, so it reads that secret too; no other function
+        // knows the migrations identity.
+        const application = parameterOf(environment.DB_APPLICATION_SECRETS_ID)
+        assert.equal(application === null ? null : body.Parameters[application]?.Default, name === MIGRATIONS_FUNCTION ? `/dian-einvoice/${stage}/${DATABASE_PARAMETERS.secretArn}` : null, id)
+
+        // Every connection is encrypted with TLS, with the bundle of the RDS certificate authorities in the
+        // image; prod also verifies the certificate of the server.
+        assert.equal(environment.DB_SSL_CA, '/opt/rds/global-bundle.pem', id)
+        assert.equal(environment.DB_SSL_VERIFY_SERVER_CERT, stage === 'prod' ? 'true' : 'false', id)
       }
     })
 

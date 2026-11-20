@@ -17,6 +17,7 @@ use App\Modules\Delivery\Models\DocumentFile;
 use App\Modules\Developers\Auth\ApiKeys;
 use App\Modules\Developers\Enums\ApiKeyLevel;
 use App\Modules\Developers\Enums\WebhookDeliveryStatus;
+use App\Modules\Developers\Http\Middleware\HandleIdempotency;
 use App\Modules\Developers\Models\WebhookDelivery;
 use App\Modules\Developers\Models\WebhookEvent;
 use App\Modules\Developers\Receiver\LocalWebhookReceiver;
@@ -24,6 +25,8 @@ use App\Modules\Developers\Webhooks\WebhookEventTypes;
 use App\Modules\Developers\Webhooks\WebhookSubscriptions;
 use App\Modules\Dian\Simulator\DianSimulator;
 use App\Support\Console\LocalOnly;
+use App\Support\Database\ApplicationIdentityCommand;
+use App\Support\Database\RefreshingMySqlConnector;
 use App\Support\Health\SchedulerHeartbeat;
 use App\Support\Json;
 use App\Support\Keys\KeyStoreEntry;
@@ -35,14 +38,17 @@ use App\Support\Outbox\Sqs\SqsEventsQueue;
 use App\Support\Storage\DocumentStorage;
 use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Console\Command;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -64,12 +70,21 @@ use Throwable;
  *  - finish: waits until everything is accepted, delivered and notified, then checks the topic, both
  *    queues, the bucket, SES, the tables, KMS and Secrets Manager, that nothing happened twice, that the
  *    relay function published the event left behind within two minutes, and that the scheduler ran;
+ *  - identities: the console function connects as the migrations identity of the database, over TLS, and
+ *    holds its schema; the application identity, which every other function connects as, reads and writes
+ *    data, is refused every change of the schema, and is refused without TLS;
+ *  - rotation: on a company of its own, with the functions warm, rotates the application identity twice the
+ *    way the rotation function of AWS does with alternating users (the emulator cannot run it): the first
+ *    rotation moves the secret to the other user, and the warm functions keep the old one, still valid; the
+ *    second sets a new password on the user they hold, so they must read their secret again. Requests through
+ *    API Gateway and invoices through the chain and the webhooks must work, before and after each, without
+ *    an error anyone would see;
  *  - cleanup: deletes the company when the script stopped before finish.
  */
 final class CloudCheckCommand extends Command
 {
     protected $signature = 'cloud:check
-        {action : start, fast, partial, chaos, finish or cleanup}
+        {action : start, fast, partial, chaos, finish, identities, rotation or cleanup}
         {company? : The id start printed, for fast, chaos, finish and cleanup}
         {--invoices=30 : Invoices to issue (start and chaos)}
         {--until-accepted=3 : chaos returns once this many of its invoices are accepted, so the functions die mid-process}
@@ -123,6 +138,8 @@ final class CloudCheckCommand extends Command
             'partial' => $this->partial($cloud),
             'chaos' => $this->withCompany(fn (TemporaryCompany $company) => $this->chaos($company)),
             'finish' => $this->finish($cloud),
+            'identities' => $this->identities($cloud),
+            'rotation' => $this->rotation($cloud),
             'cleanup' => $this->cleanup(),
             default => $this->unknownAction(),
         };
@@ -138,7 +155,7 @@ final class CloudCheckCommand extends Command
 
     private function unknownAction(): int
     {
-        $this->error('The action is start, fast, partial, chaos, finish or cleanup.');
+        $this->error('The action is start, fast, partial, chaos, finish, identities, rotation or cleanup.');
 
         return self::FAILURE;
     }
@@ -159,23 +176,7 @@ final class CloudCheckCommand extends Command
         $companyId = $temporary->company->id;
 
         try {
-            $customer = Contact::create([
-                'organization_type' => '1',
-                'identification_type' => '31',
-                'identification_number' => '990009101',
-                'legal_name' => 'Cloud Check Customer SAS (synthetic)',
-                'tax_scheme' => '01',
-                'fiscal_responsibilities' => ['R-99-PN'],
-                'email' => 'cloud-check-'.Str::lower(Str::random(8)).'@example.com',
-                'address' => 'Carrera 43A # 1-50',
-                'municipality_code' => '05001',
-            ]);
-
-            app(WebhookSubscriptions::class)->create([
-                'url' => app(LocalWebhookReceiver::class)->urlFor($companyId),
-                'events' => WebhookEventTypes::all(),
-                'description' => 'make cloud-check',
-            ], $temporary->user);
+            $customer = $this->customerWithWebhooks($temporary);
 
             Cache::put($this->key($companyId, 'customer'), $customer->id, 7200);
             Cache::put($this->key($companyId, 'started'), microtime(true), 7200);
@@ -489,12 +490,6 @@ final class CloudCheckCommand extends Command
 
         $this->newLine();
 
-        if ($this->failures > 0) {
-            return self::SUCCESS;
-        }
-
-        $this->info('make cloud-check passed.');
-
         return self::SUCCESS;
     }
 
@@ -599,7 +594,11 @@ final class CloudCheckCommand extends Command
         $this->tables($cloud, ['cache' => 'dynamodb']);
 
         $secret = $cloud->secret();
-        $this->verify(($secret['APP_KEY'] ?? null) === config('app.key') && ($secret['DB_PASSWORD'] ?? null) === config('database.connections.mysql.password'), 'APP_KEY and the database password of this function come from Secrets Manager.');
+        $identity = $cloud->secretValue((string) config('database.connections.mysql.secrets_id'));
+        $this->verify(
+            ($secret['APP_KEY'] ?? null) === config('app.key') && ! isset($secret['DB_PASSWORD']) && ($identity['username'] ?? null) === config('database.connections.mysql.username') && ($identity['password'] ?? null) === config('database.connections.mysql.password'),
+            sprintf('APP_KEY of this function comes from the secret of the application, which holds nothing of the database, and its database credentials from the secret of its identity (%s).', (string) config('database.connections.mysql.username')),
+        );
         $this->verify(KmsKeyStoreEntry::query()->count() === 1 && KeyStoreEntry::query()->count() === 0, 'The signing certificate of the company is in the KMS key store (envelope encryption), not in the local one.');
 
         // 7. The scheduler function runs the Laravel scheduler once a minute.
@@ -608,6 +607,241 @@ final class CloudCheckCommand extends Command
 
         $this->newLine();
         $this->line(sprintf('   Time: %.1f s from the first issue until every invoice was accepted, delivered and notified (%.1f s of it in this last wait, after the functions died: the messages they held came back after the visibility timeout of their queue).', $elapsed, microtime(true) - $waitStarted));
+    }
+
+    /**
+     * A synthetic customer of the company with an email, and a webhook subscription of the local receiver to
+     * every event.
+     */
+    private function customerWithWebhooks(TemporaryCompany $temporary): Contact
+    {
+        $customer = Contact::create([
+            'organization_type' => '1',
+            'identification_type' => '31',
+            'identification_number' => '990009101',
+            'legal_name' => 'Cloud Check Customer SAS (synthetic)',
+            'tax_scheme' => '01',
+            'fiscal_responsibilities' => ['R-99-PN'],
+            'email' => 'cloud-check-'.Str::lower(Str::random(8)).'@example.com',
+            'address' => 'Carrera 43A # 1-50',
+            'municipality_code' => '05001',
+        ]);
+
+        app(WebhookSubscriptions::class)->create([
+            'url' => app(LocalWebhookReceiver::class)->urlFor($temporary->company->id),
+            'events' => WebhookEventTypes::all(),
+            'description' => 'make cloud-check',
+        ], $temporary->user);
+
+        return $customer;
+    }
+
+    /**
+     * The two identities of the database: this function connects as the migrations identity, which holds the
+     * schema; the application identity, which every other function connects as, cannot change it.
+     */
+    private function identities(EmulatedCloud $cloud): int
+    {
+        $database = DB::connection()->getDatabaseName();
+        $migrations = (string) config('database.connections.mysql.username');
+        $current = DB::selectOne('SELECT CURRENT_USER() AS user');
+        $tls = ApplicationIdentityCommand::firstColumn([DB::selectOne("SHOW SESSION STATUS LIKE 'Ssl_version'")], 1)[0] ?? '';
+        $grants = ApplicationIdentityCommand::firstColumn(DB::select('SHOW GRANTS'));
+        $batches = DB::table('migrations')->count();
+        $this->verify(
+            is_object($current) && ($current->user ?? null) === "{$migrations}@%" && $tls !== '' && in_array("GRANT ALL PRIVILEGES ON `{$database}`.* TO `{$migrations}`@`%` WITH GRANT OPTION", $grants, true),
+            sprintf('The console function connects as the migrations identity %s, over %s, which holds the schema of %s: the %d migrations ran with it.', $migrations, $tls === '' ? 'NO TLS' : $tls, $database, $batches),
+        );
+
+        $secret = config('database.application_identity.secret');
+        $application = is_string($secret) ? $cloud->secretValue($secret) : [];
+        $user = is_string($application['username'] ?? null) ? $application['username'] : '';
+        $password = is_string($application['password'] ?? null) ? $application['password'] : '';
+        $mysql = (array) config('database.connections.mysql');
+        config(['database.connections.cloud-check-application' => [...$mysql, 'username' => $user, 'password' => $password, 'secrets_id' => null]]);
+        $events = 0;
+        $refused = [];
+
+        try {
+            $connection = DB::connection('cloud-check-application');
+            $events = $connection->table('outbox_events')->count();
+
+            // Only statements that would harm nothing if they ran: the identity must be refused each one.
+            foreach (['CREATE TABLE cloud_check_probe (id INT)', 'ALTER TABLE outbox_events ADD COLUMN cloud_check_probe INT', 'DROP TABLE IF EXISTS cloud_check_probe'] as $statement) {
+                try {
+                    $connection->unprepared($statement);
+                    $refused[$statement] = 'ran';
+                } catch (QueryException $exception) {
+                    $refused[$statement] = str_contains($exception->getMessage(), '1142') ? 'refused' : $exception->getMessage();
+                }
+            }
+        } finally {
+            DB::purge('cloud-check-application');
+        }
+
+        $this->verify(array_unique(array_values($refused)) === ['refused'], sprintf('The application identity %s reads and writes the data (%d outbox events) and cannot change the schema: %s.', $user, $events, implode('; ', array_map(fn (string $statement, string $outcome): string => "{$statement}: {$outcome}", array_keys($refused), $refused))));
+
+        // TLS is required of it: without TLS the database refuses it.
+        config(['database.connections.cloud-check-application' => [...$mysql, 'username' => $user, 'password' => $password, 'secrets_id' => null, 'options' => []]]);
+
+        try {
+            DB::connection('cloud-check-application')->select('SELECT 1');
+            $plain = 'took it';
+        } catch (QueryException $exception) {
+            $plain = RefreshingMySqlConnector::refused($exception->getPrevious() ?? $exception) ? 'refused it' : $exception->getMessage();
+        } finally {
+            DB::purge('cloud-check-application');
+        }
+
+        $this->verify($plain === 'refused it', "Without TLS the database {$plain}.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Two rotations of the application identity with the functions warm, the way the rotation function of AWS
+     * does with alternating users, with requests and invoices before and after each.
+     */
+    private function rotation(EmulatedCloud $cloud): int
+    {
+        $secret = config('database.application_identity.secret');
+
+        if (! is_string($secret) || $secret === '') {
+            $this->recordFailure('DB_APPLICATION_SECRETS_ID names no secret.');
+
+            return self::SUCCESS;
+        }
+
+        $temporary = TemporaryCompany::create('Cloud Rotation', 'CRT');
+
+        try {
+            $customer = $this->customerWithWebhooks($temporary);
+            [, $key] = app(ApiKeys::class)->create('Cloud check rotation (read and write)', ApiKeyLevel::ReadWrite, creator: $temporary->user);
+            $failed = DB::table('failed_jobs')->count();
+
+            $this->traffic($temporary, $customer, $key, 'Before the rotations, warming the functions with the credentials they start with');
+
+            [$from, $to] = $this->rotate($cloud, $secret);
+            $this->line("   Rotation 1: the secret moved from {$from} to {$to}, with a new password; {$from} keeps its own until the next rotation.");
+            $this->traffic($temporary, $customer, $key, 'After the first rotation: the warm functions keep the credentials of before, still valid');
+
+            $since = (int) floor(microtime(true) * 1000);
+            [$from, $to] = $this->rotate($cloud, $secret);
+            $this->line("   Rotation 2: the secret moved from {$from} to {$to}, which got a new password: the warm functions that hold its old one must read their secret again.");
+            $this->traffic($temporary, $customer, $key, 'After the second rotation');
+
+            sleep(5);
+            $refreshes = [];
+
+            foreach (['api', 'chain', 'webhooks', 'relay', 'scheduler'] as $function) {
+                $refreshes[$function] = $cloud->logEvents("dian-einvoice-local-{$function}", 'they were read again from Secrets Manager', $since);
+            }
+
+            $this->verify(array_sum($refreshes) > 0, sprintf('The warm functions whose password the rotation replaced read their secret again and retried once: %s (log lines since the second rotation).', implode(', ', array_map(fn (string $function, int $count): string => "{$function} {$count}", array_keys($refreshes), $refreshes))));
+            $this->verify(DB::table('failed_jobs')->count() === $failed, sprintf('No job failed during the rotations (%d failed jobs before and after).', $failed));
+
+            foreach (OutboxSubscribers::CHANNELS as $channel) {
+                $dlq = config("aws.dead_letter_queues.{$channel}");
+                $this->verify(array_sum($cloud->depth(is_string($dlq) ? $dlq : '')) === 0, "The dead-letter queue of {$channel} is still empty.");
+            }
+
+            $lastRun = SchedulerHeartbeat::lastRun();
+            $this->verify($lastRun !== null && Carbon::now()->getTimestamp() - $lastRun <= 150, sprintf('The scheduler function still runs once a minute (%s).', $lastRun === null ? 'never' : (Carbon::now()->getTimestamp() - $lastRun).' s ago'));
+        } finally {
+            $temporary->delete();
+            $this->line('Temporary company deleted.');
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * A rotation of the application identity as the rotation function of AWS does it with alternating users
+     * (createSecret, setSecret, testSecret, finishSecret), with the migrations identity of this function as its
+     * superuser: the user that is not current gets a new password, and the privileges of the identity when it
+     * is created; the new credentials are tested; and the secret moves to it, the old version becoming
+     * AWSPREVIOUS.
+     *
+     * @return array{string, string} The user the secret moved from, and the one it moved to.
+     */
+    private function rotate(EmulatedCloud $cloud, string $secret): array
+    {
+        $value = $cloud->secretValue($secret);
+        $current = is_string($value['username'] ?? null) ? $value['username'] : '';
+        $other = str_ends_with($current, '_clone') ? substr($current, 0, -6) : "{$current}_clone";
+
+        if (preg_match('/^[A-Za-z0-9_]{1,32}$/', $other) !== 1) {
+            throw new RuntimeException("{$other} is not a plain MySQL user name.");
+        }
+
+        // Letters and digits only, and a name checked above: account management takes no bound parameters.
+        $password = Str::password(30, symbols: false);
+        $database = DB::connection()->getDatabaseName();
+        $pdo = DB::connection()->getPdo();
+        $pdo->exec("CREATE USER IF NOT EXISTS '{$other}'@'%' IDENTIFIED BY '{$password}' REQUIRE SSL");
+        $pdo->exec("ALTER USER '{$other}'@'%' IDENTIFIED BY '{$password}' REQUIRE SSL");
+        $pdo->exec(sprintf("GRANT %s ON `%s`.* TO '%s'@'%%'", implode(', ', ApplicationIdentityCommand::PRIVILEGES), $database, $other));
+
+        config(['database.connections.cloud-check-pending' => [...(array) config('database.connections.mysql'), 'username' => $other, 'password' => $password, 'secrets_id' => null]]);
+
+        try {
+            DB::connection('cloud-check-pending')->select('SELECT 1');
+        } finally {
+            DB::purge('cloud-check-pending');
+        }
+
+        $cloud->putSecret($secret, [...$value, 'username' => $other, 'password' => $password]);
+
+        return [$current, $other];
+    }
+
+    /**
+     * Requests through API Gateway (health, which reads the database, and a listing with an API key) and two
+     * invoices drafted and issued through the API, taken through the chain and the webhooks by their functions:
+     * every answer must be a success and every invoice end accepted, delivered and notified.
+     */
+    private function traffic(TemporaryCompany $temporary, Contact $customer, string $key, string $when): void
+    {
+        $api = rtrim((string) config('developers.api_check_url'), '/');
+        $client = fn (): PendingRequest => Http::withToken($key)->acceptJson()->asJson()->connectTimeout(5)->timeout(30);
+        $statuses = [];
+
+        for ($request = 0; $request < 10; $request++) {
+            $statuses[] = Http::acceptJson()->connectTimeout(5)->timeout(30)->get("{$api}/health")->status();
+        }
+
+        $statuses[] = $client()->get("{$api}/invoices", ['per_page' => 1])->status();
+        $ids = [];
+
+        for ($invoice = 0; $invoice < 2; $invoice++) {
+            $draft = $client()->post("{$api}/invoices", [
+                'contact_id' => $customer->id,
+                'number_template_id' => $temporary->numbering()->id,
+                'lines' => [['description' => 'Cloud rotation service', 'quantity' => '1', 'unit_price' => '25000', 'tax_id' => $temporary->iva()]],
+            ]);
+            $statuses[] = $draft->status();
+            $id = $draft->json('data.id', $draft->json('id'));
+
+            if (is_string($id)) {
+                $issue = $client()->withHeaders([HandleIdempotency::HEADER => (string) Str::uuid()])->post("{$api}/invoices/{$id}/issue");
+                $statuses[] = $issue->status();
+                $ids[] = $id;
+            }
+        }
+
+        if ($ids !== []) {
+            $this->waitForChain($temporary->company->id, $ids);
+        }
+
+        $documents = Document::query()->whereKey($ids)->get();
+        $done = $documents->filter(fn (Document $document): bool => $document->electronic_status?->value === 'accepted' && $document->delivery_status === DeliveryStatus::Delivered)->count();
+        $hooks = WebhookDelivery::query()->get();
+        $errors = array_values(array_filter($statuses, fn (int $status): bool => $status >= 400));
+
+        $this->verify(
+            $errors === [] && count($ids) === 2 && $done === 2 && $hooks->every(fn (WebhookDelivery $delivery): bool => $delivery->status === WebhookDeliveryStatus::Succeeded),
+            sprintf('%s: %d requests through API Gateway answered %s; the 2 invoices issued through the API ended accepted and delivered (%d), and %d webhooks arrived.', $when, count($statuses), $errors === [] ? 'without an error' : 'errors '.implode(', ', $errors), $done, $hooks->where('status', WebhookDeliveryStatus::Succeeded)->count()),
+        );
     }
 
     /**

@@ -637,7 +637,7 @@ export default {
       editTitle: 'Edit the subscription',
       formDescription: 'Where to send the events and which ones. Each delivery is a POST with the event in JSON, signed with the secret of the subscription.',
       url: 'Endpoint URL',
-      urlHint: 'An http or https URL that answers 2xx within 5 seconds.',
+      urlHint: 'An http or https URL that answers 2xx within 5 seconds; in production, https on port 443 only.',
       useReceiver: 'Use the local webhook receiver',
       descriptionLabel: 'Description',
       events: 'Events',

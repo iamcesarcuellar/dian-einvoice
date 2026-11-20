@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { Match } from 'aws-cdk-lib/assertions'
 import { FUNCTION_ACCESS, SCHEDULED_FUNCTIONS } from '../lib/compute-stack.ts'
-import { FUNCTIONS, STAGES } from '../lib/stage.ts'
+import { FUNCTIONS, MIGRATIONS_FUNCTION, STAGES } from '../lib/stage.ts'
 import { stageOf, template } from './support.ts'
 
 interface RoleProperties {
@@ -37,25 +37,28 @@ for (const name of ['local', 'prod'] as const) {
           assert.ok(policies.has(`${prefix}${policy}`), `${fn}: the managed policy ${prefix}${policy} exists`)
         }
 
-        // Its own log group, in every stage; in prod also the network interfaces and the database secret.
+        // Its own log group and the secrets of its identity of the database, in every stage; in prod also
+        // the network interfaces of a function in a VPC.
         const statements = role.Policies.flatMap((policy) => policy.PolicyDocument.Statement)
         assert.deepEqual(statements[0], { Action: ['logs:CreateLogStream', 'logs:PutLogEvents'], Effect: 'Allow', Resource: `arn:aws:logs:${config.region}:${config.account}:log-group:/aws/lambda/${prefix}${fn}:*` })
-        assert.equal(statements.length, name === 'prod' ? 3 : 1)
+        assert.equal(statements.length, name === 'prod' ? 3 : 2)
+        assert.deepEqual(statements[1]?.Action, 'secretsmanager:GetSecretValue')
+        const secrets = [statements[1]?.Resource].flat().map((resource) => String((resource as { Ref?: string }).Ref))
+        assert.deepEqual(secrets.map((secret) => /databasemigrationssecretarn/i.test(secret) ? 'migrations' : /databasesecretarn/i.test(secret) ? 'application' : secret), fn === MIGRATIONS_FUNCTION ? ['migrations', 'application'] : ['application'])
 
         if (name === 'prod') {
-          assert.deepEqual(statements[1]?.Resource, '*')
-          assert.ok([statements[1]?.Action].flat().every((action) => typeof action === 'string' && action.startsWith('ec2:') && /NetworkInterface|Subnets|PrivateIpAddresses/.test(action)))
-          assert.deepEqual(statements[2]?.Action, 'secretsmanager:GetSecretValue')
-          assert.match(String((statements[2]?.Resource as { Ref?: string } | undefined)?.Ref), /^SsmParameterValue.*databasesecretarn/)
+          assert.deepEqual(statements[2]?.Resource, '*')
+          assert.ok([statements[2]?.Action].flat().every((action) => typeof action === 'string' && action.startsWith('ec2:') && /NetworkInterface|Subnets|PrivateIpAddresses/.test(action)))
         }
       }
 
       assert.equal(roles.length, FUNCTIONS.length + 1)
 
-      // The secret of the managed database comes from the parameter Infrastructure task 3 publishes.
+      // The secrets of the identities come from the parameters of the stack that holds them (security locally,
+      // database in prod), which compute deploys after.
       const parameters = compute.toJSON() as { Parameters?: Record<string, { Default?: string }> }
-      const secret = Object.entries(parameters.Parameters ?? {}).find(([key]) => key.includes('databasesecretarn'))?.[1]
-      assert.equal(secret?.Default, name === 'prod' ? '/dian-einvoice/prod/database/secret-arn' : undefined)
+      const defaults = Object.values(parameters.Parameters ?? {}).map((parameter) => parameter.Default).filter((value) => value?.includes('/database/') === true).sort()
+      assert.deepEqual(defaults, [`/dian-einvoice/${name}/database/migrations-secret-arn`, `/dian-einvoice/${name}/database/secret-arn`])
     })
 
     it('only the consumers consume their queues, only the console reads the dead letters, only the API and the chain sign', () => {
@@ -100,9 +103,9 @@ for (const name of ['local', 'prod'] as const) {
       })
     })
 
-    it('deploys after the stacks whose policies its roles attach', () => {
+    it('deploys after the stacks whose policies its roles attach and whose parameters they read', () => {
       const dependencies = stacks.compute.dependencies.map((stack) => stack.stackName).sort()
-      assert.deepEqual(dependencies, [`${prefix}data`, `${prefix}mail`, `${prefix}messaging`, `${prefix}security`, `${prefix}storage`])
+      assert.deepEqual(dependencies, [`${prefix}data`, ...(name === 'prod' ? [`${prefix}database`] : []), `${prefix}mail`, `${prefix}messaging`, `${prefix}security`, `${prefix}storage`])
     })
   })
 }

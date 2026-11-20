@@ -37,7 +37,8 @@ return [
         // Only local development sets it true, for the local receiver on the internal network.
         'allow_private_targets' => (bool) env('WEBHOOK_ALLOW_PRIVATE_TARGETS', false),
 
-        // Only https endpoints, by default in production.
+        // Only https endpoints, on port 443, by default in production: the functions may open no other port
+        // toward the internet.
         'require_https' => (bool) env('WEBHOOK_REQUIRE_HTTPS', env('APP_ENV', 'production') === 'production'),
     ],
 

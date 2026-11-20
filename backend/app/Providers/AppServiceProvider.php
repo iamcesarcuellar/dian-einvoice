@@ -6,6 +6,8 @@ use App\Support\ApiDocs\ApiDocumentation;
 use App\Support\Aws\AwsSdk;
 use App\Support\Cloud\CloudCheckCommand;
 use App\Support\Cloud\EmulatedCloud;
+use App\Support\Database\ApplicationIdentityCommand;
+use App\Support\Database\RefreshingMySqlConnector;
 use App\Support\Health\HealthCheckCommand;
 use App\Support\Health\Heartbeat;
 use App\Support\Keys\KeyStore;
@@ -27,6 +29,8 @@ use App\Support\Retention\PruneCommand;
 use App\Support\Retention\PruneFailedJobs;
 use App\Support\Retention\Pruner;
 use App\Support\Retention\ScheduledPruning;
+use App\Support\Secrets\DatabaseCredentials;
+use App\Support\Secrets\SecretsManagerSecrets;
 use App\Support\Storage\DocumentStorage;
 use App\Support\Storage\LocalDocumentStorage;
 use App\Support\Storage\S3DocumentStorage;
@@ -78,6 +82,12 @@ class AppServiceProvider extends ServiceProvider
             default => throw $this->unknown('outbox_publisher'),
         });
 
+        // MySQL connections whose credentials come from a secret read it again, once, when the database refuses
+        // them, as after a rotation (the functions read their secrets once per cold start).
+        $this->app->bind('db.connector.mysql', fn (Application $app): RefreshingMySqlConnector => new RefreshingMySqlConnector(
+            new DatabaseCredentials(fn (): SecretsManagerSecrets => new SecretsManagerSecrets($app->make(Sdk::class)->createSecretsManager())),
+        ));
+
         // What the local AWS emulator holds, for make cloud-check and make cloud-demo.
         $this->app->singleton(EmulatedCloud::class, fn (Application $app): EmulatedCloud => new EmulatedCloud($app->make(Sdk::class), $this->aws()));
 
@@ -125,7 +135,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([RelayCommand::class, PublishPendingCommand::class, SweepCommand::class, HealthCheckCommand::class, PruneCommand::class, OutboxRoutesCommand::class, CloudCheckCommand::class]);
+            $this->commands([RelayCommand::class, PublishPendingCommand::class, SweepCommand::class, HealthCheckCommand::class, PruneCommand::class, OutboxRoutesCommand::class, CloudCheckCommand::class, ApplicationIdentityCommand::class]);
         }
     }
 

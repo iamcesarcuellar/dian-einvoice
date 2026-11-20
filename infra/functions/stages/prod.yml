@@ -1,6 +1,7 @@
-# What the stage prod adds to serverless.yml: the functions run in the private subnets of the network of
-# Infrastructure task 3 and reach its managed database. That task publishes these SSM parameters
-# (FUTURE_PARAMETERS in infra/cdk/lib/stage.ts, docs/infrastructure.md); this stage already reads them.
+# What the stage prod adds to serverless.yml: the functions run in the private subnets of the stack network
+# of the CDK app, with its security group, and reach the managed database of the stack database, which
+# publish these SSM parameters (NETWORK_PARAMETERS and DATABASE_PARAMETERS in infra/cdk/lib/stage.ts). The
+# secrets of the two identities of the database are read in both stages (resources/parameters.yml).
 vpc:
   securityGroupIds:
     - !Ref FunctionsSecurityGroupId
@@ -11,24 +12,20 @@ resources:
     PrivateSubnetIds:
       Type: AWS::SSM::Parameter::Value<String>
       Default: /dian-einvoice/prod/network/private-subnet-ids
-      Description: The private subnets of the functions, separated by commas (Infrastructure task 3)
+      Description: The private subnets of the functions, separated by commas (stack network)
     FunctionsSecurityGroupId:
       Type: AWS::SSM::Parameter::Value<String>
       Default: /dian-einvoice/prod/network/functions-security-group-id
-      Description: Security group of the functions, which the database admits (Infrastructure task 3)
+      Description: Security group of the functions, which the database admits (stack network)
     DatabaseHost:
       Type: AWS::SSM::Parameter::Value<String>
       Default: /dian-einvoice/prod/database/host
-      Description: Address of the managed database (Infrastructure task 3)
+      Description: Address of the managed database, or of RDS Proxy in front of it (stack database)
     DatabasePort:
       Type: AWS::SSM::Parameter::Value<String>
       Default: /dian-einvoice/prod/database/port
-      Description: Port of the managed database (Infrastructure task 3)
+      Description: Port of the managed database (stack database)
     DatabaseName:
       Type: AWS::SSM::Parameter::Value<String>
       Default: /dian-einvoice/prod/database/name
-      Description: Database of the application in the managed database (Infrastructure task 3)
-    DatabaseSecretArn:
-      Type: AWS::SSM::Parameter::Value<String>
-      Default: /dian-einvoice/prod/database/secret-arn
-      Description: Secret with the credentials of the managed database, rotated (Infrastructure task 3)
+      Description: Database of the application in the managed database (stack database)

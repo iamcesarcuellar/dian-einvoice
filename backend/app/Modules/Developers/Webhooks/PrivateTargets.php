@@ -19,6 +19,14 @@ final class PrivateTargets
     /** NAT64 (RFC 6052): what is reached is the IPv4 address in the last 32 bits. */
     private const string NAT64 = '64:ff9b::/96';
 
+    /** The port a webhook URL is sent to: its own, or that of its scheme. */
+    public static function port(string $url): int
+    {
+        $parts = parse_url($url);
+
+        return is_array($parts) && isset($parts['port']) ? $parts['port'] : ((is_array($parts) && strtolower($parts['scheme'] ?? '') === 'https') ? 443 : 80);
+    }
+
     /** Why the URL is refused, or null when every address of its host is public. */
     public static function reason(string $url): ?string
     {
@@ -34,7 +42,7 @@ final class PrivateTargets
     {
         $parts = parse_url($url);
         $host = is_array($parts) && isset($parts['host']) ? strtolower(rtrim(trim($parts['host'], '[]'), '.')) : '';
-        $port = is_array($parts) && isset($parts['port']) ? $parts['port'] : ((is_array($parts) && strtolower($parts['scheme'] ?? '') === 'https') ? 443 : 80);
+        $port = self::port($url);
         $refused = fn (string $reason): array => ['reason' => $reason, 'host' => $host, 'port' => $port, 'addresses' => []];
 
         if ($host === '') {

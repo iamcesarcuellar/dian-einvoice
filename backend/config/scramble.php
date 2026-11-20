@@ -50,7 +50,7 @@ Every error is `application/problem+json` (RFC 9457): `type` (always `about:blan
 
 ## Webhooks
 
-Owners and admins subscribe URLs in **Settings → Developers** to these events: `invoice.issued`, `invoice.accepted`, `invoice.rejected`, `invoice.failed`, `invoice.delivered`, `invoice.paid`, `invoice.voided`; `credit_note.issued`, `credit_note.accepted`, `credit_note.rejected`, `credit_note.delivered`, and the same four for `debit_note`; `payment.recorded` and `payment.voided`. "Send test event" sends `webhook.test`.
+Owners and admins subscribe URLs in **Settings → Developers**: in production, an https URL on port 443, the default port of https, the only one deliveries leave on; another scheme or port is refused when the subscription is created or changed, with a **422** whose `errors.url` says why, and before every attempt of a subscription saved before. They subscribe to these events: `invoice.issued`, `invoice.accepted`, `invoice.rejected`, `invoice.failed`, `invoice.delivered`, `invoice.paid`, `invoice.voided`; `credit_note.issued`, `credit_note.accepted`, `credit_note.rejected`, `credit_note.delivered`, and the same four for `debit_note`; `payment.recorded` and `payment.voided`. "Send test event" sends `webhook.test`.
 
 The body is `{"id": "evt_...", "type": "invoice.accepted", "created_at": "...", "company_id": "...", "data": {"object": {...}}}`, where `data.object` is the same resource this API returns for that document or payment.
 

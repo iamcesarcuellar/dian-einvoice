@@ -258,9 +258,11 @@ openapi:
 # The emulated cloud, one environment at a time with the local one (the same ports), where the application runs as
 # Lambda functions: stop the processes of the application of the local stack, start the local AWS emulator (Floci,
 # 127.0.0.1:8604, with the Docker socket), deploy the CDK stage local to it with the normal CDK commands (cdk
-# bootstrap, cdk deploy), give it a database of its own, push the image of the functions to its ECR, deploy the
-# functions and their triggers with osls, start the proxy in front of API Gateway on the port of the API, and run the
-# migrations with the console function. Nothing of the application runs all the time. make up goes back to the local stack.
+# bootstrap, cdk deploy), give it a database of its own with the migrations identity from its secret, push the image
+# of the functions to its ECR, deploy the functions and their triggers with osls, start the proxy in front of API
+# Gateway on the port of the API, and with the console function run the migrations and create the application
+# identity, which every other function connects as. Nothing of the application runs all the time. make up goes back
+# to the local stack. The SQL of the migrations identity holds its password: it goes to MySQL, never to the terminal.
 cloud-up:
 	$(if $(BUILD),$(CLOUD) build cdk functions lambda)
 	$(COMPOSE) stop api worker relay
@@ -268,11 +270,13 @@ cloud-up:
 	test -d frontend/node_modules || $(COMPOSE) run --rm --no-deps web pnpm install --frozen-lockfile
 	$(CLOUD) run --rm --no-deps -T cdk-deploy sh -c 'cdk bootstrap aws://000000000000/us-east-1 && cdk deploy "local/*" --require-approval never --outputs-file cdk.out/outputs-local.json'
 	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < scripts/cloud/database.sql
+	@identity="$$($(FUNCTIONS) node scripts/database.mjs migrations-identity)" && printf '%s\n' "$$identity" | $(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' && echo "The migrations identity of the database, created from its secret."
 	sh scripts/cloud/push-image.sh > infra/functions/.image
 	$(FUNCTIONS) sh -c 'osls deploy --stage local --param="image=$$(cat .image)" --param="simulatorToken=$$SIMULATOR_TOKEN"'
 	$(FUNCTIONS) node scripts/gateway-env.mjs > infra/functions/.env.cloud
 	$(CLOUD) up -d --wait --force-recreate cloud-gateway
 	$(FUNCTIONS) node scripts/console.mjs migrate --force --no-interaction
+	$(FUNCTIONS) node scripts/console.mjs db:application-identity
 	$(CLOUD) up -d --no-deps web
 	@echo "Emulated cloud. Web app: http://localhost:8601  API (API Gateway and Lambda): http://localhost:8600/api/v1/health  API reference: http://localhost:8600/docs/api  DIAN simulator: http://localhost:8602/health  AWS emulator: http://localhost:8604/_floci/health  Its web console: http://localhost:8604/_floci/ui  Emails taken by SES: http://localhost:8604/_aws/ses"
 
@@ -290,11 +294,11 @@ cloud-down:
 	@sh scripts/cloud/containers.sh remove
 
 # Like cloud-down, and also remove the state of the emulated cloud: the volume of the emulator (every resource of the
-# stage local, the documents, the emails, the keys and the secret), the volume of the registry behind its ECR, its
-# database, and the settings make cloud-up wrote.
+# stage local, the documents, the emails, the keys and the secrets), the volume of the registry behind its ECR, its
+# database with its two identities (scripts/cloud/clean.sql), and the settings make cloud-up wrote.
 cloud-clean:
 	$(CLOUD) up -d --wait db
-	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot -e "DROP DATABASE IF EXISTS dian_einvoice_cloud"'
+	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < scripts/cloud/clean.sql
 	@sh scripts/cloud/containers.sh remove
 	$(CLOUD) down
 	@sh scripts/cloud/containers.sh remove
@@ -302,13 +306,16 @@ cloud-clean:
 	@sh scripts/cloud/containers.sh remove-volumes
 	rm -f infra/functions/.env.cloud infra/functions/.image
 
-# In the emulated cloud (make cloud-up first), on a temporary company of its own, deleted at the end, every step in
-# the console function: no process of the application running all the time, every function and trigger present, the
-# cold start and warm answers of the API, CLOUD_INVOICES invoices through the fast path of the outbox (their time
-# from issue to delivery), the session cookie with CSRF and the downloads through API Gateway, a partial batch
-# response with an unreadable message, CLOUD_CHAOS_INVOICES more invoices with the containers of the functions killed
-# mid-process and an outbox event left for the relay function, nothing done twice, the scheduler run, and the topic,
-# the queues, the bucket, SES, the tables, KMS and Secrets Manager.
+# In the emulated cloud (make cloud-up first), on temporary companies of its own, deleted at the end, every step in
+# the console function: no process of the application running all the time, the bundle of the RDS certificate
+# authorities in the image, every function and trigger present, each function with its identity of the database, the
+# migrations identity holding the schema and the application identity refused any change to it, the cold start and
+# warm answers of the API, CLOUD_INVOICES invoices through the fast path of the outbox (their time from issue to
+# delivery), the session cookie with CSRF and the downloads through API Gateway, a partial batch response with an
+# unreadable message, CLOUD_CHAOS_INVOICES more invoices with the containers of the functions killed mid-process and
+# an outbox event left for the relay function, nothing done twice, the scheduler run, the topic, the queues, the
+# bucket, SES, the tables, KMS and Secrets Manager, and two rotations of the application identity with the functions
+# warm, requests and invoices working before and after each.
 cloud-check:
 	@sh scripts/cloud-check.sh $(CLOUD_INVOICES)
 

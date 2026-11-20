@@ -15,16 +15,19 @@ use Throwable;
 /**
  * Reads the secrets of the application from AWS Secrets Manager when APP_SECRETS is secrets-manager (the
  * emulated cloud and production), right after the environment file and before the configuration, so
- * APP_KEY, the database credentials and the rest come from the secret and override whatever the
- * environment says. DB_SECRETS_ID may name the secret of a managed database too, in the format of Amazon
- * RDS (Infrastructure task 3), whose username, password and address win over the secret of the
- * application. Locally (APP_SECRETS unset) nothing happens and the environment file keeps them.
+ * APP_KEY and the rest come from the secret and override whatever the environment says. DB_SECRETS_ID names
+ * the secret of the identity of the database of the process, in the format of Amazon RDS (the migrations
+ * identity in the console function, the application identity in every other one), whose username, password
+ * and address win over the secret of the application. Locally (APP_SECRETS unset) nothing happens and the
+ * environment file keeps them.
  *
  * Once per cold start: the functions cache the whole configuration when their execution environment
  * starts (Bref's Laravel bridge runs config:cache before the first request or job, BREF_LARAVEL_CACHE_CONFIG),
- * and nothing is read again while that cache exists. Without a cached configuration, every PHP request
- * boots the application, so the values are kept for APP_SECRETS_CACHE_SECONDS (300 by default) in a file
- * only this user can read, in the temporary directory; a rotated secret is read again within that time.
+ * and nothing is read again while that cache exists: after a rotation, the connector of the database reads
+ * the secret of the identity again when the database refuses the old password
+ * (App\Support\Database\RefreshingMySqlConnector). Without a cached configuration, every PHP request boots the
+ * application, so the values are kept for APP_SECRETS_CACHE_SECONDS (300 by default) in a file only this user
+ * can read, in the temporary directory; a rotated secret is read again within that time.
  */
 final class LoadSecrets
 {

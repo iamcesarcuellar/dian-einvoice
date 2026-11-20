@@ -1,7 +1,7 @@
 // Mail: the sending identity of SES for the email of the platform (delivery of documents to customers,
 // invitations, password resets). The stage local verifies the sender address, which the emulator accepts
 // at once; prod verifies the whole domain with Easy DKIM and a MAIL FROM subdomain, whose DNS records
-// (DKIM, SPF, DMARC) belong to Infrastructure task 3.
+// (DKIM, SPF, DMARC) belong to Infrastructure task 4.
 import { Stack, type StackProps } from 'aws-cdk-lib'
 import { ManagedPolicy, PolicyStatement } from 'aws-cdk-lib/aws-iam'
 import { EmailIdentity, Identity, MailFromBehaviorOnMxFailure } from 'aws-cdk-lib/aws-ses'

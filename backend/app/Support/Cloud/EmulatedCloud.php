@@ -12,10 +12,12 @@ use RuntimeException;
 /**
  * A development tool for make cloud-check and make cloud-demo: what the local AWS emulator holds, read
  * through the same AWS APIs the adapters use (queue depths, dead letters, objects of the bucket, items of
- * the tables, the secret), plus what only the emulator has: its version, the list of the emails SES took
- * (its /_aws/ses endpoint, as a local mailbox) and the messages of a queue, in flight included (its
- * /_aws/sqs/messages endpoint). It never runs against AWS: every method refuses when no emulator endpoint
- * is configured.
+ * the tables, the secrets, the log events of the functions), plus what only the emulator has: its version,
+ * the list of the emails SES took (its /_aws/ses endpoint, as a local mailbox) and the messages of a queue,
+ * in flight included (its /_aws/sqs/messages endpoint). It also writes a new version of a secret, as a
+ * rotation function does, for the rotation make cloud-check stands in for (the emulator cannot run the
+ * rotation functions of AWS). It never runs against AWS: every method refuses when no emulator endpoint is
+ * configured, and the roles of the functions do not allow writing a secret.
  */
 final class EmulatedCloud
 {
@@ -189,6 +191,71 @@ final class EmulatedCloud
         }
 
         return (new SecretsManagerSecrets($this->sdk->createSecretsManager()))->read($secret);
+    }
+
+    /**
+     * The stored value of a secret of an identity of the database, every field (username, password, dbname,
+     * masterarn...), in its current version.
+     *
+     * @return array<string, mixed>
+     */
+    public function secretValue(string $secretId): array
+    {
+        $this->endpoint() ?? throw new RuntimeException('No local AWS emulator is configured (AWS_ENDPOINT_URL).');
+        $value = $this->sdk->createSecretsManager()->getSecretValue(['SecretId' => $secretId])['SecretString'] ?? null;
+        $decoded = is_string($value) ? json_decode($value, true) : null;
+
+        if (! is_array($decoded)) {
+            throw new RuntimeException("The secret {$secretId} is not a JSON object.");
+        }
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
+    }
+
+    /**
+     * Writes a new current version of a secret, as a rotation function does when it finishes: the version
+     * that was current becomes AWSPREVIOUS.
+     *
+     * @param  array<string, mixed>  $value
+     */
+    public function putSecret(string $secretId, array $value): void
+    {
+        $this->endpoint() ?? throw new RuntimeException('No local AWS emulator is configured (AWS_ENDPOINT_URL).');
+
+        $this->sdk->createSecretsManager()->putSecretValue([
+            'SecretId' => $secretId,
+            'SecretString' => json_encode($value, JSON_THROW_ON_ERROR),
+            'VersionStages' => ['AWSCURRENT'],
+        ]);
+    }
+
+    /**
+     * How many log events of a function since a moment (milliseconds) hold a text: what its execution
+     * environments wrote to its log group.
+     */
+    public function logEvents(string $function, string $text, int $since): int
+    {
+        $this->endpoint() ?? throw new RuntimeException('No local AWS emulator is configured (AWS_ENDPOINT_URL).');
+        $logs = $this->sdk->createCloudWatchLogs();
+        $count = 0;
+        $token = null;
+
+        for ($page = 0; $page < 20; $page++) {
+            $result = $logs->filterLogEvents(array_filter(['logGroupName' => "/aws/lambda/{$function}", 'startTime' => $since, 'nextToken' => $token]));
+
+            foreach (is_array($result['events'] ?? null) ? $result['events'] : [] as $event) {
+                $count += is_array($event) && is_string($event['message'] ?? null) && str_contains($event['message'], $text) ? 1 : 0;
+            }
+
+            $token = is_string($result['nextToken'] ?? null) && $result['nextToken'] !== '' ? $result['nextToken'] : null;
+
+            if ($token === null) {
+                break;
+            }
+        }
+
+        return $count;
     }
 
     /**

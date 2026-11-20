@@ -294,9 +294,9 @@ services:
       retries: 20
 
   # The CDK app (infra/cdk), without a network: lint, type check, its tests and cdk synth of both stages
-  # (make cdk-check, make lint, make analyse). The event routes of the backend and the templates osls
-  # packaged for the functions, read-only. ESLint with the types of aws-cdk-lib needs more than the default
-  # heap of Node.
+  # (make cdk-check, make lint, make analyse). Read-only: the event routes of the backend, the AWS services
+  # its adapters call, the templates osls packaged for the functions, and the documentation, whose table of
+  # those services a test checks. ESLint with the types of aws-cdk-lib needs more than the default heap of Node.
   cdk:
     build:
       context: ./infra/cdk
@@ -310,11 +310,15 @@ services:
       HOME: /tmp
       NODE_OPTIONS: --max-old-space-size=1536
       EVENT_ROUTES: /workspace/outbox/routes.json
+      AWS_SERVICES: /workspace/aws/services.json
       FUNCTIONS_TEMPLATES: /workspace/functions
+      DOCS: /workspace/docs
     volumes:
       - ./infra/cdk:/workspace/cdk
       - ./backend/resources/outbox:/workspace/outbox:ro
+      - ./backend/resources/aws:/workspace/aws:ro
       - ./infra/functions:/workspace/functions:ro
+      - ./docs:/workspace/docs:ro
 
   # The same, on the network of the stack: cdk bootstrap and cdk deploy of the stage local to the emulator
   # (make cloud-up), which takes any credentials.
@@ -328,6 +332,7 @@ services:
     environment:
       HOME: /tmp
       EVENT_ROUTES: /workspace/outbox/routes.json
+      AWS_SERVICES: /workspace/aws/services.json
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: "000000000000"
@@ -335,6 +340,7 @@ services:
     volumes:
       - ./infra/cdk:/workspace/cdk
       - ./backend/resources/outbox:/workspace/outbox:ro
+      - ./backend/resources/aws:/workspace/aws:ro
     depends_on:
       floci:
         condition: service_healthy

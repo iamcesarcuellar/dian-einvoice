@@ -2,7 +2,8 @@
 //
 //   node scripts/cloud-check.mjs resources   every function, mapping, route and schedule of the stage local exists
 //                                            for real, as its template declares it (the emulator could have
-//                                            accepted a resource it does not create)
+//                                            accepted a resource it does not create), and each function connects
+//                                            to the database as its identity, over TLS
 //   node scripts/cloud-check.mjs cold        the time of one request to the API that starts a new execution
 //                                            environment (after the script removed the warm ones)
 //   node scripts/cloud-check.mjs warm        the times of requests answered by a warm environment
@@ -12,6 +13,7 @@ import { ApiGatewayV2Client, GetIntegrationsCommand, GetRoutesCommand } from '@a
 import { CloudFormationClient, DescribeStacksCommand, GetTemplateCommand } from '@aws-sdk/client-cloudformation'
 import { GetFunctionCommand, LambdaClient, ListEventSourceMappingsCommand } from '@aws-sdk/client-lambda'
 import { GetScheduleCommand, SchedulerClient } from '@aws-sdk/client-scheduler'
+import { DescribeSecretCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager'
 
 const STAGE = 'local'
 const STACK = `dian-einvoice-${STAGE}-functions`
@@ -55,6 +57,28 @@ async function resources() {
   }
 
   verify(roles.size === functions.length, `Each of the ${functions.length} functions has a role of its own (${roles.size} roles).`)
+
+  // The identity of the database of each function: the migrations identity for the console only, which also
+  // knows the application identity it provisions; the application identity for every other one; every
+  // connection encrypted with the RDS bundle of the image.
+  const secrets = new SecretsManagerClient({})
+  const arnOf = async (identity) => (await secrets.send(new DescribeSecretCommand({ SecretId: `dian-einvoice/${STAGE}/database/${identity}` }))).ARN
+  const migrationsSecret = await arnOf('migrations')
+  const applicationSecret = await arnOf('application')
+  const identities = []
+
+  for (const declaredFunction of functions) {
+    const name = declaredFunction.Properties.FunctionName
+    const environment = (await lambda.send(new GetFunctionCommand({ FunctionName: name }))).Configuration?.Environment?.Variables ?? {}
+    const migrations = name.endsWith('-console')
+    const right = environment.DB_SECRETS_ID === (migrations ? migrationsSecret : applicationSecret)
+      && (environment.DB_APPLICATION_SECRETS_ID ?? null) === (migrations ? applicationSecret : null)
+      && environment.DB_SSL_CA === '/opt/rds/global-bundle.pem'
+    identities.push(`${name.replace(`dian-einvoice-${STAGE}-`, '')} ${right ? (migrations ? 'migrations' : 'application') : 'WRONG'}`)
+    failures += right ? 0 : 1
+  }
+
+  process.stdout.write(`   ${identities.some((line) => line.endsWith('WRONG')) ? 'FAIL' : 'PASS'}  Each function connects to the database as its identity, over TLS with the RDS bundle of the image: ${identities.join(', ')}.\n`)
 
   // The consumers are mappings of their queues, not processes that poll.
   const { EventSourceMappings: mappings = [] } = await lambda.send(new ListEventSourceMappingsCommand({}))

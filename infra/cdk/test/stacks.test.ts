@@ -2,6 +2,7 @@
 // the least-privilege policies of their consumers, the published parameters, the names and the tags.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import type { Stack } from 'aws-cdk-lib'
 import { Match } from 'aws-cdk-lib/assertions'
 import { STAGES } from '../lib/stage.ts'
 import { logicalId, routes, stageOf, template } from './support.ts'
@@ -13,10 +14,10 @@ for (const name of ['local', 'prod'] as const) {
 
   describe(`stage ${name}`, () => {
     it('deploys to its account and region, with names and tags that carry the stage', () => {
-      for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.compute]) {
+      for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.compute, ...(stacks.network === null ? [] : [stacks.network]), ...(stacks.database === null ? [] : [stacks.database])]) {
         assert.equal(stack.account, config.account)
         assert.equal(stack.region, config.region)
-        assert.match(stack.stackName, new RegExp(`^${prefix}(messaging|storage|data|security|mail|compute)$`))
+        assert.match(stack.stackName, new RegExp(`^${prefix}(messaging|storage|data|security|mail|compute|network|database)$`))
         assert.equal(stack.terminationProtection, name === 'prod')
         assert.deepEqual(stack.tags.tagValues(), { project: 'dian-einvoice', stage: name, component: stack.stackName.slice(prefix.length), 'managed-by': 'aws-cdk' })
       }
@@ -221,7 +222,8 @@ for (const name of ['local', 'prod'] as const) {
         DeletionPolicy: name === 'prod' ? 'Retain' : 'Delete',
         Properties: {
           Name: `dian-einvoice/${name}/app`,
-          GenerateSecretString: { GenerateStringKey: 'APP_KEY', PasswordLength: 32, ExcludePunctuation: true, SecretStringTemplate: JSON.stringify(config.secretSettings) },
+          // APP_KEY alone: the credentials of the database are in the secrets of its identities.
+          GenerateSecretString: { GenerateStringKey: 'APP_KEY', PasswordLength: 32, ExcludePunctuation: true, SecretStringTemplate: '{}' },
         },
       })
 
@@ -254,9 +256,17 @@ for (const name of ['local', 'prod'] as const) {
     it('publishes the names of its resources and policies as parameters, for the functions', () => {
       const names: string[] = []
 
-      for (const [stack, group] of [[stacks.messaging, 'messaging'], [stacks.storage, 'storage'], [stacks.data, 'data'], [stacks.security, 'security'], [stacks.mail, 'mail'], [stacks.compute, 'compute']] as const) {
+      // The stack security of a stage without a managed database (local) publishes the identities of the
+      // database under the names the stack database uses in prod.
+      const groups: [Stack, string][] = [[stacks.messaging, 'messaging'], [stacks.storage, 'storage'], [stacks.data, 'data'], [stacks.security, config.database.managed === null ? '(security|database)' : 'security'], [stacks.mail, 'mail'], [stacks.compute, 'compute']]
+
+      if (stacks.network !== null && stacks.database !== null) {
+        groups.push([stacks.network, 'network'], [stacks.database, 'database'])
+      }
+
+      for (const [stack, group] of groups) {
         const parameters = Object.values(template(stack).findResources('AWS::SSM::Parameter')) as { Properties: { Name: string, Type: string } }[]
-        const outputs = Object.keys(template(stack).findOutputs('*'))
+        const outputs = Object.keys(template(stack).findOutputs('*')).filter((output) => !output.startsWith('PublishOutput'))
 
         assert.equal(parameters.length, outputs.length, `${group}: one parameter per output`)
 

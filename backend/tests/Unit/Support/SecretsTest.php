@@ -13,8 +13,8 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 /**
- * The secrets of the functions: the secret of a managed database in the format of Amazon RDS
- * (Infrastructure task 3), and the once-per-cold-start reading, which a cached configuration stands for.
+ * The secrets of the functions: the secret of an identity of the database in the format of Amazon RDS,
+ * and the once-per-cold-start reading, which a cached configuration stands for.
  */
 final class SecretsTest extends TestCase
 {
