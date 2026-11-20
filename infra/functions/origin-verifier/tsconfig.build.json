@@ -3,7 +3,7 @@
   "compilerOptions": {
     "noEmit": false,
     "outDir": "dist",
-    "rootDir": "."
+    "rootDir": ".."
   },
-  "include": ["*.mts"]
+  "include": ["*.mts", "../shared/*.mts"]
 }

@@ -1,0 +1,25 @@
+{
+  "AlarmName": "dian-einvoice-prod-api-latency",
+  "AlarmDescription": "The 99th percentile of the time the API takes to answer has been above 2 seconds for 15 minutes, twice the objective. Runbook: docs/runbooks/api-latency.md",
+  "AWSAccountId": "111111111111",
+  "NewStateValue": "INSUFFICIENT_DATA",
+  "NewStateReason": "Insufficient Data: 3 datapoints were unknown.",
+  "StateChangeTime": "2026-11-20T21:10:00.000+0000",
+  "Region": "US East (N. Virginia)",
+  "AlarmArn": "arn:aws:cloudwatch:us-east-1:111111111111:alarm:dian-einvoice-prod-api-latency",
+  "OldStateValue": "OK",
+  "Trigger": {
+    "MetricName": "Latency",
+    "Namespace": "AWS/ApiGateway",
+    "StatisticType": "ExtendedStatistic",
+    "ExtendedStatistic": "p99",
+    "Unit": null,
+    "Dimensions": [{ "value": "a1b2c3d4e5", "name": "ApiId" }],
+    "Period": 300,
+    "EvaluationPeriods": 3,
+    "ComparisonOperator": "GreaterThanThreshold",
+    "Threshold": 2000.0,
+    "TreatMissingData": "notBreaching",
+    "EvaluateLowSampleCountPercentile": ""
+  }
+}

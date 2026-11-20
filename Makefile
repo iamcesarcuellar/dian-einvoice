@@ -22,7 +22,7 @@ CLOUD := $(COMPOSE) --profile cloud
 # which runs the functions (scripts/cloud/containers.sh then removes the containers it started for them).
 CLOUD_APP := cloud-gateway floci
 # The stacks of the CDK app deployed before the functions; the stack edge fronts their HTTP API, so it goes after.
-CDK_BEFORE_FUNCTIONS := local/messaging local/storage local/data local/security local/mail local/compute
+CDK_BEFORE_FUNCTIONS := local/messaging local/storage local/data local/security local/mail local/alerts local/compute
 # osls and the scripts of the functions, on the network of the stack.
 FUNCTIONS := $(CLOUD) run --rm --no-deps -T functions-deploy
 
@@ -35,7 +35,7 @@ export CLOUD_CHAOS_INVOICES
 # cache and sets BUILD empty, so compose uses them as they are.
 BUILD ?= --build
 
-TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-e2e cloud-artisan cdk-check
+TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check
 
 .PHONY: env $(TARGETS)
 
@@ -268,7 +268,10 @@ openapi:
 # database of its own with the migrations identity from its secret, push the image of the functions to its ECR,
 # deploy the functions, their triggers and the origin verifier with osls, deploy the stack edge (the distribution in
 # front of the web app and the API, with the value of the secret of the edge as a parameter, piped and never
-# printed) and give its distribution the settings of its behaviours the emulator drops, build the web app for
+# printed) and give its distribution the settings of its behaviours the emulator drops, deploy the stack
+# observability (the metric filters over the logs of the functions, the alarms, the dashboard and the saved queries,
+# after the functions and the edge they read; alone, -e) and give its alarms the metrics and save its queries, which
+# the CloudFormation of the emulator drops or cannot create, from its template, build the web app for
 # production and upload it to the bucket of the edge with the script of every stage, start the proxy in front of the
 # edge on the ports of the web app and the API, and with the console function run the migrations and create the
 # application identity, which every other function connects as. Nothing of the application runs all the time. make
@@ -286,6 +289,8 @@ cloud-up:
 	$(FUNCTIONS) sh -c 'npm run --silent build && osls deploy --stage local --param="image=$$(cat .image)" --param="simulatorToken=$$SIMULATOR_TOKEN"'
 	@$(FUNCTIONS) node scripts/edge.mjs origin-secret | $(CLOUD) run --rm --no-deps -T cdk-deploy sh -c 'origin="$$(cat)" && exec cdk deploy local/edge --require-approval never --parameters "OriginVerifyValue=$$origin"' && echo "The stack edge, with the value of the secret of the edge as its parameter."
 	$(FUNCTIONS) node scripts/edge.mjs reconcile
+	$(CLOUD) run --rm --no-deps -T cdk-deploy cdk deploy local/observability --exclusively --require-approval never
+	$(FUNCTIONS) node scripts/observability.mjs reconcile
 	$(COMPOSE) run --rm --no-deps -T web pnpm build
 	$(FUNCTIONS) node scripts/panel.mjs upload /workspace/web/dist
 	$(FUNCTIONS) node scripts/gateway-env.mjs > infra/functions/.env.cloud
@@ -329,9 +334,30 @@ cloud-clean:
 # unreadable message, CLOUD_CHAOS_INVOICES more invoices with the containers of the functions killed mid-process and
 # an outbox event left for the relay function, nothing done twice, the scheduler run, the topic, the queues, the
 # bucket, SES, the tables, KMS and Secrets Manager, and two rotations of the application identity with the functions
-# warm, requests and invoices working before and after each.
+# warm, requests and invoices working before and after each; then the observability: every line the functions wrote
+# during the check is JSON in the schema of the log lines, an invoice issued through the edge is followed with the
+# saved query by the X-Correlation-Id its client got, no log holds a secret or personal data, a metric filter
+# produced its metric, and a state forced on an alarm reaches the local receiver of the chat through the notifier.
 cloud-check:
 	@sh scripts/cloud-check.sh $(CLOUD_INVOICES)
+
+# In the emulated cloud (make cloud-up first), the real evaluation of alarms, apart from make cloud-check since it
+# takes minutes: a message in the dead-letter queue of the chain turns its alarm to ALARM when the emulator publishes
+# the metrics of SQS and evaluates it, the notification reaches the local receiver of the chat, and taking the
+# message out turns it back to OK; then the receiver refuses a notification, the notifier keeps it in its dead-letter
+# queue, and the alarm on its failures reaches the chat.
+cloud-alarm-check:
+	$(FUNCTIONS) node scripts/observability.mjs evaluation
+
+# In the emulated cloud, every line of one journey, in order, with the saved query follow-a-journey: make cloud-follow
+# ID=<the X-Correlation-Id of an answer of the API> (HOURS=24 back by default).
+cloud-follow:
+	$(FUNCTIONS) node scripts/observability.mjs follow $(ID) $(or $(HOURS),24)
+
+# In the emulated cloud, the state of every alarm with its runbook, and the last messages the notifier posted to the
+# local receiver of the chat.
+cloud-alarms:
+	$(FUNCTIONS) node scripts/observability.mjs alarms
 
 # The end-to-end test in a browser against the emulated cloud with the demo data (make cloud-demo first): the web app
 # as the edge serves it on http://localhost:8601, built for production and under its Content-Security-Policy, the

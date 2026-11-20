@@ -5,8 +5,8 @@ namespace App\Support\Outbox;
 use Illuminate\Console\Command;
 
 /**
- * Runs every sweeper once: what the local relay process does every half minute, as a scheduled task of
- * the scheduler function (bootstrap/app.php), which runs it once a minute on one process at a time.
+ * Runs every sweeper once, by hand: what the local relay process does every half minute, and what the scheduler
+ * function runs once a minute as a task of its own process (ScheduledSweep, bootstrap/app.php).
  */
 final class SweepCommand extends Command
 {
@@ -14,18 +14,18 @@ final class SweepCommand extends Command
 
     protected $description = 'Run the sweepers once: restart stalled chains, deliveries and webhooks, and prune';
 
-    public function handle(Sweepers $sweepers, OutboxPause $pause): int
+    public function handle(ScheduledSweep $sweep): int
     {
-        if ($pause->active()) {
+        $fixed = $sweep();
+
+        if ($fixed === null) {
             $this->line('The outbox is paused (the demo seeder runs its chains in line): no sweep.');
 
             return self::SUCCESS;
         }
 
-        foreach ($sweepers->run() as $sweeper => $fixed) {
-            if ($fixed > 0) {
-                $this->warn(sprintf('%s restarted %d stalled items.', $sweeper, $fixed));
-            }
+        foreach (array_filter($fixed) as $sweeper => $count) {
+            $this->warn(sprintf('%s restarted %d stalled items.', $sweeper, $count));
         }
 
         return self::SUCCESS;

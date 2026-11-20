@@ -90,6 +90,12 @@ FROM bref/php-85:3.0.12 AS lambda
 COPY --from=lambda-build /var/task /var/task
 COPY --from=lambda-build /opt/rds/global-bundle.pem /opt/rds/global-bundle.pem
 
+# PHP-FPM of the function api logs from warning up: its notices (started, ready, terminating) would reach the log
+# of the function as plain text, where every line is JSON (docs/observability.md). The application logs its own
+# errors as JSON, uncaught and fatal ones included; the build fails when the setting of Bref moves.
+RUN sed -i 's/^;log_level = .warning.$/log_level = warning/' /opt/bref/etc/php-fpm.conf \
+    && grep -qx 'log_level = warning' /opt/bref/etc/php-fpm.conf
+
 # Nothing depends on the working directory: Bref finds the application in LAMBDA_TASK_ROOT (/var/task)
 # and Laravel runs its commands from its base path. The local emulator checks that the user of Lambda may
 # enter every directory of the working directory by copying each one out of the container, which for

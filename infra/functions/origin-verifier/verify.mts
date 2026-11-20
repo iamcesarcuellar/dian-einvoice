@@ -20,6 +20,8 @@ export interface VerifierOptions {
   /** The least time between two reads caused by a value the cached ones do not hold. */
   readonly refreshMilliseconds: number
   readonly now?: () => number
+  /** Told when a read fails while values are held, which the verifier goes on with. */
+  readonly onReadFailure?: (error: unknown) => void
 }
 
 /**
@@ -43,6 +45,7 @@ export class OriginVerifier {
   private readonly keep: number
   private readonly refresh: number
   private readonly now: () => number
+  private readonly onReadFailure: (error: unknown) => void
   private values: SecretValues | null = null
   private readAt = Number.NEGATIVE_INFINITY
 
@@ -51,6 +54,7 @@ export class OriginVerifier {
     this.keep = options.keepMilliseconds
     this.refresh = options.refreshMilliseconds
     this.now = options.now ?? Date.now
+    this.onReadFailure = options.onReadFailure ?? (() => undefined)
   }
 
   /** Whether the header holds a value of the secret; an empty or missing header never does. */
@@ -91,7 +95,7 @@ export class OriginVerifier {
         throw error
       }
 
-      console.error(JSON.stringify({ message: 'The secret of the edge could not be read again; the values held are used.', error: error instanceof Error ? error.message : String(error) }))
+      this.onReadFailure(error)
     }
 
     this.readAt = this.now()

@@ -3,6 +3,8 @@
 namespace App\Modules\Developers\Auth;
 
 use App\Modules\Developers\Models\ApiKey;
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 
@@ -26,6 +28,17 @@ final class ApiKeyAuthenticator
         }
 
         $key = $this->keys->find($token);
+        $refusal = match (true) {
+            $key === null => 'not_valid',
+            $key->status() === 'revoked' => 'revoked',
+            $key->status() === 'expired' => 'expired',
+            default => null,
+        };
+
+        if ($refusal !== null) {
+            // Never the key the request brought, or a part of it.
+            Telemetry::record(LogEvent::AuthRefused, 'A request with an API key that is not valid was refused.', outcome: 'rejected', detail: ['credential' => 'api_key', 'reason' => $refusal], level: 'warning');
+        }
 
         if ($key === null) {
             throw new AuthenticationException('The API key is not valid. Send an API key of this platform in the Authorization header: Bearer dei_...', [self::GUARD]);

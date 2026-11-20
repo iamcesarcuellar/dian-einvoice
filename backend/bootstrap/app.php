@@ -3,12 +3,14 @@
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EdgeClientAddress;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\TraceRequest;
 use App\Http\ProblemDetails;
 use App\Modules\Developers\Http\Middleware\HandleIdempotency;
 use App\Modules\Developers\Http\Middleware\RateLimitApiKeys;
 use App\Modules\Developers\Http\Middleware\RejectApiKeys;
 use App\Modules\Identity\Http\Middleware\ResolveCurrentCompany;
 use App\Support\Health\SchedulerHeartbeat;
+use App\Support\Outbox\ScheduledSweep;
 use App\Support\Secrets\LoadSecrets;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
@@ -25,10 +27,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Every answer, errors included: an X-Request-Id that the logs carry too, and the security headers.
-        // Behind the edge, the address of the client is the one the edge saw (config/edge.php), before anything
-        // counts a request by its address.
-        $middleware->prepend([AssignRequestId::class, EdgeClientAddress::class]);
+        // Every answer, errors included: an X-Request-Id that the logs carry too, the X-Correlation-Id of the journey
+        // the request begins (docs/observability.md), and the security headers. Behind the edge, the address of the
+        // client is the one the edge saw (config/edge.php), before anything counts a request by its address.
+        $middleware->prepend([AssignRequestId::class, TraceRequest::class, EdgeClientAddress::class]);
         $middleware->append(SecurityHeaders::class);
 
         // Of the forwarded headers, only the address of the client and the scheme, and only from the proxies
@@ -66,9 +68,11 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // The scheduler function runs php artisan schedule:run once a minute. A schedule may fire twice or
         // overlap with the previous run, so each task runs on one process per minute (onOneServer) and
         // never alongside itself (withoutOverlapping), both through the locks of the shared cache, and
-        // nothing runs in the background: a function is frozen as soon as it answers. Locally nothing
+        // nothing runs in the background: a function is frozen as soon as it answers. The tasks run in the
+        // process of the scheduler, which writes what they do to the log as JSON (docs/observability.md),
+        // rather than in processes of their own, whose output would go to the log as it is. Locally nothing
         // runs the scheduler; the relay process sweeps.
-        $schedule->command('outbox:sweep')->everyMinute()->onOneServer()->withoutOverlapping(10);
+        $schedule->call(ScheduledSweep::class)->name('outbox-sweep')->everyMinute()->onOneServer()->withoutOverlapping(10);
         $schedule->call(new SchedulerHeartbeat)->name('scheduler-heartbeat')->everyMinute()->onOneServer();
     })->create();
 

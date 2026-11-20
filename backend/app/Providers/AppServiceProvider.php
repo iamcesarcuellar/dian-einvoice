@@ -14,6 +14,7 @@ use App\Support\Health\Heartbeat;
 use App\Support\Keys\KeyStore;
 use App\Support\Keys\KmsKeyStore;
 use App\Support\Keys\LocalKeyStore;
+use App\Support\Observability\ObservabilityHooks;
 use App\Support\Outbox\OutboxFastPath;
 use App\Support\Outbox\OutboxPublisher;
 use App\Support\Outbox\OutboxRoutesCommand;
@@ -120,6 +121,10 @@ class AppServiceProvider extends ServiceProvider
 
         // The queue workers beat while they loop, for the healthcheck of their containers.
         Event::listen(Looping::class, fn () => Heartbeat::beat('worker'));
+
+        // The journeys that begin outside a request (a command, a scheduled run), and the lines of the jobs and of
+        // the scheduled tasks in the functions (docs/observability.md).
+        ObservabilityHooks::register($this->app->make('events'));
 
         // The SQS queues of the emulated cloud (connection sqs), and the tables of DynamoDB of the cache, the
         // sessions and the rate limits, all with the shared AWS settings (Laravel's own DynamoDB store has

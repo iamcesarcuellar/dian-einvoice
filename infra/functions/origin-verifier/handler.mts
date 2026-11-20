@@ -6,6 +6,7 @@
 // with a role that may only read that secret, and is packaged apart from the image of PHP. The AWS SDK for
 // JavaScript is that of the Node.js runtime of Lambda.
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager'
+import { logger } from '../shared/log.mts'
 import { OriginVerifier, type SecretValues } from './verify.mts'
 
 /** The header the edge sends; API Gateway hands header names in lower case. */
@@ -21,6 +22,15 @@ export interface AuthorizerEvent {
 export interface AuthorizerResult {
   readonly isAuthorized: boolean
 }
+
+/** The context of an invocation, as much of it as the verifier reads. */
+export interface InvocationContext {
+  readonly awsRequestId?: string
+}
+
+// Lines in the schema of the platform (docs/observability.md): a refusal, and a secret that could not be read.
+const log = logger('origin-verifier')
+let invocation: string | null = null
 
 const secretId = process.env.ORIGIN_SECRET_ID ?? ''
 // The emulated cloud names the endpoint of its emulator; in AWS the variable is empty and the SDK finds the service.
@@ -48,19 +58,34 @@ async function readSecret(): Promise<SecretValues> {
   return { current: current ?? '', previous }
 }
 
-// Thirty seconds in memory, read again at most every five seconds when a request brings a value not held.
-const verifier = new OriginVerifier(readSecret, { keepMilliseconds: 30_000, refreshMilliseconds: 5_000 })
+// Thirty seconds in memory, read again at most every five seconds when a request brings a value not held. A read
+// that fails while values are held goes on with them, and says so (the alarm origin-verifier-errors counts it).
+const verifier = new OriginVerifier(readSecret, {
+  keepMilliseconds: 30_000,
+  refreshMilliseconds: 5_000,
+  onReadFailure: (error) => log('error', 'The secret of the edge could not be read again; the values held are used.', { event: 'edge.secret', outcome: 'failure', requestId: invocation, error }),
+})
 
-export async function handler(event: AuthorizerEvent): Promise<AuthorizerResult> {
+export async function handler(event: AuthorizerEvent, context: InvocationContext = {}): Promise<AuthorizerResult> {
+  invocation = context.awsRequestId ?? null
+
   if (secretId === '') {
     throw new Error('ORIGIN_SECRET_ID is not set.')
   }
 
-  const isAuthorized = await verifier.verify(event.headers?.[HEADER])
+  let isAuthorized: boolean
+
+  try {
+    isAuthorized = await verifier.verify(event.headers?.[HEADER])
+  } catch (error) {
+    // No value held and none read: every request is refused until Secrets Manager answers.
+    log('critical', 'The secret of the edge could not be read and no value is held: the request fails.', { event: 'edge.secret', outcome: 'failure', requestId: invocation, error })
+    throw error
+  }
 
   if (!isAuthorized) {
-    // Never the value received: only that it was refused, and from where API Gateway saw the request.
-    console.warn(JSON.stringify({ message: 'A request did not come through the edge.', requestId: event.requestContext?.requestId, sourceIp: event.requestContext?.http?.sourceIp }))
+    // Never the value received, nor the address it came from: only that it was refused.
+    log('warning', 'A request did not come through the edge.', { event: 'edge.refused', outcome: 'rejected', requestId: invocation, detail: { reason: 'a value that is not the secret of the edge' } })
   }
 
   return { isAuthorized }

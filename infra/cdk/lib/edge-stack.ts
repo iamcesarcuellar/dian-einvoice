@@ -9,7 +9,7 @@
 // access logs kept a while, and in prod a domain of its own with TLS 1.2 at least and a firewall (AWS WAF). The
 // reasons of each setting are in docs/infrastructure.md.
 import { resolve } from 'node:path'
-import { Annotations, CfnParameter, Duration, SecretValue, Stack, type StackProps, Validations } from 'aws-cdk-lib'
+import { Annotations, ArnFormat, CfnParameter, Duration, SecretValue, Stack, type StackProps, Validations } from 'aws-cdk-lib'
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager'
 import {
   AccessLevel,
@@ -40,7 +40,8 @@ import {
 import { HttpOrigin, S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins'
 import { BlockPublicAccess, Bucket, BucketEncryption, ObjectOwnership } from 'aws-cdk-lib/aws-s3'
 import { StringParameter } from 'aws-cdk-lib/aws-ssm'
-import { CfnWebACL } from 'aws-cdk-lib/aws-wafv2'
+import { CfnResourcePolicy, LogGroup, type RetentionDays } from 'aws-cdk-lib/aws-logs'
+import { CfnLoggingConfiguration, CfnWebACL } from 'aws-cdk-lib/aws-wafv2'
 import type { Construct } from 'constructs'
 import { Published } from './published.ts'
 import { renderContentSecurityPolicy, strictTransportSecurity, type SecurityHeaders } from './security-headers.ts'
@@ -230,7 +231,52 @@ export class EdgeStack extends Stack {
 
     if (this.firewall !== null) {
       published.add('FirewallArn', 'firewall-arn', this.firewall.attrArn, 'ARN of the web ACL of AWS WAF of the edge')
+      this.firewallLogs(stage, this.firewall)
     }
+  }
+
+  /**
+   * The logs of the firewall (Infrastructure task 5): the requests it blocked or counted, in a log group whose name
+   * AWS WAF requires to start with aws-waf-logs-, kept as long as the access logs, without the Authorization and
+   * Cookie headers, which carry API keys and sessions. Requests it allowed are not logged: the access logs of the
+   * distribution and of API Gateway have them, and logging them all would cost per request.
+   */
+  private firewallLogs(stage: StageConfig, firewall: CfnWebACL): void {
+    const name = `aws-waf-logs-${resourceName(stage, 'edge')}`
+    const group = new LogGroup(this, 'FirewallLogs', {
+      logGroupName: name,
+      retention: stage.edge.logsExpireAfter.toDays() as RetentionDays,
+      removalPolicy: removalPolicy(stage),
+    })
+    const groupArn = this.formatArn({ service: 'logs', resource: 'log-group', resourceName: name, arnFormat: ArnFormat.COLON_RESOURCE_NAME })
+
+    // AWS WAF delivers its logs through the log delivery service of CloudWatch Logs, which writes to the group only
+    // with this policy, for this account.
+    const delivery = new CfnResourcePolicy(this, 'FirewallLogsDelivery', {
+      policyName: `${name}-delivery`,
+      policyDocument: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [{
+          Sid: 'AwsWafDeliversItsLogs',
+          Effect: 'Allow',
+          Principal: { Service: 'delivery.logs.amazonaws.com' },
+          Action: ['logs:CreateLogStream', 'logs:PutLogEvents'],
+          Resource: `${groupArn}:*`,
+          Condition: { StringEquals: { 'aws:SourceAccount': this.account }, ArnLike: { 'aws:SourceArn': `arn:${this.partition}:logs:${this.region}:${this.account}:*` } },
+        }],
+      }),
+    })
+
+    const logging = new CfnLoggingConfiguration(this, 'FirewallLogging', {
+      resourceArn: firewall.attrArn,
+      logDestinationConfigs: [groupArn],
+      redactedFields: [{ singleHeader: { Name: 'authorization' } }, { singleHeader: { Name: 'cookie' } }],
+      loggingFilter: {
+        DefaultBehavior: 'DROP',
+        Filters: [{ Behavior: 'KEEP', Requirement: 'MEETS_ANY', Conditions: [{ ActionCondition: { Action: 'BLOCK' } }, { ActionCondition: { Action: 'COUNT' } }] }],
+      },
+    })
+    logging.node.addDependency(group, delivery)
   }
 
   /**

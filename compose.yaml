@@ -314,6 +314,7 @@ services:
       EVENT_ROUTES: /workspace/outbox/routes.json
       AWS_SERVICES: /workspace/aws/services.json
       HTTP_RESOURCES: /workspace/http
+      LOG_SCHEMA: /workspace/observability/log-schema.json
       FUNCTIONS_TEMPLATES: /workspace/functions
       DOCS: /workspace/docs
       WEB_APP_INDEX: /workspace/frontend/index.html
@@ -322,6 +323,7 @@ services:
       - ./backend/resources/outbox:/workspace/outbox:ro
       - ./backend/resources/aws:/workspace/aws:ro
       - ./backend/resources/http:/workspace/http:ro
+      - ./backend/resources/observability:/workspace/observability:ro
       - ./infra/functions:/workspace/functions:ro
       - ./docs:/workspace/docs:ro
       - ./frontend/index.html:/workspace/frontend/index.html:ro
@@ -340,6 +342,7 @@ services:
       EVENT_ROUTES: /workspace/outbox/routes.json
       AWS_SERVICES: /workspace/aws/services.json
       HTTP_RESOURCES: /workspace/http
+      LOG_SCHEMA: /workspace/observability/log-schema.json
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: "000000000000"
@@ -349,6 +352,7 @@ services:
       - ./backend/resources/outbox:/workspace/outbox:ro
       - ./backend/resources/aws:/workspace/aws:ro
       - ./backend/resources/http:/workspace/http:ro
+      - ./backend/resources/observability:/workspace/observability:ro
     depends_on:
       floci:
         condition: service_healthy
@@ -381,6 +385,7 @@ services:
       HOME: /tmp
     volumes:
       - ./infra/functions:/workspace/functions
+      - ./backend/resources/observability:/workspace/observability:ro
 
   # The same, on the network of the stack: osls deploy of the stage local to the emulator, and the scripts
   # that invoke the console function and read the functions, upload the web app to the edge and check it (make
@@ -405,6 +410,7 @@ services:
       - ./infra/functions:/workspace/functions
       - ./frontend:/workspace/web:ro
       - ./backend/resources/http:/workspace/http:ro
+      - ./backend/resources/observability:/workspace/observability:ro
       - ./infra/cdk/edge:/workspace/edge:ro
     depends_on:
       floci:

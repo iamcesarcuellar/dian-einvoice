@@ -4,6 +4,7 @@ namespace App\Support\ApiDocs;
 
 use App\Modules\Developers\Http\Middleware\HandleIdempotency;
 use App\Modules\Identity\Http\Middleware\ResolveCurrentCompany;
+use App\Support\Observability\LogSchema;
 use Dedoc\Scramble\Extensions\OperationExtension;
 use Dedoc\Scramble\Support\Generator\Header;
 use Dedoc\Scramble\Support\Generator\Operation;
@@ -17,8 +18,9 @@ use Illuminate\Support\Str;
 
 /**
  * What the middleware of the public API adds to every operation, which Scramble cannot infer from
- * the controllers: the X-Company-Id and Idempotency-Key headers, and the 401, 403, 409, 422 and
- * 429 answers of authentication, key levels, idempotency and the rate limit, all problem+json.
+ * the controllers: the X-Company-Id and Idempotency-Key headers, the X-Correlation-Id a request may
+ * send and every answer carries, and the 401, 403, 409, 422 and 429 answers of authentication, key
+ * levels, idempotency and the rate limit, all problem+json.
  */
 final class ApiConventionsExtension extends OperationExtension
 {
@@ -61,12 +63,27 @@ final class ApiConventionsExtension extends OperationExtension
             $operation->addResponse(ProblemResponses::make(422, 'Validation failed, or the Idempotency-Key was already used with another request', validation: true));
         }
 
+        // The journey of every request (App\Http\Middleware\TraceRequest): sent, optionally, and always answered.
+        $journey = Parameter::make(LogSchema::correlationHeader(), 'header')->setSchema(ProblemResponses::schema((new StringType)->example('01jcz9w6n8s0k3q4r5t6v7w8x9')));
+        $journey->description('Optional. The id of the journey this request begins, to tie the logs of an integration to those of the platform: a ULID, 26 characters. Kept when it has that form, replaced by a new one otherwise; the answer carries it in its own X-Correlation-Id, its problems as correlation_id, and the events, webhooks and emails of the journey carry it too.');
+        $journey->required(false);
+        $operation->addParameters([$journey]);
+
         if ($middleware->contains('api-rate-limit')) {
             $operation->addResponse(ProblemResponses::make(429, 'Too many requests for this API key: wait the seconds of Retry-After')
                 ->addHeader('Retry-After', new Header('Seconds until the window of the limit resets.', schema: ProblemResponses::schema(new IntegerType)))
                 ->addHeader('X-RateLimit-Limit', new Header('Requests per minute of the key.', schema: ProblemResponses::schema(new IntegerType)))
                 ->addHeader('X-RateLimit-Remaining', new Header('Requests left in the current window: 0.', schema: ProblemResponses::schema(new IntegerType)))
                 ->addHeader('X-RateLimit-Reset', new Header('Unix time when the window resets.', schema: ProblemResponses::schema(new IntegerType))));
+        }
+
+        // Every answer, problems included, carries the ids of the request and of its journey.
+        foreach ($operation->responses ?? [] as $response) {
+            $resolved = $response instanceof Reference ? $response->resolve() : $response;
+
+            if ($resolved instanceof Response) {
+                $resolved->addHeader(LogSchema::correlationHeader(), new Header('The id of the journey of the request: the one it sent when it has the form of one, a new ULID otherwise. Every log line, event, webhook and email of the journey carries it: quote it when asking about a request.', schema: ProblemResponses::schema(new StringType)));
+            }
         }
     }
 

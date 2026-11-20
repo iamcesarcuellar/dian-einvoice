@@ -3,6 +3,7 @@
 namespace App\Modules\Developers\Webhooks;
 
 use App\Modules\Developers\Enums\WebhookAttemptOutcome;
+use App\Support\Observability\Correlation;
 use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
@@ -61,11 +62,13 @@ final class WebhookSender
         $started = hrtime(true);
 
         try {
+            // The journey of the event travels with it (X-Correlation-Id), for the support of an integration.
             $response = Http::withHeaders([
                 'webhook-id' => $messageId,
                 'webhook-timestamp' => (string) $timestamp,
                 'webhook-signature' => WebhookSignature::sign($secret, $messageId, $timestamp, $body),
                 'User-Agent' => 'dian-einvoice-webhooks/1.0',
+                ...Correlation::headers(),
             ])
                 ->withBody($body, 'application/json')
                 ->connectTimeout(min(3.0, $timeout))

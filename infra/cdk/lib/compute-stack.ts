@@ -1,6 +1,7 @@
 // Compute: what the functions of the serverless service (infra/functions/serverless.yml) take from outside
 // it. Each function gets a role of its own, with the managed policies of the other stacks it needs and
-// nothing else; the origin verifier of the edge a role that may only read the secret of the edge; EventBridge
+// nothing else; the origin verifier of the edge a role that may only read the secret of the edge; the notifier of
+// the alarms one that may only read the secret of the chat webhook and send to its dead-letter queue; EventBridge
 // Scheduler gets the role it invokes the scheduled functions with; and the image of the functions of the
 // application gets its ECR repository. The functions and their triggers belong to the serverless
 // service, which reads the names published here; every resource is defined in exactly one tool.
@@ -10,7 +11,7 @@ import { ManagedPolicy, PolicyDocument, PolicyStatement, Role, ServicePrincipal 
 import { StringParameter } from 'aws-cdk-lib/aws-ssm'
 import type { Construct } from 'constructs'
 import { Published } from './published.ts'
-import { DATABASE_PARAMETERS, FUNCTIONS, MIGRATIONS_FUNCTION, ORIGIN_VERIFIER, functionName, parameterPrefix, removalPolicy, resourceName, type FunctionName, type StageConfig } from './stage.ts'
+import { DATABASE_PARAMETERS, FUNCTIONS, MIGRATIONS_FUNCTION, NOTIFIER, ORIGIN_VERIFIER, functionName, parameterPrefix, removalPolicy, resourceName, type FunctionName, type StageConfig } from './stage.ts'
 
 export interface ComputeStackProps extends StackProps {
   readonly stage: StageConfig
@@ -58,6 +59,7 @@ export const SCHEDULED_FUNCTIONS: readonly FunctionName[] = ['relay', 'scheduler
 export class ComputeStack extends Stack {
   readonly roles: Readonly<Record<FunctionName, Role>>
   readonly originVerifierRole: Role
+  readonly notifierRole: Role
   readonly repository: Repository
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
@@ -166,6 +168,32 @@ export class ComputeStack extends Stack {
     })
 
     published.add('OriginVerifierFunctionRoleArn', `roles/${ORIGIN_VERIFIER}`, this.originVerifierRole.roleArn, `Role of the function ${verifier}`)
+
+    // The notifier of the alarms: its log group, the secret of the chat webhook and its own dead-letter queue
+    // (stack alerts), nothing else. Outside the VPC; SNS invokes it, and decrypts the topic for it.
+    const notifier = resourceName(stage, NOTIFIER)
+    const notifierLogs = this.formatArn({ service: 'logs', resource: 'log-group', resourceName: `/aws/lambda/${notifier}:*`, arnFormat: ArnFormat.COLON_RESOURCE_NAME })
+    this.notifierRole = new Role(this, 'NotifierFunctionRole', {
+      roleName: `${notifier}-function`,
+      description: `Role of the function ${notifier}: turns the alarms into messages to the chat webhook`,
+      assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
+      inlinePolicies: {
+        function: new PolicyDocument({
+          statements: [
+            new PolicyStatement({ actions: ['logs:CreateLogStream', 'logs:PutLogEvents'], resources: [notifierLogs] }),
+            new PolicyStatement({ actions: ['secretsmanager:GetSecretValue'], resources: [StringParameter.valueForStringParameter(this, `${parameterPrefix(stage)}/alerts/chat-webhook-secret-arn`)] }),
+            new PolicyStatement({ actions: ['sqs:SendMessage'], resources: [StringParameter.valueForStringParameter(this, `${parameterPrefix(stage)}/alerts/notifier-dlq-arn`)] }),
+          ],
+        }),
+      },
+    })
+
+    Validations.of(this.notifierRole).acknowledge({
+      id: `AwsSolutions::AwsSolutions-IAM5[Resource::${notifierLogs}]`,
+      reason: 'Lambda writes the logs of each execution environment to a stream it names when the environment starts; the resource is the log group of this function only.',
+    })
+
+    published.add('NotifierFunctionRoleArn', `roles/${NOTIFIER}`, this.notifierRole.roleArn, `Role of the function ${notifier}`)
 
     // EventBridge Scheduler invokes the scheduled functions with this role, from this account only.
     const schedules = new Role(this, 'SchedulesRole', {

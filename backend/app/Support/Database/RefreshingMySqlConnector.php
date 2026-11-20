@@ -2,9 +2,10 @@
 
 namespace App\Support\Database;
 
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use App\Support\Secrets\DatabaseCredentials;
 use Illuminate\Database\Connectors\MySqlConnector;
-use Illuminate\Support\Facades\Log;
 use PDO;
 use PDOException;
 use Throwable;
@@ -56,10 +57,24 @@ final class RefreshingMySqlConnector extends MySqlConnector
                 throw $exception;
             }
 
-            Log::warning('The database refused the credentials of this execution environment: they were read again from Secrets Manager, and the connection is retried once.', ['secret' => $secretId, 'user' => $fresh['username']]);
+            Telemetry::record(
+                LogEvent::SecretReread,
+                'The database refused the credentials of this execution environment: they were read again from Secrets Manager, and the connection is retried once.',
+                outcome: 'success',
+                detail: ['secret' => self::secretName($secretId)],
+                level: 'warning',
+            );
 
             return parent::createConnection($dsn, [...$config, ...$fresh], $options);
         }
+    }
+
+    /** The name of a secret from its id or ARN, without the suffix Secrets Manager adds: never its value. */
+    public static function secretName(string $secretId): string
+    {
+        $name = (string) preg_replace('/^arn:[^:]+:secretsmanager:[^:]+:[^:]+:secret:/', '', $secretId);
+
+        return $name === $secretId ? $name : (string) preg_replace('/-[A-Za-z0-9]{6}$/', '', $name);
     }
 
     /** Whether the database refused the user or its password. */

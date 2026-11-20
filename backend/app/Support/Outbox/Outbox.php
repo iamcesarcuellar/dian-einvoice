@@ -2,6 +2,7 @@
 
 namespace App\Support\Outbox;
 
+use App\Support\Observability\Correlation;
 use DateTimeInterface;
 
 /**
@@ -9,7 +10,8 @@ use DateTimeInterface;
  * if and only if the change was committed. A relay publishes them, at least once: every consumer must
  * be idempotent. Locally the relay process (outbox:relay) does it; in the functions of the emulated
  * cloud and of production the writer publishes its own events right after the commit (OutboxFastPath)
- * and the relay function publishes what was left behind (outbox:publish-pending).
+ * and the relay function publishes what was left behind (outbox:publish-pending). Each event keeps the
+ * correlation id of the journey that recorded it, which its messages and jobs carry on.
  */
 final class Outbox
 {
@@ -26,6 +28,7 @@ final class Outbox
             'aggregate_type' => $aggregateType,
             'aggregate_id' => $aggregateId,
             'type' => $type,
+            'correlation_id' => Correlation::ensure(),
             'payload' => $payload,
             'available_at' => $availableAt,
         ]);

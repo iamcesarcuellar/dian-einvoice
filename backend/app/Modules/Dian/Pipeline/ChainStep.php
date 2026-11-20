@@ -10,6 +10,7 @@ use App\Support\Outbox\OutboxEvent;
 use Illuminate\Bus\Queueable;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 use Throwable;
@@ -82,6 +83,9 @@ abstract class ChainStep implements ConsumesOutboxEvents
         if (! is_callable($process)) {
             throw new LogicException(static::class.' has no process() method.');
         }
+
+        // Every log line of the step names its document (docs/observability.md).
+        Context::add('document_id', $this->documentId);
 
         // A company deleted meanwhile, such as the temporary one of make stress or make chaos.
         $company = Company::query()->find($this->companyId);

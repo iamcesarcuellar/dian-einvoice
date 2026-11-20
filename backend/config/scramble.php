@@ -47,7 +47,11 @@ Amounts, quantities and rates are decimal strings, such as `"1190000.00"`, never
 
 ## Errors
 
-Every error is `application/problem+json` (RFC 9457): `type` (always `about:blank`), `title`, `status`, `detail`, `instance` and `request_id`; validation errors (422) add `errors`, the messages of each field. Every answer carries an `X-Request-Id` header with the same id, which is also in the logs: quote it when asking about a request. 401: no valid credentials. 403: the key level or the role does not allow it. 404: not found in the company. 409: the state does not allow it, such as issuing twice. 503: a local service, such as the DIAN simulator, is not answering.
+Every error is `application/problem+json` (RFC 9457): `type` (always `about:blank`), `title`, `status`, `detail`, `instance`, `request_id` and `correlation_id`; validation errors (422) add `errors`, the messages of each field. Every answer carries an `X-Request-Id` header and an `X-Correlation-Id` header with the same ids, which are also in the logs: quote them when asking about a request. 401: no valid credentials. 403: the key level or the role does not allow it. 404: not found in the company. 409: the state does not allow it, such as issuing twice. 503: a local service, such as the DIAN simulator, is not answering.
+
+## Correlation
+
+Every answer carries `X-Correlation-Id`, the id of the journey the request begins: a ULID in lower case, such as `01jcz9w6n8s0k3q4r5t6v7w8x9`. What the request sets in motion carries the same id: the steps of the electronic document chain, the call to the DIAN, the email to the customer and every webhook delivery (in its own `X-Correlation-Id` header). To tie the logs of an integration to those of the platform, send your own id in `X-Correlation-Id`: it is kept when it is a ULID, in any case, and replaced by a new one otherwise. Problems answer it as `correlation_id`.
 
 ## Webhooks
 
@@ -55,7 +59,7 @@ Owners and admins subscribe URLs in **Settings → Developers**: in production, 
 
 The body is `{"id": "evt_...", "type": "invoice.accepted", "created_at": "...", "company_id": "...", "data": {"object": {...}}}`, where `data.object` is the same resource this API returns for that document or payment.
 
-Deliveries follow the [Standard Webhooks](https://www.standardwebhooks.com) specification: headers `webhook-id` (the event id, the same on every retry), `webhook-timestamp` (Unix seconds) and `webhook-signature` (`v1,` and the base64 HMAC-SHA256 of `{webhook-id}.{webhook-timestamp}.{body}` with the secret, the base64 after `whsec_` decoded). Verify the signature over the raw body, reject old timestamps, and answer 2xx within 5 seconds.
+Deliveries follow the [Standard Webhooks](https://www.standardwebhooks.com) specification: headers `webhook-id` (the event id, the same on every retry), `webhook-timestamp` (Unix seconds) and `webhook-signature` (`v1,` and the base64 HMAC-SHA256 of `{webhook-id}.{webhook-timestamp}.{body}` with the secret, the base64 after `whsec_` decoded), plus `X-Correlation-Id`, the journey of the request that caused the event. Verify the signature over the raw body, reject old timestamps, and answer 2xx within 5 seconds.
 
 Delivery is at least once and in no particular order: deduplicate by `webhook-id`. A failed attempt is retried after 2, 5, 15, 45 and 120 seconds; then the delivery fails and can be sent again by hand. A subscription is switched off after 20 failed deliveries in a row.
 MARKDOWN,

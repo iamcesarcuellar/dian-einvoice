@@ -12,8 +12,9 @@ use Symfony\Component\HttpFoundation\Response;
  * Gives every request an id, answered in the X-Request-Id header and written as request_id into
  * every log line of the request and of the jobs it queues (Laravel's Context travels with them).
  * An X-Request-Id sent by a proxy in front of the API is kept when it is 8 to 128 letters, digits,
- * dots, colons, underscores or dashes; anything else is replaced by a new ULID. The first global
- * middleware, so every answer carries it, errors included.
+ * dots, colons, underscores or dashes; anything else is replaced by a new id: in the functions the id
+ * AWS gave the invocation (the one Lambda's own records of it carry), a new ULID elsewhere. The first
+ * global middleware, so every answer carries it, errors included.
  */
 final class AssignRequestId
 {
@@ -25,7 +26,12 @@ final class AssignRequestId
     public function handle(Request $request, Closure $next): Response
     {
         $sent = $request->headers->get(self::HEADER);
-        $id = is_string($sent) && preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $sent) === 1 ? $sent : Str::lower((string) Str::ulid());
+        $invocation = $request->server('LAMBDA_REQUEST_ID');
+        $id = match (true) {
+            is_string($sent) && preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $sent) === 1 => $sent,
+            is_string($invocation) && preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $invocation) === 1 => $invocation,
+            default => Str::lower((string) Str::ulid()),
+        };
 
         $request->headers->set(self::HEADER, $id);
         Context::add('request_id', $id);

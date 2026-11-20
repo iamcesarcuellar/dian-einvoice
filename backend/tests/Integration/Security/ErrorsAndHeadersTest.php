@@ -3,6 +3,8 @@
 namespace Tests\Integration\Security;
 
 use App\Http\Middleware\AssignRequestId;
+use App\Support\Observability\Correlation;
+use App\Support\Observability\LogSchema;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -38,6 +40,9 @@ final class ErrorsAndHeadersTest extends IntegrationTestCase
             $response->assertStatus($status)->assertHeader('Content-Type', 'application/problem+json');
             $this->assertSame($status, $response->json('status'));
             $this->assertSame($response->headers->get(AssignRequestId::HEADER), $response->json('request_id'));
+            // The journey of the request too, as the header answers it (docs/observability.md).
+            $this->assertTrue(Correlation::valid($this->text($response->json('correlation_id'))));
+            $this->assertSame($response->headers->get(LogSchema::correlationHeader()), $response->json('correlation_id'));
             $this->assertNull($response->json('debug'));
             $this->assertStringNotContainsString('/app/', (string) $response->getContent());
             $this->assertStringNotContainsString('hunter2', (string) $response->getContent());

@@ -5,7 +5,9 @@
 // outside the VPC; the mappings of the queues with a partial batch response and a visibility timeout of their
 // queue that fits the function; the parameters it reads, all published by the CDK app (in prod, those of the
 // network and the database too); the identity of the database of each function and its encrypted connection;
-// and no IAM of its own.
+// the notifier of the alarms on the topic of the stack alerts, with its dead-letter queue; a log group with its
+// retention for every function, the system logs of Lambda and the access logs of API Gateway in JSON, and the
+// application logging its own lines as JSON; and no IAM of its own.
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -17,7 +19,7 @@ import { CfnInclude } from 'aws-cdk-lib/cloudformation-include'
 import { AwsSolutionsChecks } from 'cdk-nag'
 import { cdkContext } from '../lib/application.ts'
 import { SCHEDULED_FUNCTIONS } from '../lib/compute-stack.ts'
-import { DATABASE_PARAMETERS, FUNCTIONS, HTTP_API_PARAMETER, MIGRATIONS_FUNCTION, NETWORK_PARAMETERS, ORIGIN_VERIFIER, STAGES, type StageName } from '../lib/stage.ts'
+import { DATABASE_PARAMETERS, FUNCTIONS, HTTP_API_PARAMETER, MIGRATIONS_FUNCTION, NETWORK_PARAMETERS, NOTIFIER, ORIGIN_VERIFIER, STAGES, type StageName } from '../lib/stage.ts'
 import { stageOf, template } from './support.ts'
 
 interface Resource {
@@ -37,9 +39,15 @@ const DATABASE_CONNECTIONS = 60
 const API_GATEWAY_TIMEOUT = 30
 
 /** The exceptions of cdk-nag on the template of the functions, the rule and the resource they are acknowledged on. */
+const NODE_24 = 'Node.js 24, the newest runtime the local emulator runs (Floci 2.5.0 has no image of nodejs26.x), and one definition serves every stage; Node.js 24 is a long-term support line until April 2028. A change of one line of serverless.yml moves it once the emulator runs 26.'
+
 const EXCEPTIONS: Readonly<Record<string, string>> = {
-  'AwsSolutions-L1 OriginVerifierLambdaFunction': 'Node.js 24, the newest runtime the local emulator runs (Floci 2.5.0 has no image of nodejs26.x), and one definition serves every stage; Node.js 24 is a long-term support line until April 2028. A change of one line of serverless.yml moves it once the emulator runs 26.',
+  'AwsSolutions-L1 OriginVerifierLambdaFunction': NODE_24,
+  'AwsSolutions-L1 NotifierLambdaFunction': NODE_24,
 }
+
+/** The days a log group of the functions keeps its lines in each stage (serverless.yml). */
+const LOG_RETENTION: Readonly<Record<StageName, number>> = { local: 7, prod: 365 }
 
 const directory = process.env.FUNCTIONS_TEMPLATES ?? join(import.meta.dirname, '../../functions')
 
@@ -69,7 +77,7 @@ function published(stage: StageName): Set<string> {
   const stacks = stageOf(stage)
   const names = new Set<string>()
 
-  for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.compute, ...(stacks.network === null ? [] : [stacks.network]), ...(stacks.database === null ? [] : [stacks.database])]) {
+  for (const stack of [stacks.messaging, stacks.storage, stacks.data, stacks.security, stacks.mail, stacks.alerts, stacks.compute, ...(stacks.network === null ? [] : [stacks.network]), ...(stacks.database === null ? [] : [stacks.database])]) {
     for (const parameter of Object.values(template(stack).findResources('AWS::SSM::Parameter')) as { Properties: { Name: string } }[]) {
       names.add(parameter.Properties.Name)
     }
@@ -82,13 +90,15 @@ for (const stage of ['local', 'prod'] as const) {
   const config = STAGES[stage]
   const body = packaged(stage)
   const everyFunction = resources(body, 'AWS::Lambda::Function')
-  // The functions of the application, on the image of PHP; the origin verifier of the edge apart.
-  const functions = everyFunction.filter(([, fn]) => fn.Properties.FunctionName !== `dian-einvoice-${stage}-${ORIGIN_VERIFIER}`)
+  // The functions of the application, on the image of PHP; the origin verifier of the edge and the notifier apart.
+  const functions = everyFunction.filter(([, fn]) => fn.Properties.PackageType === 'Image')
   const verifier = everyFunction.find(([, fn]) => fn.Properties.FunctionName === `dian-einvoice-${stage}-${ORIGIN_VERIFIER}`)
+  const notifier = everyFunction.find(([, fn]) => fn.Properties.FunctionName === `dian-einvoice-${stage}-${NOTIFIER}`)
 
   describe(`functions of the stage ${stage}`, () => {
     it('are the functions the stack compute gives a role to, each bounded in time, memory and concurrency', () => {
-      assert.deepEqual(everyFunction.map(([, fn]) => fn.Properties.FunctionName).sort(), [...FUNCTIONS, ORIGIN_VERIFIER].map((fn) => `dian-einvoice-${stage}-${fn}`).sort())
+      assert.deepEqual(everyFunction.map(([, fn]) => fn.Properties.FunctionName).sort(), [...FUNCTIONS, ORIGIN_VERIFIER, NOTIFIER].map((fn) => `dian-einvoice-${stage}-${fn}`).sort())
+      assert.deepEqual(functions.map(([, fn]) => fn.Properties.FunctionName).sort(), FUNCTIONS.map((fn) => `dian-einvoice-${stage}-${fn}`).sort())
       const roles = new Set<string>()
 
       for (const [id, fn] of functions) {
@@ -129,7 +139,7 @@ for (const stage of ['local', 'prod'] as const) {
       assert.ok(verifier !== undefined)
       const fn = verifier[1].Properties
       assert.equal(fn.Runtime, 'nodejs24.x')
-      assert.equal(fn.Handler, 'origin-verifier/dist/handler.handler')
+      assert.equal(fn.Handler, 'origin-verifier/dist/origin-verifier/handler.handler')
       assert.equal(fn.PackageType, undefined)
       assert.ok((fn.Code as { S3Key?: string }).S3Key?.endsWith('.zip'))
       assert.equal(fn.VpcConfig, undefined)
@@ -138,13 +148,94 @@ for (const stage of ['local', 'prod'] as const) {
       assert.ok(Number(fn.ReservedConcurrentExecutions) >= 1)
       assert.equal(body.Parameters[parameterOf(fn.Role) ?? '']?.Default, `/dian-einvoice/${stage}/compute/roles/${ORIGIN_VERIFIER}`)
       const environment = (fn.Environment as { Variables: Record<string, unknown> }).Variables
-      assert.deepEqual(Object.keys(environment).sort(), ['AWS_ENDPOINT_URL', 'ORIGIN_SECRET_ID'])
+      assert.deepEqual(Object.keys(environment).sort(), ['AWS_ENDPOINT_URL', 'ORIGIN_SECRET_ID', 'STAGE'])
       assert.equal(body.Parameters[parameterOf(environment.ORIGIN_SECRET_ID) ?? '']?.Default, `/dian-einvoice/${stage}/security/origin-secret-arn`)
 
-      // Only its build goes in the zip.
+      // Only the builds of the two functions of Node.js go in the zip, each with the logger they share.
       const zip = readFileSync(join(directory, '.package', stage, 'dian-einvoice.zip'))
-      const names = [...zip.toString('latin1').matchAll(/origin-verifier\/dist\/[A-Za-z0-9_-]+\.mjs/g)].map((match) => match[0])
-      assert.deepEqual([...new Set(names)].sort(), ['origin-verifier/dist/handler.mjs', 'origin-verifier/dist/verify.mjs'])
+      const names = [...zip.toString('latin1').matchAll(/[a-z-]+\/dist\/[a-z-]+\/[A-Za-z0-9_-]+\.mjs/g)].map((match) => match[0])
+      assert.deepEqual([...new Set(names)].sort(), [
+        'notifier/dist/notifier/handler.mjs', 'notifier/dist/notifier/notify.mjs', 'notifier/dist/shared/log.mjs',
+        'origin-verifier/dist/origin-verifier/handler.mjs', 'origin-verifier/dist/origin-verifier/verify.mjs', 'origin-verifier/dist/shared/log.mjs',
+      ])
+    })
+
+    it('subscribe the notifier, a small function of Node.js outside any VPC, to the topic of the alarms, with a dead-letter queue', () => {
+      assert.ok(notifier !== undefined)
+      const [notifierId, resource] = notifier
+      const fn = resource.Properties
+      assert.equal(fn.Runtime, 'nodejs24.x')
+      assert.equal(fn.Handler, 'notifier/dist/notifier/handler.handler')
+      assert.equal(fn.PackageType, undefined)
+      assert.equal(fn.VpcConfig, undefined)
+      assert.equal(fn.MemorySize, 128)
+      assert.ok(Number(fn.Timeout) <= 30)
+      assert.ok(Number(fn.ReservedConcurrentExecutions) >= 1)
+      assert.equal(body.Parameters[parameterOf(fn.Role) ?? '']?.Default, `/dian-einvoice/${stage}/compute/roles/${NOTIFIER}`)
+
+      // The address of the chat webhook from its secret, its own dead-letter queue, nothing of the application.
+      const environment = (fn.Environment as { Variables: Record<string, unknown> }).Variables
+      assert.deepEqual(Object.keys(environment).sort(), ['AWS_ENDPOINT_URL', 'DEAD_LETTER_QUEUE_URL', 'STAGE', 'WEBHOOK_SECRET_ID'])
+      assert.equal(body.Parameters[parameterOf(environment.WEBHOOK_SECRET_ID) ?? '']?.Default, `/dian-einvoice/${stage}/alerts/chat-webhook-secret-arn`)
+      assert.equal(body.Parameters[parameterOf(environment.DEAD_LETTER_QUEUE_URL) ?? '']?.Default, `/dian-einvoice/${stage}/alerts/notifier-dlq-url`)
+
+      // Its asynchronous invocations retry twice and then go to the dead-letter queue; so does what SNS cannot hand it.
+      const invoke = resources(body, 'AWS::Lambda::EventInvokeConfig').find(([, candidate]) => parameterOf(candidate.Properties.FunctionName) === notifierId)?.[1]
+      assert.equal(invoke?.Properties.MaximumRetryAttempts, 2)
+      const deadLetters = `/dian-einvoice/${stage}/alerts/notifier-dlq-arn`
+      assert.equal(body.Parameters[parameterOf((invoke?.Properties.DestinationConfig as { OnFailure: { Destination: unknown } }).OnFailure.Destination) ?? '']?.Default, deadLetters)
+
+      const subscriptions = resources(body, 'AWS::SNS::Subscription')
+      assert.equal(subscriptions.length, 1)
+      const subscription = subscriptions[0]?.[1].Properties as { TopicArn: unknown, Protocol: string, Endpoint: unknown, RedrivePolicy: { deadLetterTargetArn: unknown } }
+      assert.equal(subscription.Protocol, 'lambda')
+      assert.deepEqual(subscription.Endpoint, { 'Fn::GetAtt': [notifierId, 'Arn'] })
+      assert.equal(body.Parameters[parameterOf(subscription.TopicArn) ?? '']?.Default, `/dian-einvoice/${stage}/alerts/alarms-topic-arn`)
+      assert.equal(body.Parameters[parameterOf(subscription.RedrivePolicy.deadLetterTargetArn) ?? '']?.Default, deadLetters)
+
+      // Only the topic of the alarms invokes it.
+      const permission = resources(body, 'AWS::Lambda::Permission').find(([, candidate]) => candidate.Properties.Principal === 'sns.amazonaws.com')?.[1].Properties
+      assert.deepEqual(permission?.FunctionName, { 'Fn::GetAtt': [notifierId, 'Arn'] })
+      assert.deepEqual(permission?.SourceArn, subscription.TopicArn)
+    })
+
+    it('give every function a log group with its retention, with the system logs of Lambda and the access logs of API Gateway in JSON', () => {
+      const groups = resources(body, 'AWS::Logs::LogGroup').map(([, group]) => group.Properties as { LogGroupName: string, RetentionInDays: number })
+
+      for (const [id, fn] of everyFunction) {
+        const group = groups.find((candidate) => candidate.LogGroupName === `/aws/lambda/${String(fn.Properties.FunctionName)}`)
+        assert.ok(group !== undefined, `${id} has its log group`)
+        assert.equal(group.RetentionInDays, LOG_RETENTION[stage], id)
+        assert.deepEqual(fn.Properties.LoggingConfig, { LogFormat: 'JSON', SystemLogLevel: 'INFO' }, id)
+      }
+
+      // One JSON object per request, without its query, its headers or the address it came from.
+      const stageResource = resources(body, 'AWS::ApiGatewayV2::Stage')[0]?.[1].Properties as { AccessLogSettings: { Format: string, DestinationArn: unknown } }
+      const format = JSON.parse(stageResource.AccessLogSettings.Format) as Record<string, string>
+      assert.ok(Object.values(format).every((value) => value.startsWith('$context.')), 'every field is a value of API Gateway')
+      assert.ok(['requestId', 'status', 'responseLatency', 'integrationLatency', 'authorizerError'].every((field) => field in format))
+      assert.ok(!Object.values(format).some((value) => /sourceIp|querystring|header|userAgent/i.test(value)), 'no address, query or header of the client')
+      assert.equal(groups.find((group) => group.LogGroupName === `/aws/http-api/dian-einvoice-${stage}-functions`)?.RetentionInDays, LOG_RETENTION[stage])
+    })
+
+    it('make the application log one JSON object per line, and run php artisan through the handler of the application', () => {
+      for (const [id, fn] of functions) {
+        const environment = (fn.Properties.Environment as { Variables: Record<string, unknown> }).Variables
+        assert.equal(environment.LOG_CHANNEL, 'stderr', id)
+        assert.equal(environment.LOG_STDERR_FORMATTER, 'App\\Support\\Observability\\JsonLogFormatter', id)
+        assert.equal(environment.APP_STAGE, stage, id)
+        assert.equal(environment.LOG_REQUESTS, 'true', id)
+        assert.equal(environment.LOG_JOBS, 'true', id)
+        assert.equal(environment.BREF_LARAVEL_OMIT_INITLOG, '1', id)
+
+        // No function runs the console runtime of Bref, which prints what a command prints into the log.
+        const command = (fn.Properties.ImageConfig as { Command: string[] }).Command
+        assert.notEqual(environment.BREF_RUNTIME, 'console', id)
+
+        if (['relay', 'scheduler', 'console'].some((name) => String(fn.Properties.FunctionName).endsWith(`-${name}`))) {
+          assert.deepEqual([environment.BREF_RUNTIME, command], ['function', ['App\\Support\\Lambda\\ArtisanHandler']], id)
+        }
+      }
     })
 
     it('publish the id of the HTTP API for the stack edge of the CDK app, and run the application behind the edge', () => {
@@ -238,6 +329,7 @@ for (const stage of ['local', 'prod'] as const) {
       }
 
       assert.equal(verifier?.[1].Properties.VpcConfig, undefined, 'the origin verifier runs outside the VPC')
+      assert.equal(notifier?.[1].Properties.VpcConfig, undefined, 'the notifier runs outside the VPC')
     })
 
     it('give the migrations identity of the database to the console function only, and the application identity to every other one', () => {

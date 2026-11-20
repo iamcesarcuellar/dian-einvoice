@@ -31,6 +31,8 @@ use App\Support\Health\SchedulerHeartbeat;
 use App\Support\Json;
 use App\Support\Keys\KeyStoreEntry;
 use App\Support\Keys\KmsKeyStoreEntry;
+use App\Support\Observability\Correlation;
+use App\Support\Observability\LogSchema;
 use App\Support\Outbox\Outbox;
 use App\Support\Outbox\OutboxEvent;
 use App\Support\Outbox\OutboxSubscribers;
@@ -64,6 +66,10 @@ use Throwable;
  *    app, signs in with the session cookie and the CSRF token, downloads the XML, the PDF and the zip of an
  *    invoice and checks their SHA-256, calls the API with a key (a 403 stays a problem of the API), and
  *    checks that an address the client writes does not change the one the rate limits count;
+ *  - traced: through the edge, with an API key, as an integration would, issues one invoice and prints the
+ *    correlation id the answer carried and the document, once the invoice is accepted, delivered and notified,
+ *    for make cloud-check to follow it in the logs of the functions with the saved query; an id the client
+ *    sends is kept when it has the form of one and replaced otherwise;
  *  - partial: sends the chain queue, in one batch, a message no handler can read with a few valid ones:
  *    the valid ones run once and the unreadable one ends in the dead-letter queue (on Floci 2.5.0, which
  *    holds a failed record for the visibility timeout of its queue, it is received again and purged);
@@ -86,8 +92,8 @@ use Throwable;
 final class CloudCheckCommand extends Command
 {
     protected $signature = 'cloud:check
-        {action : start, fast, partial, chaos, finish, identities, rotation or cleanup}
-        {company? : The id start printed, for fast, chaos, finish and cleanup}
+        {action : start, fast, traced, partial, chaos, finish, identities, rotation or cleanup}
+        {company? : The id start printed, for fast, traced, chaos, finish and cleanup}
         {--invoices=30 : Invoices to issue (start and chaos)}
         {--until-accepted=3 : chaos returns once this many of its invoices are accepted, so the functions die mid-process}
         {--timeout=300 : Seconds fast and finish wait for every invoice to be accepted and delivered}';
@@ -137,6 +143,7 @@ final class CloudCheckCommand extends Command
         $result = match ($this->argument('action')) {
             'start' => $this->start($cloud),
             'fast' => $this->withCompany(fn (TemporaryCompany $company) => $this->fast($company)),
+            'traced' => $this->withCompany(fn (TemporaryCompany $company) => $this->traced($company)),
             'partial' => $this->partial($cloud),
             'chaos' => $this->withCompany(fn (TemporaryCompany $company) => $this->chaos($company)),
             'finish' => $this->finish($cloud),
@@ -157,7 +164,7 @@ final class CloudCheckCommand extends Command
 
     private function unknownAction(): int
     {
-        $this->error('The action is start, fast, partial, chaos, finish, identities, rotation or cleanup.');
+        $this->error('The action is start, fast, traced, partial, chaos, finish, identities, rotation or cleanup.');
 
         return self::FAILURE;
     }
@@ -265,6 +272,55 @@ final class CloudCheckCommand extends Command
         $this->verify($events->isNotEmpty() && $slow->isEmpty(), sprintf('The writers published all %d outbox events of these invoices as they committed (the fast path); none waited for the relay function, which takes events older than %d s (%d did).', $events->count(), $after, $slow->count()));
 
         $this->http($temporary, $documents);
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * One invoice issued through the edge with an API key, whose journey make cloud-check follows in the logs: the
+     * correlation id of the answer, once the invoice is accepted, delivered and its webhooks arrived. The id a
+     * client sends is kept only when it has the form of one.
+     */
+    private function traced(TemporaryCompany $temporary): int
+    {
+        $api = rtrim((string) config('developers.api_check_url'), '/');
+        $companyId = $temporary->company->id;
+        $customer = Contact::query()->find(Cache::get($this->key($companyId, 'customer')));
+
+        if (! $customer instanceof Contact) {
+            $this->error('The customer of start is gone.');
+
+            return self::FAILURE;
+        }
+
+        $header = LogSchema::correlationHeader();
+        $chosen = Correlation::generate();
+        $kept = Http::withHeaders([$header => $chosen])->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/health');
+        $replaced = Http::withHeaders([$header => 'not-a-correlation-id; a client wrote it'])->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/health');
+        $this->verify(
+            $kept->header($header) === $chosen && Correlation::valid($replaced->header($header)) && $replaced->header($header) !== $chosen,
+            sprintf('Through the edge the API answers %s on every request: the id a client sends is kept when it has the form of one (%s), replaced otherwise (%s).', $header, $kept->header($header) === $chosen ? 'kept' : 'NOT kept', Correlation::valid($replaced->header($header)) ? 'replaced' : 'NOT replaced'),
+        );
+
+        $draft = app(DocumentDrafts::class)->create(DocumentType::Invoice, [
+            'contact_id' => $customer->id,
+            'number_template_id' => $temporary->numbering()->id,
+            'lines' => [['description' => 'Cloud check traced service', 'quantity' => '1', 'unit_price' => '42000', 'tax_id' => $temporary->iva()]],
+        ], $temporary->user);
+        [, $key] = app(ApiKeys::class)->create('Cloud check (traced)', ApiKeyLevel::ReadWrite, creator: $temporary->user);
+        $issued = Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->post("{$api}/invoices/{$draft->id}/issue");
+        $correlation = $issued->header($header);
+        $this->verify(
+            $issued->successful() && $this->throughApiGateway($issued) && Correlation::valid($correlation),
+            sprintf('An invoice issued through the edge with an API key (HTTP %d) answers the correlation id of its journey in %s: %s.', $issued->status(), $header, $correlation === '' ? 'none' : $correlation),
+        );
+
+        $this->waitForChain($companyId, [$draft->id]);
+        $document = $draft->refresh();
+        $this->verify($document->electronic_status?->value === 'accepted' && $document->delivery_status === DeliveryStatus::Delivered, sprintf('The traced invoice %s was accepted and delivered.', $document->full_number));
+
+        $this->line("correlation: {$correlation}");
+        $this->line("document: {$document->id}");
 
         return self::SUCCESS;
     }

@@ -16,5 +16,5 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["*.mts", "test/*.mts"]
+  "include": ["*.mts", "test/*.mts", "../shared/*.mts"]
 }

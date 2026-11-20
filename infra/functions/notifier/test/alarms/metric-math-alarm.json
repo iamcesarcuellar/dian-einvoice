@@ -1,0 +1,27 @@
+{
+  "AlarmName": "dian-einvoice-prod-dian-error-rate",
+  "AlarmDescription": "More than 20% of the calls to the DIAN in 5 minutes, of 5 or more, got no validation result, for 10 minutes: the DIAN or the way out to it is failing, and the chain waits on its retries. Runbook: docs/runbooks/dian-errors.md",
+  "AWSAccountId": "111111111111",
+  "NewStateValue": "ALARM",
+  "NewStateReason": "Threshold Crossed: 2 out of the last 2 datapoints [45.0 (20/11/26 20:55:00), 33.3 (20/11/26 20:50:00)] were greater than the threshold (20.0) (minimum 2 datapoints for OK -> ALARM transition).",
+  "StateChangeTime": "2026-11-20T21:00:30.123+0000",
+  "Region": "US East (N. Virginia)",
+  "AlarmArn": "arn:aws:cloudwatch:us-east-1:111111111111:alarm:dian-einvoice-prod-dian-error-rate",
+  "OldStateValue": "OK",
+  "OKActions": ["arn:aws:sns:us-east-1:111111111111:dian-einvoice-prod-alarms"],
+  "AlarmActions": ["arn:aws:sns:us-east-1:111111111111:dian-einvoice-prod-alarms"],
+  "InsufficientDataActions": [],
+  "Trigger": {
+    "Period": 300,
+    "EvaluationPeriods": 2,
+    "ComparisonOperator": "GreaterThanThreshold",
+    "Threshold": 20.0,
+    "TreatMissingData": "notBreaching",
+    "EvaluateLowSampleCountPercentile": "",
+    "Metrics": [
+      { "Expression": "IF(calls >= 5, 100 * errors / calls, 0)", "Id": "expr_1", "Label": "Calls to the DIAN without a result (%)", "ReturnData": true },
+      { "Id": "calls", "MetricStat": { "Metric": { "Dimensions": [], "MetricName": "DianCalls", "Namespace": "dian-einvoice/prod" }, "Period": 300, "Stat": "Sum", "Unit": "Count" }, "ReturnData": false },
+      { "Id": "errors", "MetricStat": { "Metric": { "Dimensions": [], "MetricName": "DianErrors", "Namespace": "dian-einvoice/prod" }, "Period": 300, "Stat": "Sum", "Unit": "Count" }, "ReturnData": false }
+    ]
+  }
+}

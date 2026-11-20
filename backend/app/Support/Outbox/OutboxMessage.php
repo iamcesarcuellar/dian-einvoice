@@ -2,6 +2,7 @@
 
 namespace App\Support\Outbox;
 
+use App\Support\Observability\Correlation;
 use Illuminate\Support\Carbon;
 use JsonException;
 use Throwable;
@@ -11,7 +12,8 @@ use Throwable;
  * and the attribute "type" carries its type, which the subscriptions of the topic filter on. The
  * subscriptions deliver raw messages, so the SQS message has the same body and attributes. A retry
  * scheduled for later carries available_at; the consumer leaves such a message invisible in its queue
- * until then.
+ * until then. The correlation id of its journey goes in the body and as an attribute, so the consumer, and
+ * whoever reads the message, can follow it.
  */
 final class OutboxMessage
 {
@@ -20,6 +22,9 @@ final class OutboxMessage
 
     /** Message attribute with the company of the event. */
     public const string COMPANY = 'company_id';
+
+    /** Message attribute with the correlation id of the journey of the event. */
+    public const string CORRELATION = 'correlation_id';
 
     /** Longest wait SQS allows for one receive: 12 hours. */
     public const int MAX_VISIBILITY = 43_200;
@@ -37,6 +42,7 @@ final class OutboxMessage
             'MessageAttributes' => [
                 self::TYPE => ['DataType' => 'String', 'StringValue' => $event->type],
                 self::COMPANY => ['DataType' => 'String', 'StringValue' => $event->company_id],
+                ...($event->correlationId() === null ? [] : [self::CORRELATION => ['DataType' => 'String', 'StringValue' => $event->correlationId()]]),
             ],
         ];
     }
@@ -49,6 +55,7 @@ final class OutboxMessage
             'aggregate_type' => $event->aggregate_type,
             'aggregate_id' => $event->aggregate_id,
             'type' => $event->type,
+            'correlation_id' => $event->correlationId(),
             'payload' => $event->payload === [] ? (object) [] : $event->payload,
             'created_at' => ($event->created_at ?? Carbon::now())->toIso8601ZuluString('microsecond'),
             'available_at' => $event->available_at?->toIso8601ZuluString('microsecond'),
@@ -118,11 +125,26 @@ final class OutboxMessage
             'aggregate_type' => $data['aggregate_type'],
             'aggregate_id' => $data['aggregate_id'],
             'type' => $type,
+            // A journey of the form of one, from the body or its attribute; null for messages written before.
+            'correlation_id' => Correlation::accept(is_string($data['correlation_id'] ?? null) ? $data['correlation_id'] : self::attribute($message, self::CORRELATION)),
             'payload' => json_encode($data['payload'], JSON_THROW_ON_ERROR),
             'created_at' => $createdAt->format('Y-m-d H:i:s'),
             'available_at' => $available?->format('Y-m-d H:i:s'),
             'published_at' => null,
         ]);
+    }
+
+    /**
+     * A string attribute of an SQS message, or null.
+     *
+     * @param  array<mixed>  $message
+     */
+    public static function attribute(array $message, string $name): ?string
+    {
+        $attributes = is_array($message['MessageAttributes'] ?? null) ? $message['MessageAttributes'] : [];
+        $attribute = is_array($attributes[$name] ?? null) ? $attributes[$name] : [];
+
+        return is_string($attribute['StringValue'] ?? null) ? $attribute['StringValue'] : null;
     }
 
     /** Seconds until the event may be handled; 0 when it is due. */

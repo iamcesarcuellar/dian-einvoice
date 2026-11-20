@@ -2,11 +2,13 @@
 
 namespace App\Support\Outbox;
 
+use App\Support\Observability\Correlation;
 use Illuminate\Contracts\Bus\Dispatcher;
 
 /**
  * Local adapter of OutboxPublisher: the jobs every subscriber of an event starts are dispatched to the
- * queue (Redis), delayed until available_at when it is in the future.
+ * queue (Redis), delayed until available_at when it is in the future, inside the journey of the event, which
+ * their payloads carry to the worker (Laravel's Context).
  */
 final class QueueOutboxPublisher implements OutboxPublisher
 {
@@ -20,13 +22,15 @@ final class QueueOutboxPublisher implements OutboxPublisher
         foreach ($events as $event) {
             $delayed = $event->available_at !== null && $event->available_at->isFuture();
 
-            foreach ($this->subscribers->jobsFor($event) as $job) {
-                if ($delayed && method_exists($job, 'delay')) {
-                    $job->delay($event->available_at);
-                }
+            Correlation::within($event->correlationId(), function () use ($event, $delayed): void {
+                foreach ($this->subscribers->jobsFor($event) as $job) {
+                    if ($delayed && method_exists($job, 'delay')) {
+                        $job->delay($event->available_at);
+                    }
 
-                $this->bus->dispatch($job);
-            }
+                    $this->bus->dispatch($job);
+                }
+            });
         }
     }
 }

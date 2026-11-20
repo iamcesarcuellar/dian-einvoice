@@ -2,6 +2,7 @@
 
 namespace App\Support\Outbox\Sqs;
 
+use App\Support\Observability\Correlation;
 use App\Support\Outbox\OutboxMessage;
 use App\Support\Outbox\OutboxSubscribers;
 use App\Support\Outbox\UnreadableMessage;
@@ -94,7 +95,7 @@ final class SqsEventsQueue extends SqsQueue
         try {
             $payload = $this->payloadOf($message, $url);
         } catch (UnreadableMessage $exception) {
-            $payload = $this->createPayload(new RejectUnreadableMessage($url, $this->messageId($message), $exception->getMessage()), $url);
+            $payload = Correlation::within(OutboxMessage::attribute($message, OutboxMessage::CORRELATION), fn (): string => $this->createPayload(new RejectUnreadableMessage($url, $this->messageId($message), $exception->getMessage()), $url));
         }
 
         if ($payload === null) {
@@ -159,7 +160,8 @@ final class SqsEventsQueue extends SqsQueue
             throw new UnreadableMessage(sprintf('%d jobs of the %s queue take events of type %s; exactly one must.', count($jobs), is_string($channel) ? $channel : $url, $event->type));
         }
 
-        return $this->createPayload($jobs[0], $url);
+        // The payload carries the journey of the event (Laravel's Context), which the job resumes as it runs.
+        return Correlation::within($event->correlationId(), fn (): string => $this->createPayload($jobs[0], $url));
     }
 
     /**

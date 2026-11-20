@@ -30,6 +30,8 @@ final class ProblemResponses
         $schema->addProperty('status', (new IntegerType)->example($status));
         $schema->addProperty('detail', (new StringType)->setDescription('What went wrong, in a sentence for people.'));
         $schema->addProperty('instance', (new StringType)->setDescription('The path of the request.')->example('/api/v1/invoices'));
+        $schema->addProperty('request_id', (new StringType)->setDescription('The X-Request-Id of the answer, which the logs carry: quote it when asking about a request.'));
+        $schema->addProperty('correlation_id', (new StringType)->setDescription('The X-Correlation-Id of the answer: the id of the journey of the request, which every log line, event, webhook and email of it carries.')->example('01jcz9w6n8s0k3q4r5t6v7w8x9'));
 
         $required = ['type', 'title', 'status', 'instance'];
 

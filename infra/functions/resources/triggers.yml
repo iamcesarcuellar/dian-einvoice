@@ -1,7 +1,7 @@
-# The triggers of the consumers and of the scheduled functions, written as CloudFormation: the queues come
-# from parameters of the template (osls names a mapping after the ARN it is given, which a parameter is
-# not), and the schedules retry nothing (osls sets no retry policy on a schedule). The trigger of the API
-# is its httpApi event in serverless.yml.
+# The triggers of the consumers, of the scheduled functions and of the notifier, written as CloudFormation: the
+# queues and the topic come from parameters of the template (osls names a mapping or a subscription after the ARN
+# it is given, which a parameter is not), and the schedules retry nothing (osls sets no retry policy on a
+# schedule). The trigger of the API is its httpApi event in serverless.yml.
 Resources:
   # Batches of up to 10 messages, as soon as there are any (no batching window: each step of the chain
   # waits for the previous one), with a partial batch response, so a message that fails never sends the
@@ -30,7 +30,7 @@ Resources:
       Enabled: true
 
   # Once a minute, invoked asynchronously with the role of the stack compute. The event is the command
-  # line of php artisan (the console runtime of Bref). A run that fails is not retried, by the schedule
+  # line of php artisan (App\Support\Lambda\ArtisanHandler). A run that fails is not retried, by the schedule
   # or by the invocation (maximumRetryAttempts of the function): the next minute is its retry.
   RelaySchedule:
     Type: AWS::Scheduler::Schedule
@@ -64,3 +64,21 @@ Resources:
         RetryPolicy:
           MaximumRetryAttempts: 0
           MaximumEventAgeInSeconds: 60
+
+  # The notifier takes every notification of the topic of the alarms (stack alerts). What SNS cannot hand it, after
+  # its own retries, goes to the dead-letter queue of the notifier; only that topic may invoke it.
+  NotifierAlarmsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmsTopicArn
+      Protocol: lambda
+      Endpoint: !GetAtt NotifierLambdaFunction.Arn
+      RedrivePolicy:
+        deadLetterTargetArn: !Ref NotifierDeadLetterQueueArn
+  NotifierAlarmsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt NotifierLambdaFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref AlarmsTopicArn

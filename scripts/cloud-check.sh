@@ -24,7 +24,12 @@
 #  9. everything ends accepted, delivered and notified once, the relay function published the event left
 #     behind, the scheduler ran, and the AWS services hold what they should;
 # 10. a simulated rotation of the application identity, twice, with the functions warm: requests and
-#     invoices work before and after each, and the functions whose password went read their secret again.
+#     invoices work before and after each, and the functions whose password went read their secret again;
+# 11. the observability: every line the functions wrote during the check is JSON in the schema of the log lines;
+#     an invoice issued through the edge in step 6 is followed with the saved query by the X-Correlation-Id its
+#     client got, through api, chain and webhooks; no log holds a secret or personal data; a metric filter produced
+#     its metric; and a state forced on an alarm reaches the chat through the notifier (the real evaluation of an
+#     alarm, which takes a minute or more, is make cloud-alarm-check).
 # Every step runs in the console function; the temporary companies are deleted at the end, whatever happens.
 set -eu
 
@@ -35,6 +40,9 @@ company=""
 finished=0
 status=0
 started=$(date +%s)
+# The lines the functions write from now on are the lines of the check (step 11).
+since_ms=$((started * 1000))
+correlation=""
 
 tools() {
   $compose run --rm --no-deps -T functions-deploy "$@"
@@ -137,6 +145,9 @@ if [ -z "$company" ]; then
 fi
 
 step console cloud:check fast "$company" --timeout=300
+traced=$(console cloud:check traced "$company" --timeout=300) || status=1
+echo "$traced"
+correlation=$(echo "$traced" | sed -n 's/^correlation: //p' | tail -1)
 elapsed
 
 echo "7. A partial batch response"
@@ -156,6 +167,15 @@ elapsed
 
 echo "10. A rotation of the application identity, twice, with the functions warm"
 step console cloud:check rotation --timeout=300
+elapsed
+
+echo "11. The observability: the logs of the functions, a metric and the path of an alarm"
+if [ -n "$correlation" ]; then
+  step tools node scripts/observability.mjs check "$since_ms" "$correlation"
+else
+  echo "   FAIL  Step 6 printed no correlation id to follow."
+  status=1
+fi
 elapsed
 
 if [ "$status" -ne 0 ]; then

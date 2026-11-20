@@ -111,3 +111,23 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /dian-einvoice/${sls:stage}/mail/from-address
     Description: Sender address of the email of the platform (stack mail)
+  NotifierRoleArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/compute/roles/notifier
+    Description: Role of the function notifier, which turns the alarms into messages (stack compute)
+  AlarmsTopicArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/alerts/alarms-topic-arn
+    Description: Topic every alarm publishes to, which the notifier subscribes to (stack alerts)
+  ChatWebhookSecretArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/alerts/chat-webhook-secret-arn
+    Description: Secret of the address of the chat webhook the notifier posts to (stack alerts)
+  NotifierDeadLetterQueueArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/alerts/notifier-dlq-arn
+    Description: Dead-letter queue of the notifier (stack alerts)
+  NotifierDeadLetterQueueUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dian-einvoice/${sls:stage}/alerts/notifier-dlq-url
+    Description: URL of the dead-letter queue of the notifier (stack alerts)

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { Match } from 'aws-cdk-lib/assertions'
 import { FUNCTION_ACCESS, SCHEDULED_FUNCTIONS } from '../lib/compute-stack.ts'
-import { FUNCTIONS, MIGRATIONS_FUNCTION, ORIGIN_VERIFIER, STAGES } from '../lib/stage.ts'
+import { FUNCTIONS, MIGRATIONS_FUNCTION, NOTIFIER, ORIGIN_VERIFIER, STAGES } from '../lib/stage.ts'
 import { stageOf, template } from './support.ts'
 
 interface RoleProperties {
@@ -52,8 +52,8 @@ for (const name of ['local', 'prod'] as const) {
         }
       }
 
-      // The functions of the application, the origin verifier and EventBridge Scheduler.
-      assert.equal(roles.length, FUNCTIONS.length + 2)
+      // The functions of the application, the origin verifier, the notifier and EventBridge Scheduler.
+      assert.equal(roles.length, FUNCTIONS.length + 3)
 
       // The secrets of the identities come from the parameters of the stack that holds them (security locally,
       // database in prod), which compute deploys after.
@@ -121,9 +121,25 @@ for (const name of ['local', 'prod'] as const) {
       compute.hasResourceProperties('AWS::SSM::Parameter', { Name: `/dian-einvoice/${name}/compute/roles/${ORIGIN_VERIFIER}` })
     })
 
+    it('gives the notifier of the alarms a role that may only read the secret of the chat webhook and send to its dead-letter queue', () => {
+      const role = roles.find((candidate) => candidate.Properties.RoleName === `${prefix}${NOTIFIER}-function`)?.Properties
+      assert.ok(role !== undefined)
+      assert.deepEqual(role.AssumeRolePolicyDocument.Statement.map((statement) => statement.Principal.Service), ['lambda.amazonaws.com'])
+      assert.equal(role.ManagedPolicyArns, undefined)
+
+      const statements = role.Policies.flatMap((policy) => policy.PolicyDocument.Statement)
+      const parameters = (compute.toJSON() as { Parameters?: Record<string, { Default?: string }> }).Parameters ?? {}
+      const parameterOf = (resource: unknown): string | undefined => parameters[String((resource as { Ref?: string }).Ref)]?.Default
+      assert.deepEqual(statements.map((statement) => statement.Action), [['logs:CreateLogStream', 'logs:PutLogEvents'], 'secretsmanager:GetSecretValue', 'sqs:SendMessage'])
+      assert.equal(statements[0]?.Resource, `arn:aws:logs:${config.region}:${config.account}:log-group:/aws/lambda/${prefix}${NOTIFIER}:*`)
+      assert.equal(parameterOf(statements[1]?.Resource), `/dian-einvoice/${name}/alerts/chat-webhook-secret-arn`)
+      assert.equal(parameterOf(statements[2]?.Resource), `/dian-einvoice/${name}/alerts/notifier-dlq-arn`)
+      compute.hasResourceProperties('AWS::SSM::Parameter', { Name: `/dian-einvoice/${name}/compute/roles/${NOTIFIER}` })
+    })
+
     it('deploys after the stacks whose policies its roles attach and whose parameters they read', () => {
       const dependencies = stacks.compute.dependencies.map((stack) => stack.stackName).sort()
-      assert.deepEqual(dependencies, [`${prefix}data`, ...(name === 'prod' ? [`${prefix}database`] : []), `${prefix}mail`, `${prefix}messaging`, `${prefix}security`, `${prefix}storage`])
+      assert.deepEqual(dependencies, [`${prefix}alerts`, `${prefix}data`, ...(name === 'prod' ? [`${prefix}database`] : []), `${prefix}mail`, `${prefix}messaging`, `${prefix}security`, `${prefix}storage`])
     })
   })
 }

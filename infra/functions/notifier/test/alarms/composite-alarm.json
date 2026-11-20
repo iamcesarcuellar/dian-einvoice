@@ -1,0 +1,15 @@
+{
+  "AlarmName": "dian-einvoice-prod-service-degraded",
+  "AlarmDescription": "The service is degraded: the API fails or is slow, the chain does not move, or the DIAN fails. The alarms in ALARM below it say where. Runbook: docs/runbooks/service-degraded.md",
+  "AWSAccountId": "111111111111",
+  "NewStateValue": "ALARM",
+  "NewStateReason": "arn:aws:cloudwatch:us-east-1:111111111111:alarm:dian-einvoice-prod-chain-dead-letters transitioned to ALARM at Thursday 20 November, 2026 21:00:12 UTC",
+  "StateChangeTime": "2026-11-20T21:00:13.456+0000",
+  "Region": "US East (N. Virginia)",
+  "AlarmArn": "arn:aws:cloudwatch:us-east-1:111111111111:alarm:dian-einvoice-prod-service-degraded",
+  "OldStateValue": "OK",
+  "AlarmRule": "ALARM(\"dian-einvoice-prod-api-server-errors\") OR ALARM(\"dian-einvoice-prod-chain-dead-letters\")",
+  "TriggeringChildren": [
+    { "Arn": "arn:aws:cloudwatch:us-east-1:111111111111:alarm:dian-einvoice-prod-chain-dead-letters", "State": { "Value": "ALARM", "Timestamp": "2026-11-20T21:00:12.345+0000" } }
+  ]
+}

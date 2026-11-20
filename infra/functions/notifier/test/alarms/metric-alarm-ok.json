@@ -1,0 +1,30 @@
+{
+  "AlarmName": "dian-einvoice-prod-relay-not-running",
+  "AlarmDescription": "The relay has not run for 3 minutes: events the fast path leaves behind wait, and their chains stop. Runbook: docs/runbooks/outbox-relay.md",
+  "AWSAccountId": "111111111111",
+  "AlarmConfigurationUpdatedTimestamp": "2026-11-20T15:00:00.000+0000",
+  "NewStateValue": "OK",
+  "NewStateReason": "Threshold Crossed: 3 out of the last 3 datapoints [1.0 (20/11/26 21:04:00), 1.0 (20/11/26 21:03:00), 1.0 (20/11/26 21:02:00)] were not less than the threshold (1.0) (minimum 3 datapoints for ALARM -> OK transition).",
+  "StateChangeTime": "2026-11-20T21:05:01.002+0000",
+  "Region": "US East (N. Virginia)",
+  "AlarmArn": "arn:aws:cloudwatch:us-east-1:111111111111:alarm:dian-einvoice-prod-relay-not-running",
+  "OldStateValue": "ALARM",
+  "OKActions": ["arn:aws:sns:us-east-1:111111111111:dian-einvoice-prod-alarms"],
+  "AlarmActions": ["arn:aws:sns:us-east-1:111111111111:dian-einvoice-prod-alarms"],
+  "InsufficientDataActions": [],
+  "Trigger": {
+    "MetricName": "RelayRuns",
+    "Namespace": "dian-einvoice/prod",
+    "StatisticType": "Statistic",
+    "Statistic": "SUM",
+    "Unit": "Count",
+    "Dimensions": [],
+    "Period": 60,
+    "EvaluationPeriods": 3,
+    "DatapointsToAlarm": 3,
+    "ComparisonOperator": "LessThanThreshold",
+    "Threshold": 1.0,
+    "TreatMissingData": "breaching",
+    "EvaluateLowSampleCountPercentile": ""
+  }
+}

@@ -9,6 +9,8 @@ use App\Modules\Developers\Models\WebhookDelivery;
 use App\Modules\Developers\Models\WebhookSubscription;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Tenancy\CurrentCompany;
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use App\Support\Outbox\ConsumesOutboxEvents;
 use App\Support\Outbox\Outbox;
 use App\Support\Outbox\OutboxEvent;
@@ -89,6 +91,16 @@ final class DeliverWebhook implements ConsumesOutboxEvents
             $result = $sender->send($url, $messageId, $body, $secret);
 
             DB::transaction(fn () => $this->record($attempt, $result, $policy, $outbox), 3);
+
+            // Never the URL, the body or the answer: the endpoint and its data belong to the company.
+            Telemetry::record(
+                LogEvent::WebhookDelivery,
+                sprintf('Webhook delivery attempt %d %s.', $attempt->attempt, $result->succeeded() ? 'succeeded' : "failed: {$result->outcome->value}"),
+                outcome: $result->succeeded() ? 'success' : 'failure',
+                durationMs: (float) $result->durationMs,
+                detail: ['status' => $result->statusCode, 'attempt' => $attempt->attempt, 'result' => $result->outcome->value],
+                level: $result->succeeded() ? 'info' : 'warning',
+            );
         });
     }
 

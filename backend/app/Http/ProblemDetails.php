@@ -3,6 +3,7 @@
 namespace App\Http;
 
 use App\Http\Middleware\AssignRequestId;
+use App\Support\Observability\Correlation;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -35,11 +36,18 @@ final class ProblemDetails
 
         $problem['instance'] = request()->getPathInfo();
 
-        // The id the logs carry for this request, so an answer can be traced without internal details.
+        // The ids the logs carry for this request and for its journey, so an answer can be traced without internal
+        // details (docs/observability.md).
         $requestId = AssignRequestId::current();
 
         if ($requestId !== null) {
             $problem['request_id'] = $requestId;
+        }
+
+        $correlationId = Correlation::current();
+
+        if ($correlationId !== null) {
+            $problem['correlation_id'] = $correlationId;
         }
 
         return new JsonResponse($problem + $extensions, $status, ['Content-Type' => self::CONTENT_TYPE] + $headers);

@@ -8,6 +8,8 @@ use App\Modules\Billing\Models\Document;
 use App\Modules\Billing\Services\InvoiceBalance;
 use App\Modules\Delivery\Pipeline\DeliveryPipeline;
 use App\Modules\Dian\Models\DianTransmission;
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -32,11 +34,11 @@ final class RecordDianResponse extends ChainStep
 
     public function process(ElectronicDocumentPipeline $pipeline, DeliveryPipeline $delivery, InvoiceBalance $balances): void
     {
-        DB::transaction(function () use ($pipeline, $delivery, $balances): void {
+        $recorded = DB::transaction(function () use ($pipeline, $delivery, $balances): ?array {
             $document = $pipeline->lock($this->documentId);
 
             if ($document === null || $document->electronic_run !== $this->run || ! $this->expects($document) || $this->transmissionId === null) {
-                return;
+                return null;
             }
 
             $transmission = DianTransmission::query()
@@ -45,7 +47,7 @@ final class RecordDianResponse extends ChainStep
                 ->first();
 
             if ($transmission === null || $transmission->run !== $document->electronic_run || $transmission->is_valid === null) {
-                return;
+                return null;
             }
 
             $accepted = $transmission->is_valid;
@@ -92,6 +94,46 @@ final class RecordDianResponse extends ChainStep
             if ($accepted) {
                 $delivery->start($document);
             }
+
+            return ['accepted' => $accepted, 'type' => $document->type->value, 'status_code' => $transmission->status_code, 'messages' => $messages];
         }, 3);
+
+        if ($recorded !== null) {
+            $this->log($recorded);
+        }
+    }
+
+    /**
+     * After the commit: the answer of the DIAN, and one line per rule that rejected the document or notified
+     * something about it, by its id (never the text of the DIAN, which may quote the document).
+     *
+     * @param  array{accepted: bool, type: string, status_code: string|null, messages: list<array{rule: string|null, kind: string, message: string}>}  $recorded
+     */
+    private function log(array $recorded): void
+    {
+        Telemetry::record(
+            LogEvent::DianResponse,
+            $recorded['accepted'] ? 'The DIAN accepted the document.' : 'The DIAN rejected the document.',
+            outcome: $recorded['accepted'] ? 'accepted' : 'rejected',
+            documentId: $this->documentId,
+            detail: ['status_code' => $recorded['status_code'], 'document_type' => $recorded['type'], 'count' => count($recorded['messages'])],
+            level: $recorded['accepted'] ? 'info' : 'warning',
+        );
+
+        foreach ($recorded['messages'] as $message) {
+            if ($message['rule'] === null) {
+                continue;
+            }
+
+            $rejection = $message['kind'] === 'rejection';
+            Telemetry::record(
+                LogEvent::DianRule,
+                sprintf('Rule %s of the DIAN %s the document.', $message['rule'], $rejection ? 'rejected' : 'notified about'),
+                outcome: $rejection ? 'rejected' : 'accepted',
+                documentId: $this->documentId,
+                detail: ['rule' => $message['rule'], 'document_type' => $recorded['type']],
+                level: $rejection ? 'warning' : 'info',
+            );
+        }
     }
 }

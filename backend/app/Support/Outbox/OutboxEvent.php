@@ -17,7 +17,7 @@ class OutboxEvent extends Model
     public const UPDATED_AT = null;
 
     /** @var list<string> */
-    protected $fillable = ['company_id', 'aggregate_type', 'aggregate_id', 'type', 'payload', 'available_at', 'published_at'];
+    protected $fillable = ['company_id', 'aggregate_type', 'aggregate_id', 'type', 'correlation_id', 'payload', 'available_at', 'published_at'];
 
     /**
      * @return array<string, string>
@@ -29,6 +29,17 @@ class OutboxEvent extends Model
             'available_at' => 'datetime',
             'published_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The journey of the event (App\Support\Observability\Correlation), or null: an event written before it existed,
+     * or one rebuilt from a message that carried none.
+     */
+    public function correlationId(): ?string
+    {
+        $value = $this->getAttributes()['correlation_id'] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     /** A field of the payload as text, or null when it is missing or not a scalar. */

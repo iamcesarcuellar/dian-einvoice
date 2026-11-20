@@ -2,6 +2,8 @@
 
 namespace App\Support\Outbox;
 
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -55,9 +57,16 @@ final class OutboxFastPath
 
         $ids = array_keys($this->recorded);
         $this->recorded = [];
+        $started = hrtime(true);
 
         try {
-            return $this->relay->publishEvents($ids);
+            $published = $this->relay->publishEvents($ids);
+
+            if ($published > 0) {
+                Telemetry::record(LogEvent::OutboxPublished, sprintf('Published %d outbox events after the commit of their writer.', $published), outcome: 'success', durationMs: Telemetry::since($started), detail: ['count' => $published, 'path' => 'fast']);
+            }
+
+            return $published;
         } catch (Throwable $exception) {
             // The change is committed and its events are safe in the outbox: report and go on.
             report($exception);

@@ -2,6 +2,9 @@
 
 namespace App\Modules\Dian\Transmission;
 
+use App\Support\Observability\Correlation;
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use App\Support\Xml\SafeXml;
 use App\Support\Xml\XmlRefused;
 use DOMDocument;
@@ -68,16 +71,41 @@ final class SoapDianGateway implements DianGateway
     }
 
     /**
+     * One call, and its line in the log (dian.call): the operation, the HTTP status, the time and how it ended,
+     * never the envelope or the answer, which carry the document.
+     *
      * @param  array<string, string>  $parameters
      */
     private function call(string $operation, array $parameters): GatewayCall
+    {
+        $call = $this->exchange($operation, $parameters);
+        $failed = $call->outcome->isTransient() || $call->outcome === TransmissionOutcome::ClientError;
+
+        Telemetry::record(
+            LogEvent::DianCall,
+            sprintf('%s to the DIAN ended %s%s.', $operation, $call->outcome->value, $call->httpStatus === null ? '' : " (HTTP {$call->httpStatus})"),
+            outcome: $failed ? 'failure' : 'success',
+            durationMs: (float) $call->durationMs,
+            detail: ['operation' => $operation, 'status' => $call->httpStatus, 'result' => $call->outcome->value],
+            level: $failed ? 'warning' : 'info',
+        );
+
+        return $call;
+    }
+
+    /**
+     * @param  array<string, string>  $parameters
+     */
+    private function exchange(string $operation, array $parameters): GatewayCall
     {
         $envelope = $this->envelope($operation, $parameters);
         $started = hrtime(true);
 
         try {
+            // The journey of the document travels with the call, in a header the service may ignore.
             $response = Http::connectTimeout($this->connectTimeout)
                 ->timeout($this->timeout)
+                ->withHeaders(Correlation::headers())
                 ->withBody($envelope, sprintf('application/soap+xml; charset=utf-8; action="%s"', self::ACTION.$operation))
                 ->post($this->url);
         } catch (Throwable $exception) {

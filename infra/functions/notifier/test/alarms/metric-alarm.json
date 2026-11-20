@@ -1,0 +1,30 @@
+{
+  "AlarmName": "dian-einvoice-prod-chain-dead-letters",
+  "AlarmDescription": "A message reached the dead-letter queue of the chain queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it. Runbook: docs/runbooks/dead-letters.md",
+  "AWSAccountId": "111111111111",
+  "AlarmConfigurationUpdatedTimestamp": "2026-11-20T15:00:00.000+0000",
+  "NewStateValue": "ALARM",
+  "NewStateReason": "Threshold Crossed: 1 out of the last 1 datapoints [3.0 (20/11/26 20:59:00)] was greater than the threshold (0.0) (minimum 1 datapoint for OK -> ALARM transition).",
+  "StateChangeTime": "2026-11-20T21:00:12.345+0000",
+  "Region": "US East (N. Virginia)",
+  "AlarmArn": "arn:aws:cloudwatch:us-east-1:111111111111:alarm:dian-einvoice-prod-chain-dead-letters",
+  "OldStateValue": "OK",
+  "OKActions": ["arn:aws:sns:us-east-1:111111111111:dian-einvoice-prod-alarms"],
+  "AlarmActions": ["arn:aws:sns:us-east-1:111111111111:dian-einvoice-prod-alarms"],
+  "InsufficientDataActions": [],
+  "Trigger": {
+    "MetricName": "ApproximateNumberOfMessagesVisible",
+    "Namespace": "AWS/SQS",
+    "StatisticType": "Statistic",
+    "Statistic": "MAXIMUM",
+    "Unit": null,
+    "Dimensions": [{ "value": "dian-einvoice-prod-chain-dlq", "name": "QueueName" }],
+    "Period": 60,
+    "EvaluationPeriods": 1,
+    "DatapointsToAlarm": 1,
+    "ComparisonOperator": "GreaterThanThreshold",
+    "Threshold": 0.0,
+    "TreatMissingData": "notBreaching",
+    "EvaluateLowSampleCountPercentile": ""
+  }
+}

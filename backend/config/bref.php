@@ -14,7 +14,8 @@ return [
         'route' => null,
     ],
 
-    // One log line per job processed, processed or failed, in the logs of the consumers.
-    'log_jobs' => true,
+    // The bridge would log "Processing job" and "Processed job" lines of its own for every job; the application
+    // writes one line per job in the schema of its logs instead (queue.job, docs/observability.md).
+    'log_jobs' => false,
 
 ];

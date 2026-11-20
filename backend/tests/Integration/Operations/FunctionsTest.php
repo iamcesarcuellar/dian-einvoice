@@ -4,6 +4,8 @@ namespace Tests\Integration\Operations;
 
 use App\Support\Cloud\CloudCheckProbe;
 use App\Support\Health\SchedulerHeartbeat;
+use App\Support\Observability\Correlation;
+use App\Support\Observability\JsonLogFormatter;
 use App\Support\Outbox\OutboxEvent;
 use App\Support\Outbox\OutboxMessage;
 use App\Support\Outbox\OutboxSubscribers;
@@ -28,8 +30,10 @@ use Illuminate\Queue\QueueManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Monolog\Handler\StreamHandler;
 use Tests\IntegrationTestCase;
 
 /**
@@ -88,6 +92,43 @@ final class FunctionsTest extends IntegrationTestCase
         $this->assertSame([], SqsEventsHandler::currentBatch());
     }
 
+    public function test_a_job_resumes_the_journey_of_its_event_and_writes_its_line_as_the_invocation(): void
+    {
+        $this->queue();
+        $log = storage_path('logs/functions-journey.log');
+        File::delete($log);
+        config([
+            'logging.channels.journey-test' => ['driver' => 'monolog', 'handler' => StreamHandler::class, 'with' => ['stream' => $log], 'formatter' => JsonLogFormatter::class, 'level' => 'debug'],
+            'logging.default' => 'journey-test',
+            'observability.jobs' => true,
+        ]);
+        $_SERVER['LAMBDA_REQUEST_ID'] = '8c1d0e2f-3a4b-4c5d-9e6f-7a8b9c0d1e2f';
+        $correlation = Correlation::generate();
+
+        // The journey of another job is in the Context of the process: the record starts from an empty one.
+        Correlation::begin();
+        $raw = $this->records()[0];
+        $raw['body'] = OutboxMessage::entry($this->event('invoice.issued', correlation: $correlation))['Message'];
+
+        try {
+            $answer = (new SqsEventsHandler(app()))->handle(['Records' => [$raw]], $this->context(seconds: 60));
+            $lines = array_values(array_filter(explode("\n", File::exists($log) ? File::get($log) : '')));
+        } finally {
+            unset($_SERVER['LAMBDA_REQUEST_ID']);
+            app('log')->forgetChannel('journey-test');
+            File::delete($log);
+        }
+
+        $this->assertNull($answer, 'No record failed.');
+        $jobs = array_values(array_filter(array_map(fn (string $line): array => (array) json_decode($line, true), $lines), fn (array $line): bool => ($line['event'] ?? null) === 'queue.job'));
+        $this->assertCount(1, $jobs);
+        $job = $jobs[0];
+        $detail = $job['detail'] ?? null;
+        $this->assertIsArray($detail);
+        $this->assertSame([$correlation, '8c1d0e2f-3a4b-4c5d-9e6f-7a8b9c0d1e2f', 'system', 'success', 'GenerateXml', 'chain'], [$job['correlation_id'] ?? null, $job['request_id'] ?? null, $job['actor'] ?? null, $job['outcome'] ?? null, $detail['job'] ?? null, $detail['queue'] ?? null]);
+        $this->assertIsFloat($job['duration_ms'] ?? null);
+    }
+
     public function test_a_record_whose_job_would_not_finish_before_the_deadline_goes_back_at_once(): void
     {
         $this->queue();
@@ -105,14 +146,16 @@ final class FunctionsTest extends IntegrationTestCase
 
     public function test_the_scheduled_event_runs_the_scheduler_whose_tasks_run_once_however_often_it_fires(): void
     {
-        // The Input of the schedule is the command line of php artisan, as the console runtime of Bref reads it.
+        // The Input of the schedule is the command line of php artisan, as the handler of the function reads it.
         $command = json_decode((string) file_get_contents(base_path('tests/Fixtures/Lambda/scheduled.json')), true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame('schedule:run', $command);
 
-        // The schedule of bootstrap/app.php, which the console kernel defines when it starts.
+        // The schedule of bootstrap/app.php, which the console kernel defines when it starts. Every task runs in the
+        // process of the scheduler, which logs what it does as JSON: none prints into the log of the function.
         $this->assertSame(0, Artisan::call('schedule:list'));
         $events = collect(app(Schedule::class)->events());
-        $sweep = $events->first(fn ($event): bool => str_contains((string) $event->command, 'outbox:sweep'));
+        $this->assertSame([], $events->reject(fn ($event): bool => $event instanceof CallbackEvent)->all(), 'No task runs as a process of its own.');
+        $sweep = $events->first(fn ($event): bool => $event instanceof CallbackEvent && $event->description === 'outbox-sweep');
         $heartbeat = $events->first(fn ($event): bool => $event instanceof CallbackEvent && $event->description === 'scheduler-heartbeat');
         $this->assertNotNull($sweep);
         $this->assertNotNull($heartbeat);
@@ -262,7 +305,7 @@ final class FunctionsTest extends IntegrationTestCase
     }
 
     /** An outbox event of a company that does not exist, as the relay publishes it, never saved. */
-    private function event(string $type, ?string $availableAt = null): OutboxEvent
+    private function event(string $type, ?string $availableAt = null, ?string $correlation = null): OutboxEvent
     {
         return (new OutboxEvent)->newFromBuilder([
             'id' => Str::lower((string) Str::ulid()),
@@ -270,6 +313,7 @@ final class FunctionsTest extends IntegrationTestCase
             'aggregate_type' => 'document',
             'aggregate_id' => Str::lower((string) Str::ulid()),
             'type' => $type,
+            'correlation_id' => $correlation,
             'payload' => json_encode(['document_id' => Str::lower((string) Str::ulid()), 'run' => 1]),
             'created_at' => '2026-11-20 09:59:00',
             'available_at' => $availableAt,

@@ -104,6 +104,27 @@ describe('the origin verifier', () => {
     assert.equal(await verifier.verify('wrong'), false)
   })
 
+  it('says when a read fails while it goes on with the values it holds, for the alarm on the origin verifier', async () => {
+    const failures: unknown[] = []
+    let now = 0
+    let failing = false
+    const verifier = new OriginVerifier(async () => {
+      if (failing) {
+        throw new Error('Secrets Manager does not answer.')
+      }
+
+      return { current: NEW, previous: null }
+    }, { keepMilliseconds: 30_000, refreshMilliseconds: 5_000, now: () => now, onReadFailure: (error) => failures.push(error) })
+
+    assert.equal(await verifier.verify(NEW), true)
+    assert.deepEqual(failures, [])
+    failing = true
+    now += 60_000
+    assert.equal(await verifier.verify(NEW), true)
+    assert.equal(failures.length, 1)
+    assert.match(String(failures[0]), /does not answer/)
+  })
+
   it('refuses a secret without a current value', async () => {
     const { verifier } = fixture({ current: '', previous: OLD })
     await assert.rejects(verifier.verify(OLD), /no current value/)

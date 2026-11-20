@@ -57,7 +57,8 @@ async function resources() {
     const configuration = found.Configuration ?? {}
     roles.add(configuration.Role)
 
-    if (name.endsWith('-origin-verifier')) {
+    // The two functions of Node.js, apart from the image of PHP: the origin verifier of the edge and the notifier.
+    if (name.endsWith('-origin-verifier') || name.endsWith('-notifier')) {
       verify(
         configuration.PackageType === 'Zip' && configuration.Runtime === declaredFunction.Properties.Runtime && configuration.MemorySize === declaredFunction.Properties.MemorySize
           && found.Concurrency?.ReservedConcurrentExecutions === declaredFunction.Properties.ReservedConcurrentExecutions && typeof configuration.Role === 'string' && configuration.Role.endsWith(`:role/${name}-function`)
@@ -89,7 +90,7 @@ async function resources() {
   const applicationSecret = await arnOf('application')
   const identities = []
 
-  for (const declaredFunction of functions.filter((candidate) => !candidate.Properties.FunctionName.endsWith('-origin-verifier'))) {
+  for (const declaredFunction of functions.filter((candidate) => candidate.Properties.PackageType === 'Image')) {
     const name = declaredFunction.Properties.FunctionName
     const environment = (await lambda.send(new GetFunctionCommand({ FunctionName: name }))).Configuration?.Environment?.Variables ?? {}
     const migrations = name.endsWith('-console')

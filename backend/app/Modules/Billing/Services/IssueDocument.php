@@ -25,6 +25,8 @@ use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Modules\Reference\Enums\CreditNoteConcept;
 use App\Modules\Reference\Enums\DebitNoteConcept;
 use App\Modules\Reference\Enums\PaymentForm;
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use App\Support\Outbox\Outbox;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Carbon;
@@ -72,7 +74,8 @@ final class IssueDocument
 
     public function __invoke(string $documentId, ?User $actor = null): Document
     {
-        return DB::transaction(function () use ($documentId, $actor): Document {
+        $started = hrtime(true);
+        $document = DB::transaction(function () use ($documentId, $actor): Document {
             // 1. The document. A second click waits here, then finds it issued.
             $document = Document::query()->whereKey($documentId)->lockForUpdate()->firstOrFail();
 
@@ -186,6 +189,19 @@ final class IssueDocument
 
             return $document;
         }, self::ATTEMPTS);
+
+        // After the commit: the document is issued, and its chain starts from the outbox.
+        $noun = $document->type->noun();
+        Telemetry::record(
+            LogEvent::DocumentIssued,
+            sprintf('%s %s was issued.', preg_match('/^[aeiou]/', $noun) === 1 ? 'An' : 'A', $noun),
+            outcome: 'success',
+            durationMs: Telemetry::since($started),
+            documentId: $document->id,
+            detail: ['document_type' => $document->type->value],
+        );
+
+        return $document;
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Modules\Identity\Enums\Role;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Models\Membership;
 use Closure;
+use Illuminate\Support\Facades\Context;
 use LogicException;
 
 /**
@@ -30,6 +31,7 @@ final class CurrentCompany
         $this->membership = $membership;
         $this->apiKey = null;
         $this->system = null;
+        self::describe($membership->company_id, 'user:'.$membership->user_id);
     }
 
     /** A request signed with an API key acts on the company of the key, with the level of the key. */
@@ -38,6 +40,7 @@ final class CurrentCompany
         $this->apiKey = $apiKey;
         $this->membership = null;
         $this->system = null;
+        self::describe($apiKey->company_id, 'api-key:'.$apiKey->id);
     }
 
     /**
@@ -52,9 +55,11 @@ final class CurrentCompany
     public function runAs(Company $company, Closure $callback): mixed
     {
         [$membership, $apiKey, $system] = [$this->membership, $this->apiKey, $this->system];
+        [$companyBefore, $actorBefore] = [Context::get('company_id'), Context::get('actor')];
         $this->membership = null;
         $this->apiKey = null;
         $this->system = $company;
+        self::describe($company->id, 'system');
 
         try {
             return $callback();
@@ -62,6 +67,7 @@ final class CurrentCompany
             $this->membership = $membership;
             $this->apiKey = $apiKey;
             $this->system = $system;
+            self::describe(is_string($companyBefore) ? $companyBefore : null, is_string($actorBefore) ? $actorBefore : null);
         }
     }
 
@@ -103,6 +109,21 @@ final class CurrentCompany
     public function apiKey(): ?ApiKey
     {
         return $this->apiKey;
+    }
+
+    /**
+     * The company and who acts, in Laravel's Context, so every log line of the work names them (internal ids only:
+     * docs/observability.md); null forgets them.
+     */
+    private static function describe(?string $companyId, ?string $actor): void
+    {
+        foreach (['company_id' => $companyId, 'actor' => $actor] as $key => $value) {
+            if ($value === null) {
+                Context::forget($key);
+            } else {
+                Context::add($key, $value);
+            }
+        }
     }
 
     private function membership(): Membership

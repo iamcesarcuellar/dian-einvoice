@@ -10,6 +10,7 @@ use Illuminate\Container\Container;
 use Illuminate\Log\LogManager;
 use Illuminate\Queue\QueueManager;
 use Illuminate\Queue\WorkerOptions;
+use Illuminate\Support\Facades\Context as LogContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Facade;
 use LogicException;
@@ -31,6 +32,9 @@ use LogicException;
  * A job that outlives its own timeout stops the process (the worker's alarm): the invocation fails and
  * the messages not deleted yet come back after the visibility timeout of their queue, as when a consumer
  * dies. Every handler is idempotent, so a message handled twice does no work twice.
+ *
+ * Each record starts from an empty Context, so nothing of the job before it reaches its payload or its log
+ * lines: its job resumes the journey of its event (docs/observability.md).
  */
 final class SqsEventsHandler extends SqsHandler
 {
@@ -73,6 +77,7 @@ final class SqsEventsHandler extends SqsHandler
 
         try {
             foreach ($event->getRecords() as $record) {
+                LogContext::flush();
                 $source = $record->toArray()['eventSourceARN'] ?? null;
                 $url = $queue->urlOfArn(is_string($source) ? $source : '');
                 $message = LambdaSqsRecord::toMessage($record);
@@ -101,6 +106,7 @@ final class SqsEventsHandler extends SqsHandler
             }
         } finally {
             self::$batch = [];
+            LogContext::flush();
 
             // A function keeps its process between invocations and is frozen in between: it gives its
             // database connection back, so idle environments hold none (docs/infrastructure.md).

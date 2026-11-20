@@ -1,10 +1,11 @@
-# The functions of dian-einvoice and their triggers (Infrastructure tasks 2 and 4), as the serverless service
+# The functions of dian-einvoice and their triggers (Infrastructure tasks 2, 4 and 5), as the serverless service
 # dian-einvoice-<stage>-functions, deployed with osls, the free fork of the Serverless Framework. Every function
 # of the application runs the same container image (the target lambda of backend/Dockerfile, Bref on PHP 8.5)
-# with a runtime and a handler of its own; the origin verifier of the edge is a small function of its own in
-# TypeScript on Node.js, packaged as a zip apart from that image. The stage local is deployed to the local AWS
-# emulator by make cloud-up; prod is packaged and validated without a network or credentials (make cdk-check),
-# never deployed.
+# with a runtime and a handler of its own; the origin verifier of the edge and the notifier of the alarms are small
+# functions of their own in TypeScript on Node.js, packaged as a zip apart from that image. Every function writes
+# one JSON object per line, in the schema of backend/resources/observability/log-schema.json, to a log group of its
+# own with its retention (docs/observability.md). The stage local is deployed to the local AWS emulator by make
+# cloud-up; prod is packaged and validated without a network or credentials (make cdk-check), never deployed.
 #
 # One definition for every stage, with differences only in parameters: the scalar settings below (params),
 # the image (--param image=<repository>@sha256:<digest>), and what stages/<stage>.yml adds (prod runs the
@@ -101,9 +102,16 @@ provider:
         resultTtlInSeconds: 300
         enableSimpleResponses: true
         payloadVersion: '2.0'
-  # Access logs of API Gateway, in a log group of this service.
+  # Access logs of API Gateway, one JSON object per request in a log group of this service: its route, status and
+  # times and those of the origin verifier, never its query string, headers or the address it came from (the edge
+  # location for every request that came through the edge). The system logs of Lambda (the start, the end and the
+  # report of each invocation) in JSON too; the application writes its own lines as JSON.
   logs:
-    httpApi: true
+    httpApi:
+      format: '{"requestId":"$context.requestId","time":"$context.requestTime","method":"$context.httpMethod","path":"$context.path","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency","integrationLatency":"$context.integrationLatency","integrationStatus":"$context.integrationStatus","integrationError":"$context.integrationErrorMessage","authorizerStatus":"$context.authorizer.status","authorizerLatency":"$context.authorizer.latency","authorizerError":"$context.authorizer.error"}'
+    lambda:
+      logFormat: JSON
+      systemLogLevel: INFO
   stackTags:
     project: dian-einvoice
     stage: ${sls:stage}
@@ -114,12 +122,13 @@ provider:
     stage: ${sls:stage}
     managed-by: osls
 
-# Only the origin verifier is packaged as a zip, its build alone (npm run build); the functions of the application
-# run the image.
+# Only the origin verifier and the notifier are packaged as a zip, their builds alone (npm run build), each with the
+# logger they share; the functions of the application run the image.
 package:
   patterns:
     - '!**'
-    - origin-verifier/dist/*.mjs
+    - origin-verifier/dist/**/*.mjs
+    - notifier/dist/**/*.mjs
 
 custom:
   php:
@@ -136,8 +145,15 @@ custom:
       APP_URL: ${param:appUrl}
       APP_LOCALE: en
       APP_FALLBACK_LOCALE: en
+      # One JSON object per line, in the schema of the logs of the platform (docs/observability.md), with a line per
+      # request and per job; the initialization of Bref prints nothing outside it.
       LOG_CHANNEL: stderr
       LOG_LEVEL: ${param:logLevel}
+      LOG_STDERR_FORMATTER: App\Support\Observability\JsonLogFormatter
+      LOG_REQUESTS: 'true'
+      LOG_JOBS: 'true'
+      APP_STAGE: ${sls:stage}
+      BREF_LARAVEL_OMIT_INITLOG: '1'
       APP_SECRETS: secrets-manager
       APP_SECRETS_ID: !Ref AppSecretArn
       DB_CONNECTION: mysql
@@ -257,13 +273,15 @@ functions:
       BREF_RUNTIME: function
 
   # The safety net of the outbox, once a minute (resources/triggers.yml): the events the fast path left behind.
-  # Its next run is its retry, so the asynchronous invocation never retries.
+  # Its next run is its retry, so the asynchronous invocation never retries. Like the scheduler and the console, it
+  # runs php artisan through the handler of the application (App\Support\Lambda\ArtisanHandler) rather than the
+  # console runtime of Bref, which would print what the command prints into the log of the function.
   relay:
     name: dian-einvoice-${sls:stage}-relay
     description: Publishes the outbox events of dian-einvoice left behind, once a minute
     image:
       uri: ${param:image}
-      command: [artisan]
+      command: ['App\Support\Lambda\ArtisanHandler']
     role: !Sub '${RelayRoleArn}'
     memorySize: 512
     timeout: 60
@@ -273,7 +291,7 @@ functions:
     vpc: *php-vpc
     environment:
       <<: *php-environment
-      BREF_RUNTIME: console
+      BREF_RUNTIME: function
 
   # The Laravel scheduler, once a minute: the sweepers and the pruning (backend/bootstrap/app.php).
   scheduler:
@@ -281,7 +299,7 @@ functions:
     description: Runs the Laravel scheduler of dian-einvoice, once a minute
     image:
       uri: ${param:image}
-      command: [artisan]
+      command: ['App\Support\Lambda\ArtisanHandler']
     role: !Sub '${SchedulerRoleArn}'
     memorySize: 512
     timeout: 120
@@ -291,7 +309,7 @@ functions:
     vpc: *php-vpc
     environment:
       <<: *php-environment
-      BREF_RUNTIME: console
+      BREF_RUNTIME: function
 
   # Migrations and operation commands, on demand: the event is the command line of php artisan. The only
   # function with the migrations identity of the database, which may change the schema; it also reads the
@@ -301,7 +319,7 @@ functions:
     description: php artisan of dian-einvoice, on demand (migrations and operations)
     image:
       uri: ${param:image}
-      command: [artisan]
+      command: ['App\Support\Lambda\ArtisanHandler']
     role: !Sub '${ConsoleRoleArn}'
     memorySize: 1024
     timeout: 900
@@ -309,7 +327,7 @@ functions:
     vpc: *php-vpc
     environment:
       <<: *php-environment
-      BREF_RUNTIME: console
+      BREF_RUNTIME: function
       DB_SECRETS_ID: !Ref DatabaseMigrationsSecretArn
       DB_APPLICATION_SECRETS_ID: !Ref DatabaseSecretArn
       SQS_CHAIN_DLQ_URL: !Ref ChainDeadLetterQueueUrl
@@ -326,7 +344,7 @@ functions:
     name: dian-einvoice-${sls:stage}-origin-verifier
     description: Lambda authorizer of the HTTP API of dian-einvoice, the origin verifier of the edge
     runtime: nodejs24.x
-    handler: origin-verifier/dist/handler.handler
+    handler: origin-verifier/dist/origin-verifier/handler.handler
     role: !Sub '${OriginVerifierRoleArn}'
     memorySize: 128
     timeout: 5
@@ -334,6 +352,34 @@ functions:
     environment:
       ORIGIN_SECRET_ID: !Ref OriginSecretArn
       AWS_ENDPOINT_URL: ${param:awsEndpoint}
+      STAGE: ${sls:stage}
+
+  # The notifier of the alarms (notifier/handler.mts), subscribed to the topic of the alarms of the CDK app (stack
+  # alerts, resources/triggers.yml): it turns each change of state of an alarm into a short message to the chat
+  # webhook whose address is in Secrets Manager, or only logs it when none is set. A notification the chat does not
+  # take after three attempts goes to its dead-letter queue, whose alarm emails the fallback address; an invocation
+  # that fails is retried twice by Lambda and then goes to the same queue. Outside the VPC, with a role that may only
+  # read that secret and send to that queue; at most two at once, alarms are few.
+  notifier:
+    name: dian-einvoice-${sls:stage}-notifier
+    description: Turns the alarms of dian-einvoice into messages to the chat webhook
+    runtime: nodejs24.x
+    handler: notifier/dist/notifier/handler.handler
+    role: !Sub '${NotifierRoleArn}'
+    memorySize: 128
+    timeout: 20
+    reservedConcurrency: 2
+    maximumRetryAttempts: 2
+    maximumEventAge: 3600
+    destinations:
+      onFailure:
+        type: sqs
+        arn: !Ref NotifierDeadLetterQueueArn
+    environment:
+      WEBHOOK_SECRET_ID: !Ref ChatWebhookSecretArn
+      DEAD_LETTER_QUEUE_URL: !Ref NotifierDeadLetterQueueUrl
+      AWS_ENDPOINT_URL: ${param:awsEndpoint}
+      STAGE: ${sls:stage}
 
 resources:
   - ${file(./resources/parameters.yml)}

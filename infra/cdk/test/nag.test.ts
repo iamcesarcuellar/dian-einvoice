@@ -4,7 +4,7 @@
 // template of the functions goes through the same rules in test/functions.test.ts.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { FUNCTIONS, ORIGIN_VERIFIER, STAGES, type StageConfig } from '../lib/stage.ts'
+import { FUNCTIONS, NOTIFIER, ORIGIN_VERIFIER, STAGES, type StageConfig } from '../lib/stage.ts'
 import { built, validationReport } from './support.ts'
 
 /** The exceptions of each stage: the rule and the resource it is acknowledged on. */
@@ -16,14 +16,17 @@ const EXCEPTIONS = [
   'AwsSolutions-SMG4 security/AppSecret/Resource',
   'AwsSolutions-SMG4 security/OriginSecret/Resource',
   'AwsSolutions-CFR1 edge/Distribution/Resource',
+  // The address of the chat webhook, which the chat issues, and the dead-letter queue of the notifier, which is one.
+  'AwsSolutions-SMG4 alerts/ChatWebhook/Resource',
+  'AwsSolutions-SQS3 alerts/NotifierDeadLetterQueue/Resource',
 ]
 
 /**
  * Each function writes its logs to its own log group, in streams Lambda names: one exception per role and stage,
- * the origin verifier included.
+ * the origin verifier and the notifier included.
  */
 function logStreamExceptions(stage: StageConfig): string[] {
-  return [...FUNCTIONS, ORIGIN_VERIFIER].map((fn) => `AwsSolutions-IAM5[Resource::arn:aws:logs:${stage.region}:${stage.account}:log-group:/aws/lambda/dian-einvoice-${stage.name}-${fn}:*] ${stage.name}/compute/${fn.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('')}FunctionRole/Resource`)
+  return [...FUNCTIONS, ORIGIN_VERIFIER, NOTIFIER].map((fn) => `AwsSolutions-IAM5[Resource::arn:aws:logs:${stage.region}:${stage.account}:log-group:/aws/lambda/dian-einvoice-${stage.name}-${fn}:*] ${stage.name}/compute/${fn.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('')}FunctionRole/Resource`)
 }
 
 /**
@@ -81,11 +84,11 @@ describe('cdk-nag', () => {
     assert.deepEqual([...new Set(suppressed)].sort(), expected.sort())
   })
 
-  it('synthesized the seven stacks of the stage local and the nine of prod, which adds the network and the database', () => {
+  it('synthesized the nine stacks of the stage local and the eleven of prod, which adds the network and the database', () => {
     assert.deepEqual(assembly.nestedAssemblies.map((nested) => nested.directoryName).sort(), ['assembly-local', 'assembly-prod'])
     assert.deepEqual(assembly.nestedAssemblies.flatMap((nested) => nested.nestedAssembly.stacks.map((stack) => stack.stackName)).sort(), [
-      'dian-einvoice-local-compute', 'dian-einvoice-local-data', 'dian-einvoice-local-edge', 'dian-einvoice-local-mail', 'dian-einvoice-local-messaging', 'dian-einvoice-local-security', 'dian-einvoice-local-storage',
-      'dian-einvoice-prod-compute', 'dian-einvoice-prod-data', 'dian-einvoice-prod-database', 'dian-einvoice-prod-edge', 'dian-einvoice-prod-mail', 'dian-einvoice-prod-messaging', 'dian-einvoice-prod-network', 'dian-einvoice-prod-security', 'dian-einvoice-prod-storage',
+      'dian-einvoice-local-alerts', 'dian-einvoice-local-compute', 'dian-einvoice-local-data', 'dian-einvoice-local-edge', 'dian-einvoice-local-mail', 'dian-einvoice-local-messaging', 'dian-einvoice-local-observability', 'dian-einvoice-local-security', 'dian-einvoice-local-storage',
+      'dian-einvoice-prod-alerts', 'dian-einvoice-prod-compute', 'dian-einvoice-prod-data', 'dian-einvoice-prod-database', 'dian-einvoice-prod-edge', 'dian-einvoice-prod-mail', 'dian-einvoice-prod-messaging', 'dian-einvoice-prod-network', 'dian-einvoice-prod-observability', 'dian-einvoice-prod-security', 'dian-einvoice-prod-storage',
     ])
   })
 

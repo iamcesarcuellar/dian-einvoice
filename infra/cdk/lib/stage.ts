@@ -97,6 +97,26 @@ export interface EdgeSettings {
   readonly firewall: FirewallSettings | null
 }
 
+/**
+ * Where the alarms of a stage go (stacks alerts and observability): the notifier posts each change of state to a
+ * chat webhook compatible with Slack, and the alarm on the failures of the notifier also emails a fallback address.
+ */
+export interface AlertsSettings {
+  // The first value of the secret of the chat webhook. Empty: the notifier only logs each alarm, until the operators
+  // put the address of their webhook in the secret (it is never in a template in prod).
+  readonly chatWebhookUrl: string
+  // The address subscribed to the topic of the failures of the notifier; empty, none. A deployment parameter in
+  // prod (cdk deploy -c alertsEmail=...), never a lookup.
+  readonly fallbackEmail: string
+}
+
+/**
+ * How the saved queries of Logs Insights reach a stage (stack observability): as resources of the stack, or, where
+ * the CloudFormation of the emulator cannot create that type (Floci 2.5.0), in the metadata of its template, from
+ * which make cloud-up saves them through the API of Logs (infra/functions/scripts/observability.mjs queries).
+ */
+export type SavedQueries = 'resources' | 'template-metadata'
+
 export interface StageConfig {
   readonly name: StageName
   readonly account: string
@@ -144,6 +164,8 @@ export interface StageConfig {
     readonly domain: string
   }
   readonly edge: EdgeSettings
+  readonly alerts: AlertsSettings
+  readonly observability: { readonly savedQueries: SavedQueries }
 }
 
 const QUEUES = {
@@ -163,6 +185,19 @@ export type FunctionName = (typeof FUNCTIONS)[number]
  * database or to any resource but the secret of the edge.
  */
 export const ORIGIN_VERIFIER = 'origin-verifier'
+
+/**
+ * The notifier (infra/functions/notifier): a function in TypeScript on Node.js, subscribed to the topic of the alarms,
+ * that turns each change of state of an alarm into a short message to a chat webhook; outside the VPC, with a role
+ * that may only read the secret of that webhook and send to its own dead-letter queue.
+ */
+export const NOTIFIER = 'notifier'
+
+/**
+ * The company id of the local webhook receiver of the DIAN simulator under which the stage local takes the messages
+ * of the notifier, as a chat would (make cloud-check reads them there).
+ */
+export const ALARM_RECEIVER = '0alarmnotifications0000000'
 
 /** The SSM parameter the serverless service publishes with the id of its HTTP API, the origin of the API behind the edge. */
 export const HTTP_API_PARAMETER = 'functions/http-api-id'
@@ -229,6 +264,9 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
       panelVersionsExpireAfter: Duration.days(7),
       firewall: null,
     },
+    // The local webhook receiver of the DIAN simulator, on the network of compose, takes the messages as a chat would.
+    alerts: { chatWebhookUrl: `http://simulator:8602/webhook-receiver/${ALARM_RECEIVER}`, fallbackEmail: 'operators@dian-einvoice.example' },
+    observability: { savedQueries: 'template-metadata' },
   },
   prod: {
     name: 'prod',
@@ -283,6 +321,10 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
       panelVersionsExpireAfter: Duration.days(90),
       firewall: { window: Duration.minutes(5), requestsPerAddress: 3000, authenticationRequestsPerAddress: 100 },
     },
+    // The address of the chat webhook is put in its secret by the operators; the email is a placeholder of a
+    // deployment parameter.
+    alerts: { chatWebhookUrl: '', fallbackEmail: 'operators@dian-einvoice.example' },
+    observability: { savedQueries: 'resources' },
   },
 }
 
