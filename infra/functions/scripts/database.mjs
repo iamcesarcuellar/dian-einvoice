@@ -39,8 +39,9 @@ const password = `'${secret.password.replaceAll('\\', '\\\\').replaceAll("'", "'
 process.stdout.write([
   `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ${password} REQUIRE SSL;`,
   `ALTER USER ${account} IDENTIFIED BY ${password} REQUIRE SSL;`,
-  // The schema of its database, and the privileges it passes on to the application identity, which it creates.
+  // The schema of its database, and the privileges it passes on to the application identity, which it creates; PROCESS,
+  // which the master user of Aurora holds too, lets php artisan db:connections see who holds the connections.
   `GRANT ALL PRIVILEGES ON \`${secret.dbname}\`.* TO ${account} WITH GRANT OPTION;`,
-  `GRANT CREATE USER ON *.* TO ${account};`,
+  `GRANT CREATE USER, PROCESS ON *.* TO ${account};`,
   '',
 ].join('\n'))

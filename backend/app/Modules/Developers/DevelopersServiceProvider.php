@@ -4,6 +4,7 @@ namespace App\Modules\Developers;
 
 use App\Modules\Developers\Auth\ApiKeyAuthenticator;
 use App\Modules\Developers\Console\ApiCheckCommand;
+use App\Modules\Developers\Console\WebhooksStatusCommand;
 use App\Modules\Developers\Http\Middleware\HandleIdempotency;
 use App\Modules\Developers\Http\Middleware\RateLimitApiKeys;
 use App\Modules\Developers\Http\Middleware\RejectApiKeys;
@@ -82,7 +83,7 @@ final class DevelopersServiceProvider extends ServiceProvider
         $subscribers->subscribe(WebhookPublisher::DELIVERY_DUE, DeliverWebhook::class, OutboxSubscribers::WEBHOOKS);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ApiCheckCommand::class]);
+            $this->commands([ApiCheckCommand::class, WebhooksStatusCommand::class]);
         }
     }
 }

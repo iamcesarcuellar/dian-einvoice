@@ -25,6 +25,7 @@ use Monolog\Level;
 use Monolog\LogRecord;
 use RuntimeException;
 use Tests\IntegrationTestCase;
+use Tests\Support\SecretShapes;
 
 /**
  * The observability of the backend (Infrastructure task 5): the structured log line of the functions holds exactly
@@ -118,18 +119,19 @@ final class ObservabilityTest extends IntegrationTestCase
     {
         $ulid = Str::lower((string) Str::ulid());
         $uuid = (string) Str::uuid();
+        // The values with the form of a secret are built at run time, never written here (SecretShapes).
         $cases = [
             'Sent to ana.gomez@example.com.' => 'Sent to [email].',
             'NIT 900123456-7 and phone 3001234567.' => 'NIT [number] and phone [number].',
-            'Key dei_ABCDEFGHIJKL_s3cretpart0123456789 refused.' => 'Key [api-key] refused.',
-            'Secret whsec_c2VjcmV0c2VjcmV0c2VjcmV0 rotated.' => 'Secret [secret] rotated.',
-            'APP_KEY base64:QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo= read.' => 'APP_KEY [secret] read.',
+            'Key '.SecretShapes::apiKey().' refused.' => 'Key [api-key] refused.',
+            'Secret '.SecretShapes::webhookSecret().' rotated.' => 'Secret [secret] rotated.',
+            'APP_KEY '.SecretShapes::appKey().' read.' => 'APP_KEY [secret] read.',
             'Authorization: Bearer abc.def.ghi' => 'Authorization: [redacted] [token]',
-            'token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl here' => 'token [token] here',
-            'pwd=Sup3rS3cret! next' => 'pwd=[redacted] next',
-            'Key AKIAABCDEFGHIJKLMNOP leaked.' => 'Key [aws-key] leaked.',
-            'The secret value Xy7Qz2Lm9Np4Rs8Tu1Vw6Ab3Cd5Ef0GhJk was not logged.' => 'The secret value [redacted] was not logged.',
-            "-----BEGIN PRIVATE KEY-----\nMIIEvQ\n-----END PRIVATE KEY-----" => '[pem]',
+            'token '.SecretShapes::jwt().' here' => 'token [token] here',
+            'pwd='.SecretShapes::password().' next' => 'pwd=[redacted] next',
+            'Key '.SecretShapes::awsAccessKeyId().' leaked.' => 'Key [aws-key] leaked.',
+            'The secret value '.SecretShapes::opaque().' was not logged.' => 'The secret value [redacted] was not logged.',
+            SecretShapes::privateKeyPem() => '[pem]',
             'Answer <?xml version="1.0"?><Invoice><cbc:ID>SETP1</cbc:ID></Invoice>' => 'Answer [document]',
             'From 172.24.0.9 to the database.' => 'From [ip] to the database.',
             "Document {$ulid} of request {$uuid}, 3 lines, 45000 pesos, version 8.4.8." => "Document {$ulid} of request {$uuid}, 3 lines, 45000 pesos, version 8.4.8.",

@@ -2,9 +2,12 @@
 
 namespace App\Modules\Dian\Pipeline;
 
+use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Tenancy\CurrentCompany;
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use App\Support\Outbox\ConsumesOutboxEvents;
 use App\Support\Outbox\OutboxEvent;
 use Illuminate\Bus\Queueable;
@@ -24,7 +27,10 @@ use Throwable;
  *
  * Expected failures (a generation, signing or transmission error) end the chain as failed inside
  * the step. Unexpected errors (the database, the storage) let the queue retry the job; when it
- * gives up, failed() marks the document failed so no chain is left stuck.
+ * gives up, failed() marks the document failed so no chain is left stuck. Either way the message of
+ * the step ends in the dead-letter queue (failed_jobs locally); when an operator moves it back (the
+ * native redrive of SQS, or queue:retry locally) once the cause is fixed, the step starts again as
+ * Retry now does, for a document that still failed there in that run (docs/runbooks/dead-letters.md).
  */
 abstract class ChainStep implements ConsumesOutboxEvents
 {
@@ -91,8 +97,51 @@ abstract class ChainStep implements ConsumesOutboxEvents
         $company = Company::query()->find($this->companyId);
 
         if ($company !== null) {
-            $currentCompany->runAs($company, fn () => app()->call($process));
+            $currentCompany->runAs($company, fn () => $this->resumesItsDeadLetter() || app()->call($process));
         }
+    }
+
+    /**
+     * The message of a step that gave up came back: an operator moved its dead letter back to the queue. The
+     * document still failed at this step in this run, at this attempt or the one before it (a transmission whose
+     * job kept throwing before its claim), so the step starts again as Retry now does: a new run from here. Any
+     * other message of a failed document, an older attempt or a run already retried, does nothing.
+     */
+    private function resumesItsDeadLetter(): bool
+    {
+        // A read without a lock first: only a document that gave up here pays for the lock.
+        if (! $this->gaveUpHere(Document::query()->find($this->documentId))) {
+            return false;
+        }
+
+        // Checked again and done under the lock of the document, so a Retry now of a user meanwhile wins.
+        $resumed = DB::transaction(fn (): ?Document => $this->gaveUpHere(app(ElectronicDocumentPipeline::class)->lock($this->documentId))
+            ? app(ElectronicDocumentActions::class)->retryNow($this->documentId)
+            : null, 3);
+
+        if ($resumed === null) {
+            return false;
+        }
+
+        Telemetry::record(
+            LogEvent::ChainResumed,
+            sprintf('The %s step of the chain came back from the dead-letter queue and starts again in run %d.', $this->step(), $resumed->electronic_run),
+            outcome: 'retried',
+            documentId: $this->documentId,
+            detail: ['job' => class_basename(static::class), 'attempt' => $this->attempt === 0 ? null : $this->attempt],
+        );
+
+        return true;
+    }
+
+    /** Whether the document failed at this step in the run of this message, at its attempt or the one before it. */
+    private function gaveUpHere(?Document $document): bool
+    {
+        return $document !== null
+            && $document->electronic_status === ElectronicStatus::Failed
+            && $document->electronic_failed_step === $this->step()
+            && $document->electronic_run === $this->run
+            && ($this->step() !== 'transmit' || $this->attempt >= $document->electronic_attempt);
     }
 
     /** The queue gave up on the job: the chain ends as failed at this step, if it is still there. */

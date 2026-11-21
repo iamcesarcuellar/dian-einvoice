@@ -6,8 +6,11 @@ use App\Http\PublicOrigin;
 use App\Support\ApiDocs\ApiDocumentation;
 use App\Support\Aws\AwsSdk;
 use App\Support\Cloud\CloudCheckCommand;
+use App\Support\Cloud\CloudDrillCommand;
 use App\Support\Cloud\EmulatedCloud;
 use App\Support\Database\ApplicationIdentityCommand;
+use App\Support\Database\ConnectionsCommand;
+use App\Support\Database\MigrationsCheckCommand;
 use App\Support\Database\RefreshingMySqlConnector;
 use App\Support\Health\HealthCheckCommand;
 use App\Support\Health\Heartbeat;
@@ -18,6 +21,7 @@ use App\Support\Observability\ObservabilityHooks;
 use App\Support\Outbox\OutboxFastPath;
 use App\Support\Outbox\OutboxPublisher;
 use App\Support\Outbox\OutboxRoutesCommand;
+use App\Support\Outbox\OutboxStatusCommand;
 use App\Support\Outbox\OutboxSubscribers;
 use App\Support\Outbox\PruneOutboxEvents;
 use App\Support\Outbox\PublishPendingCommand;
@@ -148,7 +152,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([RelayCommand::class, PublishPendingCommand::class, SweepCommand::class, HealthCheckCommand::class, PruneCommand::class, OutboxRoutesCommand::class, CloudCheckCommand::class, ApplicationIdentityCommand::class]);
+            $this->commands([RelayCommand::class, PublishPendingCommand::class, SweepCommand::class, HealthCheckCommand::class, PruneCommand::class, OutboxRoutesCommand::class, CloudCheckCommand::class, ApplicationIdentityCommand::class, OutboxStatusCommand::class, ConnectionsCommand::class, MigrationsCheckCommand::class, CloudDrillCommand::class]);
         }
     }
 

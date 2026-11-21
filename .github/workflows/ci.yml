@@ -84,7 +84,7 @@ jobs:
       - uses: ./.github/actions/prepare
         with:
           images: cdk functions cfn-lint
-      - name: The functions packaged by osls for both stages, tests and cdk-nag of the CDK app and of the functions, synthesis and cfn-lint, all without a network or credentials (make cdk-check)
+      - name: The functions packaged by osls for both stages, tests and cdk-nag of the CDK app and of the functions, synthesis, cfn-lint and actionlint over the workflows, all without a network or credentials (make cdk-check)
         run: make cdk-check
       - name: Report of cdk-nag
         if: failure()

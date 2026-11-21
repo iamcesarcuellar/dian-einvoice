@@ -78,14 +78,18 @@ export class MessagingStack extends Stack {
       published.add(`${name}DeadLetterQueueUrl`, `${channel}-dlq-url`, deadLetterQueue.queueUrl, `URL of the dead-letter queue of the ${channel} channel`)
 
       // Consumers of the queue (the workers of the channel): receive, delete, change the visibility for
-      // the backoff, and read the redrive policy.
+      // the backoff, and read the redrive policy; a job that gives up for good leaves a copy of its message in
+      // the dead-letter queue, which an operator moves back once the cause is fixed (docs/runbooks/dead-letters.md).
       const consume = new ManagedPolicy(this, `Consume${name}Policy`, {
         managedPolicyName: resourceName(stage, `consume-${channel}`),
         description: `Consume the ${channel} queue of dian-einvoice (${stage.name})`,
-        statements: [new PolicyStatement({
-          actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:ChangeMessageVisibility', 'sqs:GetQueueAttributes', 'sqs:GetQueueUrl'],
-          resources: [queue.queueArn],
-        })],
+        statements: [
+          new PolicyStatement({
+            actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:ChangeMessageVisibility', 'sqs:GetQueueAttributes', 'sqs:GetQueueUrl'],
+            resources: [queue.queueArn],
+          }),
+          new PolicyStatement({ actions: ['sqs:SendMessage'], resources: [deadLetterQueue.queueArn] }),
+        ],
       })
       published.add(`Consume${name}PolicyArn`, `policies/consume-${channel}`, consume.managedPolicyArn, `Managed policy for the consumers of the ${channel} queue`)
     }

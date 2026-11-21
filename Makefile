@@ -21,10 +21,14 @@ CLOUD := $(COMPOSE) --profile cloud
 # What make up stops of the emulated cloud: the proxy on the ports of the web app and the API, and the emulator,
 # which runs the functions (scripts/cloud/containers.sh then removes the containers it started for them).
 CLOUD_APP := cloud-gateway floci
-# The stacks of the CDK app deployed before the functions; the stack edge fronts their HTTP API, so it goes after.
-CDK_BEFORE_FUNCTIONS := local/messaging local/storage local/data local/security local/mail local/alerts local/compute
 # osls and the scripts of the functions, on the network of the stack.
 FUNCTIONS := $(CLOUD) run --rm --no-deps -T functions-deploy
+# The deployment of the stage local, the same script as a real account (scripts/deploy.sh, docs/deployment.md).
+DEPLOY = BUILD="$(BUILD)" sh scripts/deploy.sh local
+
+# Size of make cloud-drill: invoices of the baseline, then those issued while the DIAN is down.
+DRILL_INVOICES ?= 3
+DRILL_INCIDENT_INVOICES ?= 5
 
 # Size of make cloud-check: invoices of the fast path, then those issued while the functions are killed.
 CLOUD_INVOICES ?= 30
@@ -35,7 +39,7 @@ export CLOUD_CHAOS_INVOICES
 # cache and sets BUILD empty, so compose uses them as they are.
 BUILD ?= --build
 
-TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check
+TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check migrations-check cloud-deploy cloud-drill cloud-dead-letters cloud-dead-letters-purge cloud-redrive cloud-errors cloud-functions cloud-rotate
 
 .PHONY: env $(TARGETS)
 
@@ -188,8 +192,9 @@ fix:
 # web app, the simulator, the CDK app, the serverless service of the functions and the end-to-end test: high and
 # critical ones fail. Production dependencies whose
 # license is only GPL or AGPL fail (scripts/security/licenses.mjs). Secrets in the git history and in the
-# changes not committed yet fail (gitleaks, profile security, rules in .gitleaks.toml). Each step runs in a
-# container; the audits ask the public advisory databases of Packagist and npm.
+# changes not committed yet fail (gitleaks, profile security: the rules and the public values of .gitleaks.toml,
+# and the findings that are not secrets, by fingerprint, in .gitleaksignore). Each step runs in a container; the
+# audits ask the public advisory databases of Packagist and npm.
 security:
 	$(COMPOSE) run --rm --no-deps -T api composer audit --locked --no-interaction --abandoned=report --ignore-severity=low --ignore-severity=medium
 	$(COMPOSE) run --rm --no-deps -T web pnpm audit --audit-level high
@@ -202,9 +207,9 @@ security:
 	$(COMPOSE) --profile tools run --rm -T -v $(CURDIR)/scripts/security:/security:ro simulator-dev sh -c 'cd /workspace && npm ls --omit=dev --all --parseable | node /security/licenses.mjs npm simulator'
 	$(CLOUD) run --rm --no-deps -T -v $(CURDIR)/scripts/security:/security:ro cdk sh -c 'cd /workspace && npm ls --omit=dev --all --parseable | node /security/licenses.mjs npm cdk-app'
 	$(CLOUD) run --rm --no-deps -T -v $(CURDIR)/scripts/security:/security:ro functions sh -c 'cd /workspace && npm ls --omit=dev --all --parseable | node /security/licenses.mjs npm functions'
-	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner
-	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner --pre-commit
-	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --redact --no-banner --pre-commit --staged
+	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore --redact --no-banner
+	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore --redact --no-banner --pre-commit
+	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore --redact --no-banner --pre-commit --staged
 
 # Every test that needs no browser: backend, web app, simulator and CDK app.
 test: test-backend test-frontend test-simulator test-infra
@@ -214,7 +219,7 @@ test: test-backend test-frontend test-simulator test-infra
 test-backend:
 	$(COMPOSE) up -d $(BUILD) --wait db redis simulator
 	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < backend/tests/database.sql
-	$(COMPOSE) run --rm $(BUILD) --no-deps -T api vendor/bin/phpunit
+	$(COMPOSE) run --rm $(BUILD) --no-deps -T -v $(CURDIR)/docs:/docs:ro -e RUNBOOKS_DIR=/docs/runbooks api vendor/bin/phpunit
 
 # Unit tests of the web app (Vitest).
 test-frontend:
@@ -229,17 +234,24 @@ test-simulator:
 # (both stages, packaged first, without a network or credentials), the CloudFront Function of the routes of the web
 # app with its cases, and cdk-nag (AWS Solutions) over both, with every exception acknowledged with its reason.
 test-infra:
-	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm test && npm run --silent package:local && npm run --silent package:prod'
+	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm test && npm run --silent package:local && npm run --silent package:prod && npm run --silent package:prod-unreserved'
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk npm test
 
 # The infrastructure as code as the CI job of the infrastructure checks it, without a network: the tests of the origin
 # verifier, the templates of the functions packaged by osls for both stages, the tests of the CDK app, cdk synth of
-# both stages, which stops on any finding of cdk-nag (report in infra/cdk/cdk.out/validation-report.json), and
-# cfn-lint over every template.
+# both stages, which stops on any finding of cdk-nag (report in infra/cdk/cdk.out/validation-report.json), cfn-lint
+# over every template, and actionlint over the workflows of GitHub Actions, the deployment one included, never run.
 cdk-check:
-	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm test && npm run --silent package:local && npm run --silent package:prod'
+	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'npm test && npm run --silent package:local && npm run --silent package:prod && npm run --silent package:prod-unreserved'
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cdk sh -c 'npm test && npm run synth'
 	$(CLOUD) run --rm --no-deps $(BUILD) -T cfn-lint
+	$(COMPOSE) --profile tools run --rm -T actionlint
+
+# The migrations are safe to run before the functions take the new code, as the deployment does (scripts/deploy.sh
+# migrate): a statement that drops or renames a column or a table names the release from which it is safe. Also a test
+# of make test (MigrationSafetyTest) and a step of the deployment workflow.
+migrations-check:
+	$(COMPOSE) run --rm --no-deps -T api php artisan migrations:check
 
 # The end-to-end test in a browser (Playwright, profile e2e) against the full stack with the demo data (make demo):
 # sign in, issue an invoice, see it accepted and delivered, open its PDF, record its payment and see it paid.
@@ -263,41 +275,36 @@ openapi:
 
 # The emulated cloud, one environment at a time with the local one (the same ports), where the application runs as
 # Lambda functions behind the edge: stop the processes of the application and the development server of the web app
-# of the local stack, start the local AWS emulator (Floci, 127.0.0.1:8604, with the Docker socket), deploy the stacks
-# of the CDK stage local the functions need to it with the normal CDK commands (cdk bootstrap, cdk deploy), give it a
-# database of its own with the migrations identity from its secret, push the image of the functions to its ECR,
-# deploy the functions, their triggers and the origin verifier with osls, deploy the stack edge (the distribution in
-# front of the web app and the API, with the value of the secret of the edge as a parameter, piped and never
-# printed) and give its distribution the settings of its behaviours the emulator drops, deploy the stack
-# observability (the metric filters over the logs of the functions, the alarms, the dashboard and the saved queries,
-# after the functions and the edge they read; alone, -e) and give its alarms the metrics and save its queries, which
-# the CloudFormation of the emulator drops or cannot create, from its template, build the web app for
-# production and upload it to the bucket of the edge with the script of every stage, start the proxy in front of the
-# edge on the ports of the web app and the API, and with the console function run the migrations and create the
-# application identity, which every other function connects as. Nothing of the application runs all the time. make
-# up goes back to the local stack. The SQL of the migrations identity holds its password: it goes to MySQL, never to
-# the terminal.
+# of the local stack, start the local AWS emulator (Floci, 127.0.0.1:8604, with the Docker socket), and deploy the stage
+# local to it with scripts/deploy.sh, the same script and steps a real account takes (docs/deployment.md): the stacks
+# before the functions (cdk bootstrap and cdk deploy), the image of the functions pushed to its ECR, the migrations with
+# the console function on the new image first (its own database and migrations identity first), the functions, their
+# triggers, the origin verifier and the notifier (osls deploy), the stack edge (the value of the secret of the edge as a
+# parameter, piped and never printed), the stack observability, the web app built for production and uploaded to the
+# bucket of the edge, the proxy in front of the edge on the ports of the web app and the API, and a smoke test through
+# the edge. The steps marked EMULATOR ONLY in the script are workarounds for the emulator. Nothing of the application
+# runs all the time. make up goes back to the local stack.
 cloud-up:
-	$(if $(BUILD),$(CLOUD) build cdk functions lambda)
+	$(if $(BUILD),$(CLOUD) build cdk functions)
 	$(COMPOSE) stop api worker relay web
 	$(CLOUD) up -d --wait db floci simulator
 	test -d frontend/node_modules || $(COMPOSE) run --rm --no-deps web pnpm install --frozen-lockfile
-	$(CLOUD) run --rm --no-deps -T cdk-deploy sh -c 'cdk bootstrap aws://000000000000/us-east-1 && cdk deploy $(CDK_BEFORE_FUNCTIONS) --require-approval never --outputs-file cdk.out/outputs-local.json'
-	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < scripts/cloud/database.sql
-	@identity="$$($(FUNCTIONS) node scripts/database.mjs migrations-identity)" && printf '%s\n' "$$identity" | $(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' && echo "The migrations identity of the database, created from its secret."
-	sh scripts/cloud/push-image.sh > infra/functions/.image
-	$(FUNCTIONS) sh -c 'npm run --silent build && osls deploy --stage local --param="image=$$(cat .image)" --param="simulatorToken=$$SIMULATOR_TOKEN"'
-	@$(FUNCTIONS) node scripts/edge.mjs origin-secret | $(CLOUD) run --rm --no-deps -T cdk-deploy sh -c 'origin="$$(cat)" && exec cdk deploy local/edge --require-approval never --parameters "OriginVerifyValue=$$origin"' && echo "The stack edge, with the value of the secret of the edge as its parameter."
-	$(FUNCTIONS) node scripts/edge.mjs reconcile
-	$(CLOUD) run --rm --no-deps -T cdk-deploy cdk deploy local/observability --exclusively --require-approval never
-	$(FUNCTIONS) node scripts/observability.mjs reconcile
-	$(COMPOSE) run --rm --no-deps -T web pnpm build
-	$(FUNCTIONS) node scripts/panel.mjs upload /workspace/web/dist
-	$(FUNCTIONS) node scripts/gateway-env.mjs > infra/functions/.env.cloud
-	$(CLOUD) up -d --wait --force-recreate cloud-gateway
-	$(FUNCTIONS) node scripts/console.mjs migrate --force --no-interaction
-	$(FUNCTIONS) node scripts/console.mjs db:application-identity
+	$(DEPLOY) stacks
+	$(DEPLOY) image > infra/functions/.image
+	$(DEPLOY) migrate "$$(cat infra/functions/.image)"
+	$(DEPLOY) functions "$$(cat infra/functions/.image)"
+	$(DEPLOY) edge
+	$(DEPLOY) observability
+	$(DEPLOY) panel
+	$(DEPLOY) gateway
+	$(DEPLOY) smoke
 	@echo "Emulated cloud, behind the edge. Web app and API on one origin: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8601/docs/api  DIAN simulator: http://localhost:8602/health  AWS emulator: http://localhost:8604/_floci/health  Its web console: http://localhost:8604/_floci/ui  Emails taken by SES: http://localhost:8604/_aws/ses"
+
+# One step of scripts/deploy.sh against the stage local, as make cloud-up runs it: make cloud-deploy STEP=functions
+# IMAGE=<image> (the last one pushed by default), STEP=versions, STEP=rollback-image IMAGE=<earlier image>,
+# STEP=rollback-panel...
+cloud-deploy:
+	$(DEPLOY) $(STEP) $(or $(IMAGE),$(shell cat infra/functions/.image 2>/dev/null))
 
 # The emulated cloud with the synthetic demo data, through the real chain with the AWS adapters (the demo documents
 # in the bucket, their emails in SES), run by the console function. The seeder runs the chain of its documents in
@@ -371,6 +378,55 @@ cloud-e2e:
 # Run php artisan in the console function of the emulated cloud, as an operator would: make cloud-artisan ARGS="migrate:status".
 cloud-artisan:
 	$(FUNCTIONS) node scripts/console.mjs $(ARGS)
+
+# The operation commands of the runbooks (docs/runbooks/) in the emulated cloud; a real account takes the AWS CLI
+# commands each runbook gives next to them. The messages of a dead-letter queue without consuming them, QUEUE=chain,
+# webhooks or notifier: when each came, its type, company, document and journey, and why its job gave up.
+cloud-dead-letters:
+	$(FUNCTIONS) node scripts/operations.mjs dead-letters $(or $(QUEUE),chain)
+
+# Every message of a dead-letter queue moved back to its queue, QUEUE=chain or webhooks, with the native redrive of SQS
+# (StartMessageMoveTask): their steps start again.
+cloud-redrive:
+	$(FUNCTIONS) node scripts/operations.mjs redrive $(or $(QUEUE),chain)
+
+# The dead-letter queue of the notifier emptied, once its notifications were read (docs/runbooks/notifier.md).
+cloud-dead-letters-purge:
+	$(FUNCTIONS) node scripts/operations.mjs purge-notifier
+
+# The lines of error of the functions in the last MINUTES (60), worst first, FN=<function> for one: the saved query
+# errors-by-function as the emulator can run it.
+cloud-errors:
+	$(FUNCTIONS) node scripts/operations.mjs errors $(or $(FN),all) $(or $(MINUTES),60)
+
+# Each function with its image, reserved concurrency and state, the mappings of the queues, the schedules and the
+# concurrency of the account.
+cloud-functions:
+	$(FUNCTIONS) node scripts/operations.mjs functions
+
+# A rotation out of schedule (docs/runbooks/rotate-secrets.md), SECRET=edge (a new value of the secret of the edge and the
+# stack edge deployed with it; the previous value stays valid), chat-webhook URL=<address> (the address the notifier
+# posts to), database-application (the alternating rotation of the application identity, twice, with the functions
+# warm, as make cloud-check stands in for the rotation function of AWS) or database-migrations (a new password of the
+# migrations identity, set on its user as the single-user rotation does).
+cloud-rotate:
+	@case "$(SECRET)" in \
+	  edge) $(FUNCTIONS) node scripts/operations.mjs rotate-edge && $(DEPLOY) edge && $(DEPLOY) smoke ;; \
+	  chat-webhook) $(FUNCTIONS) node scripts/operations.mjs chat-webhook "$(URL)" ;; \
+	  database-application) $(FUNCTIONS) node scripts/console.mjs cloud:check rotation --timeout=300 ;; \
+	  database-migrations) $(FUNCTIONS) node scripts/operations.mjs rotate-migrations && $(FUNCTIONS) node scripts/database.mjs migrations-identity | $(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' && $(FUNCTIONS) node scripts/console.mjs migrate:status ;; \
+	  *) echo "usage: make cloud-rotate SECRET=edge|chat-webhook|database-application|database-migrations [URL=<address of the chat webhook>]" >&2; exit 2 ;; \
+	esac
+
+# In the emulated cloud (make cloud-up first), apart from make cloud-check since it takes about four minutes: the
+# incident drill of a DIAN that goes down, on a temporary company of its own deleted at the end (scripts/cloud-drill.sh):
+# DRILL_INVOICES invoices of the baseline, then DRILL_INCIDENT_INVOICES issued through the edge while the DIAN answers
+# HTTP 500; their transmissions give up into the dead-letter queue of the chain, its alarm reaches the chat, the commands
+# of the runbook bring them back with the native redrive of SQS, and every invoice ends accepted and delivered once,
+# without a gap. It prints the timeline: the time to detect, to notify and to recover (figures of the emulator); the
+# report of one run is docs/runbooks/drill-report.md.
+cloud-drill:
+	@sh scripts/cloud-drill.sh $(DRILL_INVOICES) $(DRILL_INCIDENT_INVOICES)
 
 # Remove this project's containers and volumes, which deletes the database, the queue, the simulator state and the mailbox,
 # and what the emulator of the emulated cloud created for this project.

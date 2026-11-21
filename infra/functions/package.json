@@ -9,9 +9,10 @@
   "scripts": {
     "build": "rm -rf origin-verifier/dist notifier/dist && tsc -p origin-verifier/tsconfig.build.json && tsc -p notifier/tsconfig.build.json",
     "typecheck": "tsc -p origin-verifier/tsconfig.json && tsc -p notifier/tsconfig.json",
-    "test": "node --test --test-reporter=spec origin-verifier/test/ notifier/test/ shared/test/",
+    "test": "node --test --test-reporter=spec origin-verifier/test/ notifier/test/ shared/test/ test/",
     "package:local": "npm run --silent build && osls package --stage local --package .package/local --param=image=000000000000.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-local-functions@sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "package:prod": "npm run --silent build && osls package --stage prod --package .package/prod --param=image=111111111111.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-prod-functions@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    "package:prod": "npm run --silent build && osls package --stage prod --package .package/prod --param=image=111111111111.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-prod-functions@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "package:prod-unreserved": "npm run --silent build && osls package --stage prod --package .package/prod-unreserved --param=reservedConcurrency=unreserved --param=image=111111111111.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-prod-functions@sha256:0000000000000000000000000000000000000000000000000000000000000000 --param=consoleImage=111111111111.dkr.ecr.us-east-1.amazonaws.com/dian-einvoice-prod-functions@sha256:1111111111111111111111111111111111111111111111111111111111111111"
   },
   "dependencies": {
     "@aws-sdk/client-apigatewayv2": "^3.1173.0",
@@ -19,6 +20,7 @@
     "@aws-sdk/client-cloudfront": "^3.1173.0",
     "@aws-sdk/client-cloudwatch": "^3.1173.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.1173.0",
+    "@aws-sdk/client-ecr": "^3.1173.0",
     "@aws-sdk/client-lambda": "^3.1173.0",
     "@aws-sdk/client-s3": "^3.1173.0",
     "@aws-sdk/client-scheduler": "^3.1173.0",
@@ -26,9 +28,15 @@
     "@aws-sdk/client-sns": "^3.1173.0",
     "@aws-sdk/client-sqs": "^3.1173.0",
     "@aws-sdk/client-ssm": "^3.1173.0",
+    "@aws-sdk/client-sts": "^3.1173.0",
     "osls": "4.8.1"
   },
   "devDependencies": {
+    "@aws-sdk/client-acm": "^3.1173.0",
+    "@aws-sdk/client-iam": "^3.1173.0",
+    "@aws-sdk/client-rds": "^3.1173.0",
+    "@aws-sdk/client-service-quotas": "^3.1173.0",
+    "@aws-sdk/client-sesv2": "^3.1173.0",
     "@types/node": "26.6.6",
     "typescript": "^6.0.3"
   }

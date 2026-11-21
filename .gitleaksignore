@@ -1,0 +1,10 @@
+# Findings of the secret scan (make security, .gitleaks.toml) that are not secrets, each ignored by its fingerprint:
+# <commit>:<file>:<rule>:<line>. Only these two lines of that commit are ignored: the same values anywhere else fail.
+#
+# Commit 9ec10c1 (observability) wrote two synthetic values as literals in the test of the redactor of the logs, which
+# has built them at run time since (backend/tests/Support/SecretShapes.php). Neither is, or ever was, a key of any
+# account, of the local stack or of the emulator:
+#  - line 126, an APP_KEY: "base64:" and the alphabet A to Z in base64, 26 bytes where a key of Laravel has 32;
+#  - line 130, an AWS access key id: "AKIA" and the letters A to P.
+9ec10c1eece1cc6fd6759357ac1db4ba9f99a5f0:backend/tests/Integration/Operations/ObservabilityTest.php:generic-api-key:126
+9ec10c1eece1cc6fd6759357ac1db4ba9f99a5f0:backend/tests/Integration/Operations/ObservabilityTest.php:aws-access-token:130

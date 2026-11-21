@@ -111,6 +111,26 @@ export interface AlertsSettings {
 }
 
 /**
+ * The delivery pipeline of a real account (stack delivery, prod only): who may deploy, from where. The workflow
+ * .github/workflows/deploy.yml assumes the deploy role with the OpenID Connect token of GitHub Actions, so no
+ * long-lived key exists; the role trusts only the environment of this repository (docs/deployment.md).
+ */
+export interface DeliverySettings {
+  // The repository on GitHub whose workflow deploys: deployment parameters (cdk deploy -c githubOwner=... -c
+  // githubRepository=...), never a lookup; without them the placeholders of this file.
+  readonly githubOwner: string
+  readonly githubRepository: string
+  // The environment of GitHub whose jobs may assume the role; its required reviewers approve each deployment.
+  readonly environment: string
+  // An OpenID Connect provider of token.actions.githubusercontent.com the account already has (an account holds one
+  // per URL): -c githubOidcProviderArn=arn:aws:iam::<account>:oidc-provider/token.actions.githubusercontent.com.
+  // null: the stack creates it.
+  readonly oidcProviderArn: string | null
+  // The qualifier of the bootstrap of CDK in the account (cdk bootstrap --qualifier), whose roles cdk deploy assumes.
+  readonly cdkQualifier: string
+}
+
+/**
  * How the saved queries of Logs Insights reach a stage (stack observability): as resources of the stack, or, where
  * the CloudFormation of the emulator cannot create that type (Floci 2.5.0), in the metadata of its template, from
  * which make cloud-up saves them through the API of Logs (infra/functions/scripts/observability.mjs queries).
@@ -145,6 +165,10 @@ export interface StageConfig {
     readonly tagMutability: 'MUTABLE' | 'IMMUTABLE'
     // Images ECR keeps; the functions name theirs by digest.
     readonly keep: number
+    // At rest: 'kms', with the AWS managed key of ECR (every pull and push in CloudTrail, no key policy to keep), or
+    // 'default', the AES-256 of ECR the repository of the stage local was created with (a repository cannot change
+    // its encryption once created).
+    readonly encryption: 'default' | 'kms'
   }
   readonly deployments: {
     // Artifacts of the deployments of the serverless service (templates and state) kept this long.
@@ -166,6 +190,8 @@ export interface StageConfig {
   readonly edge: EdgeSettings
   readonly alerts: AlertsSettings
   readonly observability: { readonly savedQueries: SavedQueries }
+  // null: no delivery pipeline (the emulator deploys with make cloud-up).
+  readonly delivery: DeliverySettings | null
 }
 
 const QUEUES = {
@@ -248,7 +274,7 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
     // The MySQL of compose, a database of its own and two users of its own (make cloud-up creates them),
     // apart from the local stack, which keeps its single user.
     database: { name: 'dian_einvoice_cloud', migrationsUser: 'dian_cloud_migrations', applicationUser: 'dian_cloud_app', managed: null },
-    functionImages: { tagMutability: 'MUTABLE', keep: 5 },
+    functionImages: { tagMutability: 'MUTABLE', keep: 5, encryption: 'default' },
     deployments: { expireAfter: Duration.days(7) },
     documents: {
       infrequentAccessAfter: Duration.days(90),
@@ -267,6 +293,7 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
     // The local webhook receiver of the DIAN simulator, on the network of compose, takes the messages as a chat would.
     alerts: { chatWebhookUrl: `http://simulator:8602/webhook-receiver/${ALARM_RECEIVER}`, fallbackEmail: 'operators@dian-einvoice.example' },
     observability: { savedQueries: 'template-metadata' },
+    delivery: null,
   },
   prod: {
     name: 'prod',
@@ -304,7 +331,7 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
         rotateAfter: Duration.days(30),
       },
     },
-    functionImages: { tagMutability: 'IMMUTABLE', keep: 20 },
+    functionImages: { tagMutability: 'IMMUTABLE', keep: 20, encryption: 'kms' },
     deployments: { expireAfter: Duration.days(90) },
     documents: {
       infrequentAccessAfter: Duration.days(90),
@@ -325,6 +352,8 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
     // deployment parameter.
     alerts: { chatWebhookUrl: '', fallbackEmail: 'operators@dian-einvoice.example' },
     observability: { savedQueries: 'resources' },
+    // Placeholders of the repository, replaced by the deployment parameters of a real account.
+    delivery: { githubOwner: 'example-owner', githubRepository: 'dian-einvoice', environment: 'production', oidcProviderArn: null, cdkQualifier: 'hnb659fds' },
   },
 }
 

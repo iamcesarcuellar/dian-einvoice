@@ -6,7 +6,7 @@
 // application gets its ECR repository. The functions and their triggers belong to the serverless
 // service, which reads the names published here; every resource is defined in exactly one tool.
 import { ArnFormat, Stack, type StackProps, Validations } from 'aws-cdk-lib'
-import { Repository, TagMutability } from 'aws-cdk-lib/aws-ecr'
+import { Repository, RepositoryEncryption, TagMutability } from 'aws-cdk-lib/aws-ecr'
 import { ManagedPolicy, PolicyDocument, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam'
 import { StringParameter } from 'aws-cdk-lib/aws-ssm'
 import type { Construct } from 'constructs'
@@ -69,11 +69,14 @@ export class ComputeStack extends Stack {
 
     // The image of the functions, by digest: the serverless service names the image it deploys as
     // <repository>@sha256:<digest>. Lambda pulls it with the permission of this policy, for the functions
-    // of the stage only.
+    // of the stage only. Scanned on every push; in prod its tags never move (scripts/deploy.sh tags each image
+    // with its commit) and it is encrypted with the AWS managed key of ECR; the lifecycle keeps the recent images,
+    // the ones a rollback goes back to (docs/deployment.md).
     this.repository = new Repository(this, 'FunctionImages', {
       repositoryName: resourceName(stage, 'functions'),
       imageScanOnPush: true,
       imageTagMutability: stage.functionImages.tagMutability === 'IMMUTABLE' ? TagMutability.IMMUTABLE : TagMutability.MUTABLE,
+      ...(stage.functionImages.encryption === 'kms' ? { encryption: RepositoryEncryption.KMS } : {}),
       lifecycleRules: [{ description: 'Keep the most recent images of the functions', maxImageCount: stage.functionImages.keep }],
       removalPolicy: removalPolicy(stage),
       emptyOnDelete: !stage.retainData,

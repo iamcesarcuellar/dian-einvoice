@@ -2,6 +2,9 @@
 
 namespace Tests\Integration\Operations;
 
+use App\Modules\Billing\Enums\ElectronicStatus;
+use App\Modules\Billing\Tools\TemporaryCompany;
+use App\Modules\Dian\Pipeline\ChainEvents;
 use App\Support\Cloud\CloudCheckProbe;
 use App\Support\Health\SchedulerHeartbeat;
 use App\Support\Observability\Correlation;
@@ -9,6 +12,7 @@ use App\Support\Observability\JsonLogFormatter;
 use App\Support\Outbox\OutboxEvent;
 use App\Support\Outbox\OutboxMessage;
 use App\Support\Outbox\OutboxSubscribers;
+use App\Support\Outbox\Sqs\SqsEventJob;
 use App\Support\Outbox\Sqs\SqsEventsHandler;
 use App\Support\Outbox\Sqs\SqsEventsQueue;
 use Aws\CommandInterface;
@@ -30,11 +34,13 @@ use Illuminate\Queue\QueueManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Monolog\Handler\StreamHandler;
 use Tests\IntegrationTestCase;
+use Tests\Support\GivesUpJob;
 
 /**
  * The handlers of the functions with sample events of AWS Lambda (tests/Fixtures/Lambda), cheap to run:
@@ -51,6 +57,9 @@ final class FunctionsTest extends IntegrationTestCase
 
     /** @var list<string> Receipt handles deleted. */
     private array $deleted = [];
+
+    /** @var list<array<mixed>> The SendMessage calls. */
+    private array $sent = [];
 
     public function test_a_batch_of_sqs_answers_which_of_its_messages_failed_so_the_others_are_not_sent_back(): void
     {
@@ -90,6 +99,105 @@ final class FunctionsTest extends IntegrationTestCase
         $this->assertTrue(is_numeric($runs) && (int) $runs === 1, 'The job of the application ran once.');
         $this->assertSame(['7f1c63a3-2b6c-4b5e-9a37-0d2f1a1e5c01', 'c2a0e9b4-6d1f-4f8e-8c3a-5b7d9e1f2a02', 'unreadable', 'later', 'probe'], Cache::get(CloudCheckProbe::batchKey($marker, 0)), 'A job knows the batch it runs in.');
         $this->assertSame([], SqsEventsHandler::currentBatch());
+    }
+
+    public function test_a_job_that_gives_up_leaves_a_copy_of_its_message_in_the_dead_letter_queue_and_is_deleted(): void
+    {
+        $queue = $this->queue();
+        $raw = $this->records()[0];
+        $correlation = Correlation::generate();
+        $raw['messageId'] = 'gives-up';
+        $raw['receiptHandle'] = 'gives-up-handle';
+        $raw['body'] = $queue->bodyOf(new GivesUpJob, 'chain');
+        $raw['messageAttributes'] = ['correlation_id' => ['stringValue' => $correlation, 'stringListValues' => [], 'binaryListValues' => [], 'dataType' => 'String']];
+
+        $answer = (new SqsEventsHandler(app()))->handle(['Records' => [$raw]], $this->context(seconds: 60));
+
+        // Handled: deleted from its queue, not reported, and a copy in the dead-letter queue its redrive policy names,
+        // with the body and the attributes it came with and the reason, for an operator to move back.
+        $this->assertSame([], is_array($answer) ? ($answer['batchItemFailures'] ?? []) : []);
+        $this->assertSame(['gives-up-handle'], $this->deleted);
+        $this->assertCount(1, $this->sent);
+        $copy = $this->sent[0];
+        $this->assertSame('http://floci:4566/000000000000/dian-einvoice-local-chain-dlq', $copy['QueueUrl'] ?? null);
+        $this->assertSame($raw['body'], $copy['MessageBody'] ?? null);
+        $this->assertEquals([
+            'correlation_id' => ['DataType' => 'String', 'StringValue' => $correlation],
+            SqsEventJob::DEAD_LETTER_REASON => ['DataType' => 'String', 'StringValue' => 'The transmission of DRL7 failed. Attempt 3 of 3: the DIAN answered HTTP 500.'],
+        ], $copy['MessageAttributes'] ?? null);
+    }
+
+    public function test_the_dead_letter_of_a_transmission_keeps_the_journey_of_its_invoice_and_moved_back_continues_it(): void
+    {
+        // Two attempts: the second, received by the function chain, gives up.
+        config(['dian.retry_delays' => [1]]);
+        $this->queue();
+        $log = storage_path('logs/functions-dead-letter.log');
+        File::delete($log);
+        config([
+            'logging.channels.dead-letter-test' => ['driver' => 'monolog', 'handler' => StreamHandler::class, 'with' => ['stream' => $log], 'formatter' => JsonLogFormatter::class, 'level' => 'debug'],
+            'logging.default' => 'dead-letter-test',
+        ]);
+        $company = $this->company();
+        $nit = $company->company->identification_number;
+        $this->simulator()->setMode($nit, ['mode' => 'error_500']);
+
+        try {
+            // The journey of the request that issued the invoice.
+            $journey = Correlation::begin();
+            $invoice = $this->issue($company, $this->draftInvoice($company));
+
+            // The generation, the signature and the first attempt in line; the last attempt reaches the function chain.
+            for ($event = $this->nextEventOf($invoice->id); $event !== null && ($event->type !== ChainEvents::TRANSMIT || $event->payloadInt('attempt') !== 2); $event = $this->nextEventOf($invoice->id)) {
+                $this->inLine($event);
+            }
+
+            $this->assertNotNull($event, 'The chain ended before its last attempt.');
+            $this->assertNotNull($event->available_at);
+            Carbon::setTestNow($event->available_at);
+            $this->receive($company, 'last-attempt', OutboxMessage::entry($event));
+
+            // The copy in the dead-letter queue carries the journey, in its body and as an attribute.
+            $this->assertCount(1, $this->sent);
+            $copy = $this->sent[0];
+            $body = $this->text($copy['MessageBody'] ?? null);
+            $attributes = $copy['MessageAttributes'] ?? null;
+            $this->assertIsArray($attributes);
+            $this->assertSame('http://floci:4566/000000000000/dian-einvoice-local-chain-dlq', $copy['QueueUrl'] ?? null);
+            $this->assertSame(OutboxMessage::entry($event)['Message'], $body);
+            $decoded = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
+            $this->assertIsArray($decoded);
+            $this->assertSame($journey, $decoded['correlation_id'] ?? null);
+            $copied = ['MessageAttributes' => $attributes];
+            $this->assertSame([ChainEvents::TRANSMIT, $company->company->id, $journey], [OutboxMessage::attribute($copied, OutboxMessage::TYPE), OutboxMessage::attribute($copied, OutboxMessage::COMPANY), OutboxMessage::attribute($copied, OutboxMessage::CORRELATION)]);
+            $this->assertStringStartsWith("The transmission of {$invoice->refresh()->full_number} failed. Attempt 2 of 2", $this->text(OutboxMessage::attribute($copied, SqsEventJob::DEAD_LETTER_REASON)));
+            $this->assertSame([ElectronicStatus::Failed, 'transmit', 1], [$invoice->electronic_status, $invoice->electronic_failed_step, $invoice->electronic_run]);
+
+            // The DIAN answers again, and an operator moves the copy back, as SQS returns it: the step starts again, in the
+            // same journey, and the invoice is accepted in it.
+            $this->simulator()->setMode($nit, ['mode' => 'normal']);
+            $this->receive($company, 'moved-back', ['Message' => $body, 'MessageAttributes' => $attributes]);
+            $this->assertSame([ElectronicStatus::Signed, 2], [$invoice->refresh()->electronic_status, $invoice->electronic_run]);
+
+            while (($event = $this->nextEventOf($invoice->id, ChainEvents::TRANSMIT, ChainEvents::RESPONSE_RECEIVED)) !== null) {
+                $this->receive($company, $event->type, OutboxMessage::entry($event));
+            }
+
+            $this->assertSame(ElectronicStatus::Accepted, $invoice->refresh()->electronic_status);
+            $lines = array_values(array_filter(array_map(fn (string $line): array => (array) json_decode($line, true), explode("\n", File::exists($log) ? File::get($log) : ''))));
+        } finally {
+            app('log')->forgetChannel('dead-letter-test');
+            File::delete($log);
+        }
+
+        // One journey, the outbox events of the invoice and its lines: the failure, the dead letter, the step that came back and the recovery.
+        $this->assertSame([$journey], OutboxEvent::query()->where('aggregate_id', $invoice->id)->pluck('correlation_id')->unique()->values()->all());
+        $story = array_values(array_filter($lines, fn (array $line): bool => in_array($line['event'] ?? null, ['dian.call', 'queue.dead_letter', 'chain.resumed', 'dian.response'], true)));
+        $this->assertSame([$journey], array_values(array_unique(array_map(fn (array $line): string => $this->text($line['correlation_id'] ?? null), $story))));
+        $this->assertSame(
+            ['dian.call failure', 'dian.call failure', 'queue.dead_letter failure', 'chain.resumed retried', 'dian.call success', 'dian.response accepted'],
+            array_map(fn (array $line): string => $this->text($line['event']).' '.$this->text($line['outcome'] ?? null), $story),
+        );
     }
 
     public function test_a_job_resumes_the_journey_of_its_event_and_writes_its_line_as_the_invocation(): void
@@ -248,6 +356,7 @@ final class FunctionsTest extends IntegrationTestCase
                     'GetQueueAttributes' => new Result(['Attributes' => ['RedrivePolicy' => '{"deadLetterTargetArn":"arn:aws:sqs:us-east-1:000000000000:dian-einvoice-local-chain-dlq","maxReceiveCount":10}']]),
                     'ChangeMessageVisibility' => $this->noted($this->visibility, [$this->text($command['ReceiptHandle']), is_numeric($command['VisibilityTimeout']) ? (int) $command['VisibilityTimeout'] : -1]),
                     'DeleteMessage' => $this->noted($this->deleted, $this->text($command['ReceiptHandle'])),
+                    'SendMessage' => $this->noted($this->sent, $command->toArray()),
                     default => throw new InvalidArgumentException('Unexpected '.$command->getName()),
                 });
             },
@@ -272,6 +381,65 @@ final class FunctionsTest extends IntegrationTestCase
         $this->assertSame($queue, $resolved);
 
         return $queue;
+    }
+
+    /**
+     * The next outbox event of a document, oldest first, marked published as the relay marks it; of the given types only,
+     * when some are given, and null when none is left.
+     */
+    private function nextEventOf(string $documentId, string ...$types): ?OutboxEvent
+    {
+        return DB::transaction(function () use ($documentId, $types): ?OutboxEvent {
+            $event = OutboxEvent::query()
+                ->where('aggregate_id', $documentId)
+                ->whereNull('published_at')
+                ->when($types !== [], fn ($query) => $query->whereIn('type', $types))
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->first();
+
+            $event?->forceFill(['published_at' => Carbon::now()])->save();
+
+            return $event;
+        });
+    }
+
+    /** Runs the jobs of the chain of an outbox event in this process, as InlineChain does. */
+    private function inLine(OutboxEvent $event): void
+    {
+        if ($event->available_at !== null && $event->available_at->isFuture()) {
+            Carbon::setTestNow($event->available_at);
+        }
+
+        foreach (app(OutboxSubscribers::class)->jobsFor($event, OutboxSubscribers::CHAIN) as $job) {
+            $handle = [$job, 'handle'];
+            $this->assertTrue(is_callable($handle), $job::class.' has no handle() method.');
+            app()->call($handle);
+        }
+    }
+
+    /**
+     * The function chain receives one message of the company, given as an entry of PublishBatch or as SendMessage took
+     * it: a body and its attributes. Another journey is current in this process before, so the job has only the one of
+     * its message; the company is current again after.
+     *
+     * @param  array<mixed>  $message
+     */
+    private function receive(TemporaryCompany $company, string $id, array $message): void
+    {
+        $attributes = [];
+
+        foreach (is_array($message['MessageAttributes'] ?? null) ? $message['MessageAttributes'] : [] as $name => $attribute) {
+            $attributes[$name] = ['stringValue' => is_array($attribute) ? ($attribute['StringValue'] ?? null) : null, 'stringListValues' => [], 'binaryListValues' => [], 'dataType' => 'String'];
+        }
+
+        $record = [...$this->records()[0], 'messageId' => $id, 'receiptHandle' => "{$id}-handle", 'body' => $this->text($message['Message'] ?? null), 'messageAttributes' => $attributes];
+        Correlation::begin();
+        $answer = (new SqsEventsHandler(app()))->handle(['Records' => [$record]], $this->context(seconds: 60));
+
+        $this->assertSame([], is_array($answer) ? ($answer['batchItemFailures'] ?? []) : [], "The message {$id} failed.");
+        $this->assertContains("{$id}-handle", $this->deleted, "The message {$id} was not deleted.");
+        $this->actingIn($company);
     }
 
     /**

@@ -371,7 +371,8 @@ services:
       replicas: 0
 
   # The serverless service of the functions (infra/functions, osls), without a network: osls package of
-  # both stages for make cdk-check, which needs no credentials.
+  # both stages for make cdk-check, which needs no credentials, and its tests, which read the runbooks and the deployment
+  # guide (docs), the targets of the Makefile and the scripts of the repository they cite, read-only.
   functions:
     build:
       context: ./infra/functions
@@ -386,6 +387,9 @@ services:
     volumes:
       - ./infra/functions:/workspace/functions
       - ./backend/resources/observability:/workspace/observability:ro
+      - ./docs:/workspace/docs:ro
+      - ./Makefile:/workspace/Makefile:ro
+      - ./scripts:/workspace/scripts:ro
 
   # The same, on the network of the stack: osls deploy of the stage local to the emulator, and the scripts
   # that invoke the console function and read the functions, upload the web app to the edge and check it (make
@@ -415,6 +419,68 @@ services:
     depends_on:
       floci:
         condition: service_healthy
+
+  # The deployment of a real account (scripts/deploy.sh prod, run by .github/workflows/deploy.yml, which has never run):
+  # the CDK app and the serverless service with the credentials of the role the workflow assumed, from the environment,
+  # and no endpoint of the emulator. Profile release only; nothing of it starts with make.
+  cdk-release:
+    image: dian-einvoice-cdk:latest
+    pull_policy: never
+    profiles: ["release"]
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 1g
+    environment:
+      HOME: /tmp
+      EVENT_ROUTES: /workspace/outbox/routes.json
+      AWS_SERVICES: /workspace/aws/services.json
+      HTTP_RESOURCES: /workspace/http
+      LOG_SCHEMA: /workspace/observability/log-schema.json
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    volumes:
+      - ./infra/cdk:/workspace/cdk
+      - ./backend/resources/outbox:/workspace/outbox:ro
+      - ./backend/resources/aws:/workspace/aws:ro
+      - ./backend/resources/http:/workspace/http:ro
+      - ./backend/resources/observability:/workspace/observability:ro
+
+  functions-release:
+    image: dian-einvoice-functions:latest
+    pull_policy: never
+    profiles: ["release"]
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 1g
+    environment:
+      HOME: /tmp
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    volumes:
+      - ./infra/functions:/workspace/functions
+      - ./frontend:/workspace/web:ro
+      - ./backend/resources/http:/workspace/http:ro
+      - ./backend/resources/observability:/workspace/observability:ro
+      - ./infra/cdk/edge:/workspace/edge:ro
+
+  # actionlint over the workflows of GitHub Actions and their local action, with shellcheck over their scripts, without a
+  # network (make cdk-check): the deployment workflow is validated here and never run. Read-only: the repository, whose
+  # root it finds by its .git.
+  actionlint:
+    image: rhysd/actionlint:1.7.7
+    profiles: ["tools"]
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: "no"
+    mem_limit: 256m
+    network_mode: none
+    working_dir: /repo
+    volumes:
+      - .:/repo:ro
+    command: ["-color"]
 
   # cfn-lint over the templates of the CDK app and of the serverless service, without a network (make cdk-check).
   cfn-lint:

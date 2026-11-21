@@ -87,7 +87,7 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
 
-  # The workflow and the composite action it uses.
+  # The workflows (CI and the deployment) and the composite action they use.
   - package-ecosystem: github-actions
     directories: [/, /.github/actions/prepare]
     schedule:

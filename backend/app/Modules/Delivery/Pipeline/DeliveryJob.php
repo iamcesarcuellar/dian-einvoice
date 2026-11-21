@@ -7,6 +7,8 @@ use App\Modules\Billing\Enums\DeliveryStep;
 use App\Modules\Billing\Models\Document;
 use App\Modules\Identity\Models\Company;
 use App\Modules\Identity\Tenancy\CurrentCompany;
+use App\Support\Observability\LogEvent;
+use App\Support\Observability\Telemetry;
 use App\Support\Outbox\ConsumesOutboxEvents;
 use App\Support\Outbox\OutboxEvent;
 use Illuminate\Bus\Queueable;
@@ -14,7 +16,9 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use LogicException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 /**
@@ -26,7 +30,9 @@ use Throwable;
  *
  * Expected failures (building, drawing, packaging or sending) end the delivery as failed inside the
  * step. Unexpected errors let the queue retry the job; when it gives up, failed() marks the delivery
- * failed so none is left pending.
+ * failed so none is left pending. Either way the message ends in the dead-letter queue (failed_jobs
+ * locally); moved back once the cause is fixed, the step starts again as Send again does, for a delivery
+ * that still failed there in that run (docs/runbooks/dead-letters.md).
  */
 abstract class DeliveryJob implements ConsumesOutboxEvents
 {
@@ -83,8 +89,55 @@ abstract class DeliveryJob implements ConsumesOutboxEvents
         $company = Company::query()->find($this->companyId);
 
         if ($company !== null) {
-            $currentCompany->runAs($company, fn () => app()->call($process));
+            $currentCompany->runAs($company, fn () => $this->resumesItsDeadLetter() || app()->call($process));
         }
+    }
+
+    /**
+     * The message of a step of the delivery that gave up came back: an operator moved its dead letter back to the
+     * queue. The delivery still failed at this step in this run, so it starts again from here, to the same
+     * recipient, as Send again does; any other message does nothing.
+     */
+    private function resumesItsDeadLetter(): bool
+    {
+        // A read without a lock first: only a delivery that gave up here pays for the lock.
+        if (! $this->gaveUpHere(Document::query()->find($this->documentId))) {
+            return false;
+        }
+
+        // Checked again and done under the lock of the document, so a Send again of a user meanwhile wins.
+        $resumed = DB::transaction(function (): ?Document {
+            if (! $this->gaveUpHere(app(DeliveryPipeline::class)->lock($this->documentId))) {
+                return null;
+            }
+
+            try {
+                return app(DeliveryActions::class)->sendAgain($this->documentId, null);
+            } catch (ValidationException|HttpExceptionInterface) {
+                // The delivery cannot start again by itself (a customer without an email): the message does nothing.
+                return null;
+            }
+        }, 3);
+
+        if ($resumed === null) {
+            return false;
+        }
+
+        Telemetry::record(
+            LogEvent::ChainResumed,
+            sprintf('The %s step of the delivery came back from the dead-letter queue and starts again in run %d.', $this->step()->value, $resumed->delivery_run),
+            outcome: 'retried',
+            documentId: $this->documentId,
+            detail: ['job' => class_basename(static::class)],
+        );
+
+        return true;
+    }
+
+    /** Whether the delivery of the document failed at this step in the run of this message. */
+    private function gaveUpHere(?Document $document): bool
+    {
+        return $document !== null && $document->delivery_status === DeliveryStatus::Failed && $document->delivery_step === $this->step() && $document->delivery_run === $this->run;
     }
 
     /** The queue gave up on the job: the delivery ends as failed at this step, if it is still there. */

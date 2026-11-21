@@ -2,6 +2,10 @@
 # of the CDK app, with its security group, and reach the managed database of the stack database, which
 # publish these SSM parameters (NETWORK_PARAMETERS and DATABASE_PARAMETERS in infra/cdk/lib/stage.ts). The
 # secrets of the two identities of the database are read in both stages (resources/parameters.yml).
+# The role CloudFormation deploys the stack of the functions with (stack delivery of the CDK app), so whoever runs osls
+# deploy needs no permission on Lambda, API Gateway, the logs or the schedules, only on this stack and its bucket.
+deploymentRole: arn:aws:iam::${param:account}:role/dian-einvoice-prod-functions-deployment
+
 vpc:
   securityGroupIds:
     - !Ref FunctionsSecurityGroupId

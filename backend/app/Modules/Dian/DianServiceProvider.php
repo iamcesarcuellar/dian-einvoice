@@ -2,8 +2,10 @@
 
 namespace App\Modules\Dian;
 
+use App\Modules\Dian\Console\ChainStatusCommand;
 use App\Modules\Dian\Console\DianChaosCommand;
 use App\Modules\Dian\Console\DianCheckCommand;
+use App\Modules\Dian\Console\DianProbeCommand;
 use App\Modules\Dian\Pipeline\ChainEvents;
 use App\Modules\Dian\Pipeline\GenerateXml;
 use App\Modules\Dian\Pipeline\RecordDianResponse;
@@ -66,7 +68,7 @@ final class DianServiceProvider extends ServiceProvider
         $subscribers->subscribe(ChainEvents::TAXPAYER_CHANGED, RegisterTaxpayer::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([DianCheckCommand::class, DianChaosCommand::class]);
+            $this->commands([DianCheckCommand::class, DianChaosCommand::class, ChainStatusCommand::class, DianProbeCommand::class]);
         }
     }
 }

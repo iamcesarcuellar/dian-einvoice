@@ -25,6 +25,8 @@ final class PublishPendingCommand extends Command
 
     public function handle(OutboxRelay $relay, OutboxPause $pause): int
     {
+        RelayHeartbeat::beat();
+
         if ($pause->active()) {
             $this->line('The outbox is paused (the demo seeder runs its chains in line): nothing published.');
             Telemetry::record(LogEvent::OutboxRelayRun, 'The relay ran while the outbox is paused: nothing published.', outcome: 'skipped', detail: ['count' => 0, 'lag_seconds' => 0, 'reason' => 'paused']);

@@ -4,8 +4,9 @@
 // template of the functions goes through the same rules in test/functions.test.ts.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { wildcards } from '../lib/delivery-stack.ts'
 import { FUNCTIONS, NOTIFIER, ORIGIN_VERIFIER, STAGES, type StageConfig } from '../lib/stage.ts'
-import { built, validationReport } from './support.ts'
+import { built, stageOf, template, validationReport } from './support.ts'
 
 /** The exceptions of each stage: the rule and the resource it is acknowledged on. */
 const EXCEPTIONS = [
@@ -57,6 +58,33 @@ function databaseExceptions(stage: StageConfig): string[] {
     : ['Migrations', 'Application'].map((identity) => `AwsSolutions-SMG4 ${stage.name}/security/DatabaseIdentities/${identity}/Resource`)
 }
 
+/**
+ * The roles of the deployment pipeline (prod): each resource with a wildcard in their policies, with the reason the
+ * stack writes for it (lib/delivery-stack.ts), a resource that takes no ARN, or a name CloudFormation or a service
+ * completes with an id of its own.
+ */
+function deliveryExceptions(stage: StageConfig): string[] {
+  const stacks = stageOf(stage.name)
+
+  if (stacks.delivery === null) {
+    return []
+  }
+
+  const policies = template(stacks.delivery).findResources('AWS::IAM::Role')
+
+  return Object.entries(policies).flatMap(([logicalId, role]) => {
+    const path = logicalId.startsWith('DeployRole') ? 'DeployRole' : 'FunctionsDeploymentRole'
+    const statements = ((role as { Properties: { Policies: { PolicyDocument: { Statement: { Resource: string | string[] }[] } }[] } }).Properties.Policies).flatMap((policy) => policy.PolicyDocument.Statement)
+    const resources = [...new Set(statements.flatMap((statement) => [statement.Resource].flat()).filter((resource) => resource.includes('*')))]
+
+    return resources.map((resource) => {
+      assert.ok(resource in wildcards(stage), `${resource} has a reason`)
+
+      return `AwsSolutions-IAM5[Resource::${resource}] ${stage.name}/delivery/${path}/Resource`
+    })
+  })
+}
+
 const assembly = built.app.synth()
 const nag = validationReport(assembly.directory, 'AwsSolutions')
 
@@ -80,15 +108,16 @@ describe('cdk-nag', () => {
       ...networkExceptions(stage),
       ...databaseExceptions(stage),
       ...edgeExceptions(stage),
+      ...deliveryExceptions(stage),
     ])
     assert.deepEqual([...new Set(suppressed)].sort(), expected.sort())
   })
 
-  it('synthesized the nine stacks of the stage local and the eleven of prod, which adds the network and the database', () => {
+  it('synthesized the nine stacks of the stage local and the twelve of prod, which adds the network, the database and the delivery', () => {
     assert.deepEqual(assembly.nestedAssemblies.map((nested) => nested.directoryName).sort(), ['assembly-local', 'assembly-prod'])
     assert.deepEqual(assembly.nestedAssemblies.flatMap((nested) => nested.nestedAssembly.stacks.map((stack) => stack.stackName)).sort(), [
       'dian-einvoice-local-alerts', 'dian-einvoice-local-compute', 'dian-einvoice-local-data', 'dian-einvoice-local-edge', 'dian-einvoice-local-mail', 'dian-einvoice-local-messaging', 'dian-einvoice-local-observability', 'dian-einvoice-local-security', 'dian-einvoice-local-storage',
-      'dian-einvoice-prod-alerts', 'dian-einvoice-prod-compute', 'dian-einvoice-prod-data', 'dian-einvoice-prod-database', 'dian-einvoice-prod-edge', 'dian-einvoice-prod-mail', 'dian-einvoice-prod-messaging', 'dian-einvoice-prod-network', 'dian-einvoice-prod-observability', 'dian-einvoice-prod-security', 'dian-einvoice-prod-storage',
+      'dian-einvoice-prod-alerts', 'dian-einvoice-prod-compute', 'dian-einvoice-prod-data', 'dian-einvoice-prod-database', 'dian-einvoice-prod-delivery', 'dian-einvoice-prod-edge', 'dian-einvoice-prod-mail', 'dian-einvoice-prod-messaging', 'dian-einvoice-prod-network', 'dian-einvoice-prod-observability', 'dian-einvoice-prod-security', 'dian-einvoice-prod-storage',
     ])
   })
 

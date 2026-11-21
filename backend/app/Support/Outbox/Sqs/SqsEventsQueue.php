@@ -27,12 +27,14 @@ use RuntimeException;
  * Retries and the dead-letter queue are those of SQS: a job that throws becomes visible again after the
  * wait of its backoff (ChangeMessageVisibility), each receive counts as an attempt, and after the
  * maxReceiveCount of the redrive policy of the queue SQS moves the message to its dead-letter queue (see
- * SqsEventJob). A message no handler can take fails on every receive and ends there too.
+ * SqsEventJob). A message no handler can take fails on every receive and ends there too. A job that gives up
+ * for good on its own (a step of the chain after its last attempt) sends a copy of its message to that same
+ * dead-letter queue at once, where an operator moves it back once the cause is fixed.
  */
 final class SqsEventsQueue extends SqsQueue
 {
-    /** @var array<string, int|null> Queue URL => maxReceiveCount of its redrive policy. */
-    private array $maxReceives = [];
+    /** @var array<string, array{maxReceives: int|null, deadLetters: string|null}> Queue URL => its redrive policy. */
+    private array $redrive = [];
 
     /**
      * @param  array<string, string>  $queues  Channel => queue URL.
@@ -90,7 +92,7 @@ final class SqsEventsQueue extends SqsQueue
      */
     public function jobFor(array $message, string $url): ?SqsEventJob
     {
-        $maxReceives = $this->maxReceives($url);
+        $redrive = $this->redrivePolicy($url);
 
         try {
             $payload = $this->payloadOf($message, $url);
@@ -102,7 +104,7 @@ final class SqsEventsQueue extends SqsQueue
             return null;
         }
 
-        return new SqsEventJob($this->container, $this->sqs, $message, $this->connectionName, $url, $payload, $maxReceives);
+        return new SqsEventJob($this->container, $this->sqs, $message, $this->connectionName, $url, $payload, $redrive['maxReceives'], $redrive['deadLetters']);
     }
 
     /**
@@ -188,18 +190,29 @@ final class SqsEventsQueue extends SqsQueue
         return $body;
     }
 
-    /** The maxReceiveCount of the redrive policy of a queue, read once; null when it has none. */
-    private function maxReceives(string $url): ?int
+    /**
+     * The redrive policy of a queue, read once: its maxReceiveCount, and the URL of its dead-letter queue, which
+     * lives in the same account and region (SQS requires it), so its URL is the one of the queue with the name of
+     * the dead-letter queue. Nulls when the queue has none.
+     *
+     * @return array{maxReceives: int|null, deadLetters: string|null}
+     */
+    private function redrivePolicy(string $url): array
     {
-        if (! array_key_exists($url, $this->maxReceives)) {
+        if (! array_key_exists($url, $this->redrive)) {
             $attributes = $this->sqs->getQueueAttributes(['QueueUrl' => $url, 'AttributeNames' => ['RedrivePolicy']])['Attributes'] ?? [];
             $policy = is_array($attributes) && is_string($attributes['RedrivePolicy'] ?? null) ? json_decode($attributes['RedrivePolicy'], true) : null;
             $count = is_array($policy) ? ($policy['maxReceiveCount'] ?? null) : null;
+            $target = is_array($policy) && is_string($policy['deadLetterTargetArn'] ?? null) ? $policy['deadLetterTargetArn'] : '';
+            $name = substr($target, (int) strrpos($target, ':') + 1);
 
-            $this->maxReceives[$url] = is_numeric($count) ? (int) $count : null;
+            $this->redrive[$url] = [
+                'maxReceives' => is_numeric($count) ? (int) $count : null,
+                'deadLetters' => $name !== '' && str_contains($url, '/') ? substr($url, 0, (int) strrpos($url, '/') + 1).$name : null,
+            ];
         }
 
-        return $this->maxReceives[$url];
+        return $this->redrive[$url];
     }
 
     /**

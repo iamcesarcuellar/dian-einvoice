@@ -16,7 +16,9 @@ enum LogEvent: string
     case OutboxRelayed = 'outbox.relayed';
     case OutboxRelayRun = 'outbox.relay_run';
     case OutboxSwept = 'outbox.swept';
+    case ChainResumed = 'chain.resumed';
     case QueueJob = 'queue.job';
+    case QueueDeadLetter = 'queue.dead_letter';
     case DianCall = 'dian.call';
     case DianResponse = 'dian.response';
     case DianRule = 'dian.rule';

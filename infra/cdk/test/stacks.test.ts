@@ -78,14 +78,19 @@ for (const name of ['local', 'prod'] as const) {
           },
         })
 
+        // The consumers take messages of their queue, and put the message of a job that gave up for good in its
+        // dead-letter queue, nothing else.
         messaging.hasResourceProperties('AWS::IAM::ManagedPolicy', {
           ManagedPolicyName: `${prefix}consume-${channel}`,
           PolicyDocument: {
-            Statement: [{
-              Effect: 'Allow',
-              Action: ['sqs:ChangeMessageVisibility', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes', 'sqs:GetQueueUrl', 'sqs:ReceiveMessage'],
-              Resource: { 'Fn::GetAtt': [queue, 'Arn'] },
-            }],
+            Statement: [
+              {
+                Effect: 'Allow',
+                Action: ['sqs:ChangeMessageVisibility', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes', 'sqs:GetQueueUrl', 'sqs:ReceiveMessage'],
+                Resource: { 'Fn::GetAtt': [queue, 'Arn'] },
+              },
+              { Effect: 'Allow', Action: 'sqs:SendMessage', Resource: { 'Fn::GetAtt': [logicalId(stacks.messaging, 'AWS::SQS::Queue', { QueueName: `${prefix}${channel}-dlq` }), 'Arn'] } },
+            ],
           },
         })
       }

@@ -9,6 +9,7 @@ use App\Modules\Billing\Models\DocumentEvent;
 use App\Modules\Dian\Models\DianTransmission;
 use App\Modules\Dian\Pipeline\ElectronicDocumentActions;
 use App\Modules\Dian\Pipeline\StalledChainSweeper;
+use App\Modules\Dian\Pipeline\TransmitDocument;
 use App\Modules\Dian\Services\IssueDateRefresh;
 use App\Modules\Dian\Services\SigningCertificates;
 use App\Modules\Dian\Transmission\DianGateway;
@@ -81,6 +82,34 @@ final class ChainTest extends IntegrationTestCase
 
         $this->assertSame(ElectronicStatus::Accepted, $invoice->electronic_status);
         $this->assertSame(2, $invoice->electronic_run);
+    }
+
+    public function test_the_dead_letter_of_a_transmission_that_gave_up_retries_it_when_an_operator_moves_it_back(): void
+    {
+        $company = $this->company();
+        $nit = $company->company->identification_number;
+        $this->simulator()->setMode($nit, ['mode' => 'error_500']);
+        $invoice = $this->acceptedInvoice($company);
+        $this->assertSame(ElectronicStatus::Failed, $invoice->electronic_status);
+        $this->assertSame(6, $invoice->electronic_attempt);
+        $this->simulator()->setMode($nit, ['mode' => 'normal']);
+
+        // An older message of the same run, delivered late, does nothing.
+        app()->call([new TransmitDocument($company->company->id, $invoice->id, 1, 2), 'handle']);
+        $this->assertSame([ElectronicStatus::Failed, 1], [$invoice->refresh()->electronic_status, $invoice->electronic_run]);
+
+        // The message of the attempt that gave up, moved back from the dead-letter queue: a new run, as Retry now does.
+        app()->call([new TransmitDocument($company->company->id, $invoice->id, 1, 6), 'handle']);
+        $this->assertSame([ElectronicStatus::Signed, 2], [$invoice->refresh()->electronic_status, $invoice->electronic_run]);
+        $this->assertSame(1, DocumentEvent::query()->where('document_id', $invoice->id)->where('type', DocumentEventType::RetryRequested)->count());
+        $invoice = $this->runChain($invoice);
+
+        $this->assertSame(ElectronicStatus::Accepted, $invoice->electronic_status);
+        $this->assertSame(1, DianTransmission::query()->where('document_id', $invoice->id)->where('run', 2)->count());
+
+        // Moved back twice, the dead letter does nothing more: its run is over.
+        app()->call([new TransmitDocument($company->company->id, $invoice->id, 1, 6), 'handle']);
+        $this->assertSame([ElectronicStatus::Accepted, 2], [$invoice->refresh()->electronic_status, $invoice->electronic_run]);
     }
 
     public function test_a_send_that_may_have_arrived_asks_get_status_before_sending_again(): void

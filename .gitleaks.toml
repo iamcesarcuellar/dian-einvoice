@@ -1,17 +1,35 @@
-# Secret scan of the git history and of the changes not committed yet (make security, and the security job
-# of CI): the default rules of gitleaks, without the public test values below, each one published by its
-# source. Any other finding fails.
+# Secret scan of the git history and of the changes not committed yet (make security, and the security job of CI):
+# the default rules of gitleaks, with two kinds of exception, each as narrow as it can be:
+#  - a public test value, published by its source, is allowed in the files that hold it only (below);
+#  - a finding that is not a secret is ignored by its fingerprint, its commit, file, rule and line (.gitleaksignore).
+# Any other finding fails. The tests build the values with the form of a secret they need at run time
+# (backend/tests/Support/SecretShapes.php), never as literals.
 [extend]
 useDefault = true
 
 [[allowlists]]
-description = "Public test values, not secrets"
+description = "The technical key of the DIAN test set (toolbox of annex 1.9: SETP, 990000000 to 995000000), a public value"
+condition = "AND"
 regexTarget = "match"
-regexes = [
-  # The technical key of the DIAN test set (toolbox of annex 1.9: SETP, 990000000 to 995000000).
-  '''fc8eac422eba16e22ffd8c6f94b3f40a6e38162c''',
-  # The technical key of the CUFE example of annex 1.9 (section 11.2.1).
-  '''693ff6f2a553c3646a063436fd4dd9ded0311471''',
-  # The example secret of the Standard Webhooks reference libraries.
-  '''whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw''',
+regexes = ['''fc8eac422eba16e22ffd8c6f94b3f40a6e38162c''']
+paths = [
+  '''^backend/app/Modules/Billing/Database/Seeders/DemoSeeder\.php$''',
+  '''^simulator/test/fixtures/taxpayer\.json$''',
 ]
+
+[[allowlists]]
+description = "The technical key of the CUFE example of annex 1.9 (section 11.2.1), a public value"
+condition = "AND"
+regexTarget = "match"
+regexes = ['''693ff6f2a553c3646a063436fd4dd9ded0311471''']
+paths = [
+  '''^backend/app/Modules/Dian/Console/DianCheckCommand\.php$''',
+  '''^backend/tests/Unit/Dian/DocumentKeyTest\.php$''',
+]
+
+[[allowlists]]
+description = "The example secret of the Standard Webhooks reference libraries, the key of their test vectors"
+condition = "AND"
+regexTarget = "match"
+regexes = ['''whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw''']
+paths = ['''^backend/tests/Unit/Developers/WebhookSignatureTest\.php$''']

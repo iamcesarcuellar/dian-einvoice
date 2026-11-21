@@ -1,0 +1,19 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('documents', function (Blueprint $table): void {
+            // migration-safety: safe since v1.4.0: no release from v1.4.0 on reads documents.legacy_status.
+            $table->string('replacement')->nullable();
+            $table->dropColumn('legacy_status');
+            // migration-safety: safe since v1.4.0
+            $table->dropColumn('legacy_kind');
+        });
+    }
+};

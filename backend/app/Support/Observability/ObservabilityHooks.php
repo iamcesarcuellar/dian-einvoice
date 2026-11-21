@@ -93,7 +93,7 @@ final class ObservabilityHooks
             }, $job->attempts()),
             outcome: $outcome,
             durationMs: Telemetry::since($started),
-            detail: ['job' => $class, 'queue' => self::queue($job->getQueue()), 'attempt' => $job->attempts()],
+            detail: ['job' => $class, 'queue' => self::queueName($job->getQueue()), 'attempt' => $job->attempts()],
             level: $outcome === 'failure' ? 'error' : ($outcome === 'retried' ? 'warning' : 'info'),
             error: $error,
         );
@@ -126,7 +126,7 @@ final class ObservabilityHooks
     }
 
     /** The channel of an SQS queue (its URL ends in dian-einvoice-<stage>-<channel>), or the name of a local queue. */
-    private static function queue(string $queue): string
+    public static function queueName(string $queue): string
     {
         $name = basename((string) (parse_url($queue, PHP_URL_PATH) ?: $queue));
 

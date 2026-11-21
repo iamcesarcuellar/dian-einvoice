@@ -62,8 +62,11 @@ export function logicalId(stack: Stack, type: string, properties: Record<string,
   return ids[0] as string
 }
 
-/** The packaged template of the functions of a stage (make test-infra and make cdk-check package them first). */
-export function functionsTemplate(stage: 'local' | 'prod'): { Parameters: Record<string, { Type: string, Default: string }>, Resources: Record<string, { Type: string, Properties: Record<string, unknown> }> } {
+/**
+ * The packaged template of the functions of a stage (make test-infra and make cdk-check package them first);
+ * prod-unreserved is prod packaged with --param=reservedConcurrency=unreserved and a console image of its own.
+ */
+export function functionsTemplate(stage: 'local' | 'prod' | 'prod-unreserved'): { Parameters: Record<string, { Type: string, Default: string }>, Resources: Record<string, { Type: string, Properties: Record<string, unknown> }> } {
   const directory = process.env.FUNCTIONS_TEMPLATES ?? join(import.meta.dirname, '../../functions')
 
   return JSON.parse(readFileSync(join(directory, '.package', stage, 'cloudformation-template-update-stack.json'), 'utf8')) as ReturnType<typeof functionsTemplate>

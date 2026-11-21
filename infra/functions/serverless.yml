@@ -46,9 +46,16 @@ params:
     dianSimulatorToken: ${param:simulatorToken, ''}
     webhookPrivateTargets: 'true'
     webhookReceiverUrl: http://simulator:8602/webhook-receiver
+    # Two retries of a transmission (2 and 5 s) instead of the five of prod: Floci 2.5.0 gives a scheduled retry
+    # back after the 60 s visibility timeout of its queue whatever its delay (docs/limitations.md), so five retries
+    # would take six minutes in the emulator and make cloud-drill, which waits for a transmission to give up, would
+    # last more than ten.
+    dianRetryDelays: '2,5'
     # make cloud-check signs in and downloads through the edge, as a browser does: the proxy in front of the
     # distribution, on the network of compose (its alias api).
     apiCheckUrl: http://api:8000/api/v1
+    # The concurrency each function reserves (custom.concurrency below); the emulator applies it.
+    reservedConcurrency: reserved
   prod:
     # Placeholder: this stage is never deployed (docs/infrastructure.md), as in the CDK app.
     account: '111111111111'
@@ -73,7 +80,15 @@ params:
     dianSimulatorToken: ''
     webhookPrivateTargets: 'false'
     webhookReceiverUrl: ''
+    # A first attempt and five retries, 2, 5, 15, 45 and 120 s apart (plus jitter): about three minutes before a
+    # transmission gives up and its message goes to the dead-letter queue of the chain.
+    dianRetryDelays: '2,5,15,45,120'
     apiCheckUrl: ''
+    # reserved: each function reserves its concurrency, which caps the connections of the database (60). unreserved,
+    # given at deploy time (--param="reservedConcurrency=unreserved"), only while the quota of concurrent executions
+    # of the account is below their sum plus the 100 that must stay unreserved, as in a new account: the quota then
+    # caps every function together (docs/deployment.md).
+    reservedConcurrency: reserved
 
 provider:
   name: aws
@@ -83,6 +98,9 @@ provider:
   # The bucket of the CDK app (stack storage) that keeps the templates of each deployment.
   deploymentBucket:
     name: dian-einvoice-${sls:stage}-deployments-${param:account}-us-east-1
+  # In prod CloudFormation deploys this stack with a role of its own (stages/prod.yml); the emulator evaluates no IAM.
+  iam:
+    deploymentRole: ${file(./stages/${sls:stage}.yml):deploymentRole, null}
   # The image is deployed by digest; versions and aliases add nothing here.
   versionFunctions: false
   architecture: x86_64
@@ -202,6 +220,7 @@ custom:
       # are read once per cold start, not on every request.
       BREF_LARAVEL_CACHE_CONFIG: '1'
       DIAN_SOAP_URL: ${param:dianSoapUrl}
+      DIAN_RETRY_DELAYS: ${param:dianRetryDelays}
       DIAN_SIMULATOR_URL: ${param:dianSimulatorUrl}
       DIAN_SIMULATOR_TOKEN: ${param:dianSimulatorToken}
       WEBHOOK_ALLOW_PRIVATE_TARGETS: ${param:webhookPrivateTargets}
@@ -209,6 +228,29 @@ custom:
     # The functions of the application run in the private subnets of the stack network in prod; the origin
     # verifier, which reaches only Secrets Manager, outside the VPC.
     vpc: &php-vpc ${file(./stages/${sls:stage}.yml):vpc, null}
+  # The reserved concurrency of each function, with its reasons in docs/infrastructure.md: the functions of the
+  # application together hold at most 60 connections to the database (one per execution environment). The stage
+  # parameter reservedConcurrency chooses the set: reserved, or unreserved, where AWS::NoValue leaves the property
+  # out, for an account whose quota of concurrent executions is too low to reserve them (docs/deployment.md).
+  concurrency:
+    reserved:
+      api: 40
+      chain: 10
+      webhooks: 5
+      relay: 1
+      scheduler: 2
+      console: 2
+      originVerifier: 10
+      notifier: 2
+    unreserved:
+      api: !Ref AWS::NoValue
+      chain: !Ref AWS::NoValue
+      webhooks: !Ref AWS::NoValue
+      relay: !Ref AWS::NoValue
+      scheduler: !Ref AWS::NoValue
+      console: !Ref AWS::NoValue
+      originVerifier: !Ref AWS::NoValue
+      notifier: !Ref AWS::NoValue
 
 # Memory, timeout and concurrency of each function, with their reasons, are in docs/infrastructure.md.
 # Every function has a role of its own from the CDK app (stack compute) and a concurrency limit; together
@@ -225,7 +267,7 @@ functions:
     role: !Sub '${ApiRoleArn}'
     memorySize: 1024
     timeout: 28
-    reservedConcurrency: 40
+    reservedConcurrency: ${self:custom.concurrency.${param:reservedConcurrency}.api}
     vpc: *php-vpc
     environment:
       <<: *php-environment
@@ -250,7 +292,7 @@ functions:
     role: !Sub '${ChainRoleArn}'
     memorySize: 1024
     timeout: 60
-    reservedConcurrency: 10
+    reservedConcurrency: ${self:custom.concurrency.${param:reservedConcurrency}.chain}
     vpc: *php-vpc
     environment:
       <<: *php-environment
@@ -266,7 +308,7 @@ functions:
     role: !Sub '${WebhooksRoleArn}'
     memorySize: 512
     timeout: 60
-    reservedConcurrency: 5
+    reservedConcurrency: ${self:custom.concurrency.${param:reservedConcurrency}.webhooks}
     vpc: *php-vpc
     environment:
       <<: *php-environment
@@ -285,7 +327,7 @@ functions:
     role: !Sub '${RelayRoleArn}'
     memorySize: 512
     timeout: 60
-    reservedConcurrency: 1
+    reservedConcurrency: ${self:custom.concurrency.${param:reservedConcurrency}.relay}
     maximumRetryAttempts: 0
     maximumEventAge: 60
     vpc: *php-vpc
@@ -303,7 +345,7 @@ functions:
     role: !Sub '${SchedulerRoleArn}'
     memorySize: 512
     timeout: 120
-    reservedConcurrency: 2
+    reservedConcurrency: ${self:custom.concurrency.${param:reservedConcurrency}.scheduler}
     maximumRetryAttempts: 0
     maximumEventAge: 60
     vpc: *php-vpc
@@ -318,12 +360,14 @@ functions:
     name: dian-einvoice-${sls:stage}-console
     description: php artisan of dian-einvoice, on demand (migrations and operations)
     image:
-      uri: ${param:image}
+      # A new image reaches the console function first (--param="consoleImage=<new>" with the image the others still
+      # run), which migrates the database before the other functions take it (scripts/deploy.sh migrate).
+      uri: ${param:consoleImage, param:image}
       command: ['App\Support\Lambda\ArtisanHandler']
     role: !Sub '${ConsoleRoleArn}'
     memorySize: 1024
     timeout: 900
-    reservedConcurrency: 2
+    reservedConcurrency: ${self:custom.concurrency.${param:reservedConcurrency}.console}
     vpc: *php-vpc
     environment:
       <<: *php-environment
@@ -348,7 +392,7 @@ functions:
     role: !Sub '${OriginVerifierRoleArn}'
     memorySize: 128
     timeout: 5
-    reservedConcurrency: 10
+    reservedConcurrency: ${self:custom.concurrency.${param:reservedConcurrency}.originVerifier}
     environment:
       ORIGIN_SECRET_ID: !Ref OriginSecretArn
       AWS_ENDPOINT_URL: ${param:awsEndpoint}
@@ -368,7 +412,7 @@ functions:
     role: !Sub '${NotifierRoleArn}'
     memorySize: 128
     timeout: 20
-    reservedConcurrency: 2
+    reservedConcurrency: ${self:custom.concurrency.${param:reservedConcurrency}.notifier}
     maximumRetryAttempts: 2
     maximumEventAge: 3600
     destinations:

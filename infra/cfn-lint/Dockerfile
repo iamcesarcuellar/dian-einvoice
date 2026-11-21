@@ -12,4 +12,4 @@ ENV HOME=/tmp \
 WORKDIR /templates
 
 ENTRYPOINT ["cfn-lint"]
-CMD ["--format", "parseable", "--", "cdk/assembly-local/*.template.json", "cdk/assembly-prod/*.template.json", "functions/local/cloudformation-template-update-stack.json", "functions/prod/cloudformation-template-update-stack.json"]
+CMD ["--format", "parseable", "--", "cdk/assembly-local/*.template.json", "cdk/assembly-prod/*.template.json", "functions/local/cloudformation-template-update-stack.json", "functions/prod/cloudformation-template-update-stack.json", "functions/prod-unreserved/cloudformation-template-update-stack.json"]

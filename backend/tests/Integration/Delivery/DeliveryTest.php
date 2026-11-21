@@ -7,6 +7,7 @@ use App\Modules\Delivery\Enums\DocumentFileKind;
 use App\Modules\Delivery\Enums\EmailOutcome;
 use App\Modules\Delivery\Mail\DeliverySubject;
 use App\Modules\Delivery\Models\DeliveryAttempt;
+use App\Modules\Delivery\Pipeline\SendDeliveryEmail;
 use App\Modules\Delivery\Services\DocumentFiles;
 use App\Modules\Dian\Ubl\XsdValidator;
 use Illuminate\Mail\Transport\ArrayTransport;
@@ -113,6 +114,14 @@ final class DeliveryTest extends IntegrationTestCase
         $this->assertSame(DeliveryStatus::Failed, $refused->delivery_status);
         $this->assertSame([EmailOutcome::Rejected], $this->outcomes($refused->id));
         $this->assertStringContainsString('550', $this->text(DeliveryAttempt::query()->where('document_id', $refused->id)->value('error')));
+
+        // Its dead letter, moved back once the mailbox exists: the email step starts again, to the same customer.
+        app()->call([new SendDeliveryEmail($company->company->id, $refused->id, 1, 1), 'handle']);
+        $this->assertSame([DeliveryStatus::Pending, 2], [$refused->refresh()->delivery_status, $refused->delivery_run]);
+        $refused = $this->runChain($refused);
+        $this->assertSame(DeliveryStatus::Delivered, $refused->delivery_status);
+        $this->assertSame([EmailOutcome::Rejected, EmailOutcome::Sent], $this->outcomes($refused->id));
+        $this->assertCount(2, ScriptedMailTransport::$sent);
     }
 
     /**

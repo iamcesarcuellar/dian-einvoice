@@ -4,8 +4,8 @@
 // deployed after the functions, whose HTTP API it fronts), the alerts and observability stacks of task 5 (where the
 // alarms go, before the functions, whose notifier subscribes to it; the metrics, alarms, dashboard and saved queries,
 // after the functions and the edge, whose logs and metrics they read) and, in prod only, the network and database
-// stacks of task 3, which are validated offline and never deployed; common tags, names with the stage and the AWS
-// Solutions checks of cdk-nag. Every finding of cdk-nag must be fixed or acknowledged with its reason next to the resource; any
+// stacks of task 3 and the delivery stack of task 6 (the roles of the deployment pipeline of a real account), which
+// are validated offline and never deployed; common tags, names with the stage and the AWS Solutions checks of cdk-nag. Every finding of cdk-nag must be fixed or acknowledged with its reason next to the resource; any
 // other one stops synthesis.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -18,6 +18,7 @@ import { loadLogSchema, type LogSchema } from './log-schema.ts'
 import { ComputeStack } from './compute-stack.ts'
 import { DatabaseStack } from './database-stack.ts'
 import { DataStack } from './data-stack.ts'
+import { DeliveryStack } from './delivery-stack.ts'
 import { EdgeStack } from './edge-stack.ts'
 import { MailStack } from './mail-stack.ts'
 import { MessagingStack } from './messaging-stack.ts'
@@ -42,10 +43,12 @@ export interface PlatformStacks {
   // Only in a stage with a private network and a managed database (prod).
   readonly network: NetworkStack | null
   readonly database: DatabaseStack | null
+  // Only in a stage a pipeline deploys (prod).
+  readonly delivery: DeliveryStack | null
 }
 
 /** The Infrastructure task that brought each stack, for its description. */
-const TASKS: Readonly<Record<string, number>> = { compute: 2, network: 3, database: 3, edge: 4, alerts: 5, observability: 5 }
+const TASKS: Readonly<Record<string, number>> = { compute: 2, network: 3, database: 3, edge: 4, alerts: 5, observability: 5, delivery: 6 }
 
 export function tagsOf(config: StageConfig, component: string): Record<string, string> {
   return { project: PROJECT, stage: config.name, component, 'managed-by': 'aws-cdk' }
@@ -85,6 +88,7 @@ export function addStage(app: App, config: StageConfig, routes: EventRoutes, ser
     observability: new ObservabilityStack(stage, 'observability', { ...common('observability'), schema }),
     network,
     database,
+    delivery: config.delivery === null ? null : new DeliveryStack(stage, 'delivery', { ...common('delivery'), delivery: config.delivery }),
   }
 
   // The roles attach the managed policies of the other stacks by name and read the parameters of the
@@ -168,6 +172,59 @@ export function withAlertsEmail(config: StageConfig, app: App): StageConfig {
   return { ...config, alerts: { ...config.alerts, fallbackEmail: email } }
 }
 
+/**
+ * The account of prod as a deployment parameter: cdk synth|deploy -c account=123456789012. Without it, the placeholder
+ * of lib/stage.ts, whose stage the CDK CLI refuses to deploy with the credentials of any real account.
+ */
+export function withAccount(config: StageConfig, app: App): StageConfig {
+  const account: unknown = app.node.tryGetContext('account')
+
+  if (config.name !== 'prod' || account === undefined) {
+    return config
+  }
+
+  if (typeof account !== 'string' || !/^\d{12}$/.test(account)) {
+    throw new Error('account must be the 12 digits of an AWS account.')
+  }
+
+  return { ...config, account }
+}
+
+/**
+ * The repository whose workflow deploys prod, as deployment parameters: cdk synth|deploy -c githubOwner=<owner> -c
+ * githubRepository=<name>, and -c githubOidcProviderArn=<arn> to reuse the provider of GitHub Actions the account already
+ * has. Without them, the placeholders of lib/stage.ts.
+ */
+export function withDelivery(config: StageConfig, app: App): StageConfig {
+  if (config.name !== 'prod' || config.delivery === null) {
+    return config
+  }
+
+  const context = (key: string): string | undefined => {
+    const value: unknown = app.node.tryGetContext(key)
+
+    if (value !== undefined && typeof value !== 'string') {
+      throw new Error(`${key} must be a string.`)
+    }
+
+    return value
+  }
+  const owner = context('githubOwner') ?? config.delivery.githubOwner
+  const repository = context('githubRepository') ?? config.delivery.githubRepository
+  const provider = context('githubOidcProviderArn')
+
+  // The names GitHub allows: an owner of letters, digits and single hyphens, a repository of letters, digits, ., - and _.
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/.test(owner) || !/^[A-Za-z0-9._-]{1,100}$/.test(repository)) {
+    throw new Error('githubOwner and githubRepository must be the owner and the name of a repository on GitHub.')
+  }
+
+  if (provider !== undefined && !/^arn:aws:iam::\d{12}:oidc-provider\/token\.actions\.githubusercontent\.com$/.test(provider)) {
+    throw new Error('githubOidcProviderArn must be the ARN of the OpenID Connect provider of token.actions.githubusercontent.com.')
+  }
+
+  return { ...config, delivery: { ...config.delivery, githubOwner: owner, githubRepository: repository, oidcProviderArn: provider ?? config.delivery.oidcProviderArn } }
+}
+
 export function buildApp(options: BuildOptions = {}): { app: App, stages: PlatformStacks[] } {
   const app = new App({
     ...(options.outdir === undefined ? {} : { outdir: options.outdir }),
@@ -177,7 +234,8 @@ export function buildApp(options: BuildOptions = {}): { app: App, stages: Platfo
   const routes = options.routes ?? loadEventRoutes()
   const services = options.services ?? loadAwsServices()
   const schema = options.schema ?? loadLogSchema()
-  const stages = (options.stages ?? (Object.keys(STAGES) as StageName[])).map((name) => addStage(app, withAlertsEmail(withEdgeDomain(options.configs?.[name] ?? STAGES[name], app), app), routes, services, schema))
+  const configured = (name: StageName): StageConfig => withDelivery(withAccount(withAlertsEmail(withEdgeDomain(options.configs?.[name] ?? STAGES[name], app), app), app), app)
+  const stages = (options.stages ?? (Object.keys(STAGES) as StageName[])).map((name) => addStage(app, configured(name), routes, services, schema))
 
   return { app, stages }
 }
