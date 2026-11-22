@@ -7,6 +7,7 @@ use App\Support\Observability\Correlation;
 use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use SensitiveParameter;
@@ -57,7 +58,8 @@ final class WebhookSender
             $curl[CURLOPT_RESOLVE] = [PrivateTargets::pin($target['host'], $target['port'], $address)];
         }
 
-        $timestamp = time();
+        // The clock of the application, as every other moment it records.
+        $timestamp = Carbon::now()->getTimestamp();
         $timeout = max(1.0, (float) config('developers.webhooks.timeout', 5));
         $started = hrtime(true);
 

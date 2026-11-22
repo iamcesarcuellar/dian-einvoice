@@ -28,6 +28,9 @@ use App\Modules\Payments\Services\RecordPayment;
 use App\Modules\Payments\Services\VoidPayment;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Carbon\CarbonInterface;
+use Carbon\FactoryImmutable;
+use Closure;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -265,6 +268,12 @@ final class DemoSeeder extends Seeder
         ],
     ];
 
+    /**
+     * The clock the seeder found, which it puts back after each moment of the plan: the clock of the machine (null), or
+     * the story clock of make screenshots (scripts/screenshots/clock.php).
+     */
+    private Closure|CarbonInterface|null $clock = null;
+
     public function __construct(
         private readonly InlineChain $chain,
         private readonly DianSimulator $simulator,
@@ -276,6 +285,8 @@ final class DemoSeeder extends Seeder
 
     public function run(DocumentDrafts $drafts, IssueDocument $issue): void
     {
+        $this->clock = FactoryImmutable::getDefaultInstance()->getTestNow();
+
         IdentityDemoSeeder::eachCompany(function (Company $company) use ($drafts, $issue): void {
             $this->createNumbering();
 
@@ -357,7 +368,7 @@ final class DemoSeeder extends Seeder
             $user = $users[$issuer];
 
             // Each draft is written a few minutes before it is issued.
-            Carbon::setTestNow($issuedAt?->copy()->subMinutes(12));
+            Carbon::setTestNow($issuedAt?->copy()->subMinutes(12) ?? $this->clock);
 
             $issueDay = ($issuedAt ?? Carbon::now())->copy()->setTimezone(NumberTemplate::TIMEZONE);
 
@@ -389,7 +400,7 @@ final class DemoSeeder extends Seeder
             }
         }
 
-        Carbon::setTestNow();
+        Carbon::setTestNow($this->clock);
 
         return $created;
     }
@@ -452,7 +463,7 @@ final class DemoSeeder extends Seeder
             };
         }
 
-        Carbon::setTestNow();
+        Carbon::setTestNow($this->clock);
     }
 
     /**
@@ -489,7 +500,7 @@ final class DemoSeeder extends Seeder
             $this->chain->run($note->id);
         }
 
-        Carbon::setTestNow();
+        Carbon::setTestNow($this->clock);
     }
 
     /**
@@ -533,7 +544,7 @@ final class DemoSeeder extends Seeder
             'allocations' => $lines,
         ], $users[$author]);
 
-        Carbon::setTestNow();
+        Carbon::setTestNow($this->clock);
 
         return $payment->id;
     }
@@ -549,7 +560,7 @@ final class DemoSeeder extends Seeder
 
         Carbon::setTestNow($at);
         ($this->voidPayment)($payments[$key], $reason, $users[$author]);
-        Carbon::setTestNow();
+        Carbon::setTestNow($this->clock);
     }
 
     /** A SYNTHETIC bank reference for a settlement: transfers, deposits and checks carry one. */

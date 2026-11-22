@@ -1,6 +1,7 @@
 {
   "name": "dian-einvoice-infra",
   "private": true,
+  "license": "MIT",
   "description": "AWS CDK app of dian-einvoice: the messaging, storage, data, security and mail stacks of the stages local (deployed to the local AWS emulator) and prod (synthesized and validated, never deployed).",
   "type": "module",
   "engines": {

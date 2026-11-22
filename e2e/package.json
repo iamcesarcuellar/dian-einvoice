@@ -1,12 +1,14 @@
 {
   "name": "dian-einvoice-e2e",
   "private": true,
-  "description": "End-to-end test of the web app in a browser, against the local stack and its synthetic demo data (compose service e2e).",
+  "license": "MIT",
+  "description": "The browser tooling of the repository (compose service e2e): the end-to-end test of the web app against the local stack or the emulated cloud with its synthetic demo data, the screenshots and GIFs of make screenshots, and the drawing of the diagrams of the documentation.",
   "type": "module",
   "scripts": {
     "test": "playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "1.65.0"
+    "@playwright/test": "1.65.0",
+    "mermaid": "12.3.0"
   }
 }

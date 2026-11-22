@@ -9,6 +9,8 @@ use App\Modules\Developers\Models\WebhookDelivery;
 use App\Modules\Developers\Models\WebhookSubscription;
 use App\Modules\Developers\Receiver\LocalWebhookReceiver;
 use App\Modules\Developers\Webhooks\WebhookSender;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
 use Tests\IntegrationTestCase;
@@ -97,5 +99,18 @@ final class WebhookTargetsTest extends IntegrationTestCase
         $this->assertSame(WebhookAttemptOutcome::HttpError, $result->outcome);
         $this->assertSame(302, $result->statusCode);
         Http::assertSentCount(1);
+    }
+
+    public function test_a_delivery_is_signed_at_the_moment_of_the_clock_of_the_application(): void
+    {
+        config(['developers.webhooks.require_https' => false]);
+        Http::fake(['hooks.example.com/*' => Http::response('', 204)]);
+        Carbon::setTestNow('2026-11-19 20:00:00');
+
+        $result = app(WebhookSender::class)->send('http://hooks.example.com/dian', 'msg_synthetic', '{}', 'whsec_'.base64_encode(random_bytes(24)));
+
+        // The timestamp of the signature is the moment the application lives in, as every other moment it records.
+        $this->assertSame(WebhookAttemptOutcome::Succeeded, $result->outcome);
+        Http::assertSent(fn (Request $request): bool => $request->header('webhook-timestamp') === [(string) Carbon::parse('2026-11-19 20:00:00')->getTimestamp()]);
     }
 }

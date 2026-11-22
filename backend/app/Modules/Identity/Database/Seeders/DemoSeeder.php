@@ -12,6 +12,7 @@ use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Modules\Reference\Enums\FiscalResponsibility;
 use App\Modules\Reference\Enums\OrganizationType;
 use App\Modules\Reference\Enums\TaxScheme;
+use Carbon\FactoryImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -53,6 +54,8 @@ final class DemoSeeder extends Seeder
     public function run(CreateCompany $createCompany, TeamInvitations $invitations): void
     {
         $today = Carbon::now();
+        // The clock it found, put back at the end: the clock of the machine, or the story clock of make screenshots.
+        $clock = FactoryImmutable::getDefaultInstance()->getTestNow();
 
         try {
             Carbon::setTestNow($today->copy()->subDays(self::OWNER_DAYS_BACK));
@@ -108,7 +111,7 @@ final class DemoSeeder extends Seeder
                 ]);
             }
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow($clock);
         }
 
         // Through the real service, acting as the owner of Demo Comercial SAS: the email lands in the local mailbox.

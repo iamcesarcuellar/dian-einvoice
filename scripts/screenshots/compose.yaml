@@ -1,0 +1,35 @@
+# make screenshots only (scripts/screenshots.sh), merged over compose.yaml: the story clock of the screenshots. The
+# processes of the backend (api, worker, relay) and the DIAN simulator see every moment moved by
+# SCREENSHOTS_CLOCK_OFFSET seconds, to the afternoon of Thursday, November 19, 2026 in Medellín, the day the demo data
+# was written for (the plan of backend/app/Modules/Billing/Database/Seeders/DemoSeeder.php), so the demo data and the
+# screens tell the same day whatever day the script runs; the browser of the screenshots gets the same moment
+# (page.clock). The clocks keep ticking: only their origin moves. A session lasts long enough for the cookies of a
+# moment in the past to be kept by the browser, which expires cookies by its own clock. make screenshots recreates the
+# containers without this file when it ends.
+x-clock: &clock
+  SCREENSHOTS_CLOCK_OFFSET: ${SCREENSHOTS_CLOCK_OFFSET:?make screenshots sets the offset of the story clock}
+  SESSION_LIFETIME: ${SCREENSHOTS_SESSION_LIFETIME:?make screenshots sets the lifetime of the sessions}
+
+x-clock-files: &clock-files
+  - ./scripts/screenshots/clock.php:/screenshots/clock.php:ro
+  - ./scripts/screenshots/clock.ini:/usr/local/etc/php/conf.d/zz-screenshots-clock.ini:ro
+
+services:
+  api:
+    environment: *clock
+    volumes: *clock-files
+
+  worker:
+    environment: *clock
+    volumes: *clock-files
+
+  relay:
+    environment: *clock
+    volumes: *clock-files
+
+  simulator:
+    environment:
+      SCREENSHOTS_CLOCK_OFFSET: ${SCREENSHOTS_CLOCK_OFFSET:?make screenshots sets the offset of the story clock}
+      NODE_OPTIONS: --import=/screenshots/clock.mjs
+    volumes:
+      - ./scripts/screenshots/clock.mjs:/screenshots/clock.mjs:ro

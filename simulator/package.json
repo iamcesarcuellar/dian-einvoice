@@ -1,6 +1,7 @@
 {
   "name": "dian-einvoice-simulator",
   "private": true,
+  "license": "MIT",
   "description": "Local simulator of the DIAN web service (SendBillSync, GetStatus) for development. It is not the DIAN.",
   "type": "module",
   "engines": {

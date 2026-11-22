@@ -86,12 +86,15 @@ function keyOf(option: T): string {
         )
       "
     >
+      <!-- size="1": an input is as wide as 20 characters unless told otherwise, which pushed the field out of a narrow
+           column (the item of an invoice line); flex-1 still fills the field. -->
       <ComboboxInput
         :id="id"
         v-model="term"
         :display-value="display"
         :placeholder="placeholder"
         autocomplete="off"
+        size="1"
         class="h-full min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
       />
       <ComboboxTrigger class="flex h-full items-center px-2 text-muted-foreground">
