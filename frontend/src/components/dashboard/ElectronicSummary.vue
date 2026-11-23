@@ -46,7 +46,12 @@ const segments = computed(() =>
     <div
       class="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-muted"
       role="img"
-      :aria-label="t('dashboard.electronic.summary', { total: electronic.total, days: electronic.days })"
+      :aria-label="
+        t('dashboard.electronic.summary', {
+          documents: t('dashboard.electronic.documents', { n: formatInteger(electronic.total) }, electronic.total),
+          period: t('dashboard.electronic.period', { n: formatInteger(electronic.days) }, electronic.days),
+        })
+      "
     >
       <span
         v-for="segment in segments.filter((entry) => entry.count > 0)"

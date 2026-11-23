@@ -24,7 +24,7 @@ Run the checks of the part you touched; continuous integration runs the same tar
 ```sh
 make lint            # formatters and linters; the docs' links, targets, files, images and diagrams; the cost estimate
 make analyse         # PHPStan level 10, vue-tsc and tsc, strict
-make test            # backend, web app, simulator and infrastructure tests
+make test            # backend, web app, simulator, infrastructure and tooling tests
 make demo && make e2e && make checks   # the checks include the examples of the README and the API guide
 make security        # dependency audits, licenses, the files of third parties (NOTICE) and the secret scan
 make cdk-check       # synthesis of both stages, cdk-nag, cfn-lint and actionlint

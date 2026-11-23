@@ -103,9 +103,9 @@ const { page, search, rows, meta, isLoading, error, refetch } = useListQuery(
 const columns = computed<DataTableColumn[]>(() => [
   { key: 'number', label: t('invoices.columns.number') },
   ...(isNote.value ? [{ key: 'related', label: t('notes.columns.invoice') }] : []),
-  { key: 'customer', label: t('invoices.columns.customer') },
+  { key: 'customer', label: t('invoices.columns.customer'), truncate: true },
   { key: 'issue_date', label: t('invoices.columns.issueDate') },
-  isNote.value ? { key: 'concept', label: t('notes.columns.concept') } : { key: 'due_date', label: t('invoices.columns.dueDate') },
+  isNote.value ? { key: 'concept', label: t('notes.columns.concept'), truncate: true } : { key: 'due_date', label: t('invoices.columns.dueDate') },
   { key: 'total', label: t('invoices.columns.total'), align: 'right' },
   ...(isNote.value ? [] : [{ key: 'balance', label: t('invoices.columns.balance'), align: 'right' as const }]),
   { key: 'status', label: t('invoices.columns.status') },
@@ -172,12 +172,9 @@ function actions(document: Invoice): RowAction[] {
       </div>
     </template>
     <template #cell-number="{ row }">
-      <span class="inline-flex items-center gap-2">
-        <RouterLink :to="{ name: routes.detail, params: { id: row.id } }" class="font-medium whitespace-nowrap text-foreground tabular-nums hover:underline">
-          {{ row.full_number ?? t('invoices.draft') }}
-        </RouterLink>
-        <StatusBadge v-if="row.balance_status === 'voided'" domain="balance" status="voided" />
-      </span>
+      <RouterLink :to="{ name: routes.detail, params: { id: row.id } }" class="font-medium whitespace-nowrap text-foreground tabular-nums hover:underline">
+        {{ row.full_number ?? t('invoices.draft') }}
+      </RouterLink>
     </template>
     <template #cell-related="{ row }">
       <RouterLink
@@ -190,7 +187,7 @@ function actions(document: Invoice): RowAction[] {
       <span v-else class="text-muted-foreground">—</span>
     </template>
     <template #cell-customer="{ row }">
-      <span class="block max-w-64 truncate">{{ row.customer_name ?? '—' }}</span>
+      <span class="block truncate" :title="row.customer_name ?? undefined">{{ row.customer_name ?? '—' }}</span>
     </template>
     <template #cell-issue_date="{ row }">
       <span class="whitespace-nowrap tabular-nums">{{ formatDate(row.issue_date) || '—' }}</span>
@@ -199,29 +196,31 @@ function actions(document: Invoice): RowAction[] {
       <span class="whitespace-nowrap text-muted-foreground tabular-nums">{{ formatDate(row.due_date) || '—' }}</span>
     </template>
     <template #cell-concept="{ row }">
-      <span class="block max-w-56 truncate text-muted-foreground">{{ conceptOf(row) }}</span>
+      <span class="block truncate text-muted-foreground" :title="conceptOf(row)">{{ conceptOf(row) }}</span>
     </template>
     <template #cell-total="{ row }">
-      <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.totals.payable_amount) || '$ 0' }}</span>
+      <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.totals.payable_amount || '0') }}</span>
     </template>
     <template #cell-balance="{ row }">
-      <span
-        v-if="row.receivable_amount !== null && row.electronic?.status === 'accepted'"
-        class="whitespace-nowrap tabular-nums"
-        :class="row.receivable_amount.startsWith('-') ? 'text-success' : ''"
-      >
-        {{
-          row.receivable_amount.startsWith('-')
-            ? t('invoices.payments.creditShort', { amount: formatMoney(row.receivable_amount.slice(1)) })
-            : formatMoney(row.receivable_amount)
-        }}
-      </span>
+      <template v-if="row.receivable_amount !== null && row.electronic?.status === 'accepted'">
+        <!-- A credit in favor of the customer: the amount, and what it is under it. -->
+        <span v-if="row.receivable_amount.startsWith('-')" class="grid justify-items-end text-success">
+          <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.receivable_amount.slice(1)) }}</span>
+          <span class="text-xs">{{ t('invoices.payments.customerCredit') }}</span>
+        </span>
+        <span v-else class="whitespace-nowrap tabular-nums">{{ formatMoney(row.receivable_amount) }}</span>
+      </template>
       <span v-else class="text-muted-foreground">—</span>
     </template>
     <template #cell-status="{ row }">
-      <span class="inline-flex flex-wrap gap-1">
+      <!-- Badges wrap past 9 rem, so a row with three of them takes two lines instead of pushing the other columns. -->
+      <span class="inline-flex max-w-36 flex-wrap gap-1">
         <StatusBadge domain="document" :status="row.status" />
-        <StatusBadge v-if="row.balance_status === 'partially_credited' || row.balance_status === 'credited'" domain="balance" :status="row.balance_status" />
+        <StatusBadge
+          v-if="row.balance_status === 'partially_credited' || row.balance_status === 'credited' || row.balance_status === 'voided'"
+          domain="balance"
+          :status="row.balance_status"
+        />
         <template v-if="!isNote && row.electronic?.status === 'accepted'">
           <StatusBadge v-if="row.payment_status === 'paid' || row.payment_status === 'partially_paid'" domain="invoicePayment" :status="row.payment_status" />
           <StatusBadge v-if="row.overdue" domain="invoicePayment" status="overdue" />

@@ -23,7 +23,7 @@ withDefaults(
 const { t } = useI18n()
 
 function money(value: string | undefined): string {
-  return formatMoney(value ?? '0') || '$ 0'
+  return formatMoney(value || '0')
 }
 </script>
 

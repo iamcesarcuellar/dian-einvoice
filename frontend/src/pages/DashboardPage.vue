@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/composables/useSession'
-import { formatDateRange, formatInteger, formatMoney, formatMonth } from '@/lib/format'
+import { formatDateRange, formatInteger, formatMoney, formatMonth, formatWholeMoney } from '@/lib/format'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -190,7 +190,9 @@ const kpis = computed(() => {
         <Card>
           <CardHeader>
             <CardTitle>{{ t('dashboard.aging.title') }}</CardTitle>
-            <CardDescription>{{ t('dashboard.aging.description', { total: formatMoney(dashboard.aging.total) }) }}</CardDescription>
+            <CardDescription :title="formatMoney(dashboard.aging.total)">{{
+              t('dashboard.aging.description', { total: formatWholeMoney(dashboard.aging.total) })
+            }}</CardDescription>
           </CardHeader>
           <CardContent class="grid gap-3">
             <AgingChart :aging="dashboard.aging" />
@@ -206,7 +208,10 @@ const kpis = computed(() => {
           <CardHeader>
             <CardTitle>{{ t('dashboard.electronic.title') }}</CardTitle>
             <CardDescription>{{
-              t('dashboard.electronic.description', { days: dashboard.electronic.days, total: formatInteger(dashboard.electronic.total) })
+              t('dashboard.electronic.description', {
+                period: t('dashboard.electronic.period', { n: formatInteger(dashboard.electronic.days) }, dashboard.electronic.days),
+                total: formatInteger(dashboard.electronic.total),
+              })
             }}</CardDescription>
           </CardHeader>
           <CardContent class="grid gap-5">

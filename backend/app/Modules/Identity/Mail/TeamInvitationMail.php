@@ -2,6 +2,7 @@
 
 namespace App\Modules\Identity\Mail;
 
+use App\Modules\Delivery\Support\ColombianFormat;
 use App\Modules\Identity\Models\TeamInvitation;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
@@ -18,9 +19,6 @@ use SensitiveParameter;
  */
 final class TeamInvitationMail extends Mailable
 {
-    /** Dates are shown in Colombian time, as in the web app. */
-    private const string TIMEZONE = 'America/Bogota';
-
     public function __construct(
         private readonly TeamInvitation $invitation,
         #[SensitiveParameter] private readonly string $token,
@@ -54,7 +52,8 @@ final class TeamInvitationMail extends Mailable
                 'email' => $this->invitation->email,
                 'role' => (string) __("identity::invitation.roles.{$role}"),
                 'roleDescription' => (string) __("identity::invitation.role_descriptions.{$role}"),
-                'expires' => $this->invitation->expires_at->copy()->setTimezone(self::TIMEZONE)->format('d/m/Y H:i'),
+                // In Colombian time, as the web app shows dates: "19 Nov 2026, 15:00".
+                'expires' => ColombianFormat::dateTime($this->invitation->expires_at),
                 'url' => rtrim(config()->string('app.url'), '/').'/invitations/'.$this->token,
             ],
         );

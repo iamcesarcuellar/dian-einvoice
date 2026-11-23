@@ -162,6 +162,13 @@ function emailLabel(payload: Record<string, unknown>): string {
   }
 }
 
+/** The size of a file of the timeline: "19.015 bytes". */
+function bytes(size: unknown): string {
+  const value = Number(size ?? 0)
+
+  return t('units.bytes', { n: formatInteger(value) }, value)
+}
+
 function rulesOf(payload: Record<string, unknown> | null): string {
   return Array.isArray(payload?.rules) ? payload.rules.join(', ') : ''
 }
@@ -187,7 +194,7 @@ function eventLabel(event: DocumentEvent): string {
     case 'rejected':
       return t('invoices.view.events.rejected')
     case 'transmission_failed':
-      return t('invoices.view.events.transmissionFailed', { attempts: Number(payload.attempts ?? 0) })
+      return t('invoices.view.events.transmissionFailed', { attempts: Number(payload.attempts ?? 0) }, Number(payload.attempts ?? 0))
     case 'retry_requested':
       return t('invoices.view.events.retryRequested')
     case 'resend_requested':
@@ -248,7 +255,7 @@ function eventDetail(event: DocumentEvent): string | null {
         : t('invoices.view.events.callDetail', { operation: payloadText(payload.operation), ms: Number(payload.duration_ms ?? 0) })
     case 'accepted':
       return Number(payload.notifications ?? 0) > 0
-        ? t('invoices.view.events.acceptedNotifications', { count: Number(payload.notifications), rules: rulesOf(payload) })
+        ? t('invoices.view.events.acceptedNotifications', { count: Number(payload.notifications), rules: rulesOf(payload) }, Number(payload.notifications))
         : null
     case 'rejected':
       return rulesOf(payload) ? t('invoices.view.events.rejectedRules', { rules: rulesOf(payload) }) : null
@@ -264,12 +271,12 @@ function eventDetail(event: DocumentEvent): string | null {
     case 'payment_released':
       return t('invoices.payments.events.balance', { amount: formatMoney(payloadText(payload.balance, '0')) })
     case 'attached_document_built':
-      return t('invoices.view.events.attachedDocumentDetail', { file: payloadText(payload.file_name), size: formatInteger(Number(payload.size ?? 0)) })
+      return t('invoices.view.events.attachedDocumentDetail', { file: payloadText(payload.file_name), size: bytes(payload.size) })
     case 'pdf_generated':
       return t('invoices.view.events.pdfDetail', {
         file: payloadText(payload.file_name),
-        pages: Number(payload.pages ?? 0),
-        size: formatInteger(Number(payload.size ?? 0)),
+        pages: t('units.pages', { n: formatInteger(Number(payload.pages ?? 0)) }, Number(payload.pages ?? 0)),
+        size: bytes(payload.size),
       })
     case 'email_attempt':
       return payload.outcome === 'sent'
@@ -326,7 +333,7 @@ const toneClass = {
 const crumbs = computed(() => documentCrumbs(props.invoice.type, props.invoice.full_number ?? t('invoices.draft'), t))
 
 const lineColumns = computed<DataTableColumn[]>(() => [
-  { key: 'description', label: t('invoices.editor.lineDescription') },
+  { key: 'description', label: t('invoices.editor.lineDescription'), truncate: true },
   { key: 'quantity', label: t('invoices.editor.quantity'), align: 'right' },
   { key: 'unit', label: t('invoices.editor.unit') },
   { key: 'unit_price', label: t('invoices.editor.unitPrice'), align: 'right' },
@@ -355,7 +362,7 @@ const lineColumns = computed<DataTableColumn[]>(() => [
 
     <ElectronicProgress v-if="invoice.electronic" :electronic="invoice.electronic" :delivery="invoice.delivery" />
 
-    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div class="grid min-w-0 gap-6">
         <FormSection v-if="isNote" :title="t('notes.view.corrects')">
           <div class="grid gap-4">
@@ -446,8 +453,8 @@ const lineColumns = computed<DataTableColumn[]>(() => [
         <FormSection :title="t('invoices.view.lines')">
           <DataTable :columns="lineColumns" :rows="invoice.lines ?? []" :empty-title="t('invoices.view.noLines')">
             <template #cell-description="{ row }">
-              <span class="grid min-w-40">
-                <span>{{ row.description }}</span>
+              <span class="grid">
+                <span class="block truncate" :title="row.description ?? undefined">{{ row.description }}</span>
                 <span v-if="row.code" class="text-xs text-muted-foreground">{{ row.code }}</span>
               </span>
             </template>

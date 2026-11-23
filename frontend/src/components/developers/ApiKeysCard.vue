@@ -14,7 +14,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useListQuery } from '@/composables/useListQuery'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatInteger } from '@/lib/format'
 import { notify } from '@/lib/notify'
 import { invalidateTenant } from '@/lib/query'
 import CreateApiKeyDialog from './CreateApiKeyDialog.vue'
@@ -92,7 +92,7 @@ function askRevoke(key: ApiKey): void {
         <span class="grid gap-0.5">
           <span class="font-medium">{{ row.name }}</span>
           <span v-if="row.custom_rate_limit" class="text-xs text-muted-foreground">{{
-            t('developers.keys.perMinute', { count: row.rate_limit_per_minute })
+            t('developers.keys.perMinute', { count: formatInteger(row.rate_limit_per_minute) }, row.rate_limit_per_minute)
           }}</span>
         </span>
       </template>

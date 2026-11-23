@@ -117,7 +117,7 @@ final class ApiCheckCommand extends Command
             'municipality_code' => '05001',
         ]), 201, 'POST /contacts creates a contact');
 
-        $tax = collect(Json::objects($this->api($read)->get('/taxes', ['per_page' => 100])->json(), 'data'))->firstWhere('name', 'IVA 19%');
+        $tax = collect(Json::objects($this->api($read)->get('/taxes', ['per_page' => 100])->json(), 'data'))->firstWhere('name', 'IVA 19 %');
 
         $item = $this->expect($this->api($write)->post('/items', [
             'code' => 'API-001',

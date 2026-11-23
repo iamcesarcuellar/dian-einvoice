@@ -19,18 +19,18 @@ A multi-tenant platform for companies and for the software that serves them (acc
 - **Correct under concurrency and failure.** Twenty parallel processes take numbers without a gap (`make stress`), and with the workers and the relay killed mid-chain every invoice is accepted once (`make chaos`). Of twenty simultaneous payments, exactly the ten that fit are recorded (`make payments-check`).
 - **The AWS architecture as code, run on an emulator.** A CDK app and a serverless service put the API on Lambda behind API Gateway and CloudFront, with SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES and EventBridge Scheduler. `make cloud-check` proves the local stage end to end, and the prod stage, with its VPC, Aurora MySQL and AWS WAF, is validated offline ([infrastructure](docs/infrastructure.md), [cost estimate](docs/cost.md)).
 - **Operated like a service.** One correlation id follows an invoice from its request to its webhooks, through JSON logs, metrics, alarms that each name a runbook, and a notifier to a chat. `make cloud-drill` takes the DIAN down and brings every invoice back once ([runbooks](docs/runbooks/README.md), [observability](docs/observability.md)).
-- **Checked from end to end.** 561 tests, PHPStan at level 10 without a baseline, audits of every dependency and of the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
+- **Checked from end to end.** 604 tests, PHPStan at level 10 without a baseline, audits of every dependency and of the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
 
 ## Gallery
 
 | | |
 | --- | --- |
-| ![The dashboard of Demo Comercial SAS: invoiced and collected by month, and receivables by age, over six months of synthetic data](docs/assets/dashboard.png) | ![An accepted invoice: the local simulator's response, its CUFE and QR code, and its delivery by email](docs/assets/invoice-accepted.png) |
-| The dashboard, over six months of synthetic sales. | An accepted invoice: the simulator's response, the CUFE, the QR code and the delivery. |
-| ![An invoice's PDF in the web app's viewer](docs/assets/invoice-pdf.png) | ![Settings, DIAN: the synthetic test certificate, and the local simulator returning HTTP 500 to an invoice's requests](docs/assets/dian-settings.png) |
-| The PDF the customer receives. | Settings → DIAN: the test certificate, and the simulator with a failure injected. |
+| ![The dashboard of Demo Comercial SAS: invoiced and collected by month, and receivables by age, over six months of synthetic data](docs/assets/dashboard.png) | ![An accepted invoice's electronic document: the local simulator's response, with a line on its ZD05 notification, the CUFE, the QR code and the signed XML](docs/assets/invoice-accepted.png) |
+| The dashboard, over six months of synthetic sales. | An accepted invoice: the simulator's response, the CUFE, the QR code and the signed XML. |
+| ![An invoice's PDF in the web app's viewer](docs/assets/invoice-pdf.png) | ![Settings, DIAN: the local simulator in its Error 500 mode, and the HTTP 500 responses it returned to an invoice's requests](docs/assets/dian-settings.png) |
+| The PDF the customer receives. | Settings → DIAN: the simulator with a failure injected, and the requests it refused. |
 | ![The timeline of an invoice that failed while the simulator was down and was accepted after Retry now](docs/assets/invoice-recovered.png) | ![API keys and the webhook subscription to the local receiver, with its last delivery](docs/assets/developers.png) |
-| That invoice's timeline: six failed attempts, Retry now, accepted. | API keys and signed webhooks, delivered to a local receiver that verifies them. |
+| The end of that invoice's timeline: the failed attempts, Retry now, accepted and delivered. | API keys, and the webhook subscription to a local receiver with its last delivery. |
 
 Every screen in [docs/assets](docs/assets/), the dark theme included, comes from `make screenshots`.
 
@@ -147,7 +147,7 @@ The results of the runs for this commit, with the emulator's figures on this mac
 
 - `make cloud-check` passed in 2 min 41 s. Thirty invoices went from issue to delivery in a median of 23.8 s through the outbox's fast path. Ten more, with the functions' containers killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the application's database identity, with the functions warm, broke no request. Every log line was JSON in the schema, none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.85 s, and a warm response a median of 17 ms.
 - `make cloud-drill` passed in 225 s. With the DIAN down, five transmissions gave up into the dead-letter queue, and the alarm reached the chat with its runbook 149 s after the outage began. The runbook's commands brought every invoice back, accepted and delivered once, at 160 s ([drill-report.md](docs/runbooks/drill-report.md) reviews an earlier run).
-- `make cloud-e2e` passed: an invoice's journey through the functions, the API reference, and a tour of the web app's 31 routes with 17 of its dialogs, through the edge and under its Content-Security-Policy, without a violation.
+- `make cloud-e2e` passed in 77 s. The console function first found the demo data, and a simulator that holds no local document under a number the cloud has yet to issue. Then came an invoice's journey through the functions, the web app's lists at 1440×900, the API reference, and a tour of its 31 routes with 17 of its dialogs, all through the edge and under its Content-Security-Policy, without a violation.
 
 ## Architecture
 
@@ -226,13 +226,13 @@ The results of the runs for this commit, on the quick start's machine. Continuou
 
 | What | Command | Result |
 | --- | --- | --- |
-| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 207 tests and 6,503 assertions, in 43 s |
-| Web app, simulator and infrastructure tests | `make test-frontend`, `make test-simulator`, `make test-infra` | 54 web app tests, 107 simulator tests, and 193 tests of the CDK app and the functions, cdk-nag included |
-| Formatters, linters and the documentation | `make lint` | Laravel Pint over 534 files, ESLint and Prettier: clean; in the docs, 255 relative links and 38 anchors resolve, 8 images keep to their size, Mermaid draws 10 diagrams, and the cost estimate is what its prices and assumptions give |
+| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 211 tests and 6,515 assertions, in 46 s |
+| Web app, simulator, infrastructure and tooling tests | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 77 web app tests, 107 simulator tests, 193 tests of the CDK app and the functions, cdk-nag included, and 16 of the image encoder of the screenshots |
+| Formatters, linters and the documentation | `make lint` | Laravel Pint over 537 files, ESLint and Prettier: clean; in the docs, 256 relative links and 38 anchors resolve, 8 images keep to their size, Mermaid draws 10 diagrams, and the cost estimate is what its prices and assumptions give |
 | Static analysis | `make analyse` | PHPStan level 10 without a baseline, vue-tsc and tsc for the simulator, the CDK app and the functions: no errors |
 | Dependencies, licenses and secrets | `make security` | No high or critical advisory in the six audits; 480 production dependencies, every license compatible with MIT; the 174 files of third parties in 8 groups, as NOTICE lists them; gitleaks finds no secret in the history or the changes |
 | Infrastructure as code, offline | `make cdk-check` | 21 stacks of both stages and 3 packages of the functions: cdk-nag (AWS Solutions) with no finding left without its reason, cfn-lint and actionlint clean |
-| An invoice from draft to paid, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 8.9 s |
+| An invoice from draft to paid, and every list, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 8.8 s; and the web app's lists at 1440×900, none wider than its box, in 16.9 s |
 | The checks of the running stack | `make checks` | Every check passes: the 15 examples of this page and the API guide print what the docs say, and both webhook signature examples get 6 of 6 cases right; 60 invoices from 20 processes are numbered without a gap and accepted in 4.6 s; and 40 are accepted once each with the workers and the relay killed mid-chain |
 | The emulated cloud, end to end | `make cloud-check`, `make cloud-e2e`, `make cloud-drill` | Every check passes; their figures are [above](#the-aws-cloud-on-your-machine) |
 

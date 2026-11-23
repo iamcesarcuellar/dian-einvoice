@@ -126,7 +126,7 @@ final class TemporaryCompany
 
     public function iva(): ?string
     {
-        return Tax::query()->where('name', 'IVA 19%')->first(['id'])?->id;
+        return Tax::query()->where('name', 'IVA 19 %')->first(['id'])?->id;
     }
 
     /**

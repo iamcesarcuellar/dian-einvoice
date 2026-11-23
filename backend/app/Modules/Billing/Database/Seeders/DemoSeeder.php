@@ -89,11 +89,11 @@ final class DemoSeeder extends Seeder
         'member' => 'member@example.com',
     ];
 
-    private const string RETE_FUENTE_PURCHASES = 'ReteFuente 2.5% (purchases)';
+    private const string RETE_FUENTE_PURCHASES = 'ReteFuente 2,5 % (purchases)';
 
-    private const string RETE_FUENTE_SERVICES = 'ReteFuente 4% (services)';
+    private const string RETE_FUENTE_SERVICES = 'ReteFuente 4 % (services)';
 
-    private const string RETE_IVA = 'ReteIVA 15%';
+    private const string RETE_IVA = 'ReteIVA 15 %';
 
     private const string RETE_ICA = CatalogDemoSeeder::RETE_ICA;
 
@@ -253,7 +253,7 @@ final class DemoSeeder extends Seeder
      */
     private const array TIMELINE = [
         'commerce' => [
-            [70, '10:30', 'note', 20, 'credit_note', '3', 'Discount of 10% on the twenty-five packs of paper, agreed for a late delivery.', [['P-002', '25', '0.10']], 'owner'],
+            [70, '10:30', 'note', 20, 'credit_note', '3', 'Discount of 10 % on the twenty-five packs of paper, agreed for a late delivery.', [['P-002', '25', '0.10']], 'owner'],
             [35, '09:15', 'note', 30, 'credit_note', '2', 'The invoice was issued to the wrong customer, so it is voided in full.', 'all', 'member'],
             [29, '10:30', 'note', 31, 'credit_note', '1', 'Return of one office chair and five packs of paper that arrived damaged.', [['P-001', '1', '1'], ['P-002', '5', '1']], 'owner'],
             [15, '15:20', 'note', 29, 'debit_note', '1', 'Late payment interest: the invoice was paid ten days after its due date.', [[null, '1', 'Late payment interest, ten days past the due date', '38500']], 'admin'],
@@ -264,7 +264,7 @@ final class DemoSeeder extends Seeder
         ],
         'services' => [
             [66, '16:20', 'note', 7, 'credit_note', '1', 'Five fewer guests than the forty invoiced attended the corporate lunch.', [['S-108', '5', '1']], 'owner'],
-            [35, '11:40', 'note', 10, 'credit_note', '3', 'Rebate of 10% on the consulting hours, agreed after the review of the project.', [['S-101', '12', '0.10']], 'owner'],
+            [35, '11:40', 'note', 10, 'credit_note', '3', 'Rebate of 10 % on the consulting hours, agreed after the review of the project.', [['S-101', '12', '0.10']], 'owner'],
         ],
     ];
 

@@ -42,7 +42,16 @@ const {
   staleTime: Number.POSITIVE_INFINITY,
 })
 
+/**
+ * PDF open parameters in the fragment of the URL, so the document opens readable: without the
+ * panel of thumbnails and fitted to the width. navpanes and view are Adobe's, which Chromium reads;
+ * pagemode and zoom are those of PDF.js, the viewer of Firefox. A viewer ignores the ones it does
+ * not know, as Safari does all of them.
+ */
+const VIEWER = 'navpanes=0&view=FitH&pagemode=none&zoom=page-width'
+
 const url = computed(() => (pdf.value ? URL.createObjectURL(pdf.value) : null))
+const viewerUrl = computed(() => (url.value ? `${url.value}#${VIEWER}` : null))
 
 watch(url, (_, previous) => {
   if (previous) {
@@ -69,8 +78,8 @@ onBeforeUnmount(() => {
         <FormError :error="error" />
         <p v-if="isLoading" class="text-muted-foreground">{{ t('common.loading') }}</p>
         <iframe
-          v-else-if="url"
-          :src="url"
+          v-else-if="viewerUrl"
+          :src="viewerUrl"
           :title="t('invoices.delivery.pdfFrame', { number: invoice.full_number })"
           class="h-[72vh] w-full rounded-lg border bg-muted/40"
         />

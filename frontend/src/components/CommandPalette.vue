@@ -33,7 +33,7 @@ import { useCommandPalette } from '@/composables/useCommandPalette'
 import { useSession } from '@/composables/useSession'
 import { useTheme } from '@/composables/useTheme'
 import { DOCUMENT_ROUTES } from '@/lib/documents'
-import { formatDate, formatMoney } from '@/lib/format'
+import { formatDate, formatInteger, formatMoney } from '@/lib/format'
 import { notify } from '@/lib/notify'
 import { tenantKey } from '@/lib/query'
 import { electronicGroup } from '@/lib/status'
@@ -91,6 +91,9 @@ const { data: results, isFetching } = useQuery({
   staleTime: 15_000,
   placeholderData: keepPreviousData,
 })
+
+/** The results shown are not yet those of the text typed: it waits for the pause in typing, or they are on their way. */
+const busy = computed(() => isFetching.value || query.value.trim() !== term.value)
 
 const groups = computed(() => (searching.value ? results.value?.groups : undefined))
 
@@ -222,9 +225,9 @@ function seeAll(name: string): () => void {
 
       <Command v-model:search="query" :should-filter="false" class="rounded-none!">
         <CommandInput :placeholder="t('palette.placeholder')" :aria-label="t('palette.placeholder')" />
-        <CommandList class="max-h-[min(28rem,60vh)]">
+        <CommandList class="max-h-[min(28rem,60vh)]" :aria-busy="busy ? 'true' : undefined">
           <p v-if="query.trim().length > 0 && query.trim().length < MIN_CHARS" class="px-3 py-2 text-xs text-muted-foreground">
-            {{ t('palette.minChars', { count: MIN_CHARS }) }}
+            {{ t('palette.minChars', { count: MIN_CHARS }, MIN_CHARS) }}
           </p>
           <p v-else-if="searching && isFetching && resultCount === 0" class="px-3 py-2 text-xs text-muted-foreground" role="status">
             {{ t('palette.searching') }}
@@ -250,7 +253,7 @@ function seeAll(name: string): () => void {
               </CommandItem>
               <CommandItem v-if="groups.invoices.total > groups.invoices.items.length" value="see-all-invoices" @select="seeAll('invoices')()">
                 <ArrowRightIcon class="text-muted-foreground" aria-hidden="true" />
-                <span class="text-muted-foreground">{{ t('palette.seeAll', { count: groups.invoices.total }) }}</span>
+                <span class="text-muted-foreground">{{ t('palette.seeAll', { count: formatInteger(groups.invoices.total) }, groups.invoices.total) }}</span>
               </CommandItem>
             </CommandGroup>
 
@@ -286,7 +289,7 @@ function seeAll(name: string): () => void {
               </CommandItem>
               <CommandItem v-if="groups.payments.total > groups.payments.items.length" value="see-all-payments" @select="seeAll('payments')()">
                 <ArrowRightIcon class="text-muted-foreground" aria-hidden="true" />
-                <span class="text-muted-foreground">{{ t('palette.seeAll', { count: groups.payments.total }) }}</span>
+                <span class="text-muted-foreground">{{ t('palette.seeAll', { count: formatInteger(groups.payments.total) }, groups.payments.total) }}</span>
               </CommandItem>
             </CommandGroup>
 

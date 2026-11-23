@@ -79,7 +79,7 @@ curl -s -o /dev/null -w '%{http_code}\n' "$API/contacts?per_page=1" -H "Authoriz
 
 ### 3. Create a contact and an item
 
-A contact needs its identification, its tax data and, in Colombia, the DANE code of its municipality: 05001 is Medellín (`GET /reference/municipalities?department=05` lists those of Antioquia). The API computes the check digit of a NIT. Every company starts with the taxes IVA 19%, IVA 5%, IVA 0% (exempt) and INC 8%; an item names one of them by its id.
+A contact needs its identification, its tax data and, in Colombia, the DANE code of its municipality: 05001 is Medellín (`GET /reference/municipalities?department=05` lists those of Antioquia). The API computes the check digit of a NIT. Every company starts with the taxes IVA 19 %, IVA 5 %, IVA 0 % (exempt) and INC 8 %; an item names one of them by its id.
 
 <!-- example -->
 ```sh
@@ -90,7 +90,7 @@ CONTACT=$(curl -s --fail-with-body "$API/contacts" -H "Authorization: Bearer $KE
   "email": "billing@guide-customer.example", "address": "Calle 10 # 43-20", "municipality_code": "05001"
 }' | first_id)
 
-TAX=$(curl -s "$API/taxes?per_page=100" -H "Authorization: Bearer $KEY" | grep -o '"id":"[0-9a-z]\{26\}","dian_code":"01","name":"IVA 19%"' | cut -d '"' -f 4)
+TAX=$(curl -s "$API/taxes?per_page=100" -H "Authorization: Bearer $KEY" | grep -o '"id":"[0-9a-z]\{26\}","dian_code":"01","name":"IVA 19 %"' | cut -d '"' -f 4)
 ITEM=$(curl -s --fail-with-body "$API/items" -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' -d '{
   "code": "GUIDE-'"$NIT"'", "name": "Consulting hour (synthetic)", "type": "service", "unit_code": "HUR",
   "unit_price": "150000.00", "tax_id": "'"$TAX"'"

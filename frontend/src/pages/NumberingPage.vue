@@ -138,7 +138,10 @@ function actions(template: NumberTemplate): RowAction[] {
         </span>
       </template>
       <template #cell-usage="{ row }">
-        <div class="flex items-center gap-2" :title="t('numbering.usageTitle', { used: formatInteger(row.usage.used), total: formatInteger(row.usage.total) })">
+        <div
+          class="flex items-center gap-2"
+          :title="t('numbering.usageTitle', { used: formatInteger(row.usage.used), total: formatInteger(row.usage.total) }, row.usage.total)"
+        >
           <div class="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
             <div class="h-full rounded-full bg-primary" :style="{ width: `${usagePercent(row)}%` }" />
           </div>

@@ -219,7 +219,8 @@ function apiRowError(invoice: OpenInvoice): string | undefined {
             <p v-if="errors.allocations" class="text-xs text-destructive">{{ errors.allocations[0] }}</p>
             <DataTable :columns="invoiceColumns" :rows="invoices" :loading="isFetching" :empty-title="t('payments.editor.noInvoices')" :skeleton-rows="2">
               <template #cell-number="{ row }">
-                <span class="inline-flex items-center gap-2 whitespace-nowrap">
+                <!-- The overdue badge goes under the number when the row is short of room. -->
+                <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-1 whitespace-nowrap">
                   <RouterLink :to="{ name: 'invoice', params: { id: row.id } }" class="font-medium tabular-nums hover:underline">{{ row.number }}</RouterLink>
                   <StatusBadge v-if="row.overdue" domain="invoicePayment" status="overdue" />
                 </span>
@@ -290,7 +291,7 @@ function apiRowError(invoice: OpenInvoice): string | undefined {
         <div class="grid gap-3 rounded-xl border p-5">
           <p class="text-sm font-medium">{{ t('payments.editor.total') }}</p>
           <p class="text-2xl font-semibold tabular-nums">{{ formatMoney(fromCents(total)) }}</p>
-          <p class="text-xs text-muted-foreground">{{ t('payments.editor.totalHint', { count: applied.length }) }}</p>
+          <p class="text-xs text-muted-foreground">{{ t('payments.editor.totalHint', { count: applied.length }, applied.length) }}</p>
           <p v-if="errors.amount" class="text-xs text-destructive">{{ errors.amount[0] }}</p>
         </div>
       </div>

@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest'
 import TotalsPanel from '@/components/invoice/TotalsPanel.vue'
 import { i18n } from '@/i18n'
 
-// An answer of POST /invoices/preview of the local API, for the synthetic demo data of Demo
+// A response of POST /invoices/preview of the local API, for the synthetic demo data of Demo
 // Comercial: 2 office chairs with a 5 % discount and 10 packs of paper at IVA 19 %, 3 packs of
-// coffee at IVA 5 %, with ReteFuente 2.5 % and ReteIVA 15 %.
+// coffee at IVA 5 %, with ReteFuente 2,5 % and ReteIVA 15 %.
 const preview: Calculation = {
   lines: [
     { position: 1, discount_amount: '45000.00', line_extension_amount: '855000.00', tax_amount: '162450.00' },
@@ -22,12 +22,12 @@ const preview: Calculation = {
     {
       withholding_id: '01m7tj4gqdcbgmhxnm2prt0y52',
       dian_code: '06',
-      name: 'ReteFuente 2.5% (purchases)',
+      name: 'ReteFuente 2,5 % (purchases)',
       rate: '2.5000',
       base_amount: '1126700.00',
       amount: '28167.50',
     },
-    { withholding_id: '01m7tj4gqgsgzj1z5tfzgzrm1f', dian_code: '05', name: 'ReteIVA 15%', rate: '15.0000', base_amount: '206135.00', amount: '30920.25' },
+    { withholding_id: '01m7tj4gqgsgzj1z5tfzgzrm1f', dian_code: '05', name: 'ReteIVA 15 %', rate: '15.0000', base_amount: '206135.00', amount: '30920.25' },
   ],
   totals: {
     subtotal_amount: '1171700.00',
@@ -60,13 +60,13 @@ describe('TotalsPanel', () => {
     })
 
     expect(rows(wrapper)).toEqual([
-      ['Subtotal', '$ 1.171.700'],
-      ['Discounts', '− $ 45.000'],
-      ['IVA 19 %', 'on $ 1.070.000', '$ 203.300'],
-      ['IVA 5 %', 'on $ 56.700', '$ 2.835'],
-      ['Total', '$ 1.332.835'],
-      ['ReteFuente 2.5% (purchases)', 'on $ 1.126.700', '− $ 28.167,50'],
-      ['ReteIVA 15%', 'on $ 206.135', '− $ 30.920,25'],
+      ['Subtotal', '$ 1.171.700,00'],
+      ['Discounts', '− $ 45.000,00'],
+      ['IVA 19 %', 'on $ 1.070.000,00', '$ 203.300,00'],
+      ['IVA 5 %', 'on $ 56.700,00', '$ 2.835,00'],
+      ['Total', '$ 1.332.835,00'],
+      ['ReteFuente 2,5 % (purchases)', 'on $ 1.126.700,00', '− $ 28.167,50'],
+      ['ReteIVA 15 %', 'on $ 206.135,00', '− $ 30.920,25'],
       ['Net to receive', '$ 1.273.747,25'],
     ])
   })
@@ -75,10 +75,10 @@ describe('TotalsPanel', () => {
     const wrapper = mount(TotalsPanel, { props: { totals: null, taxes: [], withholdings: [] }, global: { plugins: [i18n] } })
 
     expect(rows(wrapper)).toEqual([
-      ['Subtotal', '$ 0'],
-      ['Discounts', '− $ 0'],
-      ['Total', '$ 0'],
-      ['Net to receive', '$ 0'],
+      ['Subtotal', '$ 0,00'],
+      ['Discounts', '− $ 0,00'],
+      ['Total', '$ 0,00'],
+      ['Net to receive', '$ 0,00'],
     ])
 
     await wrapper.setProps({ pending: true, notice: 'Fix the highlighted values to see the totals.' })

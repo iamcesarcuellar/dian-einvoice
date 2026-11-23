@@ -54,11 +54,44 @@ export function formatDecimal(value: string | null | undefined, minFraction = 0)
   return `${decimal.negative ? '-' : ''}${group(decimal.integer)}${fraction ? DECIMALS + fraction : ''}`
 }
 
-/** Colombian pesos: "$ 1.234.567,50". */
+/**
+ * Colombian pesos, always with two decimals so a column of amounts lines up: "$ 1.234.567,50",
+ * "$ 602.140,00". A unit price keeps the decimals it has beyond two: "$ 21.500,125".
+ */
 export function formatMoney(value: string | null | undefined): string {
-  const formatted = formatDecimal(value, 2)
+  if (value === null || value === undefined || value === '') {
+    return ''
+  }
 
-  return formatted ? `$ ${formatted}` : ''
+  const decimal = parts(value)
+
+  if (!decimal) {
+    return `$ ${value}`
+  }
+
+  const fraction = decimal.fraction.replace(/0+$/, '').padEnd(2, '0')
+
+  return `$ ${decimal.negative ? '-' : ''}${group(decimal.integer)}${DECIMALS}${fraction}`
+}
+
+/**
+ * Whole pesos, for the figures of the dashboard: "9798831.87" becomes "$ 9.798.832", rounded half
+ * away from zero. The exact amount (formatMoney) goes in the tooltip of each figure.
+ */
+export function formatWholeMoney(value: string | null | undefined): string {
+  if (value === null || value === undefined || value === '') {
+    return ''
+  }
+
+  const decimal = parts(value)
+
+  if (!decimal) {
+    return `$ ${value}`
+  }
+
+  const integer = (decimal.fraction[0] ?? '0') >= '5' ? (BigInt(decimal.integer) + 1n).toString() : decimal.integer
+
+  return `$ ${decimal.negative && integer !== '0' ? '-' : ''}${group(integer)}`
 }
 
 /** "19 %", "2,5 %". */
@@ -99,11 +132,27 @@ export function formatInteger(value: number): string {
   return group(String(value))
 }
 
-/** "2030-01-19" becomes "19/01/2030", without going through Date and its time zones. */
+/** A text of the messages of the interface language, such as the pattern of a date. */
+function message(key: string, values: Record<string, string>): string {
+  return i18n.global.t(key, values)
+}
+
+/**
+ * "2030-01-19" as the language of the interface writes a calendar date: "19 Jan 2030" in English,
+ * with the month in letters so that no reader takes the day for the month. The pattern and the
+ * month names are messages of the language (format.date and format.months), and no Date or time
+ * zone is involved.
+ */
 export function formatDate(value: string | null | undefined): string {
   const match = value ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value) : null
 
-  return match ? `${match[3]}/${match[2]}/${match[1]}` : ''
+  if (!match) {
+    return ''
+  }
+
+  const [, year = '', mm = '', dd = ''] = match
+
+  return message('format.date', { day: String(Number(dd)), dd, month: message(`format.months.${mm}`, {}), mm, year })
 }
 
 /**
@@ -154,21 +203,32 @@ export function addDays(date: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
-/** An instant shown in Colombian time: "17/11/2026, 10:15". */
+/** An instant in Colombian time, as the language of the interface writes it: "17 Nov 2026, 10:15". */
 export function formatDateTime(value: string | null | undefined): string {
-  if (!value) {
+  const instant = value ? new Date(value) : null
+
+  if (instant === null || Number.isNaN(instant.getTime())) {
     return ''
   }
 
-  return new Intl.DateTimeFormat('es-CO', {
-    timeZone: COLOMBIA,
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(new Date(value))
+  const local = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: COLOMBIA,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(instant)
+      .map((part) => [part.type, part.value]),
+  )
+
+  return message('format.dateTime', {
+    date: formatDate(`${local.year}-${local.month}-${local.day}`),
+    time: `${local.hour}:${local.minute}`,
+  })
 }
 
 /** "10:15:30" becomes "10:15". */
@@ -202,15 +262,22 @@ export function formatMonth(month: string, style: 'short' | 'long' = 'short'): s
   return new Intl.DateTimeFormat(interfaceLocale(), options).format(new Date(Date.UTC(year, number - 1, 1)))
 }
 
-/** "2026-10-01" to "2026-10-19" becomes "Oct 1–19", calendar dates without time zones. */
+/**
+ * "2026-10-01" to "2026-10-19" becomes "1–19 Oct", and "2026-09-28" to "2026-10-03" "28 Sep – 3 Oct":
+ * calendar dates in the order and with the month names of format.date, without time zones.
+ */
 export function formatDateRange(from: string, to: string): string {
-  const toDate = (value: string) => {
-    const [year = 1970, month = 1, day = 1] = value.split('-').map(Number)
+  const day = (value: string) => {
+    const [, month = '01', date = '01'] = value.split('-')
 
-    return new Date(Date.UTC(year, month - 1, day))
+    return { day: String(Number(date)), dd: date, month: message(`format.months.${month}`, {}), mm: month }
   }
+  const start = day(from)
+  const end = day(to)
 
-  return new Intl.DateTimeFormat(interfaceLocale(), { month: 'short', day: 'numeric', timeZone: 'UTC' }).formatRange(toDate(from), toDate(to))
+  return from.slice(0, 7) === to.slice(0, 7)
+    ? message('format.sameMonthRange', { from: start.day, to: end.day, month: end.month })
+    : message('format.range', { from: message('format.dayMonth', start), to: message('format.dayMonth', end) })
 }
 
 /** An amount for the axis of a chart, in Colombian compact notation: "$ 12 M", "$ 450 mil". */

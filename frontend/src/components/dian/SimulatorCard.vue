@@ -106,7 +106,9 @@ const currentLabel = computed(() => {
   }
 
   if (mode.mode !== 'normal') {
-    parts.push(mode.remaining === null ? t('settings.dian.simulator.untilChanged') : t('settings.dian.simulator.remaining', { count: mode.remaining }))
+    parts.push(
+      mode.remaining === null ? t('settings.dian.simulator.untilChanged') : t('settings.dian.simulator.remaining', { count: mode.remaining }, mode.remaining),
+    )
   }
 
   if (mode.scope === 'all') {
@@ -139,7 +141,7 @@ const requestRows = computed(() => (requests.value ?? []).map((request, index) =
 const requestColumns = computed<DataTableColumn[]>(() => [
   { key: 'at', label: t('settings.dian.simulator.columns.time') },
   { key: 'operation', label: t('settings.dian.simulator.columns.operation') },
-  { key: 'document', label: t('settings.dian.simulator.columns.document') },
+  { key: 'document', label: t('settings.dian.simulator.columns.document'), truncate: true },
   { key: 'result', label: t('settings.dian.simulator.columns.result') },
   { key: 'duration', label: t('settings.dian.simulator.columns.duration'), align: 'right' },
 ])
@@ -255,7 +257,7 @@ watch(
             <span class="whitespace-nowrap">{{ row.operation }}</span>
           </template>
           <template #cell-document="{ row }">
-            <span class="whitespace-nowrap tabular-nums">{{ row.document ?? '—' }}</span>
+            <span class="block truncate tabular-nums" :title="row.document ?? undefined">{{ row.document ?? '—' }}</span>
           </template>
           <template #cell-result="{ row }">
             <span class="grid gap-0.5">

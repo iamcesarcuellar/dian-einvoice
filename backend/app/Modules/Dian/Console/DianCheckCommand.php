@@ -2,10 +2,13 @@
 
 namespace App\Modules\Dian\Console;
 
+use App\Modules\Billing\Enums\DeliveryStatus;
 use App\Modules\Billing\Enums\DocumentStatus;
 use App\Modules\Billing\Enums\DocumentType;
 use App\Modules\Billing\Enums\ElectronicStatus;
 use App\Modules\Billing\Models\Document;
+use App\Modules\Delivery\Enums\DocumentFileKind;
+use App\Modules\Delivery\Services\DocumentFiles;
 use App\Modules\Dian\Domain\Cude;
 use App\Modules\Dian\Domain\CudeInput;
 use App\Modules\Dian\Domain\Cufe;
@@ -38,14 +41,17 @@ use RuntimeException;
  *     of its own data);
  *  7. the signed XML the chain stored for a demo credit note and a demo debit note, against the
  *     official UBL-CreditNote-2.1.xsd and UBL-DebitNote-2.1.xsd, and its signature verified by
- *     xmlsec1 trusting only the company's test certificate.
+ *     xmlsec1 trusting only the company's test certificate;
+ *  8. the AttachedDocument the delivery stored for a delivered demo invoice, its signature verified
+ *     by xmlsec1 trusting only the company's test certificate, and a copy with one character of the
+ *     invoice inside it changed, which xmlsec1 must reject: the signature covers what it carries.
  * Read-only: nothing is stored; the temporary files are removed at the end.
  */
 final class DianCheckCommand extends Command
 {
     protected $signature = 'dian:check';
 
-    protected $description = 'Check the CUFE and the CUDE against the annex examples, validate an issued invoice XML against the official XSD, sign it and verify the signature with xmlsec1, and validate and verify the signed XML of a demo credit note and debit note';
+    protected $description = 'Check the CUFE and the CUDE against the annex examples, validate an issued invoice XML against the official XSD, sign it and verify the signature with xmlsec1, validate and verify the signed XML of a demo credit note and debit note, and verify the signature of a delivered AttachedDocument';
 
     /** Annex 1.9, section 11.2.1. */
     private const string ANNEX_CUFE = '8bb918b19ba22a694f1da11c643b5e9de39adf60311cf179179e9b33381030bcd4c3c3f156c506ed5908f9276f5bd9b4';
@@ -56,7 +62,7 @@ final class DianCheckCommand extends Command
     /** The element whose value is changed in the tampered copy. */
     private const string TAMPERED_ELEMENT = '<cbc:PayableAmount currencyID="COP">';
 
-    public function handle(UblDocumentXml $builder, XsdValidator $validator, CurrentCompany $currentCompany, XadesSigner $signer, SigningCertificates $certificates, DocumentStorage $storage): int
+    public function handle(UblDocumentXml $builder, XsdValidator $validator, CurrentCompany $currentCompany, XadesSigner $signer, SigningCertificates $certificates, DocumentStorage $storage, DocumentFiles $files): int
     {
         if (($refusal = LocalOnly::refusal($this->getName() ?? 'This command')) !== null) {
             $this->error($refusal);
@@ -83,10 +89,12 @@ final class DianCheckCommand extends Command
             $results = [...$results, ...$this->checkNote($type, $index === 0 ? 'a' : 'b', $currentCompany, $validator, $certificates, $storage)];
         }
 
+        $results = [...$results, ...$this->checkAttachedDocument($currentCompany, $certificates, $files)];
+
         $this->newLine();
 
         if (! in_array(false, $results, true)) {
-            $this->info('dian:check passed: CUFE and CUDE match the annex, the invoice, credit note and debit note XML are valid against the official XSD, and xmlsec1 verifies their signatures and rejects a tampered copy.');
+            $this->info('dian:check passed: CUFE and CUDE match the annex, the invoice, credit note and debit note XML are valid against the official XSD, and xmlsec1 verifies their signatures and that of the AttachedDocument, and rejects the tampered copies.');
 
             return self::SUCCESS;
         }
@@ -227,6 +235,100 @@ final class DianCheckCommand extends Command
         }
 
         return [$schema, $verified];
+    }
+
+    /**
+     * Step 8: the signed AttachedDocument of the latest delivered demo invoice, verified by xmlsec1,
+     * then a copy with the first digit of the payable amount of the invoice inside it changed.
+     *
+     * @return list<bool>
+     */
+    private function checkAttachedDocument(CurrentCompany $currentCompany, SigningCertificates $certificates, DocumentFiles $files): array
+    {
+        $this->newLine();
+        $this->line('8. Signed AttachedDocument of a delivered demo invoice, its signature verified by xmlsec1');
+
+        $invoice = Document::withoutGlobalScope(CompanyScope::class)
+            ->where('type', DocumentType::Invoice)
+            ->where('electronic_status', ElectronicStatus::Accepted)
+            ->where('delivery_status', DeliveryStatus::Delivered)
+            ->orderByDesc('issued_at')
+            ->first();
+
+        if ($invoice === null) {
+            $this->error('   FAIL: there is no delivered invoice. Run make demo first.');
+
+            return [false, false];
+        }
+
+        $this->actAsOwner($currentCompany, $invoice->company_id);
+        $file = $files->find($invoice, DocumentFileKind::AttachedDocument);
+        $certificate = $certificates->current();
+
+        if ($file === null || $certificate === null) {
+            $this->error(sprintf('   FAIL: %s has no stored AttachedDocument, or its company no signing certificate.', $invoice->full_number));
+
+            return [false, false];
+        }
+
+        $xml = $files->contents($file);
+        $tampered = $this->tamper($xml);
+        $certificatePem = $certificates->credentials($certificate)->certificatePem;
+
+        $this->line(sprintf('   Container:   %s of %s (%s bytes)', $file->file_name, $invoice->full_number, number_format(strlen($xml))));
+        $this->line(sprintf('   Certificate: serial %s, the one of %s', $certificate->serial_number, $invoice->companySnapshot()['legal_name']));
+
+        $verification = $this->xmlsec($certificatePem, $xml);
+        $this->line('   xmlsec1:     '.$verification['output']);
+        $verified = $this->verdict(
+            $verification['passed'] && str_contains($verification['output'], 'OK'),
+            'xmlsec1 verifies the signature of the AttachedDocument, trusting only the test certificate.',
+            'xmlsec1 does not verify the signature of the AttachedDocument.',
+        );
+
+        $this->line(sprintf('   Change:      cbc:PayableAmount of the invoice inside it, %s became %s', $tampered['before'], $tampered['after']));
+        $rejection = $this->xmlsec($certificatePem, $tampered['xml']);
+        $this->line('   xmlsec1:     '.$rejection['output']);
+        $rejected = $this->verdict(
+            ! $rejection['passed'] && str_contains($rejection['output'], 'FAIL'),
+            'xmlsec1 rejects the AttachedDocument with the invoice inside it changed.',
+            'xmlsec1 did not reject the changed AttachedDocument as a failed verification.',
+        );
+
+        return [$verified, $rejected];
+    }
+
+    /**
+     * xmlsec1 --verify of one document, trusting only the given certificate, in a temporary
+     * directory removed afterwards.
+     *
+     * @return array{passed: bool, output: string}
+     */
+    private function xmlsec(string $certificatePem, string $xml): array
+    {
+        $directory = sys_get_temp_dir().'/dian-check-'.bin2hex(random_bytes(6));
+
+        if (! mkdir($directory, 0700) && ! is_dir($directory)) {
+            throw new RuntimeException("The temporary directory {$directory} could not be created.");
+        }
+
+        $files = ['certificate' => "{$directory}/certificate.pem", 'document' => "{$directory}/document.xml"];
+
+        try {
+            file_put_contents($files['certificate'], $certificatePem);
+            file_put_contents($files['document'], $xml);
+            $result = Process::run(['xmlsec1', '--verify', '--trusted-pem', $files['certificate'], $files['document']]);
+
+            return ['passed' => $result->successful(), 'output' => $this->output($result->output().$result->errorOutput())];
+        } finally {
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+
+            rmdir($directory);
+        }
     }
 
     private function actAsOwner(CurrentCompany $currentCompany, string $companyId): void

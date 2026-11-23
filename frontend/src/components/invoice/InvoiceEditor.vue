@@ -408,7 +408,7 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
 
     <FormError :error="error" />
 
-    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div class="grid min-w-0 gap-6">
         <FormSection v-if="isNote && related" :title="t('notes.reference.title')" :description="t('notes.reference.description')">
           <div class="grid gap-4">
@@ -567,7 +567,7 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
             <p v-if="errors.lines" class="text-xs text-destructive">{{ errors.lines[0] }}</p>
 
             <div v-for="(line, index) in form.lines" :key="line.key" class="grid gap-3 rounded-lg border p-3">
-              <div class="grid items-start gap-3 sm:grid-cols-[13rem_minmax(0,1fr)_auto]">
+              <div class="grid items-start gap-3 sm:grid-cols-[16rem_minmax(0,1fr)_auto]">
                 <FormField :id="`${line.key}-item`" :label="t('invoices.editor.item')" :error="lineError(line.key, 'item_id')">
                   <SearchSelect
                     :id="`${line.key}-item`"

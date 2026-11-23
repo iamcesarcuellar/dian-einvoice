@@ -10,7 +10,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import { Button } from '@/components/ui/button'
 import { useReference } from '@/composables/useReference'
 import { useSession } from '@/composables/useSession'
-import { formatDate, formatMoney } from '@/lib/format'
+import { formatDate, formatInteger, formatMoney } from '@/lib/format'
 
 /**
  * Payments of an accepted invoice: its payment status, what was paid, what is left to collect
@@ -47,7 +47,9 @@ const canRecord = computed(() => can('record-payments') && owes.value && props.i
       <div class="flex flex-wrap items-center gap-2">
         <StatusBadge v-if="invoice.payment_status && (invoice.payment_status !== 'unpaid' || owes)" domain="invoicePayment" :status="invoice.payment_status" />
         <StatusBadge v-if="invoice.overdue" domain="invoicePayment" status="overdue" />
-        <span v-if="invoice.overdue" class="text-sm text-destructive">{{ t('invoices.payments.daysPastDue', { days: invoice.days_past_due ?? 0 }) }}</span>
+        <span v-if="invoice.overdue" class="text-sm text-destructive">{{
+          t('invoices.payments.daysPastDue', { days: formatInteger(invoice.days_past_due ?? 0) }, invoice.days_past_due ?? 0)
+        }}</span>
       </div>
 
       <dl class="grid gap-3 sm:grid-cols-3">

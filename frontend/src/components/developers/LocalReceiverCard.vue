@@ -62,7 +62,7 @@ const currentLabel = computed(() => {
   }
 
   if (mode.mode !== 'normal') {
-    parts.push(mode.remaining === null ? t('developers.receiver.untilChanged') : t('developers.receiver.remaining', { count: mode.remaining }))
+    parts.push(mode.remaining === null ? t('developers.receiver.untilChanged') : t('developers.receiver.remaining', { count: mode.remaining }, mode.remaining))
   }
 
   return parts.join(' · ')
@@ -183,7 +183,7 @@ watch(
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="grid gap-0.5">
               <h3 class="text-sm font-medium">{{ t('developers.receiver.received') }}</h3>
-              <p class="text-xs text-muted-foreground">{{ t('developers.receiver.receivedDescription', { count: receiver.secrets }) }}</p>
+              <p class="text-xs text-muted-foreground">{{ t('developers.receiver.receivedDescription', { count: receiver.secrets }, receiver.secrets) }}</p>
             </div>
             <Button variant="outline" size="sm" :disabled="isFetching" @click="refetch()">
               <RefreshCwIcon :class="isFetching ? 'animate-spin' : ''" />

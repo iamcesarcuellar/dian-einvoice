@@ -39,7 +39,7 @@ export CLOUD_CHAOS_INVOICES
 # cache and sets BUILD empty, so compose uses them as they are.
 BUILD ?= --build
 
-TARGETS := up down logs ps seed demo stress chaos dian-check dian-toolbox dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check docs-examples openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security licenses docs-check cost cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check migrations-check cloud-deploy cloud-drill cloud-dead-letters cloud-dead-letters-purge cloud-redrive cloud-errors cloud-functions cloud-rotate
+TARGETS := up down logs ps seed demo stress chaos dian-check dian-toolbox dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check docs-examples openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra test-tools e2e checks security licenses docs-check cost cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check migrations-check cloud-deploy cloud-drill cloud-dead-letters cloud-dead-letters-purge cloud-redrive cloud-errors cloud-functions cloud-rotate
 
 .PHONY: env help $(TARGETS)
 
@@ -110,8 +110,8 @@ stress: ## Checks of the running stack | Issue INVOICES invoices from CONCURRENC
 chaos: ## Checks of the running stack | Kill the workers and the relay mid-chain: every invoice ends accepted once
 	@sh scripts/chaos.sh $(CHAOS_INVOICES)
 
-# Check the CUFE against the DIAN annex example, validate an issued demo invoice XML against the official XSD, sign it and verify the signature with xmlsec1 (and that a tampered copy fails).
-dian-check: ## Checks of the running stack | CUFE against the annex, the XML against the official XSD, the signature with xmlsec1
+# Check the CUFE against the DIAN annex example, validate an issued demo invoice XML against the official XSD, sign it and verify the signature with xmlsec1 (and that a tampered copy fails), and verify with xmlsec1 the signatures of a demo credit note, a demo debit note and the AttachedDocument of a delivered demo invoice (and that a copy with the invoice inside it changed fails).
+dian-check: ## Checks of the running stack | CUFE against the annex, the XML against the official XSD, every signature with xmlsec1, the AttachedDocument's included
 	$(COMPOSE) exec api php artisan dian:check
 
 # The DIAN e-invoicing toolbox v1.9 (scripts/dian-toolbox.sh, compose service dian-toolbox, profile tools), which the
@@ -252,8 +252,8 @@ security: ## Quality | Dependency audits, licenses compatible with MIT, and the 
 licenses: ## Quality | Write docs/third-party-licenses.md from the lock files
 	@sh scripts/licenses.sh
 
-# Every test that needs no browser: backend, web app, simulator and CDK app.
-test: test-backend test-frontend test-simulator test-infra ## Quality | Every test that needs no browser: backend, web app, simulator and infrastructure
+# Every test that needs no browser: backend, web app, simulator, CDK app and the repository's tooling.
+test: test-backend test-frontend test-simulator test-infra test-tools ## Quality | Every test that needs no browser: backend, web app, simulator, infrastructure and tooling
 
 # Unit tests of the backend, then its integration tests against the real MySQL (database dian_einvoice_test, created
 # here and recreated by the tests), Redis (databases 3 and 4, not those of the stack) and the local DIAN simulator.
@@ -269,6 +269,12 @@ test-frontend: ## Quality | Unit tests of the web app (Vitest)
 # Tests of the simulator (node:test): its rules, failure modes and webhook receiver.
 test-simulator: ## Quality | Tests of the DIAN simulator (node:test)
 	$(COMPOSE) --profile tools run --rm $(BUILD) -T simulator-dev npm test
+
+# Tests of the repository's tooling (node:test), which need nothing but Node.js; they run in the container of the
+# browser tooling. The image encoder of make screenshots (e2e/screenshots/encode.mjs): its PNG, LZW, palette and GIF,
+# read back by decoders written apart from it.
+test-tools: ## Quality | Tests of the repository's tooling (node:test): the image encoder of make screenshots
+	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e node --test screenshots/encode.test.mjs
 
 # Tests of the infrastructure as code (node:test), without a network: the origin verifier of the edge, then the CDK
 # app: assertions on the synthesized templates of both stages, on the templates osls packages for the functions
@@ -295,8 +301,9 @@ migrations-check: ## Quality | Refuse a migration that drops or renames without 
 	$(COMPOSE) run --rm --no-deps -T api php artisan migrations:check
 
 # The end-to-end test in a browser (Playwright, profile e2e) against the full stack with the demo data (make demo):
-# sign in, issue an invoice, see it accepted and delivered, open its PDF, record its payment and see it paid.
-e2e: ## Checks of the running stack | End-to-end test in a browser: an invoice from draft to accepted, delivered and paid
+# sign in, issue an invoice, see it accepted and delivered, open its PDF, record its payment and see it paid; then
+# every list of the web app at 1440×900, none wider than its box.
+e2e: ## Checks of the running stack | End-to-end test in a browser: an invoice from draft to paid, and every list at 1440×900
 	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 
 # The checks of the stack, in a row, against the demo data (make demo). make dian-schematron stays optional, apart.
@@ -411,10 +418,15 @@ cloud-alarms: ## Operations of the emulated cloud | The state of every alarm and
 # The end-to-end test in a browser against the emulated cloud with the demo data (make cloud-demo first): the web app
 # as the edge serves it on http://localhost:8601, built for production and under its Content-Security-Policy, the
 # same journey as make e2e (sign in, issue an invoice through the functions, see it accepted and delivered, open its
-# PDF, record its payment), the API reference, and a tour of every route the router of the web app declares, each a
-# deep link with the demo data, with its main dialogs, menus and lists, the command palette, the themes and the hover
-# card of a chart; it fails on the first violation of a policy the browser reports.
+# PDF, record its payment), the lists at 1440×900, the API reference, and a tour of every route the router of the web
+# app declares, each a deep link with the demo data, with its main dialogs, menus and lists, the command palette, the
+# themes and the hover card of a chart; it fails on the first violation of a policy the browser reports. First, in the
+# console function, cloud:check demo makes sure the demo data is there and that the DIAN simulator, which the local
+# stack shares, holds no document of the demo companies under a number the cloud has not issued yet (one the local
+# stack issued, which the simulator would answer with rule 90); when either is wrong it stops at once and says to run
+# make cloud-demo.
 cloud-e2e: ## Emulated cloud | The end-to-end test and a tour of every route behind the edge, under its CSP
+	$(FUNCTIONS) node scripts/console.mjs cloud:check demo
 	$(COMPOSE) --profile e2e run --rm --no-deps -T -e WEB_URL=http://cloud-gateway:8000 -e EDGE=1 e2e sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 
 # Run php artisan in the console function of the emulated cloud, as an operator would: make cloud-artisan ARGS="migrate:status".

@@ -143,7 +143,9 @@ function actions(subscription: WebhookSubscription): RowAction[] {
 }
 
 function eventsLabel(subscription: WebhookSubscription): string {
-  return subscription.events.length >= 17 ? t('developers.webhooks.allEvents') : t('developers.webhooks.eventCount', { count: subscription.events.length })
+  return subscription.events.length >= 17
+    ? t('developers.webhooks.allEvents')
+    : t('developers.webhooks.eventCount', { count: subscription.events.length }, subscription.events.length)
 }
 </script>
 
@@ -184,7 +186,7 @@ function eventsLabel(subscription: WebhookSubscription): string {
             <StatusBadge domain="subscription" :status="row.status" />
             <span v-if="row.disabled_reason" class="max-w-56 text-xs text-destructive">{{ row.disabled_reason }}</span>
             <span v-else-if="row.consecutive_failures > 0" class="text-xs text-muted-foreground">{{
-              t('developers.webhooks.failuresInARow', { count: row.consecutive_failures })
+              t('developers.webhooks.failuresInARow', { count: row.consecutive_failures }, row.consecutive_failures)
             }}</span>
           </span>
         </template>

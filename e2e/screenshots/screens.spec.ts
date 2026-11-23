@@ -7,9 +7,12 @@ import { expect, test } from '@playwright/test'
  * make screenshots (scripts/screenshots.sh): the screenshots and the frames of the two GIFs of the README, against the
  * local stack with the synthetic demo data the script has just reloaded, under the story clock (Thursday, November 19,
  * 2026, 3 p.m. in Medellín; SCREENSHOTS_CLOCK_OFFSET seconds from the clock of the machine, the same offset the backend
- * and the DIAN simulator run with). Desktop, 1440×900: the screenshots at twice the density, the frames of the GIFs at
- * once, with a drawn pointer. Any error in the console of the browser, an uncaught exception or an error on screen that
- * the story does not expect fails the run. The files go to SCREENSHOTS_RAW; screenshots/encode.mjs writes docs/assets.
+ * and the DIAN simulator run with). Desktop, 1440×900, in a browser set to British English (en-GB), so the native date
+ * field of the editor reads day, month and year in the order of the app's own dates. The screenshots at twice the
+ * density, 1440 px wide and at most 900 px high: each starts with the page header or a card and ends with a card or a
+ * table row, shortened when the screen ends in the middle of one. The frames of the GIFs at once, with a drawn pointer.
+ * Any error in the console of the browser, an uncaught exception or an error on screen that the story does not expect
+ * fails the run. The files go to SCREENSHOTS_RAW; screenshots/encode.mjs writes docs/assets.
  */
 
 const RAW = process.env.SCREENSHOTS_RAW ?? '/tmp/screenshots'
@@ -17,6 +20,18 @@ const OFFSET_SECONDS = Number(process.env.SCREENSHOTS_CLOCK_OFFSET)
 const ORIGIN = 'http://localhost:8601'
 const DEMO = { email: 'demo@example.com', password: 'password', company: 'Demo Comercial SAS' }
 const VIEWPORT = { width: 1440, height: 900 }
+/** The bar at the top of every page, which stays there when the page scrolls. */
+const APP_BAR = 56
+/** The page's background kept between the bar and the first card of a screenshot, or below its last card: less than the 24 px between two cards. */
+const MARGIN = 16
+/**
+ * Where a screenshot that starts with a card puts it: 20 px below the bar, so the card above, 24 px up, hides behind
+ * the bar whole with its shadow, and the card starts within a few pixels of the totals panel, which sticks 80 px from
+ * the top.
+ */
+const CARD_TOP = APP_BAR + 20
+/** Longer than the 250 ms a search field waits after the last key before it asks the API. */
+const SEARCH_PAUSE = 300
 // The queue workers run the chain and the delivery; every transmission attempt of the outage waits its delay.
 const CHAIN_TIMEOUT = 120_000
 const OUTAGE_TIMEOUT = 420_000
@@ -50,7 +65,7 @@ function watch(page: Page, name: string): Page {
 
 /** A context of the run: the story clock installed before any page opens, and the session of the demo user. */
 async function context(browser: Browser, options: BrowserContextOptions): Promise<BrowserContext> {
-  const created = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: 'en-US', timezoneId: 'America/Bogota', ...options })
+  const created = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: 'en-GB', timezoneId: 'America/Bogota', ...options })
   await created.clock.install({ time: Date.now() + OFFSET_SECONDS * 1000 })
 
   return created
@@ -86,11 +101,119 @@ async function expectNoErrorOnScreen(page: Page, expectedAlerts = 0): Promise<vo
   expect(problems, 'errors reported by the browser').toEqual([])
 }
 
-/** One screenshot of the viewport, at the density of its context. */
-async function still(page: Page, name: string, expectedAlerts = 0, idle = true): Promise<void> {
-  await settle(page, idle)
-  await expectNoErrorOnScreen(page, expectedAlerts)
-  await page.screenshot({ path: join(RAW, 'stills', `${name}.png`), animations: 'disabled', caret: 'hide' })
+/**
+ * Runs in the page: where a screenshot of it can start and end. A clean line goes through no card, row, menu item, text
+ * or control; it may go through a card only between two rows of its table or of its timeline (an ordered list). For
+ * the top, the line right below the bar must be clean in the page itself (the sidebar runs beside the bar); for the
+ * bottom, the lowest clean line up to the limit, the end of a card with a margin of background when it fits.
+ */
+function cleanLines(input: { edge: 'top' | 'bottom'; line: number; limit: number; margin: number }): string[] | number {
+  const BLOCKS = [
+    '[data-slot="card"]',
+    '[data-slot="table-container"]',
+    '[data-slot="alert"]',
+    '[data-sidebar="menu-item"]',
+    '[data-sidebar="group-label"]',
+    '[data-sidebar="header"]',
+    '[data-sidebar="footer"]',
+    'footer',
+    'section',
+    'h1',
+    'h2',
+    'h3',
+    'p',
+    'li',
+    'tr',
+    'dt',
+    'dd',
+    'button',
+    'a',
+    'input',
+    'label',
+    'svg',
+    'iframe',
+  ].join(', ')
+  const CONTAINERS = '[data-slot="card"], [data-slot="table-container"]'
+  const ROWS = 'tr, ol > li'
+
+  const boxes = (from: number, to: number) =>
+    [...document.querySelectorAll<HTMLElement>(BLOCKS)]
+      // The rail of the sidebar is an invisible button as high as the screen: it is no content to cut.
+      .filter((element) => !element.matches('[data-sidebar="rail"]'))
+      .filter((element) => input.edge === 'bottom' || element.closest('[data-slot="sidebar"]') === null)
+      .map((element) => ({ element, box: element.getBoundingClientRect() }))
+      .filter(({ box }) => box.width > 0 && box.height > 0 && box.bottom > from && box.top < to)
+  const crosses = (box: DOMRect, line: number) => box.top < line - 0.5 && box.bottom > line + 0.5
+  const name = (element: HTMLElement) => `${element.tagName.toLowerCase()} "${(element.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 60)}"`
+
+  // What a cut at the line would go through: nothing when the line is clean.
+  const cutAt = (line: number) =>
+    boxes(line - 1, line + 1)
+      .filter(({ element, box }) => {
+        if (!crosses(box, line)) {
+          return false
+        }
+
+        if (!element.matches(CONTAINERS)) {
+          return true
+        }
+
+        // A card or a table goes on past the line between two of its rows, none of them cut.
+        const rows = [...element.querySelectorAll<HTMLElement>(ROWS)].map((row) => row.getBoundingClientRect())
+
+        return !(rows.some((row) => row.bottom <= line + 1) && rows.some((row) => row.top >= line - 1) && rows.every((row) => !crosses(row, line)))
+      })
+      .map(({ element }) => name(element))
+
+  if (input.edge === 'top') {
+    return cutAt(input.line)
+  }
+
+  const candidates = new Set([input.limit])
+
+  for (const { element, box } of boxes(0, input.limit)) {
+    if (box.bottom > input.limit) {
+      continue
+    }
+
+    if (element.matches(CONTAINERS)) {
+      candidates.add(Math.min(input.limit, Math.ceil(box.bottom) + input.margin))
+      candidates.add(Math.ceil(box.bottom))
+    } else if (element.matches(ROWS)) {
+      candidates.add(Math.ceil(box.bottom))
+    }
+  }
+
+  return [...candidates].sort((a, b) => b - a).find((line) => cutAt(line).length === 0) ?? input.limit
+}
+
+/** The height of a screenshot of the page that ends with a card or a row, at most the height of the viewport. */
+async function cleanHeight(page: Page): Promise<number> {
+  return (await page.evaluate(cleanLines, { edge: 'bottom', line: 0, limit: VIEWPORT.height, margin: MARGIN })) as number
+}
+
+/** Fails when the page, right below the bar, starts in the middle of something: the bar hides what is above it whole. */
+async function expectCleanTop(page: Page): Promise<void> {
+  const cut = (await page.evaluate(cleanLines, { edge: 'top', line: APP_BAR, limit: VIEWPORT.height, margin: MARGIN })) as string[]
+  expect(cut, `what ${new URL(page.url()).pathname} starts with, below the bar`).toEqual([])
+}
+
+/** One screenshot at the density of its context: the viewport, cut at its lowest clean line; a dialog takes the whole viewport. */
+async function still(page: Page, name: string, options: { expectedAlerts?: number; idle?: boolean; dialog?: boolean } = {}): Promise<void> {
+  await settle(page, options.idle ?? true)
+  await expectNoErrorOnScreen(page, options.expectedAlerts ?? 0)
+
+  if (!options.dialog) {
+    await expectCleanTop(page)
+  }
+
+  const height = options.dialog ? VIEWPORT.height : await cleanHeight(page)
+  await page.screenshot({
+    path: join(RAW, 'stills', `${name}.png`),
+    animations: 'disabled',
+    caret: 'hide',
+    clip: { x: 0, y: 0, width: VIEWPORT.width, height },
+  })
 }
 
 /** The frames of a GIF, each shown for its delay; encode.mjs merges frames that do not change. */
@@ -106,8 +229,12 @@ class Film {
     mkdirSync(this.directory, { recursive: true })
   }
 
-  /** A frame shown for `delay` ms; the screen may show the errors the story expects there, and no other. */
+  /**
+   * A frame shown for `delay` ms; the screen may show the errors the story expects there, and no other. A total being
+   * calculated is never filmed: a page with a totals panel waits until it shows the totals of the lines on screen.
+   */
   async frame(delay: number, expectedAlerts = 0): Promise<void> {
+    await expect(totalsPanel(this.page).getByRole('status')).toHaveCount(0)
     await expectNoErrorOnScreen(this.page, expectedAlerts)
     const file = join(this.directory, `${String(this.frames.length).padStart(4, '0')}.png`)
     await this.page.screenshot({ path: file, animations: 'disabled', caret: 'initial' })
@@ -128,12 +255,13 @@ class Film {
     await target.click()
   }
 
-  /** Types into the focused field, a frame every few characters. */
-  async type(text: string, every = 2, delay = 110): Promise<void> {
+  /** Types into the focused search field, a frame every few characters once its list holds the options of what is typed. */
+  async type(text: string, every = 3, delay = 110): Promise<void> {
     for (let index = 0; index < text.length; index++) {
       await this.page.keyboard.type(text[index] ?? '')
 
       if ((index + 1) % every === 0 || index === text.length - 1) {
+        await listShowsTyped(this.page)
         await this.frame(delay)
       }
     }
@@ -172,10 +300,36 @@ function pointer(): void {
   }
 }
 
+/**
+ * In the frames of the GIFs only, the backdrop of a dialog is a flat dark shade instead of the app's blur: once the
+ * frames are cut down to the 256 colours of a GIF, a blur comes out in blotches. The app itself and the PNG
+ * screenshots keep the blur.
+ */
+function flatBackdrops(): void {
+  if (window.top !== window) {
+    return
+  }
+
+  const add = () => {
+    const style = document.createElement('style')
+    style.textContent =
+      '[data-slot="dialog-overlay"], [data-slot="sheet-overlay"] { backdrop-filter: none !important; background-color: rgb(0 0 0 / 0.35) !important; }'
+    document.head.appendChild(style)
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', add)
+  } else {
+    add()
+  }
+}
+
 /** The records of the company from its API, with the session of the page. */
 async function list(page: Page, resource: string): Promise<Listed[]> {
   const companyId = await page.evaluate(() => localStorage.getItem('dian-einvoice.current-company'))
-  const answer = await page.request.get(`/api/v1/${resource}`, { headers: { Accept: 'application/json', Referer: `${ORIGIN}/`, 'X-Company-Id': companyId ?? '' } })
+  const answer = await page.request.get(`/api/v1/${resource}`, {
+    headers: { Accept: 'application/json', Referer: `${ORIGIN}/`, 'X-Company-Id': companyId ?? '' },
+  })
   expect(answer.ok(), resource).toBe(true)
 
   return ((await answer.json()) as { data: Listed[] }).data
@@ -188,16 +342,37 @@ async function find(page: Page, resource: string, accept: (item: Listed) => bool
   return found as Listed
 }
 
-/** Opens a search select, types in it and takes the option that matches. */
+/**
+ * Waits until the open search list holds the options of the text typed so far: past the pause the field waits for,
+ * the list is no longer busy (aria-busy, while its options are on their way).
+ */
+async function listShowsTyped(page: Page): Promise<void> {
+  await page.waitForTimeout(SEARCH_PAUSE)
+  await expect(page.locator('[role="listbox"][aria-busy="true"]')).toHaveCount(0)
+}
+
+/** Opens a search select, types in it, waits for the list to narrow to what matches, and takes the option. */
 async function choose(page: Page, select: Locator, search: string, option: RegExp, film?: Film): Promise<void> {
+  const target = page.getByRole('option', { name: option })
+
   if (film) {
     await film.click(select)
-    await film.type(search, 3)
-    await film.click(page.getByRole('option', { name: option }), 450)
+    await film.type(search)
   } else {
     await select.click()
     await select.fill(search)
-    await page.getByRole('option', { name: option }).click()
+    await listShowsTyped(page)
+  }
+
+  await expect(target).toBeVisible()
+  // Every option left says what was typed: the list is the narrowed one before the choice.
+  await expect.poll(async () => (await page.getByRole('option').allInnerTexts()).every((text) => text.toLowerCase().includes(search.toLowerCase()))).toBe(true)
+
+  if (film) {
+    await film.frame(900)
+    await film.click(target, 450)
+  } else {
+    await target.click()
   }
 }
 
@@ -213,6 +388,28 @@ async function pick(page: Page, select: Locator, option: string, film?: Film): P
   }
 }
 
+/** The totals panel of an invoice or a note, on the pages that have one. */
+function totalsPanel(page: Page): Locator {
+  return page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]', { hasText: /^Totals$/ }) })
+}
+
+/** The totals panel shows the totals of the lines on screen: nothing being calculated, and the total given (or any but zero). */
+async function totalsShow(page: Page, total?: string): Promise<void> {
+  const panel = totalsPanel(page)
+  const amount = panel
+    .locator('dl > div')
+    .filter({ has: page.locator('dt', { hasText: /^Total$/ }) })
+    .locator('dd')
+
+  await expect(panel.getByRole('status')).toHaveCount(0)
+
+  if (total === undefined) {
+    await expect(amount).not.toHaveText('$ 0,00')
+  } else {
+    await expect(amount).toHaveText(total)
+  }
+}
+
 /**
  * Signs the demo user in through the API, as the web app does (the CSRF cookie of Sanctum, then the sign-in), so no
  * page is ever drawn without a session, and makes Demo Comercial SAS the company of every page of the context.
@@ -221,7 +418,10 @@ async function signIn(context: BrowserContext): Promise<string> {
   const headers = { Accept: 'application/json', Referer: `${ORIGIN}/` }
   expect((await context.request.get('/sanctum/csrf-cookie', { headers })).ok(), 'the CSRF cookie').toBe(true)
   const token = (await context.cookies(ORIGIN)).find((cookie) => cookie.name === 'XSRF-TOKEN')?.value ?? ''
-  const answer = await context.request.post('/api/v1/auth/login', { headers: { ...headers, 'X-XSRF-TOKEN': decodeURIComponent(token) }, data: { email: DEMO.email, password: DEMO.password } })
+  const answer = await context.request.post('/api/v1/auth/login', {
+    headers: { ...headers, 'X-XSRF-TOKEN': decodeURIComponent(token) },
+    data: { email: DEMO.email, password: DEMO.password },
+  })
   expect(answer.ok(), 'the sign-in of the demo user').toBe(true)
   const companies = ((await answer.json()) as { data: { companies: { id: string; name: string }[] } }).data.companies
   const company = companies.find((candidate) => candidate.name === DEMO.company)
@@ -248,16 +448,49 @@ function step(page: Page, text: string): Locator {
   return page.getByRole('region', { name: 'Progress of the electronic document' }).getByRole('listitem').filter({ hasText: text })
 }
 
-/** Scrolls a card of the page, found by its title, to just below the sticky header of the app. */
-async function scrollToSection(page: Page, title: string): Promise<void> {
+/** The card of the page with this title. */
+async function card(page: Page, title: string): Promise<Locator> {
   const heading = page.locator('[data-slot="card-title"]').getByText(title, { exact: true })
   await expect(heading).toHaveCount(1)
-  await heading.evaluate((element) => {
-    const card = element.closest('[data-slot="card"]') ?? element
-    ;(card as HTMLElement).style.scrollMarginTop = '80px'
-    card.scrollIntoView({ block: 'start' })
-  })
-  await expect(heading).toBeInViewport()
+
+  return page.locator('[data-slot="card"]').filter({ has: heading })
+}
+
+/** Scrolls a card of the page, found by its title, to just below the bar: a screenshot that starts with it. */
+async function scrollToSection(page: Page, title: string): Promise<void> {
+  const section = await card(page, title)
+  await section.evaluate((element, top) => {
+    ;(element as HTMLElement).style.scrollMarginTop = `${top}px`
+    element.scrollIntoView({ block: 'start' })
+  }, CARD_TOP)
+  await expect(section).toBeInViewport()
+}
+
+/**
+ * Scrolls a card so the screen shows its end: a card that fits starts right below the bar; a taller one, such as a long
+ * timeline, ends at the bottom of the viewport, and the first of its rows the bar does not hide starts whole, right
+ * below the bar.
+ */
+async function scrollToEndOf(page: Page, title: string): Promise<void> {
+  const section = await card(page, title)
+  await section.evaluate(
+    (element, { height, bar, margin, top }) => {
+      window.scrollBy(0, element.getBoundingClientRect().bottom - (height - margin))
+
+      if (element.getBoundingClientRect().top >= top) {
+        window.scrollBy(0, element.getBoundingClientRect().top - top)
+
+        return
+      }
+
+      const first = [...element.querySelectorAll('tr, ol > li')].find((row) => row.getBoundingClientRect().top >= bar)
+
+      if (first) {
+        window.scrollBy(0, first.getBoundingClientRect().top - (bar + margin))
+      }
+    },
+    { height: VIEWPORT.height, bar: APP_BAR, margin: MARGIN, top: CARD_TOP },
+  )
 }
 
 /** Sets the failure mode of the simulator for the company, from its card in Settings → DIAN. */
@@ -291,10 +524,11 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
   const company = await signIn(light)
   const session = await light.storageState()
 
-  // The same session in the dark theme, and at the density of the GIFs with a drawn pointer.
+  // The same session in the dark theme, and at the density of the GIFs with a drawn pointer and flat backdrops.
   const dark = await context(browser, { deviceScaleFactor: 2, colorScheme: 'dark', storageState: session })
   const filming = await context(browser, { deviceScaleFactor: 1, colorScheme: 'light', storageState: session })
   await filming.addInitScript(pointer)
+  await filming.addInitScript(flatBackdrops)
 
   for (const each of [light, dark, filming]) {
     await inCompany(each, company)
@@ -304,10 +538,14 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
   const night = watch(await dark.newPage(), 'dark')
   const camera = watch(await filming.newPage(), 'film')
 
-  await test.step('dashboard and invoices', async () => {
+  await test.step('the dashboard in both themes, one after the other with the same figures, and the invoices', async () => {
     await page.goto('/')
     await expect(page.locator('[data-chart]').first()).toBeVisible()
     await still(page, 'dashboard')
+
+    await night.goto('/')
+    await expect(night.locator('[data-chart]').first()).toBeVisible()
+    await still(night, 'dashboard-dark')
 
     await page.goto('/invoices')
     await expect(page.getByRole('link', { name: 'New invoice' })).toBeVisible()
@@ -327,6 +565,8 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await choose(page, items.nth(2), 'coffee', /Ground coffee, 500 g/)
     await page.getByLabel('Quantity').nth(2).fill('6')
     await expect(items).toHaveCount(3)
+    // 2 chairs and 10 packs of paper at IVA 19 %, 6 packs of coffee at IVA 5 %.
+    await totalsShow(page, '$ 1.445.920,00')
     await scrollToSection(page, 'Lines')
     await still(page, 'invoice-editor')
   })
@@ -346,11 +586,14 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await choose(camera, camera.getByRole('combobox', { name: 'Customer' }), 'Cordillera', /Distribuidora Cordillera Plata SAS/, film)
     const items = camera.getByRole('combobox', { name: 'Item', exact: true })
     await choose(camera, items.nth(0), 'chair', /Ergonomic office chair/, film)
-    await film.frame(600)
+    // An office chair at IVA 19 %.
+    await totalsShow(camera, '$ 535.500,00')
+    await film.frame(900)
     await film.click(camera.getByRole('button', { name: 'Add line' }))
     await choose(camera, items.nth(1), 'paper', /Letter paper, 500 sheets/, film)
-    await expect(camera.getByText('$ 561.085').first()).toBeVisible()
-    await film.frame(1000)
+    // And a pack of paper, also at IVA 19 %.
+    await totalsShow(camera, '$ 561.085,00')
+    await film.frame(1400)
 
     await film.click(camera.getByRole('button', { name: 'Issue invoice' }))
     const dialog = camera.getByRole('dialog', { name: 'Issue this invoice?' })
@@ -372,7 +615,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await film.click(camera.getByRole('button', { name: 'View PDF' }))
     const viewer = camera.getByTitle(/^PDF of invoice SETP\d+$/)
     await expect(viewer).toBeVisible()
-    await expect(viewer).toHaveAttribute('src', /^blob:/)
+    await expect(viewer).toHaveAttribute('src', /^blob:.*#navpanes=0/)
     await camera.mouse.move(900, 28, { steps: 4 })
     await camera.waitForTimeout(1500)
     await film.frame(3000)
@@ -380,7 +623,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     film.save()
   })
 
-  await test.step('an accepted invoice: the answer of the DIAN simulator, its delivery, its PDF', async () => {
+  await test.step("an accepted invoice: the DIAN simulator's response, its delivery, its PDF", async () => {
     const invoice = await find(
       page,
       'invoices?per_page=100',
@@ -394,17 +637,14 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.getByRole('button', { name: 'View PDF' }).click()
     const viewer = page.getByTitle(`PDF of invoice ${invoice.full_number}`)
-    await expect(viewer).toHaveAttribute('src', /^blob:/)
+    await expect(viewer).toHaveAttribute('src', /^blob:.*#navpanes=0/)
     await page.waitForTimeout(2500)
-    await still(page, 'invoice-pdf', 0, false)
+    await still(page, 'invoice-pdf', { idle: false, dialog: true })
     await page.keyboard.press('Escape')
 
     await night.goto(`/invoices/${invoice.id}`)
     await expect(step(night, 'Delivered (done)')).toBeVisible()
     await still(night, 'invoice-dark')
-    await night.goto('/')
-    await expect(night.locator('[data-chart]').first()).toBeVisible()
-    await still(night, 'dashboard-dark')
   })
 
   await test.step('a credit note, the receivables, the developers and the numbering', async () => {
@@ -416,7 +656,9 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await page.goto('/payments/receivables')
     await still(page, 'receivables')
 
+    // The API keys and, below them, the subscription to the local receiver with its last delivery.
     await page.goto('/settings/developers')
+    await scrollToSection(page, 'API keys')
     await still(page, 'developers')
 
     await page.goto('/settings/numbering')
@@ -430,11 +672,12 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     const palette = page.getByRole('dialog')
     await expect(palette).toBeVisible()
     await page.keyboard.type('Cordillera')
+    await listShowsTyped(page)
     await expect(palette.getByRole('option').first()).toBeVisible()
-    await page.waitForLoadState('networkidle')
     await page.mouse.move(900, 28)
     await page.waitForTimeout(400)
     await expectNoErrorOnScreen(page)
+    // A dialog over the page: the whole viewport.
     await page.screenshot({ path: join(RAW, 'stills', 'command-palette.png'), animations: 'disabled', caret: 'hide' })
     await page.keyboard.press('Escape')
   })
@@ -448,6 +691,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     const draft = await find(camera, 'invoices?status=draft&per_page=50', (item) => item.customer_name === 'Distribuidora Cordillera Plata SAS')
     await camera.goto(`/invoices/${draft.id}`)
     await settle(camera)
+    await totalsShow(camera)
     await film.frame(900)
     await film.click(camera.getByRole('button', { name: 'Issue invoice' }))
     const dialog = camera.getByRole('dialog', { name: 'Issue this invoice?' })
@@ -458,9 +702,9 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await camera.mouse.move(900, 28, { steps: 6 })
     await film.frame(900)
 
-    // Settings → DIAN as the failures pile up: the test certificate that signs, the mode of the simulator, and the first
-    // attempts of this invoice, answered with HTTP 500. In this mode the simulator answers before it reads the
-    // document, so its activity names the file it was sent: the three newest requests are those attempts.
+    // Settings → DIAN as the failures pile up: the mode of the simulator and the first attempts of this invoice,
+    // answered with HTTP 500. In this mode the simulator answers before it reads the document, so its activity names the
+    // file it was sent: the three newest requests are those attempts.
     await page.goto('/settings/dian')
     const newest = page.locator('[data-slot="table-body"] tr')
 
@@ -468,11 +712,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
       await expect(newest.nth(index)).toContainText('error_500', { timeout: CHAIN_TIMEOUT })
     }
 
-    await page.getByText('Serial number', { exact: true }).evaluate((element) => {
-      // Right below the sticky header, so the lines above it hide behind it whole.
-      ;(element as HTMLElement).style.scrollMarginTop = '66px'
-      element.scrollIntoView({ block: 'start' })
-    })
+    await scrollToSection(page, 'Local simulator (development tool)')
     await still(page, 'dian-settings')
 
     // Every attempt fails; a frame each time the strip tells something new, until the transmission gives up.
@@ -504,15 +744,23 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await film.frame(700, 1)
     await film.click(camera.getByRole('button', { name: 'Retry now' }), 350, 1)
     await camera.mouse.move(900, 28, { steps: 6 })
-    await expect(camera.getByText(/^Accepted by the local simulator on/)).toBeVisible({ timeout: CHAIN_TIMEOUT })
-    await film.frame(1200)
-    await camera.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+
+    // Accepted and delivered: the six steps of the strip done, then the acceptance, then the end of the timeline. The
+    // cards of its payments and balance appear once it is accepted, so each frame scrolls to what it shows.
+    await expect(step(camera, 'Delivered (done)')).toBeVisible({ timeout: CHAIN_TIMEOUT })
+    await camera.evaluate(() => window.scrollTo(0, 0))
+    await settle(camera)
+    await film.frame(2000)
+    await scrollToSection(camera, 'Electronic document')
+    await expect(camera.getByText(/^Accepted by the local simulator on/)).toBeInViewport()
+    await film.frame(2200)
+    await scrollToEndOf(camera, 'Timeline')
     await film.frame(3500)
     film.save()
 
     await page.goto(`/invoices/${draft.id}`)
     await expect(step(page, 'Delivered (done)')).toBeVisible({ timeout: CHAIN_TIMEOUT })
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    await scrollToEndOf(page, 'Timeline')
     await still(page, 'invoice-recovered')
   })
 

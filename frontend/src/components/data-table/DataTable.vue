@@ -16,7 +16,8 @@ import { cn } from '@/lib/utils'
 /**
  * The table of every list of the app, with one density: optional search and pagination, skeleton
  * rows while it loads, an empty state with an action (#empty-action), an error state with a retry,
- * and horizontal scrolling inside its card when the columns do not fit. Cells render the row value
+ * and horizontal scrolling inside its card when the columns do not fit. A truncate column, such as a
+ * customer name, shrinks first and cuts its text with an ellipsis. Cells render the row value
  * by default; a #cell-<key> slot replaces it, #actions adds a column of actions per row, #toolbar
  * sits next to the search and #footer adds rows at the foot (totals).
  */
@@ -127,7 +128,13 @@ const SKELETON_WIDTHS = ['w-24', 'w-32', 'w-20', 'w-28', 'w-16']
           <template v-if="rows.length > 0">
             <TableRow v-for="row in rows" :key="row.id">
               <TableCell v-for="column in columns" :key="column.key" :class="cellClass(column)">
-                <slot :name="`cell-${column.key}`" :row="row">
+                <!-- A track of minmax(0, max-content): the cell asks for the width of its text, yet may shrink to nothing. -->
+                <div v-if="column.truncate" :class="cn('grid grid-cols-[minmax(0,max-content)]', column.align === 'right' && 'justify-end')">
+                  <slot :name="`cell-${column.key}`" :row="row">
+                    <span class="block truncate">{{ cellValue(row, column.key) }}</span>
+                  </slot>
+                </div>
+                <slot v-else :name="`cell-${column.key}`" :row="row">
                   {{ cellValue(row, column.key) }}
                 </slot>
               </TableCell>

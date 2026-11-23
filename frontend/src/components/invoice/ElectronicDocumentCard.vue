@@ -25,10 +25,11 @@ import { electronicGroup, TONE_BADGE } from '@/lib/status'
 import { useSessionStore } from '@/stores/session'
 
 /**
- * The electronic side of an issued invoice: the state of its chain with the answer of the local
- * DIAN simulator (rules when rejected), Retry now and Resend, the CUFE, the QR code of the DIAN
- * verification URL and the signed UBL XML. Accepted and rejected always mean by the local
- * simulator: no document of this project is registered with the DIAN.
+ * The electronic side of an issued invoice: the state of its chain with the local DIAN simulator's
+ * response (rules when rejected), Retry now and Resend, the CUFE, the QR code of the DIAN
+ * verification URL and the signed UBL XML. Each pair of buttons sits next to what it opens: the
+ * response under the result, the XML under its details. Accepted and rejected always mean by the
+ * local simulator: no document of this project is registered with the DIAN.
  */
 const props = defineProps<{
   invoice: Invoice
@@ -73,8 +74,16 @@ const failure = computed(() => {
 const xmlDetails = computed(() => {
   const xml = props.invoice.xml
 
-  return xml.available && xml.size !== null ? t('invoices.dian.signedDetails', { date: formatDateTime(xml.signed_at), size: formatInteger(xml.size) }) : null
+  return xml.available && xml.size !== null
+    ? t('invoices.dian.signedDetails', { date: formatDateTime(xml.signed_at), size: t('units.bytes', { n: formatInteger(xml.size) }, xml.size) })
+    : null
 })
+
+/**
+ * ZD05 is the notification of a self-signed certificate, such as the synthetic test certificates
+ * of the demo: the DIAN would reject it, and the simulator only notes it (simulator/src/rules.ts).
+ */
+const testCertificateNotified = computed(() => result.value?.notifications.some((message) => message.rule === 'ZD05') ?? false)
 
 function ruleLabel(message: DianRuleMessage): string {
   return message.rule ? `${message.rule} · ${message.message}` : message.message
@@ -175,6 +184,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
                     <span class="font-mono text-xs">{{ ruleLabel(message) }}</span>
                   </li>
                 </ul>
+                <p v-if="testCertificateNotified" class="text-xs text-muted-foreground">{{ t('invoices.dian.testCertificateNotice') }}</p>
               </div>
             </template>
 
@@ -196,6 +206,25 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
                 <p v-if="failure" class="font-mono text-xs break-words">{{ failure }}</p>
               </AlertDescription>
             </Alert>
+          </div>
+
+          <div v-if="electronic" class="flex flex-wrap gap-2">
+            <Button v-if="canManage && electronic.can_retry" size="sm" :disabled="retry.isPending.value" @click="retry.mutate()">
+              <RefreshCwIcon />
+              {{ retry.isPending.value ? t('invoices.dian.retrying') : t('invoices.dian.retryNow') }}
+            </Button>
+            <Button v-if="canManage && electronic.can_resend" size="sm" :disabled="resend.isPending.value" @click="askResend">
+              <SendIcon />
+              {{ resend.isPending.value ? t('invoices.dian.resending') : t('invoices.dian.resend') }}
+            </Button>
+            <Button variant="outline" size="sm" :disabled="!result?.response_available" @click="responseOpen = true">
+              <EyeIcon />
+              {{ t('invoices.dian.viewResponse') }}
+            </Button>
+            <Button variant="outline" size="sm" :disabled="!result?.response_available || downloadResponse.isPending.value" @click="downloadResponse.mutate()">
+              <DownloadIcon />
+              {{ t('invoices.dian.downloadResponse') }}
+            </Button>
           </div>
 
           <div class="grid gap-1.5">
@@ -225,33 +254,16 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
               <span class="font-mono text-xs break-all text-foreground">{{ invoice.xml.certificate_serial }}</span>
             </p>
             <p v-else-if="!invoice.xml.available" class="text-sm text-muted-foreground">{{ t('invoices.dian.xmlPending') }}</p>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <Button v-if="canManage && electronic?.can_retry" size="sm" :disabled="retry.isPending.value" @click="retry.mutate()">
-              <RefreshCwIcon />
-              {{ retry.isPending.value ? t('invoices.dian.retrying') : t('invoices.dian.retryNow') }}
-            </Button>
-            <Button v-if="canManage && electronic?.can_resend" size="sm" :disabled="resend.isPending.value" @click="askResend">
-              <SendIcon />
-              {{ resend.isPending.value ? t('invoices.dian.resending') : t('invoices.dian.resend') }}
-            </Button>
-            <Button variant="outline" size="sm" :disabled="!result?.response_available" @click="responseOpen = true">
-              <EyeIcon />
-              {{ t('invoices.dian.viewResponse') }}
-            </Button>
-            <Button variant="outline" size="sm" :disabled="!result?.response_available || downloadResponse.isPending.value" @click="downloadResponse.mutate()">
-              <DownloadIcon />
-              {{ t('invoices.dian.downloadResponse') }}
-            </Button>
-            <Button variant="outline" size="sm" :disabled="!invoice.xml.available" @click="xmlOpen = true">
-              <EyeIcon />
-              {{ t('invoices.dian.viewXml') }}
-            </Button>
-            <Button variant="outline" size="sm" :disabled="!invoice.xml.available || downloadXml.isPending.value" @click="downloadXml.mutate()">
-              <DownloadIcon />
-              {{ t('invoices.dian.downloadXml') }}
-            </Button>
+            <div class="mt-1 flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" :disabled="!invoice.xml.available" @click="xmlOpen = true">
+                <EyeIcon />
+                {{ t('invoices.dian.viewXml') }}
+              </Button>
+              <Button variant="outline" size="sm" :disabled="!invoice.xml.available || downloadXml.isPending.value" @click="downloadXml.mutate()">
+                <DownloadIcon />
+                {{ t('invoices.dian.downloadXml') }}
+              </Button>
+            </div>
           </div>
 
           <FormError :error="error" />

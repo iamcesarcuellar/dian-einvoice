@@ -24,6 +24,9 @@ use App\Modules\Developers\Receiver\LocalWebhookReceiver;
 use App\Modules\Developers\Webhooks\WebhookEventTypes;
 use App\Modules\Developers\Webhooks\WebhookSubscriptions;
 use App\Modules\Dian\Simulator\DianSimulator;
+use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
+use App\Modules\Identity\Models\Company;
+use App\Modules\Identity\Tenancy\CompanyScope;
 use App\Support\Console\LocalOnly;
 use App\Support\Database\ApplicationIdentityCommand;
 use App\Support\Database\RefreshingMySqlConnector;
@@ -87,12 +90,17 @@ use Throwable;
  *    second sets a new password on the user they hold, so they must read their secret again. Requests through
  *    API Gateway and invoices through the chain and the webhooks must work, before and after each, without
  *    an error anyone would see;
- *  - cleanup: deletes the company when the script stopped before finish.
+ *  - cleanup: deletes the company when the script stopped before finish;
+ *  - demo: what make cloud-e2e needs before its browser opens (it changes nothing): the demo data of make
+ *    cloud-demo, and a local DIAN simulator that holds no document of the demo companies under a number this
+ *    database has not issued yet. The simulator is shared with the local stack, and an invoice the local stack
+ *    issued there since (make e2e, make docs-examples) can hold the number the next invoice of this database takes,
+ *    which the simulator would reject with rule 90. The step fails at once and says what to run.
  */
 final class CloudCheckCommand extends Command
 {
     protected $signature = 'cloud:check
-        {action : start, fast, traced, partial, chaos, finish, identities, rotation or cleanup}
+        {action : start, fast, traced, partial, chaos, finish, identities, rotation, cleanup or demo}
         {company? : The id start printed, for fast, traced, chaos, finish and cleanup}
         {--invoices=30 : Invoices to issue (start and chaos)}
         {--until-accepted=3 : chaos returns once this many of its invoices are accepted, so the functions die mid-process}
@@ -150,6 +158,7 @@ final class CloudCheckCommand extends Command
             'identities' => $this->identities($cloud),
             'rotation' => $this->rotation($cloud),
             'cleanup' => $this->cleanup(),
+            'demo' => $this->demo(app(DianSimulator::class)),
             default => $this->unknownAction(),
         };
 
@@ -164,7 +173,7 @@ final class CloudCheckCommand extends Command
 
     private function unknownAction(): int
     {
-        $this->error('The action is start, fast, traced, partial, chaos, finish, identities, rotation or cleanup.');
+        $this->error('The action is start, fast, traced, partial, chaos, finish, identities, rotation, cleanup or demo.');
 
         return self::FAILURE;
     }
@@ -1006,6 +1015,41 @@ final class CloudCheckCommand extends Command
     private function cleanup(): int
     {
         $this->temporary()?->delete();
+
+        return self::SUCCESS;
+    }
+
+    /** The demo step (see the comment of the class). */
+    private function demo(DianSimulator $simulator): int
+    {
+        $companies = Company::query()->whereIn('identification_number', IdentityDemoSeeder::NITS)->get();
+
+        if ($companies->count() < count(IdentityDemoSeeder::NITS)) {
+            $this->error('The demo data is not in the database of the emulated cloud. Run make cloud-demo, then make cloud-e2e again.');
+
+            return self::FAILURE;
+        }
+
+        foreach ($companies as $company) {
+            /** @var list<string> $issued */
+            $issued = Document::withoutGlobalScope(CompanyScope::class)->where('company_id', $company->id)->whereNotNull('full_number')->pluck('full_number')->all();
+            $ahead = array_values(array_filter(
+                $simulator->documents($company->identification_number),
+                fn (array $record): bool => ! in_array(Json::text($record, 'number'), $issued, true),
+            ));
+
+            if ($ahead !== []) {
+                $number = Json::text($ahead[0], 'number') ?? 'without a number';
+                $this->error(count($ahead) === 1
+                    ? sprintf('The local DIAN simulator holds a document of %s under a number this database has not issued yet, %s: the local stack issued it after make cloud-demo, and the next document here would take that number and be rejected with rule 90.', $company->name, $number)
+                    : sprintf('The local DIAN simulator holds %d documents of %s under numbers this database has not issued yet, %s among them: the local stack issued them after make cloud-demo, and the next documents here would take those numbers and be rejected with rule 90.', count($ahead), $company->name, $number));
+                $this->error('Run make cloud-demo, which loads the demo data again and clears the simulator, then make cloud-e2e again.');
+
+                return self::FAILURE;
+            }
+        }
+
+        $this->info('The demo data is in the database, and the local DIAN simulator holds no document of the demo companies under a number this database has not issued yet.');
 
         return self::SUCCESS;
     }

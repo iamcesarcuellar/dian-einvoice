@@ -9,7 +9,8 @@ use Illuminate\Support\Carbon;
 
 /**
  * Numbers, money and dates the way the web app shows them (lib/format.ts): dot for thousands,
- * comma for decimals, $ before the amount, dd/mm/yyyy. Done on decimal strings, never floats.
+ * comma for decimals, $ before the amount, and dates as the language of the app writes them
+ * (delivery::format), "19 Nov 2026" in English. Done on decimal strings, never floats.
  */
 final class ColombianFormat
 {
@@ -68,7 +69,11 @@ final class ColombianFormat
         return $checkDigit === null || $checkDigit === '' ? $grouped : "{$grouped}-{$checkDigit}";
     }
 
-    /** A calendar date as dd/mm/yyyy, without going through time zones. */
+    /**
+     * A calendar date as the language of the app writes it, without going through time zones:
+     * "19 Nov 2026" in English, the month in letters so that no reader takes the day for the month.
+     * The pattern and the month names are delivery::format.date and delivery::format.months.
+     */
     public static function date(CarbonInterface|string|null $value): string
     {
         if ($value === null || $value === '') {
@@ -77,14 +82,24 @@ final class ColombianFormat
 
         $date = $value instanceof CarbonInterface ? $value->toDateString() : substr($value, 0, 10);
 
-        return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $match) === 1 ? "{$match[3]}/{$match[2]}/{$match[1]}" : $date;
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $match) !== 1) {
+            return $date;
+        }
+
+        return (string) __('delivery::format.date', [
+            'day' => (string) (int) $match[3],
+            'dd' => $match[3],
+            'month' => (string) __("delivery::format.months.{$match[2]}"),
+            'mm' => $match[2],
+            'year' => $match[1],
+        ]);
     }
 
-    /** An instant in Colombian time: "18/11/2026 10:21:30". */
+    /** An instant in Colombian time, to the minute: "19 Nov 2026, 15:00" in English. */
     public static function dateTime(CarbonInterface $value, string $timezone = 'America/Bogota'): string
     {
         $local = Carbon::instance($value)->setTimezone($timezone);
 
-        return self::date($local->toDateString()).' '.$local->format('H:i:s');
+        return (string) __('delivery::format.date_time', ['date' => self::date($local->toDateString()), 'time' => $local->format('H:i')]);
     }
 }

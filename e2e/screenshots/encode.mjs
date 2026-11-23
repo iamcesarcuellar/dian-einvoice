@@ -1,22 +1,23 @@
 // make screenshots, after screens.spec.ts: the files of docs/assets from the captures of the browser, with nothing but
-// Node.js itself (zlib). Each screenshot is written as a lossless PNG and, only when that is over its limit, as the
-// first of these that fits: its channels rounded to 6 bits, then to 5 bits (a step no eye tells on a screen), then a
-// palette of 256 colours (median cut refined by k-means) with error diffusion. Each GIF from its frames, with one
-// palette, the frames that change nothing merged into the one before, and each later frame only the rectangle that
-// changed, its unchanged pixels transparent. The run fails when a screenshot is over 400 KB or a GIF over 5 MB.
+// Node.js itself (zlib), so the recording needs no native image binaries in its container. Each screenshot is written
+// as a lossless PNG and, only when that is over its limit, as the first of these that fits: its channels rounded to 6
+// bits, then to 5 bits (a step no eye tells on a screen), then a palette of 256 colours (median cut refined by k-means)
+// with error diffusion. Each GIF from its frames, with one palette, the frames that change nothing merged into the one
+// before, and each later frame only the rectangle that changed, its unchanged pixels transparent. The run fails when a
+// screenshot is over 400 KB or a GIF over 5 MB. Its tests are encode.test.mjs (make test).
 //
 //   node screenshots/encode.mjs <directory of the captures> <directory of the assets>
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { crc32, deflateSync, inflateSync } from 'node:zlib'
 
-const [raw = '/tmp/screenshots', assets = '/assets'] = process.argv.slice(2)
-const STILL_LIMIT = 400 * 1024
-const GIF_LIMIT = 5 * 1024 * 1024
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+export const STILL_LIMIT = 400 * 1024
+export const GIF_LIMIT = 5 * 1024 * 1024
+export const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 /** The pixels of a PNG of the browser (8 bits, RGB or RGBA, not interlaced), as RGB. */
-function decodePng(buffer) {
+export function decodePng(buffer) {
   if (!buffer.subarray(0, 8).equals(PNG_SIGNATURE)) {
     throw new Error('not a PNG')
   }
@@ -26,7 +27,7 @@ function decodePng(buffer) {
   let channels = 0
   const data = []
 
-  for (let offset = 8; offset < buffer.length; ) {
+  for (let offset = 8; offset < buffer.length;) {
     const length = buffer.readUInt32BE(offset)
     const type = buffer.toString('latin1', offset + 4, offset + 8)
     const body = buffer.subarray(offset + 8, offset + 8 + length)
@@ -104,7 +105,8 @@ function chunk(type, body) {
   return Buffer.concat([head, body, crc])
 }
 
-function png(width, height, colourType, scanlines, palette) {
+/** A PNG of 8 bits per sample from its filtered scanlines, with a palette for colour type 3. */
+export function png(width, height, colourType, scanlines, palette) {
   const header = Buffer.alloc(13)
   header.writeUInt32BE(width, 0)
   header.writeUInt32BE(height, 4)
@@ -121,7 +123,7 @@ function png(width, height, colourType, scanlines, palette) {
 }
 
 /** A lossless PNG, each row with the filter of the smallest sum of absolute values. */
-function truecolourPng({ width, height, pixels }) {
+export function truecolourPng({ width, height, pixels }) {
   const stride = width * 3
   const scanlines = Buffer.alloc((stride + 1) * height)
   const candidate = Buffer.alloc(stride)
@@ -176,7 +178,7 @@ function truecolourPng({ width, height, pixels }) {
 }
 
 /** The colours of some pixels with how often each appears: key 0xRRGGBB, value its count. */
-function histogram(pixels, counts = new Map(), step = 1) {
+export function histogram(pixels, counts = new Map(), step = 1) {
   for (let index = 0; index < pixels.length; index += 3 * step) {
     const key = (pixels[index] << 16) | (pixels[index + 1] << 8) | pixels[index + 2]
     counts.set(key, (counts.get(key) ?? 0) + 1)
@@ -194,7 +196,8 @@ function distance(palette, entry, r, g, b) {
   return 2 * dr * dr + 4 * dg * dg + 3 * db * db
 }
 
-function nearest(palette, size, key) {
+/** The entry of the palette nearest to a colour (0xRRGGBB), as the eye weighs the difference. */
+export function nearest(palette, size, key) {
   const r = key >> 16
   const g = (key >> 8) & 0xff
   const b = key & 0xff
@@ -214,7 +217,7 @@ function nearest(palette, size, key) {
 }
 
 /** At most `size` colours for the histogram: median cut, then a few rounds of k-means weighted by the counts. */
-function quantize(counts, size) {
+export function quantize(counts, size) {
   const colours = [...counts.entries()].map(([key, count]) => ({ r: key >> 16, g: (key >> 8) & 0xff, b: key & 0xff, count }))
 
   if (colours.length <= size) {
@@ -276,7 +279,11 @@ function quantize(counts, size) {
 
   const palette = Buffer.alloc(boxes.length * 3)
   boxes.forEach((box, entry) => {
-    const sum = box.items.reduce((total, item) => ({ r: total.r + item.r * item.count, g: total.g + item.g * item.count, b: total.b + item.b * item.count }), { r: 0, g: 0, b: 0 })
+    const sum = box.items.reduce((total, item) => ({ r: total.r + item.r * item.count, g: total.g + item.g * item.count, b: total.b + item.b * item.count }), {
+      r: 0,
+      g: 0,
+      b: 0,
+    })
     palette[entry * 3] = Math.round(sum.r / box.count)
     palette[entry * 3 + 1] = Math.round(sum.g / box.count)
     palette[entry * 3 + 2] = Math.round(sum.b / box.count)
@@ -306,7 +313,7 @@ function quantize(counts, size) {
 }
 
 /** The palette index of every pixel, through a cache of the nearest entry of each colour. */
-function indices(pixels, palette, cache) {
+export function indices(pixels, palette, cache) {
   const size = palette.length / 3
   const result = new Uint8Array(pixels.length / 3)
 
@@ -326,7 +333,7 @@ function indices(pixels, palette, cache) {
 }
 
 /** The image with each channel rounded to `bits` bits, so that fewer colours compress better. */
-function rounded(image, bits) {
+export function rounded(image, bits) {
   const step = 1 << (8 - bits)
   const table = Uint8Array.from({ length: 256 }, (_, value) => Math.min(255, Math.round(value / step) * step))
 
@@ -337,7 +344,7 @@ function rounded(image, bits) {
  * The palette index of every pixel with Floyd-Steinberg error diffusion, so that gradients (a blurred backdrop, a
  * shadow) keep their shades instead of bands.
  */
-function diffused(image, palette) {
+export function diffused(image, palette) {
   const { width, height } = image
   const size = palette.length / 3
   const cache = new Map()
@@ -375,7 +382,7 @@ function diffused(image, palette) {
 }
 
 /** A PNG of at most 256 colours, diffused; of the filters none, sub and up for every row, the smallest file. */
-function palettePng(image) {
+export function palettePng(image) {
   const palette = quantize(histogram(image.pixels), 256)
   const mapped = diffused(image, palette)
   const { width, height } = image
@@ -402,7 +409,7 @@ function palettePng(image) {
 }
 
 /** The LZW data of the indices of a GIF image, in sub-blocks (GIF89a, appendix F). */
-function lzw(pixels, minimumCodeSize) {
+export function lzw(pixels, minimumCodeSize) {
   const clear = 1 << minimumCodeSize
   const end = clear + 1
   const bytes = []
@@ -475,7 +482,7 @@ function lzw(pixels, minimumCodeSize) {
 }
 
 /** A GIF that loops forever: one palette of 255 colours and a transparent entry, each frame for its delay. */
-function gif(frames) {
+export function gif(frames) {
   const { width, height } = frames[0]
   const counts = new Map()
 
@@ -564,59 +571,81 @@ function gif(frames) {
 }
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(0)} KB`
-const failures = []
-const report = []
 
-for (const name of readdirSync(join(raw, 'stills')).filter((file) => file.endsWith('.png')).sort()) {
-  const image = decodePng(readFileSync(join(raw, 'stills', name)))
-  let file = truecolourPng(image)
-  let kind = 'lossless'
+/**
+ * The files of the assets from the captures: each screenshot of <raw>/stills, the smallest way that fits its limit,
+ * and each GIF of the frames <raw>/films/<name>.json lists. Returns a line of report for each file, and the failures:
+ * a file over its limit, or an image of the assets that this run did not write.
+ */
+export function encodeAssets(raw, assets) {
+  const failures = []
+  const report = []
 
-  for (const bits of [6, 5]) {
+  for (const name of readdirSync(join(raw, 'stills'))
+    .filter((file) => file.endsWith('.png'))
+    .sort()) {
+    const image = decodePng(readFileSync(join(raw, 'stills', name)))
+    let file = truecolourPng(image)
+    let kind = 'lossless'
+
+    for (const bits of [6, 5]) {
+      if (file.length > STILL_LIMIT) {
+        file = truecolourPng(rounded(image, bits))
+        kind = `${bits}-bit channels`
+      }
+    }
+
     if (file.length > STILL_LIMIT) {
-      file = truecolourPng(rounded(image, bits))
-      kind = `${bits}-bit channels`
+      const reduced = palettePng(image)
+      file = reduced.file
+      kind = `${reduced.colours} colours, diffused`
+    }
+
+    writeFileSync(join(assets, name), file)
+    report.push(`${name.padEnd(24)} ${image.width}×${image.height}  ${kb(file.length).padStart(7)}  ${kind}`)
+
+    if (file.length > STILL_LIMIT) {
+      failures.push(`${name} is ${kb(file.length)}, over ${kb(STILL_LIMIT)}`)
     }
   }
 
-  if (file.length > STILL_LIMIT) {
-    const reduced = palettePng(image)
-    file = reduced.file
-    kind = `${reduced.colours} colours, diffused`
+  for (const name of readdirSync(join(raw, 'films'))
+    .filter((file) => file.endsWith('.json'))
+    .sort()) {
+    const frames = JSON.parse(readFileSync(join(raw, 'films', name), 'utf8')).map(({ file, delay }) => ({ ...decodePng(readFileSync(file)), delay }))
+    const result = gif(frames)
+    const output = `${basename(name, '.json')}.gif`
+    writeFileSync(join(assets, output), result.file)
+    report.push(
+      `${output.padEnd(24)} ${frames[0].width}×${frames[0].height}  ${kb(result.file.length).padStart(7)}  ${result.frames} frames, ${(result.duration / 1000).toFixed(1)} s`,
+    )
+
+    if (result.file.length > GIF_LIMIT) {
+      failures.push(`${output} is ${kb(result.file.length)}, over ${kb(GIF_LIMIT)}`)
+    }
   }
 
-  writeFileSync(join(assets, name), file)
-  report.push(`${name.padEnd(24)} ${image.width}×${image.height}  ${kb(file.length).padStart(7)}  ${kind}`)
+  // The names are stable: an image of docs/assets that this run did not write is left over from another version of the script.
+  const written = new Set(report.map((line) => line.split(' ')[0]))
 
-  if (file.length > STILL_LIMIT) {
-    failures.push(`${name} is ${kb(file.length)}, over ${kb(STILL_LIMIT)}`)
+  for (const name of readdirSync(assets).filter((file) => /\.(png|gif)$/.test(file))) {
+    if (!written.has(name)) {
+      failures.push(`${name} is in docs/assets but no screen of make screenshots writes it any longer: remove it`)
+    }
   }
+
+  return { report, failures }
 }
 
-for (const name of readdirSync(join(raw, 'films')).filter((file) => file.endsWith('.json')).sort()) {
-  const frames = JSON.parse(readFileSync(join(raw, 'films', name), 'utf8')).map(({ file, delay }) => ({ ...decodePng(readFileSync(file)), delay }))
-  const result = gif(frames)
-  const output = `${basename(name, '.json')}.gif`
-  writeFileSync(join(assets, output), result.file)
-  report.push(`${output.padEnd(24)} ${frames[0].width}×${frames[0].height}  ${kb(result.file.length).padStart(7)}  ${result.frames} frames, ${(result.duration / 1000).toFixed(1)} s`)
+// Run as a script (make screenshots); imported by its tests, it only exports.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const [raw = '/tmp/screenshots', assets = '/assets'] = process.argv.slice(2)
+  const { report, failures } = encodeAssets(raw, assets)
 
-  if (result.file.length > GIF_LIMIT) {
-    failures.push(`${output} is ${kb(result.file.length)}, over ${kb(GIF_LIMIT)}`)
+  console.log(report.join('\n'))
+
+  if (failures.length > 0) {
+    console.error(failures.join('\n'))
+    process.exit(1)
   }
-}
-
-// The names are stable: an image of docs/assets that this run did not write is left over from another version of the script.
-const written = new Set(report.map((line) => line.split(' ')[0]))
-
-for (const name of readdirSync(assets).filter((file) => /\.(png|gif)$/.test(file))) {
-  if (!written.has(name)) {
-    failures.push(`${name} is in docs/assets but no screen of make screenshots writes it any longer: remove it`)
-  }
-}
-
-console.log(report.join('\n'))
-
-if (failures.length > 0) {
-  console.error(failures.join('\n'))
-  process.exit(1)
 }

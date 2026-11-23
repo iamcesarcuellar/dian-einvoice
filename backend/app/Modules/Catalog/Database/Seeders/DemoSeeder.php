@@ -52,33 +52,33 @@ final class DemoSeeder extends Seeder
     ];
 
     /** A ReteICA of Demo Servicios: its rate is stored as a percentage (9.66 per thousand). */
-    public const string RETE_ICA = 'ReteICA 9.66 per thousand (example)';
+    public const string RETE_ICA = 'ReteICA 9,66 ‰ (example)';
 
     /** Code, name, type, unit, unit price and tax name (null means excluded). */
     private const array ITEMS = [
         'commerce' => [
-            ['P-001', 'Ergonomic office chair', 'product', '94', '450000', 'IVA 19%'],
-            ['P-002', 'Letter paper, 500 sheets', 'product', 'PK', '21500', 'IVA 19%'],
-            ['P-003', 'Ground coffee, 500 g', 'product', '94', '18900', 'IVA 5%'],
+            ['P-001', 'Ergonomic office chair', 'product', '94', '450000', 'IVA 19 %'],
+            ['P-002', 'Letter paper, 500 sheets', 'product', 'PK', '21500', 'IVA 19 %'],
+            ['P-003', 'Ground coffee, 500 g', 'product', '94', '18900', 'IVA 5 %'],
             ['P-004', 'White rice, 1 kg', 'product', 'KGM', '4200', null],
-            ['P-005', 'Bottled water 600 ml, box of 24', 'product', 'BX', '26000', 'IVA 19%'],
-            ['P-006', 'LED desk lamp', 'product', '94', '89900', 'IVA 19%'],
-            ['P-007', 'Fresh eggs, dozen', 'product', 'DZN', '9800', 'IVA 0% (exempt)'],
-            ['P-008', 'Cleaning liquid, 1 l', 'product', 'LTR', '12500', 'IVA 19%'],
-            ['S-001', 'Local delivery', 'service', '94', '12000', 'IVA 19%'],
-            ['S-002', 'Lunch menu', 'service', '94', '22000', 'INC 8%'],
+            ['P-005', 'Bottled water 600 ml, box of 24', 'product', 'BX', '26000', 'IVA 19 %'],
+            ['P-006', 'LED desk lamp', 'product', '94', '89900', 'IVA 19 %'],
+            ['P-007', 'Fresh eggs, dozen', 'product', 'DZN', '9800', 'IVA 0 % (exempt)'],
+            ['P-008', 'Cleaning liquid, 1 l', 'product', 'LTR', '12500', 'IVA 19 %'],
+            ['S-001', 'Local delivery', 'service', '94', '12000', 'IVA 19 %'],
+            ['S-002', 'Lunch menu', 'service', '94', '22000', 'INC 8 %'],
         ],
         'services' => [
-            ['S-101', 'Accounting advisory', 'service', 'HUR', '180000', 'IVA 19%'],
-            ['S-102', 'Monthly bookkeeping', 'service', '94', '1200000', 'IVA 19%'],
-            ['S-103', 'Payroll processing', 'service', '94', '650000', 'IVA 19%'],
-            ['S-104', 'Software support plan', 'service', '94', '4800000', 'IVA 19%'],
-            ['S-105', 'Training workshop', 'service', 'DAY', '950000', 'IVA 19%'],
-            ['S-106', 'Legal consultation', 'service', 'HUR', '250000.50', 'IVA 19%'],
+            ['S-101', 'Accounting advisory', 'service', 'HUR', '180000', 'IVA 19 %'],
+            ['S-102', 'Monthly bookkeeping', 'service', '94', '1200000', 'IVA 19 %'],
+            ['S-103', 'Payroll processing', 'service', '94', '650000', 'IVA 19 %'],
+            ['S-104', 'Software support plan', 'service', '94', '4800000', 'IVA 19 %'],
+            ['S-105', 'Training workshop', 'service', 'DAY', '950000', 'IVA 19 %'],
+            ['S-106', 'Legal consultation', 'service', 'HUR', '250000.50', 'IVA 19 %'],
             ['S-107', 'Occupational safety course', 'service', 'HUR', '120000', null],
-            ['S-108', 'Corporate catering, per person', 'service', '94', '38000', 'INC 8%'],
-            ['P-101', 'Printed report binder', 'product', '94', '35000', 'IVA 19%'],
-            ['P-102', 'USB flash drive 64 GB', 'product', '94', '42000', 'IVA 19%'],
+            ['S-108', 'Corporate catering, per person', 'service', '94', '38000', 'INC 8 %'],
+            ['P-101', 'Printed report binder', 'product', '94', '35000', 'IVA 19 %'],
+            ['P-102', 'USB flash drive 64 GB', 'product', '94', '42000', 'IVA 19 %'],
         ],
     ];
 

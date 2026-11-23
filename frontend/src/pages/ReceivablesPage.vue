@@ -36,7 +36,7 @@ const rows = computed(() => (report.value?.customers ?? []).map((row) => ({ ...r
 const hasCredit = computed(() => rows.value.some((row) => !isZero(row.customer_credit)))
 
 const columns = computed<DataTableColumn[]>(() => [
-  { key: 'customer', label: t('receivables.columns.customer') },
+  { key: 'customer', label: t('receivables.columns.customer'), truncate: true },
   { key: 'total', label: t('receivables.columns.total'), align: 'right' },
   ...BUCKETS.map((bucket) => ({ key: bucket, label: t(`receivables.buckets.${bucket}`), align: 'right' as const })),
   ...(hasCredit.value ? [{ key: 'customer_credit', label: t('receivables.columns.credit'), align: 'right' as const }] : []),
@@ -64,14 +64,21 @@ function amount(value: string): string {
       @retry="refetch()"
     >
       <template #cell-customer="{ row }">
-        <span class="grid min-w-48">
-          <span class="font-medium">{{ row.customer_name }}</span>
-          <span class="text-xs text-muted-foreground">
+        <span class="grid">
+          <span class="block truncate font-medium" :title="row.customer_name">{{ row.customer_name }}</span>
+          <span class="text-xs whitespace-normal text-muted-foreground">
             {{ t('receivables.invoices', { n: formatInteger(row.invoices) }, row.invoices)
             }}<template v-if="row.overdue_invoices > 0">
               ·
               <span class="text-destructive">{{
-                t('receivables.overdue', { n: formatInteger(row.overdue_invoices), days: formatInteger(row.oldest_days_past_due) }, row.overdue_invoices)
+                t(
+                  'receivables.overdue',
+                  {
+                    n: formatInteger(row.overdue_invoices),
+                    pastDue: t('invoices.payments.daysPastDue', { days: formatInteger(row.oldest_days_past_due) }, row.oldest_days_past_due),
+                  },
+                  row.overdue_invoices,
+                )
               }}</span></template
             >
           </span>

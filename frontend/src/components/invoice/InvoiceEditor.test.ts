@@ -85,7 +85,7 @@ const fake = vi.hoisted(() => {
   return {
     page,
     // Sorted by rate, as the API sends them: new lines take the first active IVA.
-    taxes: [tax('tax-iva-19', 'IVA 19%', '19.0000'), tax('tax-iva-5', 'IVA 5%', '5.0000'), tax('tax-inc-8', 'INC 8%', '8.0000', '04')],
+    taxes: [tax('tax-iva-19', 'IVA 19 %', '19.0000'), tax('tax-iva-5', 'IVA 5 %', '5.0000'), tax('tax-inc-8', 'INC 8 %', '8.0000', '04')],
     template,
     reference,
     preview: vi.fn((input: InvoiceInput) => Promise.resolve(calculation(input))),
@@ -228,7 +228,7 @@ describe('InvoiceEditor lines', () => {
       { description: 'Local delivery', tax_id: 'tax-iva-19' },
       { description: 'Letter paper, 500 sheets', tax_id: 'tax-iva-19' },
     ])
-    expect(subtotal(wrapper)).toBe('$ 2.000')
+    expect(subtotal(wrapper)).toBe('$ 2.000,00')
   })
 
   it('keeps one blank line when the last one is removed, and its amount leaves the totals', async () => {
@@ -236,11 +236,11 @@ describe('InvoiceEditor lines', () => {
 
     await typeDescription(wrapper, 1, 'Ergonomic office chair')
 
-    expect(subtotal(wrapper)).toBe('$ 1.000')
+    expect(subtotal(wrapper)).toBe('$ 1.000,00')
 
     await removeLine(wrapper, 1)
 
     expect(descriptions(wrapper)).toEqual([''])
-    expect(subtotal(wrapper)).toBe('$ 0')
+    expect(subtotal(wrapper)).toBe('$ 0,00')
   })
 })

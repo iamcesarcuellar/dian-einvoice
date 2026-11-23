@@ -85,9 +85,9 @@ const fileRows = computed(() => {
       return t('invoices.delivery.fileMissing')
     }
 
-    return file.pages
-      ? t('invoices.delivery.filePages', { pages: file.pages, size: formatInteger(file.size) })
-      : t('invoices.delivery.fileSize', { size: formatInteger(file.size) })
+    const size = t('units.bytes', { n: formatInteger(file.size) }, file.size)
+
+    return file.pages ? t('invoices.delivery.filePages', { pages: t('units.pages', { n: formatInteger(file.pages) }, file.pages), size }) : size
   }
 
   return [

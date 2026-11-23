@@ -4,12 +4,12 @@ import { MinusIcon, TrendingDownIcon, TrendingUpIcon } from '@lucide/vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Card, CardContent } from '@/components/ui/card'
-import { formatChange, formatInteger, formatMoney } from '@/lib/format'
+import { formatChange, formatInteger, formatMoney, formatWholeMoney } from '@/lib/format'
 import { TONE_TEXT } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
 /**
- * One indicator of the month to date: the amount, how many documents make it, and the change
+ * One indicator of the month to date: the amount in whole pesos (the exact one in its tooltip), how many documents make it, and the change
  * against the same days of the previous month. Up is good for invoiced and collected, and bad for
  * receivables and overdue (higherIsBetter), so the arrow always carries its meaning in words too.
  */
@@ -57,7 +57,7 @@ const icon = computed(() => (direction.value === 'up' ? TrendingUpIcon : directi
         <span>{{ label }}</span>
         <span v-if="hint" class="text-xs font-normal">{{ hint }}</span>
       </p>
-      <p class="truncate text-2xl font-semibold tracking-tight tabular-nums" :title="formatMoney(kpi.amount)">{{ formatMoney(kpi.amount) }}</p>
+      <p class="truncate text-2xl font-semibold tracking-tight tabular-nums" :title="formatMoney(kpi.amount)">{{ formatWholeMoney(kpi.amount) }}</p>
       <p class="text-xs text-muted-foreground">{{ countLabel }}</p>
       <p class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
         <span :class="cn('inline-flex items-center gap-1 font-medium tabular-nums', tone)">
@@ -66,7 +66,8 @@ const icon = computed(() => (direction.value === 'up' ? TrendingUpIcon : directi
           <template v-else>{{ t('dashboard.kpis.noComparison') }}</template>
         </span>
         <span class="text-muted-foreground tabular-nums" :title="formatMoney(kpi.previous_amount)">
-          {{ comparedTo }} · {{ formatMoney(kpi.previous_amount) }}<template v-if="kpi.previous_count"> ({{ formatInteger(kpi.previous_count) }})</template>
+          {{ comparedTo }} · {{ formatWholeMoney(kpi.previous_amount)
+          }}<template v-if="kpi.previous_count"> ({{ formatInteger(kpi.previous_count) }})</template>
         </span>
       </p>
     </CardContent>

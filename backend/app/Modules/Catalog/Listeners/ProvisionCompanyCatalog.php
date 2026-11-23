@@ -21,18 +21,18 @@ final class ProvisionCompanyCatalog
 {
     /** @var list<array{TaxType, string, string}> */
     private const array TAXES = [
-        [TaxType::Iva, 'IVA 19%', '19'],
-        [TaxType::Iva, 'IVA 5%', '5'],
-        [TaxType::Iva, 'IVA 0% (exempt)', '0'],
-        [TaxType::Inc, 'INC 8%', '8'],
+        [TaxType::Iva, 'IVA 19 %', '19'],
+        [TaxType::Iva, 'IVA 5 %', '5'],
+        [TaxType::Iva, 'IVA 0 % (exempt)', '0'],
+        [TaxType::Inc, 'INC 8 %', '8'],
     ];
 
     /** @var list<array{WithholdingType, string, string}> */
     private const array WITHHOLDINGS = [
-        [WithholdingType::ReteFuente, 'ReteFuente 2.5% (purchases)', '2.5'],
-        [WithholdingType::ReteFuente, 'ReteFuente 4% (services)', '4'],
-        [WithholdingType::ReteFuente, 'ReteFuente 11% (fees)', '11'],
-        [WithholdingType::ReteIva, 'ReteIVA 15%', '15'],
+        [WithholdingType::ReteFuente, 'ReteFuente 2,5 % (purchases)', '2.5'],
+        [WithholdingType::ReteFuente, 'ReteFuente 4 % (services)', '4'],
+        [WithholdingType::ReteFuente, 'ReteFuente 11 % (fees)', '11'],
+        [WithholdingType::ReteIva, 'ReteIVA 15 %', '15'],
     ];
 
     public function handle(CompanyCreated $event): void

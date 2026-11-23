@@ -55,7 +55,7 @@ const errors = computed(() => fieldErrors(voiding.error.value))
       <DialogHeader>
         <DialogTitle>{{ t('payments.void.title', { number: payment.full_number }) }}</DialogTitle>
         <DialogDescription>{{
-          t('payments.void.description', { amount: formatMoney(payment.amount), count: payment.allocations?.length ?? 0 })
+          t('payments.void.description', { amount: formatMoney(payment.amount), count: payment.allocations?.length ?? 0 }, payment.allocations?.length ?? 0)
         }}</DialogDescription>
       </DialogHeader>
 

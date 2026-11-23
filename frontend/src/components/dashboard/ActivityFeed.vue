@@ -16,7 +16,7 @@ import {
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { DOCUMENT_ROUTES } from '@/lib/documents'
-import { formatDateTime, formatMoney } from '@/lib/format'
+import { formatDateTime, formatMoney, formatWholeMoney } from '@/lib/format'
 import { TONE_TEXT } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
@@ -84,7 +84,7 @@ function sentence(entry: ActivityEntry): string {
         <p class="text-sm">
           {{ sentence(entry) }}
           <RouterLink :to="link(entry)" class="font-medium tabular-nums hover:underline">{{ entry.subject.number ?? t('invoices.draft') }}</RouterLink>
-          <span v-if="entry.amount" class="text-muted-foreground tabular-nums"> · {{ formatMoney(entry.amount) }}</span>
+          <span v-if="entry.amount" class="text-muted-foreground tabular-nums" :title="formatMoney(entry.amount)"> · {{ formatWholeMoney(entry.amount) }}</span>
           <span v-if="entry.detail" class="text-muted-foreground"> · {{ entry.detail }}</span>
         </p>
         <p class="truncate text-xs text-muted-foreground tabular-nums">

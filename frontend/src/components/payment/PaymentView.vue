@@ -45,8 +45,8 @@ function eventLabel(event: PaymentEvent): string {
   const invoices = Array.isArray(payload.invoices) ? payload.invoices.length : 0
 
   return event.type === 'voided'
-    ? t('payments.view.events.voided', { count: invoices })
-    : t('payments.view.events.recorded', { amount: formatMoney(payloadText(payload.amount, '0')), count: invoices })
+    ? t('payments.view.events.voided', { count: invoices }, invoices)
+    : t('payments.view.events.recorded', { amount: formatMoney(payloadText(payload.amount, '0')), count: invoices }, invoices)
 }
 
 function eventDetail(event: PaymentEvent): string | null {
@@ -167,7 +167,9 @@ function eventDetail(event: PaymentEvent): string | null {
           <p class="text-2xl font-semibold tabular-nums" :class="payment.status === 'voided' ? 'text-muted-foreground line-through' : ''">
             {{ formatMoney(payment.amount) }}
           </p>
-          <p class="text-xs text-muted-foreground">{{ t('payments.editor.totalHint', { count: payment.allocations?.length ?? 0 }) }}</p>
+          <p class="text-xs text-muted-foreground">
+            {{ t('payments.editor.totalHint', { count: payment.allocations?.length ?? 0 }, payment.allocations?.length ?? 0) }}
+          </p>
         </div>
       </div>
     </div>

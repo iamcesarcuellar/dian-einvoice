@@ -62,6 +62,9 @@ const { data, isFetching } = useQuery({
 
 const options = computed(() => data.value ?? [])
 
+/** The options shown are not yet those of the text typed: it waits for the pause in typing, or they are on their way. */
+const busy = computed(() => isFetching.value || term.value !== debouncedTerm.value)
+
 function choose(value: unknown): void {
   model.value = (value ?? null) as T | null
 }
@@ -95,14 +98,14 @@ function keyOf(option: T): string {
         :placeholder="placeholder"
         autocomplete="off"
         size="1"
-        class="h-full min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+        class="h-full min-w-0 flex-1 truncate bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
       />
       <ComboboxTrigger class="flex h-full items-center px-2 text-muted-foreground">
         <ChevronsUpDownIcon />
       </ComboboxTrigger>
     </ComboboxAnchor>
 
-    <ComboboxList :class="listClass">
+    <ComboboxList :class="listClass" :aria-busy="busy ? 'true' : undefined">
       <ComboboxViewport>
         <ComboboxEmpty>{{ isFetching ? t('common.loading') : (emptyText ?? t('common.noResults')) }}</ComboboxEmpty>
         <ComboboxItem v-for="option in options" :key="keyOf(option)" :value="option">

@@ -45,4 +45,4 @@ Every document of the repository, one line each. The [README](../README.md) is t
 
 ## Images
 
-- [assets/](assets/): the README's screenshots and GIFs, made by `make screenshots` against the synthetic demo data, under the demo's story clock (Thursday, November 19, 2026, in Medellín).
+- [assets/](assets/): the README's screenshots and GIFs, made by `make screenshots` against the synthetic demo data, under the demo's story clock (Thursday, November 19, 2026, in Medellín). The repository writes the PNG and GIF files with its own encoder, [e2e/screenshots/encode.mjs](../e2e/screenshots/encode.mjs), because it needs nothing but Node.js: no native image binaries to install or to trust. `make test` runs its tests.

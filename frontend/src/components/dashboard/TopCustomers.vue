@@ -2,9 +2,12 @@
 import type { Dashboard } from '@/api/workspace'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatInteger, formatMoney } from '@/lib/format'
+import { formatInteger, formatMoney, formatWholeMoney } from '@/lib/format'
 
-/** The five customers with the most invoiced in the last 90 days, each with a bar against the first. */
+/**
+ * The five customers with the most invoiced in the last 90 days, each with a bar against the first.
+ * Amounts in whole pesos, the exact one in its tooltip.
+ */
 const props = defineProps<{
   customers: Dashboard['top_customers']
 }>()
@@ -25,7 +28,7 @@ const top = computed(() => Math.max(...props.customers.map((customer) => Number(
         >
           {{ customer.name }}
         </RouterLink>
-        <span class="shrink-0 font-medium tabular-nums">{{ formatMoney(customer.amount) }}</span>
+        <span class="shrink-0 font-medium tabular-nums" :title="formatMoney(customer.amount)">{{ formatWholeMoney(customer.amount) }}</span>
       </div>
       <div class="flex items-center gap-3">
         <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">

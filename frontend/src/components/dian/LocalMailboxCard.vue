@@ -10,6 +10,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatInteger } from '@/lib/format'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
@@ -37,7 +38,7 @@ const { data: mailbox, error } = useQuery({
         <div class="flex flex-wrap items-center gap-2">
           <StatusBadge domain="service" :status="mailbox.reachable ? 'reachable' : 'unreachable'" />
           <span v-if="mailbox.reachable && mailbox.messages !== null" class="text-sm text-muted-foreground tabular-nums">
-            {{ t('settings.dian.mailbox.messages', { count: mailbox.messages }) }}
+            {{ t('settings.dian.mailbox.messages', { count: formatInteger(mailbox.messages) }, mailbox.messages) }}
           </span>
         </div>
 

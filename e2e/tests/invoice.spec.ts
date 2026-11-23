@@ -4,7 +4,7 @@ import { expect, test } from './policy'
 // The synthetic demo account of make demo, owner of Demo Comercial SAS, and what it sells: an
 // office chair (450.000) and a pack of paper (21.500), both at IVA 19 %.
 const DEMO = { email: 'demo@example.com', password: 'password', company: 'Demo Comercial SAS' }
-const TOTAL = '$ 561.085'
+const TOTAL = '$ 561.085,00'
 
 // The queue workers run the chain and the delivery; a CI runner is slower than a laptop.
 const CHAIN_TIMEOUT = 120_000

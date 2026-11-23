@@ -56,7 +56,7 @@ The simulator recalculates every key with the range's technical key or the softw
 
 `SoftwareSecurityCode` is the SHA-384 of the software's id, its PIN and the document's number, as section 11.8 writes it (`app/Modules/Dian/Domain/SoftwareSecurityCode.php`).
 
-**Shown by** the simulator, which recalculates it (rules FAB27b, CAB27b and DAB27b) in `simulator/test/rules.test.ts`. No backend test checks it on its own.
+**Shown by** `SoftwareSecurityCodeTest`, which checks it against values `sha384sum` computed outside the code, and by the simulator, which recalculates it (rules FAB27b, CAB27b and DAB27b) in `simulator/test/rules.test.ts`.
 
 ## XAdES-EPES signature
 
@@ -70,7 +70,7 @@ The simulator recalculates every key with the range's technical key or the softw
 
 The certificates are synthetic: self-signed RSA keys of 2,048 bits, valid two years (`app/Modules/Dian/Services/SigningCertificates.php`). Only the simulator accepts them.
 
-**Shown by** `make dian-check`: xmlsec1 verifies an invoice signed at that moment (step 3), refuses a copy with one digit of its total changed (step 4), and verifies the stored credit and debit notes (step 7). `ConformanceTest` does the same for the three documents, and the simulator verifies every signature with xmlsec1 (rules ZD01, ZE02 and ZD02). `ChainTest::test_a_certificate_that_expires_between_issue_and_signing_stops_the_chain_before_anything_is_sent` covers a certificate that expires on the way. The AttachedDocument's signature is not verified by xmlsec1 in any check.
+**Shown by** `make dian-check`: xmlsec1 verifies an invoice signed at that moment (step 3), refuses a copy with one digit of its total changed (step 4), and verifies the stored credit and debit notes (step 7) and the AttachedDocument of a delivered invoice (step 8). `ConformanceTest` does the same for the three documents, and the simulator verifies every signature with xmlsec1 (rules ZD01, ZE02 and ZD02). `ChainTest::test_a_certificate_that_expires_between_issue_and_signing_stops_the_chain_before_anything_is_sent` covers a certificate that expires on the way.
 
 ## Rounding
 
@@ -86,13 +86,13 @@ The certificates are synthetic: self-signed RSA keys of 2,048 bits, valid two ye
 
 After the DIAN accepts a document, `app/Modules/Dian/Ubl/AttachedDocumentXml.php` builds the container of section 6.4 (fields AE01 to AE55): `CustomizationID` "Documentos adjuntos", the sender and the receiver, the signed document in `Attachment`, and the DIAN's ApplicationResponse, with the UUID and the response code, in `ParentDocumentLineReference`. It is signed with the same signer and stored as `ad{NIT}{ppp}{aa}{dddddddd}.xml` (`app/Modules/Delivery/Services/AttachedDocuments.php`). The toolbox has no example of it, so it follows the annex's table. Its `ValidatorID` names the local simulator instead of the literal of AE52, and its other literals are an invoice's also for notes ([limitations.md](limitations.md#delivery-and-pdf)).
 
-**Shown by** `make delivery-check`: it validates the AttachedDocument against `UBL-AttachedDocument-2.1.xsd`, checks that the document and the ApplicationResponse inside it are byte for byte the stored ones and that it has one signature, reads the PDF with poppler, and finds the email with its zip in the local mailbox. `tests/Integration/Delivery/DeliveryTest.php::test_an_accepted_invoice_is_delivered_with_its_attached_document_pdf_and_email` covers the delivery.
+**Shown by** `make delivery-check`: it validates the AttachedDocument against `UBL-AttachedDocument-2.1.xsd`, checks that the document and the ApplicationResponse inside it are byte for byte the stored ones and that it has one signature, reads the PDF with poppler, and finds the email with its zip in the local mailbox. `make dian-check` (step 8) verifies that signature with xmlsec1, trusting only the company's certificate, and refuses a copy with one digit of the invoice inside it changed: the signature covers the documents it carries. `tests/Integration/Delivery/DeliveryTest.php::test_an_accepted_invoice_is_delivered_with_its_attached_document_pdf_and_email` covers the delivery.
 
 ## QR code
 
 `sts:QRCode` holds the address the DIAN gives for a document: `https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=` and its CUFE or CUDE, the habilitación catalog (`app/Modules/Dian/Enums/DianEnvironment.php`). The PDF draws, at the foot of each page, a QR code with the number, the issue date and time, the issuer's NIT, the customer's identification, the value, the IVA, the other taxes, the total, the key and that address (`app/Modules/Delivery/Support/QrContent.php`), encoded by bacon/bacon-qr-code with error correction M (`app/Modules/Delivery/Pdf/QrSvg.php`). Notes use the same labels, an assumption the code states.
 
-**Shown by** the simulator's rules only indirectly: no test reads the text or the image of the QR code.
+**Shown by** `tests/Integration/Delivery/QrContentTest.php`, which issues an invoice with IVA and INC and checks each line of the text the QR code encodes, the verification address last, against the document and its `sts:QRCode`. It reads the text before QrSvg draws it: no test reads the image back, which would take a QR decoder, a dependency the project does not add.
 
 ## The web services the simulator imitates
 
@@ -130,9 +130,9 @@ It also checks the names of the zip and of the XML (sections 6.5.7 and 6.5.8), t
 
 | Command | What it shows |
 | --- | --- |
-| `make dian-check` | The CUFE of 11.2.1 and the CUDE of 11.4.3; an issued invoice's XML against the XSD; its signature verified by xmlsec1 and a tampered copy refused; the stored credit and debit notes, valid and verified |
+| `make dian-check` | The CUFE of 11.2.1 and the CUDE of 11.4.3; an issued invoice's XML against the XSD; its signature verified by xmlsec1 and a tampered copy refused; the stored credit and debit notes, valid and verified; a delivered invoice's AttachedDocument, its signature verified and a tampered copy refused |
 | `make delivery-check` | The AttachedDocument against its XSD, with the document and the response inside it; the PDF read with poppler; the email in the local mailbox |
-| `make test-backend` | `ConformanceTest`, `DocumentKeyTest`, `DocumentCalculatorTest`, `ChainTest` and `DeliveryTest`, among the rest |
+| `make test-backend` | `ConformanceTest`, `DocumentKeyTest`, `SoftwareSecurityCodeTest`, `DocumentCalculatorTest`, `ChainTest`, `DeliveryTest` and `QrContentTest`, among the rest |
 | `make test-simulator` | Every rule of the simulator, with a document that breaks it |
 | `make dian-toolbox` | The toolbox, downloaded with its SHA-256, and the repository's schemas compared with its own |
 | `make dian-schematron` | Optional: the toolbox's schematron of 2019 over the demo's invoice, credit note and debit note. Its 24 findings come from rules older than annex 1.9, each listed with its reason in the Makefile, and any other finding fails |

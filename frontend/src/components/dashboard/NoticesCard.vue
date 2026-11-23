@@ -57,11 +57,15 @@ function highlighted(warning: boolean): string {
           </div>
           <p class="text-muted-foreground tabular-nums">
             {{
-              t('dashboard.notices.numbering.used', {
-                used: formatInteger(numbering.used),
-                total: formatInteger(numbering.total),
-                percent: formatPercent(numbering.usage),
-              })
+              t(
+                'dashboard.notices.numbering.used',
+                {
+                  used: formatInteger(numbering.used),
+                  total: formatInteger(numbering.total),
+                  percent: formatPercent(numbering.usage),
+                },
+                numbering.total,
+              )
             }}
           </p>
           <p v-if="numbering.days_left !== null" :class="cn('tabular-nums', numbering.warning ? 'font-medium text-warning' : 'text-muted-foreground')">
