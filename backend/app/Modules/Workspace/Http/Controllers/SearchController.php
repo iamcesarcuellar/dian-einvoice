@@ -28,7 +28,7 @@ final class SearchController
         $term = trim($input['q']);
 
         if (Str::length($term) < self::MIN_LENGTH) {
-            throw ValidationException::withMessages(['q' => sprintf('Type at least %d characters to search.', self::MIN_LENGTH)]);
+            throw ValidationException::withMessages(['q' => __('workspace::errors.search_too_short', ['count' => self::MIN_LENGTH])]);
         }
 
         return response()->json(['data' => $search->find($term)]);

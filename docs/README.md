@@ -5,6 +5,7 @@ Every document in the repository, one line each, and a glossary of the terms the
 ## The project
 
 - [README.md](../README.md): what dian-einvoice is and what it shows, the quick start, the tour, the architecture at a glance, its limits and its roadmap.
+- [README.es.md](../README.es.md): the same README in Spanish, with the screenshots and GIFs in Spanish. The reference documents below are in English.
 - [architecture.md](architecture.md): the application's architecture: its context, its modules and how they talk, the data model, a document's life cycle, the design decisions and the guarantees the tests hold.
 - [api-guide.md](api-guide.md): a practical guide to the public API: first steps with curl, idempotency, errors, pagination, rate limits, versions and signed webhooks. `make docs-examples` runs every example.
 - [dian-conformance.md](dian-conformance.md): which parts of the DIAN's technical annex 1.9 the project implements, how to check each one, what is not implemented, and the official sources.
@@ -46,6 +47,7 @@ Every document in the repository, one line each, and a glossary of the terms the
 ## Images
 
 - [assets/](assets/): the README's screenshots and GIFs. `make screenshots` makes them from the synthetic demo data, under the demo's story clock (Thursday, November 19, 2026, in Medellín).
+- [assets/es/](assets/es/): the same screenshots and GIFs in Spanish, for README.es.md, from the demo data in Spanish and the web app in Spanish.
 - The repository writes the PNG and GIF files with its own encoder, [e2e/screenshots/encode.mjs](../e2e/screenshots/encode.mjs). It needs nothing but Node.js, so there are no native image binaries to install or to trust. `make test` runs its tests.
 
 ## Glossary
@@ -87,3 +89,116 @@ The documents and the web app use these terms, always in this sense.
 | Database identity | One of the two database users: the migrations identity, for the console function only, and the application identity, for every other function. |
 | API key | A bearer key (`dei_...`) of one company, read-only or read-write. |
 | Web app | The Vue application in `frontend/`, which uses the same public API as integrations do. |
+
+### The interface in Spanish
+
+The web app, the API's messages, the PDF and the emails come in English or in Colombian Spanish. They use these Spanish terms, always the same ones, and so does [README.es.md](../README.es.md). The DIAN's own terms are its official ones.
+
+| English | Spanish |
+| --- | --- |
+| Electronic sales invoice | Factura electrónica de venta |
+| Invoice | Factura |
+| Credit note | Nota crédito |
+| Debit note | Nota débito |
+| Document (an invoice or a note) | Documento |
+| Electronic document | Documento electrónico |
+| Graphic representation (the PDF) | Representación gráfica |
+| Draft | Borrador |
+| Issue, issued | Emitir, emitida |
+| Number | Número |
+| Prefix | Prefijo |
+| Numbering, numbering range | Numeración, rango de numeración |
+| Numbering resolution, DIAN resolution | Resolución de numeración, resolución DIAN |
+| Technical key | Clave técnica |
+| Customer | Cliente |
+| Bill to (the buyer on the PDF) | Adquiriente |
+| Contact | Contacto |
+| Final consumer | Consumidor final |
+| Item | Ítem |
+| Product, service | Producto, servicio |
+| Unit of measure | Unidad de medida |
+| Quantity | Cantidad |
+| Unit price | Precio unitario |
+| Discount | Descuento |
+| Line | Línea |
+| Notes (on a document or a payment) | Observaciones |
+| Tax | Impuesto |
+| Withholding | Retención |
+| ReteFuente | Retención en la fuente (ReteFuente) |
+| Subtotal, total | Subtotal, total |
+| Net to receive | Neto a recibir |
+| Total in words | Valor en letras |
+| Payment form: cash, credit | Forma de pago: contado, crédito |
+| Payment means | Medio de pago |
+| Issue date | Fecha de emisión |
+| Due date | Fecha de vencimiento |
+| Concept (of a note) | Concepto |
+| Void, voided | Anular, anulada |
+| Payment | Pago |
+| Payment receipt | Recibo de caja |
+| Receivables | Cartera |
+| Receivables by age | Cartera por edades |
+| Open invoices (with a balance to collect) | Facturas por cobrar |
+| Days past due | Días de mora |
+| Balance | Saldo |
+| Customer credit | Saldo a favor |
+| Invoiced, collected | Facturado, recaudado |
+| Overdue | Vencida |
+| Accepted, rejected, failed | Aceptada, rechazada, fallida |
+| Processing | En proceso |
+| Delivery, delivered | Entrega, entregada |
+| Retry now | Reintentar ahora |
+| Resend | Reenviar |
+| Send again | Enviar de nuevo |
+| Timeline | Línea de tiempo |
+| Chain | Cadena |
+| Transmission, attempt | Transmisión, intento |
+| DIAN response | Respuesta de la DIAN |
+| Test environment | Ambiente de pruebas |
+| Habilitación (test) environment | Ambiente de habilitación (pruebas) |
+| Test set | Set de pruebas |
+| Test document | Documento de prueba (DOCUMENTO DE PRUEBA on the PDF) |
+| Local simulator, local DIAN simulator | Simulador local, simulador local de la DIAN |
+| Not affiliated with the DIAN | Sin relación con la DIAN |
+| Failure mode | Modo de falla |
+| Rule, rejection, notification | Regla, rechazo, notificación |
+| Signing certificate | Certificado de firma |
+| Test certificate | Certificado de prueba |
+| Private key | Clave privada |
+| Software ID, PIN | ID del software, PIN |
+| Local mailbox | Buzón local |
+| Webhook, event | Webhook, evento |
+| Subscription | Suscripción |
+| Webhook receiver | Receptor de webhooks |
+| Signing secret | Secreto de firma |
+| API key | Llave de API |
+| Read only, read and write | Solo lectura, lectura y escritura |
+| Request, response | Petición, respuesta |
+| Company | Empresa |
+| Legal name | Razón social |
+| Trade name | Nombre comercial |
+| NIT, check digit | NIT, dígito de verificación |
+| Organization type: legal entity, natural person | Tipo de persona: persona jurídica, persona natural |
+| Identification type | Tipo de identificación |
+| Tax scheme | Tributo |
+| Fiscal responsibilities | Responsabilidades fiscales |
+| Commercial registration | Matrícula mercantil |
+| Department, municipality | Departamento, municipio |
+| Billing email | Correo de facturación |
+| Team, member | Equipo, miembro |
+| Owner, admin, member, viewer | Propietario, administrador, miembro, lector |
+| Invitation | Invitación |
+| Dashboard | Tablero |
+| Settings | Configuración |
+| Developers | Desarrolladores |
+| Profile | Perfil |
+| Sign in, sign out | Iniciar sesión, cerrar sesión |
+| Password | Contraseña |
+| Command palette | Paleta de comandos |
+| Theme: light, dark, system | Tema: claro, oscuro, sistema |
+| Language | Idioma |
+| Document language | Idioma de los documentos |
+| Demo data, synthetic | Datos de ejemplo, sintético |
+| Emulated cloud, emulator | Nube emulada, emulador |
+| Correlation id | Id de correlación |
+| Dead-letter queue | Cola de mensajes fallidos (dead-letter queue) |

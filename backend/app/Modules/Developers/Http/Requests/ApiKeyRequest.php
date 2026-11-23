@@ -4,6 +4,7 @@ namespace App\Modules\Developers\Http\Requests;
 
 use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Developers\Enums\ApiKeyLevel;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -32,10 +33,7 @@ final class ApiKeyRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'expires_at' => 'expiration date',
-            'rate_limit_per_minute' => 'requests per minute',
-        ];
+        return Translation::lines('developers::validation.attributes.key');
     }
 
     /** The end of the last day of validity, in Colombia, as an instant. */

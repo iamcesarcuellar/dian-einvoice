@@ -142,24 +142,24 @@ final class SigningCertificates
     private function open(string $pkcs12, #[SensitiveParameter] string $password): SigningCredentials
     {
         if (! openssl_pkcs12_read($pkcs12, $parts, $password) || ! is_array($parts)) {
-            throw new InvalidArgumentException('The file could not be opened with this password. Check the password, and that the file is a .p12 or .pfx certificate.');
+            throw new InvalidArgumentException(__('dian::errors.certificate.password'));
         }
 
         $keyPem = $parts['pkey'] ?? null;
         $certificatePem = $parts['cert'] ?? null;
 
         if (! is_string($keyPem) || ! is_string($certificatePem) || blank($keyPem) || blank($certificatePem)) {
-            throw new InvalidArgumentException('The file must contain the private key and its certificate.');
+            throw new InvalidArgumentException(__('dian::errors.certificate.contents'));
         }
 
         $key = openssl_pkey_get_private($keyPem);
 
         if ($key === false || (openssl_pkey_get_details($key)['type'] ?? null) !== OPENSSL_KEYTYPE_RSA) {
-            throw new InvalidArgumentException('The private key must be an RSA key.');
+            throw new InvalidArgumentException(__('dian::errors.certificate.rsa'));
         }
 
         if (! openssl_x509_check_private_key($certificatePem, $key)) {
-            throw new InvalidArgumentException('The private key does not belong to the certificate.');
+            throw new InvalidArgumentException(__('dian::errors.certificate.pair'));
         }
 
         $others = $parts['extracerts'] ?? [];

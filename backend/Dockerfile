@@ -68,20 +68,23 @@ COPY bootstrap/app.php bootstrap/providers.php bootstrap/
 RUN mkdir bootstrap/cache
 COPY config config
 COPY database database
+COPY lang lang
 COPY public public
 COPY resources resources
 COPY routes routes
 COPY docker/lambda/check-extensions.php /tmp/check-extensions.php
 
 # The build fails when PHP lacks an extension the application requires (the ext-* of composer.json) or one
-# its dependencies require. The manifests of the packages and of the service providers are written now,
-# into bootstrap/cache, because the file system of a function is read-only but for /tmp; the configuration
-# is cached in /tmp when each execution environment starts (Bref's Laravel bridge), with its secrets.
+# its dependencies require, or when the API's messages in either language are missing. The manifests of the
+# packages and of the service providers are written now, into bootstrap/cache, because the file system of a
+# function is read-only but for /tmp; the configuration is cached in /tmp when each execution environment
+# starts (Bref's Laravel bridge), with its secrets.
 RUN php /tmp/check-extensions.php composer.json \
     && composer check-platform-reqs --no-dev --no-interaction \
     && composer dump-autoload --no-dev --classmap-authoritative --no-interaction \
     && LOG_CHANNEL=stderr php artisan list --raw > /dev/null \
-    && test -f bootstrap/cache/packages.php && test -f bootstrap/cache/services.php
+    && test -f bootstrap/cache/packages.php && test -f bootstrap/cache/services.php \
+    && test -f lang/en/problems.php && test -f lang/es/validation.php
 
 FROM bref/php-85:3.0.12 AS lambda
 

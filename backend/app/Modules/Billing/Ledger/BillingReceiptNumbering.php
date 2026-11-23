@@ -26,10 +26,10 @@ final class BillingReceiptNumbering implements ReceiptNumbering
         $template = $this->lock() ?? $this->provision();
 
         $problem = match (true) {
-            ! $template->is_active => 'The payment receipt numbering is inactive. Activate it in Settings → Numbering.',
-            $template->status() === NumberingStatus::Exhausted => 'The payment receipt numbering has no numbers left. Add the next range in Settings → Numbering.',
-            $template->status() === NumberingStatus::Expired => 'The payment receipt numbering expired. Add the next range in Settings → Numbering.',
-            $template->status() === NumberingStatus::Upcoming => 'The payment receipt numbering is not valid yet.',
+            ! $template->is_active => __('billing::errors.receipts.inactive'),
+            $template->status() === NumberingStatus::Exhausted => __('billing::errors.receipts.exhausted'),
+            $template->status() === NumberingStatus::Expired => __('billing::errors.receipts.expired'),
+            $template->status() === NumberingStatus::Upcoming => __('billing::errors.receipts.upcoming'),
             default => null,
         };
 
@@ -65,6 +65,6 @@ final class BillingReceiptNumbering implements ReceiptNumbering
             $template = $this->lock();
         }
 
-        return $template ?? throw ValidationException::withMessages(['numbering' => ['The payment receipt numbering could not be created.']]);
+        return $template ?? throw ValidationException::withMessages(['numbering' => [__('billing::errors.receipts.not_created')]]);
     }
 }

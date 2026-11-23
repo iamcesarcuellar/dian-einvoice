@@ -126,7 +126,7 @@ final class SoapDianGateway implements DianGateway
         $answer = $this->answer($operation, $response->body());
 
         if ($answer === null) {
-            return new GatewayCall($operation, TransmissionOutcome::InvalidResponse, $duration, $status, error: "HTTP {$status} without a {$operation} result.");
+            return new GatewayCall($operation, TransmissionOutcome::InvalidResponse, $duration, $status, error: __('dian::chain.gateway.no_result', ['status' => $status, 'operation' => $operation]));
         }
 
         $outcome = match (true) {
@@ -295,14 +295,14 @@ final class SoapDianGateway implements DianGateway
             || ($errno === 28 && preg_match('/Failed to connect|Connection timed out|Resolving timed out|Could not resolve/i', $message) === 1);
 
         if ($notConnected) {
-            return new GatewayCall($operation, TransmissionOutcome::Refused, $duration, error: "Could not connect. {$detail}");
+            return new GatewayCall($operation, TransmissionOutcome::Refused, $duration, error: trim(__('dian::chain.gateway.not_connected', ['detail' => $detail])));
         }
 
         if ($errno === 28) {
-            return new GatewayCall($operation, TransmissionOutcome::Timeout, $duration, error: sprintf('No response within %s s. %s', rtrim(rtrim(number_format($this->timeout, 1, '.', ''), '0'), '.'), $detail), mayHaveArrived: $sent);
+            return new GatewayCall($operation, TransmissionOutcome::Timeout, $duration, error: trim(__('dian::chain.gateway.timeout', ['seconds' => rtrim(rtrim(number_format($this->timeout, 1, '.', ''), '0'), '.'), 'detail' => $detail])), mayHaveArrived: $sent);
         }
 
-        return new GatewayCall($operation, TransmissionOutcome::NoResponse, $duration, error: "The connection closed without a response. {$detail}", mayHaveArrived: $sent);
+        return new GatewayCall($operation, TransmissionOutcome::NoResponse, $duration, error: trim(__('dian::chain.gateway.closed', ['detail' => $detail])), mayHaveArrived: $sent);
     }
 
     private function elapsed(int $started): int

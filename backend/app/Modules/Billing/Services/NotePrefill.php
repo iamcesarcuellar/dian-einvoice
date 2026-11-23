@@ -15,6 +15,7 @@ use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Catalog\Http\Resources\ContactResource;
 use App\Modules\Delivery\Support\ColombianFormat;
 use App\Modules\Reference\Enums\CreditNoteConcept;
+use App\Support\Language;
 use Brick\Math\BigDecimal;
 use LogicException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -41,11 +42,11 @@ final class NotePrefill
         }
 
         if ($invoice->electronic_status !== ElectronicStatus::Accepted) {
-            throw new ConflictHttpException("Invoice {$invoice->full_number} has not been accepted by the local simulator, so no note can correct it yet.");
+            throw new ConflictHttpException(__('billing::errors.invoice_not_accepted', ['number' => $invoice->full_number]));
         }
 
         if ($invoice->balance_status === BalanceStatus::Voided) {
-            throw new ConflictHttpException("Invoice {$invoice->full_number} is voided, so no more notes can correct it.");
+            throw new ConflictHttpException(__('billing::errors.invoice_voided', ['number' => $invoice->full_number]));
         }
 
         $invoice->load(['lines.item', 'withholdings', 'contact.municipality.department']);
@@ -60,7 +61,7 @@ final class NotePrefill
 
         // Less than one peso left counts as credited in full.
         if ($type === DocumentType::CreditNote && ! $balance['can_credit']) {
-            throw new ConflictHttpException("Nothing is left to credit on invoice {$invoice->full_number}.");
+            throw new ConflictHttpException(__('billing::errors.nothing_to_credit', ['number' => $invoice->full_number]));
         }
 
         $lines = $type === DocumentType::CreditNote ? $this->remainingLines($invoice, $notes) : $invoice->lines->all();
@@ -79,12 +80,12 @@ final class NotePrefill
             'due_date' => $invoice->due_date?->toDateString(),
             'number_template_id' => NumberTemplate::query()->where('document_type', $type)->where('is_default', true)->value('id'),
             'reason_code' => $void ? CreditNoteConcept::Void->value : null,
-            'reason_text' => $void ? sprintf(
-                'Void of invoice %s of %s: all that was left to credit, %s, is credited.',
-                $invoice->full_number,
-                $invoice->issue_date?->toDateString(),
-                ColombianFormat::money($balance['remaining_to_credit']),
-            ) : null,
+            // The description goes into the note's XML and PDF: in the language of the company's documents.
+            'reason_text' => $void ? $this->language($invoice)->run(fn (): string => __('billing::errors.void_reason', [
+                'number' => $invoice->full_number,
+                'date' => $invoice->issue_date?->format(__('formats.date')) ?? '',
+                'remaining' => ColombianFormat::money($balance['remaining_to_credit']),
+            ])) : null,
             'notes' => null,
             'lines' => DocumentLineResource::collection($lines),
             'withholdings' => DocumentWithholdingResource::collection($invoice->withholdings),
@@ -141,6 +142,12 @@ final class NotePrefill
             array_merge(...array_values($remaining ?: [[]])),
             fn (DocumentLine $line): bool => BigDecimal::of((string) $line->quantity)->isPositive(),
         ));
+    }
+
+    /** The language of the documents of the invoice's company. */
+    private function language(Document $invoice): Language
+    {
+        return $invoice->company?->documentLanguage() ?? Language::English;
     }
 
     private function key(DocumentLine $line): string

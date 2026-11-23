@@ -2,6 +2,7 @@
 
 namespace App\Modules\Dian\Http\Requests;
 
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -29,9 +30,7 @@ final class SigningCertificateRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'file' => 'certificate file',
-        ];
+        return Translation::lines('dian::validation.attributes.certificate');
     }
 
     /**
@@ -39,8 +38,6 @@ final class SigningCertificateRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'file.extensions' => 'Upload a .p12 or .pfx certificate file.',
-        ];
+        return Translation::lines('dian::validation.messages.certificate');
     }
 }

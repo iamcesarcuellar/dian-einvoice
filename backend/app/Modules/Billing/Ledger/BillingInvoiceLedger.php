@@ -52,7 +52,7 @@ final class BillingInvoiceLedger implements InvoiceLedger
             || $invoice->status !== DocumentStatus::Issued
             || $invoice->electronic_status !== ElectronicStatus::Accepted
             || $invoice->contact_id !== $contactId) {
-            throw new InvoiceNotPayable(sprintf('Only invoices of the customer of the payment accepted by the local DIAN simulator take payments%s.', $invoice?->full_number === null ? '' : "; {$invoice->full_number} is not one"));
+            throw new InvoiceNotPayable($invoice?->full_number === null ? __('billing::errors.not_payable') : __('billing::errors.not_payable_number', ['number' => $invoice->full_number]));
         }
 
         $value = BigDecimal::of($amount)->toScale(2);

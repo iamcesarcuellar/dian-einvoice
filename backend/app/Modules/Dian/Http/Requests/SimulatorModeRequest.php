@@ -3,6 +3,7 @@
 namespace App\Modules\Dian\Http\Requests;
 
 use App\Modules\Dian\Simulator\DianSimulator;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,11 +31,7 @@ final class SimulatorModeRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'delay_ms' => 'delay',
-            'failure_rate' => 'failure percentage',
-            'count' => 'number of requests',
-        ];
+        return Translation::lines('dian::validation.attributes.simulator');
     }
 
     /**

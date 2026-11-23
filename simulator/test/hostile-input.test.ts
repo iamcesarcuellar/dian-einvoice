@@ -44,12 +44,12 @@ describe('hostile input', () => {
   after(() => simulator.stop())
 
   it('an XML with an external entity is refused before any tool reads it', async () => {
-    rejected(await simulator.post(SOAP, send({ [`fv${NAME}.xml`]: withDoctype(XXE) })), /not well formed/)
+    rejected(await simulator.post(SOAP, send({ [`fv${NAME}.xml`]: withDoctype(XXE) })), /no está bien formado/)
   })
 
   it('an XML with nested entities is refused at once, without expanding them', async () => {
     const answer = await simulator.post(SOAP, send({ [`fv${NAME}.xml`]: withDoctype(LAUGHS) }))
-    rejected(answer, /not well formed/)
+    rejected(answer, /no está bien formado/)
     assert.ok(answer.ms < 2000, `answered after ${Math.round(answer.ms)} ms`)
   })
 

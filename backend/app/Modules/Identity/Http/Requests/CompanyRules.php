@@ -7,6 +7,8 @@ use App\Modules\Identity\Rules\MatchesNitCheckDigit;
 use App\Modules\Reference\Enums\OrganizationType;
 use App\Modules\Reference\Enums\TaxScheme;
 use App\Modules\Reference\Rules\ValidFiscalResponsibilities;
+use App\Support\Language;
+use App\Support\Translation;
 use Illuminate\Validation\Rule;
 
 /**
@@ -29,6 +31,7 @@ final class CompanyRules
         'address',
         'municipality_code',
         'postal_code',
+        'document_language',
     ];
 
     /**
@@ -68,6 +71,8 @@ final class CompanyRules
             $prefix.'address' => ['nullable', 'string', 'max:200'],
             $prefix.'municipality_code' => ['nullable', 'string', Rule::exists('municipalities', 'code')],
             $prefix.'postal_code' => ['nullable', 'string', 'regex:/^\d{6}$/'],
+            // The language of its documents; a new company takes the language of the request that creates it.
+            $prefix.'document_language' => ['sometimes', Rule::enum(Language::class)],
         ];
     }
 
@@ -76,18 +81,7 @@ final class CompanyRules
      */
     public static function attributes(string $prefix = ''): array
     {
-        return [
-            $prefix.'name' => 'company name',
-            $prefix.'legal_name' => 'legal name',
-            $prefix.'identification_number' => 'NIT',
-            $prefix.'check_digit' => 'check digit',
-            $prefix.'organization_type' => 'organization type',
-            $prefix.'tax_scheme' => 'tax scheme',
-            $prefix.'fiscal_responsibilities' => 'fiscal responsibilities',
-            $prefix.'registration_number' => 'registration number',
-            $prefix.'municipality_code' => 'municipality',
-            $prefix.'postal_code' => 'postal code',
-        ];
+        return Translation::lines('identity::validation.attributes.company', $prefix);
     }
 
     /**
@@ -95,11 +89,7 @@ final class CompanyRules
      */
     public static function messages(string $prefix = ''): array
     {
-        return [
-            $prefix.'identification_number.regex' => 'The NIT must have between 5 and 15 digits, without the check digit.',
-            $prefix.'identification_number.unique' => 'A company with this NIT is already registered.',
-            $prefix.'postal_code.regex' => 'The postal code must have 6 digits.',
-        ];
+        return Translation::lines('identity::validation.messages.company', $prefix);
     }
 
     /**

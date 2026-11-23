@@ -15,6 +15,7 @@ final class CatalogServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+        $this->loadTranslationsFrom(__DIR__.'/Lang', 'catalog');
 
         Event::listen(CompanyCreated::class, ProvisionCompanyCatalog::class);
     }

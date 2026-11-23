@@ -2,6 +2,7 @@
 import { CheckIcon, ReceiptTextIcon } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import BrandMark from '@/components/BrandMark.vue'
+import LanguageSelect from '@/components/LanguageSelect.vue'
 import TestEnvironmentBadge from '@/components/TestEnvironmentBadge.vue'
 import { product } from '@/config/product'
 import { cn } from '@/lib/utils'
@@ -53,7 +54,10 @@ const features = ['auth.panel.features.document', 'auth.panel.features.simulator
     <main class="flex flex-col px-4 py-8 sm:px-8">
       <div class="flex items-center justify-between gap-4">
         <BrandMark class="lg:invisible" />
-        <TestEnvironmentBadge />
+        <div class="flex items-center gap-2">
+          <TestEnvironmentBadge />
+          <LanguageSelect />
+        </div>
       </div>
 
       <div class="flex flex-1 items-center justify-center py-10">

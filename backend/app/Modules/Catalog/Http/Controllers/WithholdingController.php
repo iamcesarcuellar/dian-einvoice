@@ -48,9 +48,9 @@ final class WithholdingController
      */
     public function destroy(Withholding $withholding): Response
     {
-        abort_if($withholding->is_system, 403, 'Default withholdings cannot be deleted. Deactivate them instead.');
+        abort_if($withholding->is_system, 403, __('catalog::errors.withholding_default'));
 
-        Deletion::deleteOrConflict($withholding, 'This withholding is used by documents. Deactivate it instead.');
+        Deletion::deleteOrConflict($withholding, __('catalog::errors.withholding_in_use'));
 
         return response()->noContent();
     }

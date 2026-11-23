@@ -61,6 +61,7 @@ final class DevelopersServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+        $this->loadTranslationsFrom(__DIR__.'/Lang', 'developers');
 
         // API keys authenticate through their own guard; Sanctum keeps the session of the web app
         // only and never reads bearer tokens, which all belong to API keys.

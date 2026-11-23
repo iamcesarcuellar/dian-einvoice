@@ -1,4 +1,5 @@
 import type { Problem, QueryParams } from './types'
+import { currentLanguage } from '@/i18n'
 import { useSessionStore } from '@/stores/session'
 
 const API_BASE = '/api/v1'
@@ -38,7 +39,7 @@ function readCookie(name: string): string | null {
 
 /** Sanctum sets the XSRF-TOKEN cookie; writes send it back in the X-XSRF-TOKEN header. */
 async function fetchCsrfCookie(): Promise<void> {
-  await fetch('/sanctum/csrf-cookie', { credentials: 'include', headers: { Accept: 'application/json' } })
+  await fetch('/sanctum/csrf-cookie', { credentials: 'include', headers: { Accept: 'application/json', 'Accept-Language': currentLanguage() } })
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
@@ -71,7 +72,8 @@ function url(path: string, query?: QueryParams): string {
 export type RequestHeaders = Record<string, string>
 
 async function send(method: Method, path: string, body: unknown, query?: QueryParams, extra?: RequestHeaders): Promise<Response> {
-  const headers: Record<string, string> = { Accept: 'application/json', ...extra }
+  // The API answers in the language of the interface: its validation messages, error details and emails.
+  const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': currentLanguage(), ...extra }
   const isForm = body instanceof FormData
 
   // FormData sets its own multipart content type, with the boundary.

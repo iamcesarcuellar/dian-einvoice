@@ -74,11 +74,12 @@ function actions(payment: Payment): RowAction[] {
     @retry="refetch"
   >
     <template #toolbar>
+      <!-- Each filter is as wide as its longest label needs, never narrower than before: the Spanish labels are longer. -->
       <div class="flex flex-wrap gap-2">
-        <div class="w-44">
+        <div class="min-w-44">
           <SelectInput v-model="status" :options="statusOptions" :placeholder="t('payments.filters.status')" :label="t('payments.filters.status')" />
         </div>
-        <div class="w-52">
+        <div class="min-w-52">
           <SelectInput v-model="means" :options="meansOptions" :placeholder="t('payments.filters.means')" :label="t('payments.filters.means')" />
         </div>
       </div>

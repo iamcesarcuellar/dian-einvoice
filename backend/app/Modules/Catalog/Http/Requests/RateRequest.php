@@ -5,10 +5,10 @@ namespace App\Modules\Catalog\Http\Requests;
 use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Modules\Reference\Enums\WithholdingType;
 use App\Rules\DecimalString;
+use App\Support\Translation;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -30,9 +30,6 @@ abstract class RateRequest extends FormRequest
 
     /** The rate being updated, or null when creating one. */
     abstract protected function record(): ?Model;
-
-    /** Plural name used in messages, such as "Default taxes". */
-    abstract protected function defaultsName(): string;
 
     /**
      * @return array<string, mixed>
@@ -64,7 +61,7 @@ abstract class RateRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return ['dian_code' => 'type'];
+        return Translation::lines('catalog::validation.attributes.rate');
     }
 
     /**
@@ -72,9 +69,6 @@ abstract class RateRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'dian_code.prohibited' => 'The type of one of the '.Str::lower($this->defaultsName()).' cannot be changed.',
-            'name.unique' => 'Another rate already uses this name.',
-        ];
+        return Translation::lines("catalog::validation.messages.{$this->table()}");
     }
 }

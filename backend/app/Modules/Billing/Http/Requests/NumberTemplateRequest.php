@@ -4,6 +4,7 @@ namespace App\Modules\Billing\Http\Requests;
 
 use App\Modules\Billing\Enums\NumberingType;
 use App\Modules\Billing\Models\NumberTemplate;
+use App\Support\Translation;
 use BackedEnum;
 use DateTimeInterface;
 use Illuminate\Foundation\Http\FormRequest;
@@ -61,43 +62,42 @@ final class NumberTemplateRequest extends FormRequest
             $next = $this->resultingInt('next_number');
 
             if ($from > $to) {
-                $errors->add('to_number', 'The last number must be greater than or equal to the first.');
+                $errors->add('to_number', __('billing::validation.numbering.range_order'));
             } elseif ($next < $from || $next > $to) {
-                $errors->add('next_number', 'The next number must be within the range.');
+                $errors->add('next_number', __('billing::validation.numbering.next_outside'));
             }
 
             $validFrom = $this->resulting('valid_from');
             $validTo = $this->resulting('valid_to');
 
             if (filled($validFrom) && filled($validTo) && $validFrom >= $validTo) {
-                $errors->add('valid_to', 'The end of the validity must be after its start.');
+                $errors->add('valid_to', __('billing::validation.numbering.validity_order'));
             }
 
             $resolutionDate = $this->resulting('resolution_date');
 
             if (filled($resolutionDate) && filled($validFrom) && $resolutionDate > $validFrom) {
-                $errors->add('resolution_date', 'The resolution cannot be dated after the start of its validity.');
+                $errors->add('resolution_date', __('billing::validation.numbering.resolution_after'));
             }
 
             if ($type->requiresResolution()) {
-                foreach (['resolution_number' => 'resolution number', 'resolution_date' => 'date of the resolution', 'valid_from' => 'start of the validity', 'valid_to' => 'end of the validity'] as $key => $label) {
+                foreach (['resolution_number', 'resolution_date', 'valid_from', 'valid_to'] as $key) {
                     if (blank($this->resulting($key))) {
-                        $errors->add($key, "The {$label} is required for invoices.");
+                        $errors->add($key, __("billing::validation.numbering.required.{$key}"));
                     }
                 }
 
                 if (! $this->hasTechnicalKey()) {
-                    $errors->add('technical_key', 'The technical key is required for invoices.');
+                    $errors->add('technical_key', __('billing::validation.numbering.technical_key'));
                 }
             }
 
             if ($from <= $to && ($overlap = $this->overlappingTemplate($type, $from, $to)) !== null) {
-                $errors->add('from_number', sprintf(
-                    'This range overlaps the numbering %s%d to %d.',
-                    $overlap->prefix ?? '',
-                    $overlap->from_number,
-                    $overlap->to_number,
-                ));
+                $errors->add('from_number', __('billing::validation.numbering.overlap', [
+                    'prefix' => $overlap->prefix ?? '',
+                    'from' => $overlap->from_number,
+                    'to' => $overlap->to_number,
+                ]));
             }
         }];
     }
@@ -107,10 +107,15 @@ final class NumberTemplateRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'prefix.regex' => 'The prefix has up to 4 letters or digits.',
-            'technical_key.regex' => 'The technical key has between 8 and 128 letters or digits.',
-        ];
+        return Translation::lines('billing::validation.messages.numbering');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return Translation::lines('billing::validation.attributes.numbering');
     }
 
     protected function prepareForValidation(): void

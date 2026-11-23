@@ -3,6 +3,7 @@
 namespace App\Modules\Identity\Http\Requests;
 
 use App\Modules\Identity\Models\User;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -29,7 +30,7 @@ final class UpdatePasswordRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return ['password' => 'new password'];
+        return Translation::lines('identity::validation.attributes.password');
     }
 
     /**
@@ -43,7 +44,7 @@ final class UpdatePasswordRequest extends FormRequest
                 $user = $this->user();
 
                 if (is_string($current) && $user instanceof User && ! Hash::check($current, $user->password)) {
-                    $validator->errors()->add('current_password', 'The current password is not correct.');
+                    $validator->errors()->add('current_password', __('identity::validation.current_password'));
                 }
             },
         ];

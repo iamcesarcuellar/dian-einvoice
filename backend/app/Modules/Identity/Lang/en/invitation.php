@@ -1,6 +1,6 @@
 <?php
 
-// Email that invites someone to join a company. Spanish arrives in the Polish phase.
+// Email that invites someone to join a company.
 return [
 
     'subject' => ':inviter invited you to :company on :app',

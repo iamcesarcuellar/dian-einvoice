@@ -1,5 +1,5 @@
 // make docs-check (part of make lint): the README and the documentation hold true. Every make target and every file of
-// the repository that README.md, docs/README.md and the reference documents name exist; every relative link of every
+// the repository that README.md, README.es.md, docs/README.md and the reference documents name exist; every relative link of every
 // Markdown file of the repository resolves, its anchor included; every image they show exists and keeps to its size (a
 // screenshot of docs/assets 400 KB, a GIF 5 MB); and every Mermaid diagram can be drawn, by Mermaid itself in the
 // browser of the container. It writes nothing.
@@ -16,13 +16,14 @@ const LIMITS = { '.png': 400 * 1024, '.gif': 5 * 1024 * 1024 }
 const SKIPPED = new Set(['.git', '.claude', 'node_modules', 'vendor', 'dist', 'cdk.out', 'storage', 'test-results', '.package', '.serverless', 'CLAUDE.md'])
 // The directories and files at the root a path of the docs may start with.
 const ROOTS = /^(backend|frontend|simulator|infra|scripts|docs|e2e|\.github)\//
-const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'openapi.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
+const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'README.md', 'README.es.md', 'SECURITY.md', 'CONTRIBUTING.md', 'openapi.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
 // Files the docs name that make creates, never in git: they exist once the target that writes them has run.
 const GENERATED = new Map([['backend/.env', 'make env']])
 // The documents whose make targets and files are checked, and the folder their short paths start from: the
 // architecture and the DIAN conformance write the backend's paths from backend/ (app/..., tests/..., config/...).
 const NAMED = new Map([
   ['README.md', null],
+  ['README.es.md', null],
   ['docs/README.md', null],
   ['docs/architecture.md', 'backend'],
   ['docs/api-guide.md', null],
@@ -230,7 +231,7 @@ if (diagrams.length > 0) {
 }
 
 console.log(
-  `docs: ${counts.files} Markdown files, ${counts.links} relative links (${counts.anchors} with an anchor), ${counts.images} images, ${counts.targets} make targets and ${counts.paths} files named by README.md, docs/README.md and the ${NAMED.size - 2} reference documents, ${counts.diagrams} Mermaid diagrams drawn.`,
+  `docs: ${counts.files} Markdown files, ${counts.links} relative links (${counts.anchors} with an anchor), ${counts.images} images, ${counts.targets} make targets and ${counts.paths} files named by README.md, README.es.md, docs/README.md and the ${NAMED.size - 3} reference documents, ${counts.diagrams} Mermaid diagrams drawn.`,
 )
 
 if (problems.length > 0) {

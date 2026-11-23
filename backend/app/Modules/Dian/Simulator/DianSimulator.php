@@ -104,11 +104,11 @@ final class DianSimulator
             /** @var Response $response */
             $response = $this->client()->{$method}($path, $data);
         } catch (Throwable $exception) {
-            throw new SimulatorUnavailable('The local DIAN simulator is not responding.', previous: $exception);
+            throw new SimulatorUnavailable(__('dian::errors.simulator_unreachable'), previous: $exception);
         }
 
         if (! $response->successful()) {
-            throw new SimulatorUnavailable(sprintf('The local DIAN simulator returned HTTP %d: %s', $response->status(), Json::text($response->json(), 'error') ?? 'no details'));
+            throw new SimulatorUnavailable(__('dian::errors.simulator_http', ['status' => $response->status(), 'error' => Json::text($response->json(), 'error') ?? __('dian::errors.no_details')]));
         }
 
         $json = $response->json();

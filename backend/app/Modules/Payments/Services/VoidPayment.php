@@ -37,7 +37,7 @@ final class VoidPayment
             $payment = Payment::query()->whereKey($paymentId)->lockForUpdate()->firstOrFail();
 
             if ($payment->isVoided()) {
-                throw new ConflictHttpException("Payment {$payment->full_number} is already voided.");
+                throw new ConflictHttpException(__('payments::errors.already_voided', ['number' => $payment->full_number]));
             }
 
             $reference = new PaymentReference($payment->id, $payment->full_number, $payment->payment_date->toDateString(), $payment->payment_means_code->value);

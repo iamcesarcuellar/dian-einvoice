@@ -7,6 +7,7 @@ use App\Modules\Catalog\Models\Item;
 use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Modules\Reference\Enums\UnitOfMeasure;
 use App\Rules\DecimalString;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -50,13 +51,7 @@ final class ItemRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'unit_code' => 'unit',
-            'unit_price' => 'unit price',
-            'tax_id' => 'tax',
-            'standard_scheme' => 'standard',
-            'standard_code' => 'standard code',
-        ];
+        return Translation::lines('catalog::validation.attributes.item');
     }
 
     /**
@@ -64,10 +59,7 @@ final class ItemRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'code.regex' => 'Use letters, digits, dots, dashes, slashes or underscores in the code.',
-            'code.unique' => 'Another item already uses this code.',
-        ];
+        return Translation::lines('catalog::validation.messages.item');
     }
 
     private function item(): ?Item

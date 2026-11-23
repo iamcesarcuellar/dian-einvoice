@@ -2,6 +2,7 @@
 
 namespace App\Modules\Identity\Http\Requests;
 
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\Auth;
@@ -28,6 +29,14 @@ final class LoginRequest extends FormRequest
     }
 
     /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return Translation::lines('identity::validation.attributes.login');
+    }
+
+    /**
      * Signs in with the web guard. Failed attempts are limited per email and IP address.
      */
     public function authenticate(): void
@@ -38,7 +47,7 @@ final class LoginRequest extends FormRequest
             $seconds = RateLimiter::availableIn($key);
 
             throw new ThrottleRequestsException(
-                "Too many sign-in attempts. Try again in {$seconds} seconds.",
+                __('identity::errors.too_many_sign_ins', ['seconds' => $seconds]),
                 headers: ['Retry-After' => $seconds],
             );
         }

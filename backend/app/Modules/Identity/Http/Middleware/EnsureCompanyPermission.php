@@ -27,9 +27,9 @@ final class EnsureCompanyPermission
 
         if (! $this->currentCompany->can($permission)) {
             throw new AccessDeniedHttpException(match (true) {
-                $this->currentCompany->apiKey() === null => 'Your role in this company does not allow this action.',
-                $permission === Permission::ManageSettings => 'API keys cannot change settings: an owner or admin changes them in the web app.',
-                default => 'This API key does not allow this action.',
+                $this->currentCompany->apiKey() === null => __('identity::errors.role_forbids'),
+                $permission === Permission::ManageSettings => __('identity::errors.key_settings'),
+                default => __('identity::errors.key_forbids'),
             });
         }
 

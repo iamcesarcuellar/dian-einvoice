@@ -218,6 +218,8 @@ one draft
 
 Every error is a problem, `application/problem+json` (RFC 9457): `type` (always `about:blank`), `title`, `status`, `detail`, `instance` (the path), `request_id` and `correlation_id`. A validation error adds `errors`, a list of messages per field. With `APP_DEBUG` on, as in the local stack, a 500 adds the exception's class, file and line in `debug`; with it off, no internal detail reaches the client.
 
+The messages come in English, or in Spanish when `Accept-Language` asks for it (`es`, `es-CO`, `es-419`): the `title`, the `detail` and the validation messages with the names of their fields. Any other language gets English, and the response names its language in `Content-Language`.
+
 | Status | When |
 | --- | --- |
 | 400 | A session without a valid `X-Company-Id`, a malformed `Idempotency-Key`, or a sign-in from outside the web app's origin |

@@ -1,6 +1,6 @@
 <?php
 
-// Email with the link to choose a new password. Spanish arrives in the Polish phase.
+// Email with the link to choose a new password.
 return [
 
     'subject' => 'Reset your :app password',

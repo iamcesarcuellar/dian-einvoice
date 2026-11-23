@@ -33,13 +33,13 @@ final class DemoSeeder extends Seeder
                 return;
             }
 
-            [, $plaintext] = $keys->create('Demo integration (read and write)', ApiKeyLevel::ReadWrite, creator: $user);
+            [, $plaintext] = $keys->create((string) __('developers::demo.keys.read_write'), ApiKeyLevel::ReadWrite, creator: $user);
             self::$readWriteKey = $plaintext;
-            $keys->create('Demo reports (read only)', ApiKeyLevel::ReadOnly, creator: $user);
+            $keys->create((string) __('developers::demo.keys.read_only'), ApiKeyLevel::ReadOnly, creator: $user);
 
             $subscriptions->create([
                 'url' => $receiver->urlFor($company->id),
-                'description' => 'Local webhook receiver (development tool)',
+                'description' => (string) __('developers::demo.subscription'),
                 'events' => WebhookEventTypes::all(),
             ], $user);
         });

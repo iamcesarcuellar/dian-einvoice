@@ -77,7 +77,7 @@ final class SendDeliveryEmail extends DeliveryJob
             $running->fill([
                 'finished_at' => Carbon::now(),
                 'outcome' => EmailOutcome::Abandoned,
-                'error' => 'No outcome was recorded: the worker stopped during the call.',
+                'error' => __('delivery::chain.interrupted'),
             ])->save();
 
             $pipeline->timeline($document, DocumentEventType::EmailAttempt, $this->payload($running, $pipeline));
@@ -90,7 +90,7 @@ final class SendDeliveryEmail extends DeliveryJob
             $package = $packages->build($document);
         } catch (Throwable $exception) {
             report($exception);
-            $pipeline->fail($document, DeliveryStep::Email, 'The zip could not be built: '.$exception->getMessage());
+            $pipeline->fail($document, DeliveryStep::Email, __('delivery::chain.zip_failed', ['error' => $exception->getMessage()]));
 
             return [null, new ChainFailure("The zip of {$document->full_number} could not be built.", previous: $exception)];
         }
@@ -170,7 +170,7 @@ final class SendDeliveryEmail extends DeliveryJob
             return null;
         }
 
-        $reason = sprintf('Attempt %d of %d: %s', $row->attempt, $pipeline->maxAttempts(), $row->error ?? $row->outcome->value ?? 'no outcome');
+        $reason = __('delivery::chain.attempt_failed', ['attempt' => $row->attempt, 'max' => $pipeline->maxAttempts(), 'error' => $row->error ?? $row->outcome->value ?? __('delivery::chain.no_outcome')]);
 
         $pipeline->timeline($document, DocumentEventType::EmailAttempt, $payload);
         $pipeline->fail($document, DeliveryStep::Email, $reason, $row->attempt);

@@ -29,7 +29,8 @@ import { useSessionStore } from '@/stores/session'
  * and certificate notices, the top customers and the latest activity. A company without invoices
  * gets an invitation to issue its first one instead.
  */
-const { t } = useI18n()
+// The charts draw their axes once: they are drawn again in a new language.
+const { t, locale } = useI18n()
 const session = useSessionStore()
 const { currentCompany, can } = useSession()
 
@@ -183,7 +184,7 @@ const kpis = computed(() => {
             <CardDescription>{{ t('dashboard.monthly.description') }}</CardDescription>
           </CardHeader>
           <CardContent>
-            <MonthlyChart :months="dashboard.monthly" />
+            <MonthlyChart :key="locale" :months="dashboard.monthly" />
           </CardContent>
         </Card>
 
@@ -195,7 +196,7 @@ const kpis = computed(() => {
             }}</CardDescription>
           </CardHeader>
           <CardContent class="grid gap-3">
-            <AgingChart :aging="dashboard.aging" />
+            <AgingChart :key="locale" :aging="dashboard.aging" />
             <RouterLink :to="{ name: 'receivables' }" class="w-fit text-xs font-medium text-primary hover:underline">{{
               t('dashboard.aging.open')
             }}</RouterLink>

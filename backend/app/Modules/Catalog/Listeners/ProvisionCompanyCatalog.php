@@ -14,25 +14,25 @@ use App\Modules\Reference\Enums\TaxType;
 use App\Modules\Reference\Enums\WithholdingType;
 
 /**
- * Every new company starts with the final consumer and the default taxes and withholdings.
- * The defaults are common rates; they can be deactivated but not deleted.
+ * Every new company starts with the final consumer and the default taxes and withholdings, named in the language of
+ * its documents (catalog::defaults). The defaults are common rates; they can be deactivated but not deleted.
  */
 final class ProvisionCompanyCatalog
 {
-    /** @var list<array{TaxType, string, string}> */
+    /** @var list<array{TaxType, string, string}> Type, the key of the name in catalog::defaults.taxes, and rate. */
     private const array TAXES = [
-        [TaxType::Iva, 'IVA 19 %', '19'],
-        [TaxType::Iva, 'IVA 5 %', '5'],
-        [TaxType::Iva, 'IVA 0 % (exempt)', '0'],
-        [TaxType::Inc, 'INC 8 %', '8'],
+        [TaxType::Iva, 'iva_19', '19'],
+        [TaxType::Iva, 'iva_5', '5'],
+        [TaxType::Iva, 'iva_0', '0'],
+        [TaxType::Inc, 'inc_8', '8'],
     ];
 
-    /** @var list<array{WithholdingType, string, string}> */
+    /** @var list<array{WithholdingType, string, string}> Type, the key of the name in catalog::defaults.withholdings, and rate. */
     private const array WITHHOLDINGS = [
-        [WithholdingType::ReteFuente, 'ReteFuente 2,5 % (purchases)', '2.5'],
-        [WithholdingType::ReteFuente, 'ReteFuente 4 % (services)', '4'],
-        [WithholdingType::ReteFuente, 'ReteFuente 11 % (fees)', '11'],
-        [WithholdingType::ReteIva, 'ReteIVA 15 %', '15'],
+        [WithholdingType::ReteFuente, 'rete_fuente_purchases', '2.5'],
+        [WithholdingType::ReteFuente, 'rete_fuente_services', '4'],
+        [WithholdingType::ReteFuente, 'rete_fuente_fees', '11'],
+        [WithholdingType::ReteIva, 'rete_iva', '15'],
     ];
 
     public function handle(CompanyCreated $event): void
@@ -52,12 +52,20 @@ final class ProvisionCompanyCatalog
             'is_system' => true,
         ]);
 
+        $language = $event->company->documentLanguage()->value;
+
         foreach (self::TAXES as [$type, $name, $rate]) {
-            Tax::forceCreate(['company_id' => $companyId, 'dian_code' => $type, 'name' => $name, 'rate' => $rate, 'is_system' => true]);
+            Tax::forceCreate(['company_id' => $companyId, 'dian_code' => $type, 'name' => self::name("taxes.{$name}", $language), 'rate' => $rate, 'is_system' => true]);
         }
 
         foreach (self::WITHHOLDINGS as [$type, $name, $rate]) {
-            Withholding::forceCreate(['company_id' => $companyId, 'dian_code' => $type, 'name' => $name, 'rate' => $rate, 'is_system' => true]);
+            Withholding::forceCreate(['company_id' => $companyId, 'dian_code' => $type, 'name' => self::name("withholdings.{$name}", $language), 'rate' => $rate, 'is_system' => true]);
         }
+    }
+
+    /** The name of a default tax or withholding, such as "taxes.iva_0", in the language of the company's documents. */
+    public static function name(string $key, ?string $language = null): string
+    {
+        return (string) __("catalog::defaults.{$key}", [], $language);
     }
 }

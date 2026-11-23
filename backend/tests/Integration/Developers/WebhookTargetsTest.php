@@ -77,7 +77,7 @@ final class WebhookTargetsTest extends IntegrationTestCase
             ->assertHeader('Content-Type', 'application/problem+json')
             ->assertJsonPath('status', 422)
             ->assertJsonPath('detail', 'The given data was invalid.')
-            ->assertJsonPath('errors.url', [WebhookSender::HTTPS_PORT_ONLY]);
+            ->assertJsonPath('errors.url', [__(WebhookSender::HTTPS_PORT_ONLY)]);
         $refused($api()->postJson('/api/v1/webhooks', ['url' => 'https://hooks.example.com:8443/dian', 'events' => ['invoice.issued']]));
         $saved = $this->text($api()->postJson('/api/v1/webhooks', ['url' => 'https://hooks.example.com:443/dian', 'events' => ['invoice.issued']])->assertCreated()->json('data.id'));
         $refused($api()->patchJson("/api/v1/webhooks/{$saved}", ['url' => 'https://hooks.example.com:8443/dian']));
@@ -85,7 +85,7 @@ final class WebhookTargetsTest extends IntegrationTestCase
 
         // ...and, for a subscription saved before the rule, before every attempt.
         $blocked = app(WebhookSender::class)->send('https://hooks.example.com:8443/dian', 'msg_synthetic', '{}', 'whsec_'.base64_encode(random_bytes(24)));
-        $this->assertSame([WebhookAttemptOutcome::Blocked, WebhookSender::HTTPS_PORT_ONLY], [$blocked->outcome, $blocked->error]);
+        $this->assertSame([WebhookAttemptOutcome::Blocked, __(WebhookSender::HTTPS_PORT_ONLY)], [$blocked->outcome, $blocked->error]);
 
         // The reference of the API says so, in its section on webhooks.
         $this->assertStringContainsString('in production, an https URL on port 443', (string) config('scramble.info.description'));

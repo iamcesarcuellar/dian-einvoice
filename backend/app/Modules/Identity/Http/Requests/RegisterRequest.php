@@ -2,6 +2,7 @@
 
 namespace App\Modules\Identity\Http\Requests;
 
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
@@ -29,7 +30,7 @@ final class RegisterRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return CompanyRules::attributes('company.');
+        return [...Translation::lines('identity::validation.attributes.register'), ...CompanyRules::attributes('company.')];
     }
 
     /**

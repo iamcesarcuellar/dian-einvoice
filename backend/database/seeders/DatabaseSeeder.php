@@ -12,6 +12,7 @@ use App\Modules\Dian\Simulator\DianSimulator;
 use App\Modules\Identity\Database\Seeders\DemoSeeder as IdentityDemoSeeder;
 use App\Support\Cloud\EmulatedCloud;
 use App\Support\Console\LocalOnly;
+use App\Support\Language;
 use App\Support\Outbox\OutboxPause;
 use App\Support\Storage\DocumentStorage;
 use Illuminate\Contracts\Queue\ClearableQueue;
@@ -32,6 +33,11 @@ class DatabaseSeeder extends Seeder
      * customer delivery, whose emails land in the local mailbox (in the emulated cloud, in SES). The
      * demo API keys and the webhook subscription to the local receiver come before them too, so their
      * events reach the receiver.
+     *
+     * Everything runs in the language of the demo, English here and Spanish in SpanishDemoSeeder (make
+     * demo LOCALE=es): the names of the items, taxes, withholdings, keys and users, the descriptions
+     * of the notes and the webhook subscription, the reasons, the invitation email, and the documents of
+     * both companies, issued in that language. The documents, the amounts and the dates are the same.
      */
     public function run(DocumentStorage $storage, DianSimulator $simulator, LocalMailbox $mailbox, EmulatedCloud $cloud): void
     {
@@ -47,10 +53,16 @@ class DatabaseSeeder extends Seeder
         $pause->pause(self::PAUSE_SECONDS);
 
         try {
-            $this->seed($storage, $simulator, $mailbox, $cloud);
+            $this->language()->run(fn () => $this->seed($storage, $simulator, $mailbox, $cloud));
         } finally {
             $pause->resume();
         }
+    }
+
+    /** The language of the demo data. */
+    protected function language(): Language
+    {
+        return Language::English;
     }
 
     private function seed(DocumentStorage $storage, DianSimulator $simulator, LocalMailbox $mailbox, EmulatedCloud $cloud): void

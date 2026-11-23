@@ -66,7 +66,7 @@ final class PrivateTargetsTest extends TestCase
     #[DataProvider('refusedUrls')]
     public function test_urls_that_reach_a_private_address_are_refused(string $url): void
     {
-        $this->assertNotNull(PrivateTargets::reason($url));
+        $this->assertNotNull(PrivateTargets::inspect($url)['reason']);
     }
 
     public function test_a_public_literal_is_allowed_and_pinned_to_its_address(): void

@@ -12,6 +12,7 @@ use App\Modules\Billing\Services\DocumentDrafts;
 use App\Modules\Billing\Services\DocumentPricing;
 use App\Modules\Billing\Services\IssueDocument;
 use App\Modules\Catalog\Database\Seeders\DemoSeeder as CatalogDemoSeeder;
+use App\Modules\Catalog\Listeners\ProvisionCompanyCatalog;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\Withholding;
@@ -89,20 +90,22 @@ final class DemoSeeder extends Seeder
         'member' => 'member@example.com',
     ];
 
-    private const string RETE_FUENTE_PURCHASES = 'ReteFuente 2,5 % (purchases)';
+    // The withholdings of the plans, by the key of their name in catalog::defaults.withholdings; the ReteICA is the
+    // one the Catalog demo seeder adds. Their names are in the language of the demo.
+    private const string RETE_FUENTE_PURCHASES = 'rete_fuente_purchases';
 
-    private const string RETE_FUENTE_SERVICES = 'ReteFuente 4 % (services)';
+    private const string RETE_FUENTE_SERVICES = 'rete_fuente_services';
 
-    private const string RETE_IVA = 'ReteIVA 15 %';
+    private const string RETE_IVA = 'rete_iva';
 
-    private const string RETE_ICA = CatalogDemoSeeder::RETE_ICA;
+    private const string RETE_ICA = 'rete_ica';
 
     /**
      * The invoices of each company, oldest first so their numbers follow their dates, then the
      * drafts. Each row: days before today and Colombian time of issue (null for drafts), customer
      * identification, credit days (null for cash), payment means, lines [item code, quantity,
-     * discount %] or free lines [null, quantity, discount %, description, unit price], withholding
-     * names, who issues it, and its settlement: null leaves it to TIMELINE or open, [days] is a
+     * discount %] or free lines [null, quantity, discount %, the key of its description in billing::demo,
+     * unit price], the withholdings by the keys above, who issues it, and its settlement: null leaves it to TIMELINE or open, [days] is a
      * payment in full that many days after the issue, [days, share] one of that share of its balance.
      *
      * Demo Comercial sells to 990000101 Cordillera Plata, 990000102 Tamarindo Azul (it withholds
@@ -200,7 +203,7 @@ final class DemoSeeder extends Seeder
             ], [self::RETE_FUENTE_PURCHASES], 'owner', null],
             // Drafts.
             [null, null, '990000101', 30, '42', [['P-001', '10', '10']], [self::RETE_FUENTE_PURCHASES], 'owner', null],
-            [null, null, 'US4400000108', null, '47', [[null, '1', '0', 'Export documentation handling', '350000'], ['P-006', '5', '0']], [], 'owner', null],
+            [null, null, 'US4400000108', null, '47', [[null, '1', '0', 'billing::demo.lines.export_documentation', '350000'], ['P-006', '5', '0']], [], 'owner', null],
         ],
         'services' => [
             // June.
@@ -244,27 +247,28 @@ final class DemoSeeder extends Seeder
      * What happens after the invoices besides their settlements; both run together in the order of
      * their moments (a balance depends on what came before it). Every row starts with the days
      * before today and the Colombian time (null for a draft). Notes: [..., 'note', position of the
-     * invoice, type, concept, description, lines, author], lines being 'all' for every line of the
-     * invoice, [item code, quantity, price factor] copying that invoice line with another quantity
-     * (and a share of its price), or [null, quantity, description, unit price] for a free line
-     * without tax; a note takes the withholdings of its invoice. Payments: [..., 'payment', key,
-     * payment means, reference, [[position of the invoice, 'full' or a share of its balance], ...],
-     * author]. Voids: [..., 'void', key of the payment, reason, author].
+     * invoice, type, concept, the key of its description in billing::demo, lines, author], lines
+     * being 'all' for every line of the invoice, [item code, quantity, price factor] copying that
+     * invoice line with another quantity (and a share of its price), or [null, quantity, the key of
+     * its description, unit price] for a free line without tax; a note takes the withholdings of its
+     * invoice. Payments: [..., 'payment', key, payment means, reference, [[position of the invoice,
+     * 'full' or a share of its balance], ...], author]. Voids: [..., 'void', key of the payment, the
+     * key of its reason, author]. The texts are in the language of the demo.
      */
     private const array TIMELINE = [
         'commerce' => [
-            [70, '10:30', 'note', 20, 'credit_note', '3', 'Discount of 10 % on the twenty-five packs of paper, agreed for a late delivery.', [['P-002', '25', '0.10']], 'owner'],
-            [35, '09:15', 'note', 30, 'credit_note', '2', 'The invoice was issued to the wrong customer, so it is voided in full.', 'all', 'member'],
-            [29, '10:30', 'note', 31, 'credit_note', '1', 'Return of one office chair and five packs of paper that arrived damaged.', [['P-001', '1', '1'], ['P-002', '5', '1']], 'owner'],
-            [15, '15:20', 'note', 29, 'debit_note', '1', 'Late payment interest: the invoice was paid ten days after its due date.', [[null, '1', 'Late payment interest, ten days past the due date', '38500']], 'admin'],
+            [70, '10:30', 'note', 20, 'credit_note', '3', 'billing::demo.notes.paper_discount', [['P-002', '25', '0.10']], 'owner'],
+            [35, '09:15', 'note', 30, 'credit_note', '2', 'billing::demo.notes.wrong_customer', 'all', 'member'],
+            [29, '10:30', 'note', 31, 'credit_note', '1', 'billing::demo.notes.damaged_return', [['P-001', '1', '1'], ['P-002', '5', '1']], 'owner'],
+            [15, '15:20', 'note', 29, 'debit_note', '1', 'billing::demo.notes.late_interest', [[null, '1', 'billing::demo.lines.late_interest', '38500']], 'admin'],
             [9, '16:30', 'payment', 'returned', '20', 'CHK-0004471', [[27, 'full']], 'admin'],
-            [8, '18:10', 'void', 'returned', 'The bank returned the check for insufficient funds.', 'owner'],
+            [8, '18:10', 'void', 'returned', 'billing::demo.voids.returned_check', 'owner'],
             [4, '10:00', 'payment', 'split', '47', 'TRF-0101877', [[28, 'full'], [36, 'full']], 'admin'],
-            [null, null, 'note', 39, 'credit_note', '1', 'Return of one office chair that the customer did not accept on delivery.', [['P-001', '1', '1']], 'member'],
+            [null, null, 'note', 39, 'credit_note', '1', 'billing::demo.notes.chair_refused', [['P-001', '1', '1']], 'member'],
         ],
         'services' => [
-            [66, '16:20', 'note', 7, 'credit_note', '1', 'Five fewer guests than the forty invoiced attended the corporate lunch.', [['S-108', '5', '1']], 'owner'],
-            [35, '11:40', 'note', 10, 'credit_note', '3', 'Rebate of 10 % on the consulting hours, agreed after the review of the project.', [['S-101', '12', '0.10']], 'owner'],
+            [66, '16:20', 'note', 7, 'credit_note', '1', 'billing::demo.notes.fewer_guests', [['S-108', '5', '1']], 'owner'],
+            [35, '11:40', 'note', 10, 'credit_note', '3', 'billing::demo.notes.consulting_rebate', [['S-101', '12', '0.10']], 'owner'],
         ],
     ];
 
@@ -378,9 +382,9 @@ final class DemoSeeder extends Seeder
                 'payment_means_code' => $means,
                 'due_date' => $creditDays === null ? null : $issueDay->copy()->addDays($creditDays)->toDateString(),
                 'lines' => array_map(fn (array $line): array => $line[0] === null
-                    ? ['description' => $line[3], 'unit_code' => '94', 'quantity' => $line[1], 'discount_rate' => $line[2], 'unit_price' => $line[4], 'tax_id' => null]
+                    ? ['description' => (string) __($line[3]), 'unit_code' => '94', 'quantity' => $line[1], 'discount_rate' => $line[2], 'unit_price' => $line[4], 'tax_id' => null]
                     : ['item_id' => $this->idOf($items, $line[0]), 'quantity' => $line[1], 'discount_rate' => $line[2]], $lines),
-                'withholding_ids' => array_map(fn (string $name): string => $this->idOf($withholdings, $name), $withholdingNames),
+                'withholding_ids' => array_map(fn (string $name): string => $this->idOf($withholdings, $this->withholding($name)), $withholdingNames),
             ], $user);
 
             $created[$position] = $document->id;
@@ -485,11 +489,11 @@ final class DemoSeeder extends Seeder
         $note = $drafts->create(DocumentType::from($type), [
             'related_document_id' => $invoice->id,
             'reason_code' => $concept,
-            'reason_text' => $description,
+            'reason_text' => (string) __($description),
             'lines' => $lines === 'all'
                 ? $invoice->lines->map(fn (DocumentLine $line): array => $this->copyLine($line, (string) $line->quantity, '1'))->all()
                 : array_map(fn (array $line): array => $line[0] === null
-                    ? ['description' => $line[2], 'unit_code' => '94', 'quantity' => $line[1], 'unit_price' => $line[3], 'discount_rate' => '0', 'tax_id' => null]
+                    ? ['description' => (string) __($line[2]), 'unit_code' => '94', 'quantity' => $line[1], 'unit_price' => $line[3], 'discount_rate' => '0', 'tax_id' => null]
                     : $this->copyLine($invoice->lines->firstWhere('item_id', $this->idOf($items, $line[0])), $line[1], $line[2]), $lines),
             'withholding_ids' => array_values(array_filter($invoice->withholdings->map(fn (DocumentWithholding $withholding): ?string => $withholding->withholding_id)->all())),
         ], $user);
@@ -559,8 +563,14 @@ final class DemoSeeder extends Seeder
         [, $key, $reason, $author] = $step;
 
         Carbon::setTestNow($at);
-        ($this->voidPayment)($payments[$key], $reason, $users[$author]);
+        ($this->voidPayment)($payments[$key], (string) __($reason), $users[$author]);
         Carbon::setTestNow($this->clock);
+    }
+
+    /** The name of a withholding of the plans, by its key, in the language of the demo. */
+    private function withholding(string $key): string
+    {
+        return $key === self::RETE_ICA ? CatalogDemoSeeder::reteIca() : ProvisionCompanyCatalog::name("withholdings.{$key}");
     }
 
     /** A SYNTHETIC bank reference for a settlement: transfers, deposits and checks carry one. */

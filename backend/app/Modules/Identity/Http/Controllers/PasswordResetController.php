@@ -21,10 +21,10 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 final class PasswordResetController
 {
     /** The same answer, every time: a link was sent if the address has an account. */
-    public const string LINK_SENT = 'If an account uses this address, a link to choose a new password is on its way. It works once, for 60 minutes.';
+    public const string LINK_SENT = 'identity::errors.link_sent';
 
     /** The same answer for an unknown address, a wrong, used or expired token. */
-    public const string INVALID_LINK = 'This password reset link is no longer valid: it was used, it expired or it belongs to another address. Ask for a new one.';
+    public const string INVALID_LINK = 'identity::errors.invalid_link';
 
     /**
      * Ask for a link to choose a new password. Answers 202 with the same message whether or not
@@ -34,7 +34,7 @@ final class PasswordResetController
     {
         SendPasswordResetLink::dispatch($request->email());
 
-        return response()->json(['data' => ['message' => self::LINK_SENT]], 202);
+        return response()->json(['data' => ['message' => __(self::LINK_SENT)]], 202);
     }
 
     /**
@@ -51,9 +51,9 @@ final class PasswordResetController
         });
 
         if ($status !== Password::PASSWORD_RESET) {
-            throw new UnprocessableEntityHttpException(self::INVALID_LINK);
+            throw new UnprocessableEntityHttpException(__(self::INVALID_LINK));
         }
 
-        return response()->json(['data' => ['message' => 'Your password was changed. Sign in with it.']]);
+        return response()->json(['data' => ['message' => __('identity::errors.password_changed')]]);
     }
 }

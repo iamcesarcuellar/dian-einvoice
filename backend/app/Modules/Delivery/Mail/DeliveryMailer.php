@@ -65,23 +65,29 @@ final class DeliveryMailer
 
             return new SendResult(EmailOutcome::Sent, $this->elapsed($started), messageId: $sent?->getMessageId());
         } catch (RfcComplianceException $exception) {
-            return new SendResult(EmailOutcome::Rejected, $this->elapsed($started), error: $this->reason('The address is not valid', $exception));
+            return new SendResult(EmailOutcome::Rejected, $this->elapsed($started), error: $this->reason('invalid_address', $exception));
         } catch (UnexpectedResponseException $exception) {
             $permanent = $exception->getCode() >= 500 && $exception->getCode() < 600;
 
-            return new SendResult($permanent ? EmailOutcome::Rejected : EmailOutcome::Failed, $this->elapsed($started), error: $this->reason("The mail server returned {$exception->getCode()}", $exception));
+            return new SendResult($permanent ? EmailOutcome::Rejected : EmailOutcome::Failed, $this->elapsed($started), error: $this->reason('server_returned', $exception, ['code' => $exception->getCode()]));
         } catch (TransportExceptionInterface $exception) {
-            return new SendResult(EmailOutcome::Failed, $this->elapsed($started), error: $this->reason('The mail server could not be reached', $exception));
+            return new SendResult(EmailOutcome::Failed, $this->elapsed($started), error: $this->reason('unreachable', $exception));
         } catch (Throwable $exception) {
             report($exception);
 
-            return new SendResult(EmailOutcome::Rejected, $this->elapsed($started), error: $this->reason('Unexpected error', $exception));
+            return new SendResult(EmailOutcome::Rejected, $this->elapsed($started), error: $this->reason('unexpected', $exception));
         }
     }
 
-    private function reason(string $what, Throwable $exception): string
+    /**
+     * Why the email did not go, in the language of the company's documents (delivery::chain.mailer), with the
+     * message of the mail server or of the transport.
+     *
+     * @param  array<string, int|string>  $replace
+     */
+    private function reason(string $what, Throwable $exception, array $replace = []): string
     {
-        return Str::limit($what.': '.trim(preg_replace('/\s+/', ' ', $exception->getMessage()) ?? ''), 480);
+        return Str::limit(__("delivery::chain.mailer.{$what}", [...$replace, 'error' => trim(preg_replace('/\s+/', ' ', $exception->getMessage()) ?? '')]), 480);
     }
 
     private function elapsed(int|float $started): int

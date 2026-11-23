@@ -6,6 +6,7 @@ use App\Modules\Identity\Enums\InvitationStatus;
 use App\Modules\Identity\Http\Resources\UserResource;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Team\TeamInvitations;
+use App\Support\Translation;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -60,7 +61,7 @@ final class InvitationAcceptanceController
     public function accept(Request $request, #[SensitiveParameter] string $token, TeamInvitations $invitations): JsonResponse
     {
         if (! $request->hasSession()) {
-            throw new BadRequestHttpException('Invitations are accepted in the web app.');
+            throw new BadRequestHttpException(__('identity::errors.invitations.web_app_only'));
         }
 
         $invitation = $invitations->findByToken($token) ?? throw new NotFoundHttpException;
@@ -70,11 +71,11 @@ final class InvitationAcceptanceController
             $user = Auth::guard('web')->user();
 
             if (! $user instanceof User) {
-                throw new AuthenticationException("Sign in as {$invitation->email} to accept this invitation.");
+                throw new AuthenticationException(__('identity::errors.invitations.sign_in_as', ['email' => $invitation->email]));
             }
 
             if (Str::lower($user->email) !== $invitation->email) {
-                throw new AccessDeniedHttpException("This invitation is for {$invitation->email}. Sign out, then sign in as {$invitation->email} to accept it.");
+                throw new AccessDeniedHttpException(__('identity::errors.invitations.other_user', ['email' => $invitation->email]));
             }
 
             $invitations->acceptAs($invitation, $user);
@@ -83,7 +84,7 @@ final class InvitationAcceptanceController
             $account = $request->validate([
                 'name' => ['required', 'string', 'max:120'],
                 'password' => ['required', 'string', 'confirmed', Password::defaults()],
-            ]);
+            ], [], Translation::lines('identity::validation.attributes.invitation'));
 
             $user = $invitations->acceptAsNewUser($invitation, $account['name'], $account['password']);
 

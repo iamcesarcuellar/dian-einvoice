@@ -47,7 +47,7 @@ final class DianSimulatorController
             $mode = $request->mode();
 
             if ($mode['mode'] === 'reject' && ! in_array($mode['rule'], array_column($this->simulator->rules(), 'code'), true)) {
-                throw ValidationException::withMessages(['rule' => ['The local simulator does not implement this rule.']]);
+                throw ValidationException::withMessages(['rule' => [__('dian::errors.unknown_rule')]]);
             }
 
             return ['mode' => $this->simulator->setMode($this->nit(), $mode)];
@@ -79,7 +79,7 @@ final class DianSimulatorController
         try {
             return response()->json(['data' => $callback()]);
         } catch (SimulatorUnavailable $exception) {
-            throw new ServiceUnavailableHttpException(null, 'The local DIAN simulator is not responding. Start it with make up.', $exception);
+            throw new ServiceUnavailableHttpException(null, __('dian::errors.simulator_down'), $exception);
         }
     }
 }

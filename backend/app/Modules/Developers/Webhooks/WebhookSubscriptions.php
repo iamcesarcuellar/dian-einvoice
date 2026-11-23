@@ -107,13 +107,13 @@ final class WebhookSubscriptions
             $delivery = WebhookDelivery::query()->with('subscription')->whereKey($delivery->getKey())->lockForUpdate()->firstOrFail();
 
             if ($delivery->status === WebhookDeliveryStatus::Pending) {
-                throw new ConflictHttpException('This delivery is still in progress.');
+                throw new ConflictHttpException(__('developers::errors.delivery_running'));
             }
 
             $subscription = $delivery->subscription ?? throw new LogicException("Delivery {$delivery->id} has no subscription.");
 
             if (! $subscription->is_active && $delivery->event_type !== WebhookEventTypes::TEST) {
-                throw new ConflictHttpException('The subscription is switched off. Activate it first.');
+                throw new ConflictHttpException(__('developers::errors.subscription_off'));
             }
 
             $delivery->fill([

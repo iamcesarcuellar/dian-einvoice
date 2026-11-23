@@ -21,9 +21,4 @@ final class WithholdingRequest extends RateRequest
     {
         return $this->route('withholding');
     }
-
-    protected function defaultsName(): string
-    {
-        return 'Default withholdings';
-    }
 }

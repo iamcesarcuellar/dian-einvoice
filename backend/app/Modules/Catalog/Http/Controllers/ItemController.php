@@ -54,7 +54,7 @@ final class ItemController
      */
     public function destroy(Item $item): Response
     {
-        Deletion::deleteOrConflict($item, 'This item is used by documents. Deactivate it instead.');
+        Deletion::deleteOrConflict($item, __('catalog::errors.item_in_use'));
 
         return response()->noContent();
     }

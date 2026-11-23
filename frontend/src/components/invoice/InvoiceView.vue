@@ -266,7 +266,7 @@ function eventDetail(event: DocumentEvent): string | null {
     case 'resend_requested':
       return payload.cufe_changed === true ? t('invoices.view.events.cufeChanged') : null
     case 'note_accepted':
-      return t('notes.view.events.balance', { status: t(`notes.balanceStatus.${payloadText(payload.balance_status, 'open')}`) })
+      return t('notes.view.events.balance', { status: t(`status.balance.${payloadText(payload.balance_status, 'open')}`) })
     case 'payment_applied':
     case 'payment_released':
       return t('invoices.payments.events.balance', { amount: formatMoney(payloadText(payload.balance, '0')) })

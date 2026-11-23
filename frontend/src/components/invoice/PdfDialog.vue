@@ -68,20 +68,21 @@ onBeforeUnmount(() => {
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent class="grid max-h-[94vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-5xl">
+    <!-- As tall as the screen allows, with a margin of 1 rem above and below: the viewer takes every pixel the title and the buttons leave. -->
+    <DialogContent class="grid h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-5xl">
       <DialogHeader>
         <DialogTitle>{{ t('invoices.delivery.pdfTitle', { number: invoice.full_number }) }}</DialogTitle>
         <DialogDescription>{{ t('invoices.delivery.pdfDescription') }}</DialogDescription>
       </DialogHeader>
 
-      <div class="min-h-0">
+      <div class="flex min-h-0 flex-col gap-3">
         <FormError :error="error" />
         <p v-if="isLoading" class="text-muted-foreground">{{ t('common.loading') }}</p>
         <iframe
           v-else-if="viewerUrl"
           :src="viewerUrl"
           :title="t('invoices.delivery.pdfFrame', { number: invoice.full_number })"
-          class="h-[72vh] w-full rounded-lg border bg-muted/40"
+          class="min-h-0 w-full flex-1 rounded-lg border bg-muted/40"
         />
       </div>
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ThemeChoice } from '@/composables/useTheme'
-import { InfoIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon, UserRoundIcon } from '@lucide/vue'
+import { InfoIcon, LanguagesIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon, UserRoundIcon } from '@lucide/vue'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -21,11 +21,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useSession } from '@/composables/useSession'
 import { useTheme } from '@/composables/useTheme'
+import { LANGUAGES, setLanguage } from '@/i18n'
 import { queryKeys } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
-/** The account menu: profile, theme (saved in this browser), About and sign out. */
-const { t } = useI18n()
+/** The account menu: profile, theme and language (both saved in this browser), About and sign out. */
+const { t, locale } = useI18n()
 const router = useRouter()
 const queryClient = useQueryClient()
 const session = useSessionStore()
@@ -52,6 +53,12 @@ const initials = computed(() =>
 function setTheme(value: unknown): void {
   if (value === 'light' || value === 'dark' || value === 'auto') {
     choice.value = value
+  }
+}
+
+function chooseLanguage(value: unknown): void {
+  if (value === 'en' || value === 'es') {
+    setLanguage(value)
   }
 }
 
@@ -93,6 +100,14 @@ const { mutate: logout, isPending } = useMutation({
         <DropdownMenuRadioItem v-for="theme in themes" :key="theme.value" :value="theme.value">
           <component :is="theme.icon" class="text-muted-foreground" aria-hidden="true" />
           {{ t(`user.themes.${theme.value}`) }}
+        </DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">{{ t('user.language') }}</DropdownMenuLabel>
+      <DropdownMenuRadioGroup :model-value="locale" @update:model-value="chooseLanguage">
+        <DropdownMenuRadioItem v-for="language in LANGUAGES" :key="language" :value="language" :lang="language">
+          <LanguagesIcon class="text-muted-foreground" aria-hidden="true" />
+          {{ t(`languages.${language}`) }}
         </DropdownMenuRadioItem>
       </DropdownMenuRadioGroup>
       <DropdownMenuSeparator />

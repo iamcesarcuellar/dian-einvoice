@@ -115,7 +115,7 @@ final class TransmitDocument extends ChainStep
                     'finished_at' => Carbon::now(),
                     'outcome' => TransmissionOutcome::Abandoned,
                     'may_have_arrived' => $running->operation === DianGateway::SEND_BILL_SYNC,
-                    'error' => 'No response was recorded: the worker stopped during the call.',
+                    'error' => __('dian::chain.interrupted'),
                 ])->save();
 
                 $pipeline->timeline($document, DocumentEventType::TransmissionAttempt, $this->payload($running, $pipeline));
@@ -147,7 +147,7 @@ final class TransmitDocument extends ChainStep
         try {
             $registry->ensureRegistered($currentCompany->company());
         } catch (SimulatorUnavailable $exception) {
-            return new GatewayCall(DianGateway::SEND_BILL_SYNC, TransmissionOutcome::Refused, 0, error: 'The company could not be registered with the local simulator: '.($exception->getPrevious()?->getMessage() ?? $exception->getMessage()));
+            return new GatewayCall(DianGateway::SEND_BILL_SYNC, TransmissionOutcome::Refused, 0, error: __('dian::chain.registration_failed', ['error' => $exception->getPrevious()?->getMessage() ?? $exception->getMessage()]));
         }
 
         $zip = $package->zip((string) $document->dian_xml_file_name, $storage->get((string) $document->xml_path));
@@ -305,7 +305,7 @@ final class TransmitDocument extends ChainStep
      */
     private function failNow(Document $document, DianTransmission $row, array $payload, ElectronicDocumentPipeline $pipeline): array
     {
-        $reason = sprintf('Attempt %d of %d: %s', $row->attempt, $pipeline->maxAttempts(), $row->error ?? $row->outcome->value ?? 'no response');
+        $reason = __('dian::chain.attempt_failed', ['attempt' => $row->attempt, 'max' => $pipeline->maxAttempts(), 'error' => $row->error ?? $row->outcome->value ?? __('dian::chain.no_response')]);
 
         $pipeline->timeline($document, DocumentEventType::TransmissionAttempt, $payload);
         $pipeline->fail($document, 'transmit', $reason, $row->attempt);

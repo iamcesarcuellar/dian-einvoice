@@ -55,13 +55,13 @@ final class HandleIdempotency
         $key = trim((string) $request->headers->get(self::HEADER));
 
         if ($key === '' || strlen($key) > 255 || preg_match('/[^\x21-\x7E]/', $key) === 1) {
-            throw new BadRequestHttpException('Idempotency-Key must be 1 to 255 visible ASCII characters, such as a UUID.');
+            throw new BadRequestHttpException(__('developers::errors.idempotency_key'));
         }
 
         [$outcome, $row] = $this->store->reserve($this->currentCompany->id(), $key, IdempotencyFingerprint::of($request->method(), $request->getPathInfo(), (string) $request->getContent()), $request->method(), $request->getPathInfo());
 
         return match ($outcome) {
-            'mismatch' => ProblemDetails::response(422, 'This Idempotency-Key was already used with another request (method, path or body). Use a new key for a new request.'),
+            'mismatch' => ProblemDetails::response(422, __('developers::errors.idempotency_mismatch')),
             'in_progress' => $this->inProgress(),
             'replay' => $this->replay($row ?? throw new LogicException('A kept answer has its stored row.')),
             default => $this->run($request, $next, $this->reservedId($row)),
@@ -118,7 +118,7 @@ final class HandleIdempotency
 
     private function inProgress(): Response
     {
-        return ProblemDetails::response(409, 'A request with this Idempotency-Key is still in progress. Wait for it to finish, then repeat it to get its response.');
+        return ProblemDetails::response(409, __('developers::errors.idempotency_running'));
     }
 
     /** The id of the row a reservation stored; the columns of a row read as text. */

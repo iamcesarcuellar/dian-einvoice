@@ -53,7 +53,7 @@ This page lists what the project does not do, or does only in part, as it stands
   - simplified SVG
   - fixed margins and page breaks
   - no PDF/UA or PDF/A
-- Texts are in English. The 2 MB limit in section 9.1 is checked, but the demo never reaches it.
+- The PDF and the email come in the company's document language, English or Spanish, and in no other. The 2 MB limit in section 9.1 is checked, but the demo never reaches it.
 - Email is delivered at least once. If a worker or a function dies after the mail server took the email, the email is sent again.
 - SPF, DKIM and DMARC are DNS records of the prod stage's domain identity, which the domain owner publishes. No hosted zone is managed here (see [Edge](#edge), below).
 
@@ -385,6 +385,6 @@ The network and database stacks exist in the prod stage only, and are never depl
 - Each screenshot is cut where the script finds the end of a card or a table row, so their heights differ.
 - The recovered invoice's screenshot starts with a whole timeline entry rather than the top of the card. A timeline with six failed attempts, the retry and the delivery is taller than a screen.
 - In the GIFs, a dialog's backdrop is a flat shade instead of the app's blur, which comes out in blotches with a GIF's 256 colors. The app and the PNG screenshots keep the blur.
-- make screenshots runs its browser in British English, so the native date field reads day, month and year.
+- make screenshots runs its browser in British English for docs/assets and in Colombian Spanish for docs/assets/es, so the native date field reads day, month and year in both.
 - A company's default taxes and withholdings are named in the same notation as the rates on screen, such as "IVA 19 %" and "ReteFuente 2,5 % (purchases)". A company created by an earlier version keeps its earlier names ("IVA 19%"), which an owner can edit. make seed loads the demo data with the current names.
 - The DIAN toolbox stays out of git, and most of its examples name real companies. make dian-toolbox downloads it, with its SHA-256, when make dian-schematron needs it. The third-party files the repository does keep, such as the official schemas, are listed in NOTICE.

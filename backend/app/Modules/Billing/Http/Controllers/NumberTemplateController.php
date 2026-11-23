@@ -90,7 +90,7 @@ final class NumberTemplateController
     public function destroy(NumberTemplate $numberTemplate): Response
     {
         DB::transaction(function () use ($numberTemplate): void {
-            Deletion::deleteOrConflict($numberTemplate, 'This numbering is used by documents. Deactivate it instead.');
+            Deletion::deleteOrConflict($numberTemplate, __('billing::errors.numbering.in_use'));
             $this->taxpayerChanged();
         });
 

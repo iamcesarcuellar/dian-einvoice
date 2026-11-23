@@ -8,6 +8,9 @@
 //
 // Those paths serve the local stack. The emulated cloud uses the same paths under /cloud, with records of its own
 // (src/stacks.ts): /cloud/WcfDianCustomerServices.svc, /cloud/admin/..., /cloud/webhook-receiver/{company}.
+//
+// Like the DIAN's web service, it responds in Spanish: the rules' messages (src/rules.ts) and its own texts, from
+// SOAP faults to admin API errors. Codes and log lines stay in English.
 import { timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -93,7 +96,7 @@ function readBody(request: IncomingMessage): Promise<string> {
       size += chunk.length
 
       if (size > MAX_BODY) {
-        reject(new HttpError(413, 'The request is too large.'))
+        reject(new HttpError(413, 'La petición es demasiado grande.'))
         request.destroy()
 
         return
@@ -122,7 +125,7 @@ function jsonObject(text: string): Record<string, unknown> {
   }
 
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new HttpError(400, 'The body must be a JSON object.')
+    throw new HttpError(400, 'El cuerpo debe ser un objeto JSON.')
   }
 
   return parsed as Record<string, unknown>
@@ -291,7 +294,7 @@ async function sendBillSync(stack: Stack, request: SoapRequest, mode: Mode | nul
   const parsed = parseXml(xml)
 
   if (!parsed) {
-    return { result: unreadable([finding('ZB01', 'the XML is not well formed')]), outcome: 'rejected', document: null, rules: ['ZB01'] }
+    return { result: unreadable([finding('ZB01', 'el XML no está bien formado')]), outcome: 'rejected', document: null, rules: ['ZB01'] }
   }
 
   const invoice = readDocument(parsed)
@@ -299,7 +302,7 @@ async function sendBillSync(stack: Stack, request: SoapRequest, mode: Mode | nul
   const kind = invoice.kind ?? 'invoice'
 
   if (!key || !invoice.number || !invoice.supplierNit || !invoice.issueDate || !invoice.customerId || invoice.ublVersion !== 'UBL 2.1') {
-    return { result: unreadable([finding('ZB01', 'CUFE or CUDE, number, issue date, issuer and customer are required, and UBLVersionID must be UBL 2.1')]), outcome: 'rejected', document: invoice.number ?? null, rules: ['ZB01'] }
+    return { result: unreadable([finding('ZB01', 'el CUFE o el CUDE, el número, la fecha de emisión, el emisor y el adquiriente son obligatorios, y UBLVersionID debe ser UBL 2.1')]), outcome: 'rejected', document: invoice.number ?? null, rules: ['ZB01'] }
   }
 
   const badNames = nameFindings(request.fileName, xmlFileName, kind, invoice.supplierNit)
@@ -399,7 +402,7 @@ async function soap(stack: Stack, request: IncomingMessage, response: ServerResp
   const envelope = parseRequest(await readBody(request))
 
   if (!envelope || (envelope.operation !== 'SendBillSync' && envelope.operation !== 'GetStatus')) {
-    soapResponse(response, 400, faultEnvelope('Sender', envelope ? `The local DIAN simulator does not implement ${envelope.operation}; it offers SendBillSync and GetStatus.` : 'The request is not a SOAP 1.2 envelope.'))
+    soapResponse(response, 400, faultEnvelope('Sender', envelope ? `El simulador local de la DIAN no implementa ${envelope.operation}; ofrece SendBillSync y GetStatus.` : 'La petición no es un sobre SOAP 1.2.'))
     log(stack, { operation: envelope?.operation ?? 'unknown', nit: null, document: null, result: 'invalid_request', status_code: null, duration_ms: elapsed(), mode: null, rules: [] })
 
     return
@@ -415,7 +418,7 @@ async function soap(stack: Stack, request: IncomingMessage, response: ServerResp
 
   const fail = (how: 'error_500' | 'reset', label: string): void => {
     if (how === 'error_500') {
-      soapResponse(response, 500, faultEnvelope('Receiver', `Simulated internal error of the local DIAN simulator (${label}).`))
+      soapResponse(response, 500, faultEnvelope('Receiver', `Error interno forzado en el simulador local de la DIAN (${label}).`))
     } else {
       request.socket.destroy()
     }
@@ -461,12 +464,12 @@ async function soap(stack: Stack, request: IncomingMessage, response: ServerResp
 
 function asRanges(value: unknown): Range[] {
   if (!Array.isArray(value)) {
-    throw new HttpError(422, 'ranges must be a list.')
+    throw new HttpError(422, 'ranges debe ser una lista.')
   }
 
   return value.map((item: Record<string, unknown>) => {
     if (typeof item?.resolution_number !== 'string' || typeof item.technical_key !== 'string' || !Number.isInteger(item.from) || !Number.isInteger(item.to)) {
-      throw new HttpError(422, 'Each range needs resolution_number, from, to and technical_key.')
+      throw new HttpError(422, 'Cada rango necesita resolution_number, from, to y technical_key.')
     }
 
     return {
@@ -498,13 +501,13 @@ function asMode(body: Record<string, unknown>): Mode {
   const name = body.mode as ModeName
 
   if (!MODE_NAMES.includes(name)) {
-    throw new HttpError(422, `mode must be one of ${MODE_NAMES.join(', ')}.`)
+    throw new HttpError(422, `mode debe ser uno de estos: ${MODE_NAMES.join(', ')}.`)
   }
 
   const count = body.count === null || body.count === undefined ? null : Number(body.count)
 
   if (count !== null && (!Number.isInteger(count) || count < 1)) {
-    throw new HttpError(422, 'count must be a whole number of requests, 1 or more.')
+    throw new HttpError(422, 'count debe ser un número entero de peticiones, 1 o más.')
   }
 
   const mode: Mode = { ...normalMode(), mode: name, remaining: name === 'normal' ? null : count }
@@ -513,7 +516,7 @@ function asMode(body: Record<string, unknown>): Mode {
     const chosen = typeof body.rule === 'string' ? rule(body.rule) : undefined
 
     if (!chosen || chosen.kind !== 'rejection') {
-      throw new HttpError(422, 'rule must be the code of a rejection rule the simulator implements.')
+      throw new HttpError(422, 'rule debe ser el código de una regla de rechazo que el simulador implemente.')
     }
 
     mode.rule = chosen.code
@@ -523,7 +526,7 @@ function asMode(body: Record<string, unknown>): Mode {
     const delay = Number(body.delay_ms)
 
     if (!Number.isInteger(delay) || delay < 0 || delay > 600_000) {
-      throw new HttpError(422, 'delay_ms must be between 0 and 600000.')
+      throw new HttpError(422, 'delay_ms debe estar entre 0 y 600000.')
     }
 
     mode.delay_ms = delay
@@ -533,7 +536,7 @@ function asMode(body: Record<string, unknown>): Mode {
     const rate = Number(body.failure_rate)
 
     if (!Number.isInteger(rate) || rate < 1 || rate > 100) {
-      throw new HttpError(422, 'failure_rate must be a percentage between 1 and 100.')
+      throw new HttpError(422, 'failure_rate debe ser un porcentaje entre 1 y 100.')
     }
 
     mode.failure_rate = rate
@@ -563,7 +566,7 @@ function publicTaxpayer(taxpayer: Taxpayer): unknown {
 
 async function admin(stack: Stack, request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
   if (!validToken(request.headers['x-simulator-token'])) {
-    throw new HttpError(401, 'Send the admin token in X-Simulator-Token.')
+    throw new HttpError(401, 'Envía el token de administración en X-Simulator-Token.')
   }
 
   const method = request.method ?? 'GET'
@@ -582,7 +585,7 @@ async function admin(stack: Stack, request: IncomingMessage, response: ServerRes
 
   if (resource === 'taxpayers' && id) {
     if (!/^\d{5,15}$/.test(id)) {
-      throw new HttpError(422, 'The NIT has only digits, without the check digit.')
+      throw new HttpError(422, 'El NIT lleva solo dígitos, sin el dígito de verificación.')
     }
 
     if (method === 'PUT') {
@@ -593,7 +596,7 @@ async function admin(stack: Stack, request: IncomingMessage, response: ServerRes
     }
 
     if (method === 'GET') {
-      return state.taxpayers[id] ? json(response, 200, publicTaxpayer(state.taxpayers[id])) : json(response, 404, { error: 'Unknown taxpayer.' })
+      return state.taxpayers[id] ? json(response, 200, publicTaxpayer(state.taxpayers[id])) : json(response, 404, { error: 'Contribuyente desconocido.' })
     }
 
     if (method === 'DELETE') {
@@ -655,7 +658,7 @@ async function admin(stack: Stack, request: IncomingMessage, response: ServerRes
     return json(response, 200, { reset: true })
   }
 
-  throw new HttpError(404, 'Unknown admin endpoint.')
+  throw new HttpError(404, 'Ruta de administración desconocida.')
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -667,7 +670,7 @@ function health(stack: Stack): unknown {
 
   return {
     status: 'ok',
-    service: 'Local DIAN simulator: a development tool, not the DIAN',
+    service: 'Simulador local de la DIAN: una herramienta de desarrollo, no la DIAN',
     stack: stack.name,
     taxpayers: Object.keys(state.taxpayers).length,
     documents: Object.keys(state.documents).length,
@@ -705,12 +708,12 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     }
 
     response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
-    response.end('Local DIAN simulator (development tool, not the DIAN). POST SOAP 1.2 requests for SendBillSync or GetStatus here.\n')
+    response.end('Simulador local de la DIAN (herramienta de desarrollo, no es la DIAN). Envía aquí peticiones SOAP 1.2 de SendBillSync o GetStatus.\n')
 
     return
   }
 
-  throw new HttpError(404, 'Not found.')
+  throw new HttpError(404, 'No encontrado.')
 }
 
 const server = createServer((request, response) => {
@@ -723,7 +726,7 @@ const server = createServer((request, response) => {
 
     if (!response.headersSent && !response.destroyed) {
       // A 500 says nothing of the code; a 4xx says what to fix.
-      json(response, status, { error: status === 500 ? 'Unexpected error of the local DIAN simulator.' : (error instanceof Error ? error.message : 'Bad request.') })
+      json(response, status, { error: status === 500 ? 'Error inesperado del simulador local de la DIAN.' : (error instanceof Error ? error.message : 'Petición inválida.') })
     }
   })
 })

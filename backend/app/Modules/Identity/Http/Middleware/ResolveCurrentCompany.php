@@ -38,11 +38,11 @@ final class ResolveCurrentCompany
 
         if ($apiKey !== null) {
             if (is_string($companyId) && $companyId !== '' && Str::lower($companyId) !== $apiKey->company_id) {
-                throw new AccessDeniedHttpException("This API key belongs to another company. Leave out X-Company-Id, or send the key's company.");
+                throw new AccessDeniedHttpException(__('identity::errors.other_company_key'));
             }
 
             if ($apiKey->level === ApiKeyLevel::ReadOnly && ! in_array($request->method(), self::READS, true)) {
-                throw new AccessDeniedHttpException(sprintf('The API key %s is read-only: it cannot write.', $apiKey->visibleId()));
+                throw new AccessDeniedHttpException(__('identity::errors.read_only_key', ['key' => $apiKey->visibleId()]));
             }
 
             $this->currentCompany->setApiKey($apiKey);
@@ -51,7 +51,7 @@ final class ResolveCurrentCompany
         }
 
         if (! is_string($companyId) || ! Str::isUlid($companyId)) {
-            throw new BadRequestHttpException('Send the current company in the X-Company-Id header.');
+            throw new BadRequestHttpException(__('identity::errors.missing_company'));
         }
 
         $membership = Membership::query()
@@ -61,7 +61,7 @@ final class ResolveCurrentCompany
             ->first();
 
         if ($membership === null) {
-            throw new AccessDeniedHttpException('You are not a member of this company.');
+            throw new AccessDeniedHttpException(__('identity::errors.not_member'));
         }
 
         $this->currentCompany->set($membership);

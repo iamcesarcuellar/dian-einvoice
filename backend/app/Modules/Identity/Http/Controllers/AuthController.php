@@ -25,7 +25,7 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 final class AuthController
 {
     /** One answer when the email or the NIT is already registered, so neither can be probed here. */
-    public const string NOT_REGISTERED = 'We could not create an account with these details. If you already have an account, sign in or reset your password; if your company already uses this platform, ask one of its owners to invite you.';
+    public const string NOT_REGISTERED = 'identity::errors.not_registered';
 
     /**
      * Register a user together with their first company, which they own. An email or a NIT that
@@ -43,7 +43,7 @@ final class AuthController
         try {
             $user = DB::transaction(function () use ($request, $createCompany, $email, $company): User {
                 if (User::query()->where('email', $email)->exists() || Company::query()->where('identification_number', $company['identification_number'] ?? null)->exists()) {
-                    throw new UnprocessableEntityHttpException(self::NOT_REGISTERED);
+                    throw new UnprocessableEntityHttpException(__(self::NOT_REGISTERED));
                 }
 
                 $user = User::create($request->safe(['name', 'email', 'password']));
@@ -53,7 +53,7 @@ final class AuthController
             });
         } catch (UniqueConstraintViolationException) {
             // Someone registered the same email or NIT at the same moment.
-            throw new UnprocessableEntityHttpException(self::NOT_REGISTERED);
+            throw new UnprocessableEntityHttpException(__(self::NOT_REGISTERED));
         }
 
         Auth::guard('web')->login($user);
@@ -106,7 +106,7 @@ final class AuthController
     private function ensureSession(Request $request): void
     {
         if (! $request->hasSession()) {
-            throw new BadRequestHttpException('Session sign-in is only available to the web app.');
+            throw new BadRequestHttpException(__('identity::errors.session_only'));
         }
     }
 }

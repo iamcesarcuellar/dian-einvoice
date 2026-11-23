@@ -38,11 +38,11 @@ final class DemoSeeder extends Seeder
     /** The owner of both demo companies. */
     public const string OWNER_EMAIL = 'demo@example.com';
 
-    /** The team of Demo Comercial SAS besides its owner: name, email, role and days since joining. */
+    /** The team of Demo Comercial SAS besides its owner: email, role and days since joining; the name is identity::demo.users.{role}. */
     public const array TEAM = [
-        ['Demo Admin', 'admin@example.com', Role::Admin, 235],
-        ['Demo Member', 'member@example.com', Role::Member, 228],
-        ['Demo Viewer', 'viewer@example.com', Role::Viewer, 46],
+        ['admin@example.com', Role::Admin, 235],
+        ['member@example.com', Role::Member, 228],
+        ['viewer@example.com', Role::Viewer, 46],
     ];
 
     /** The address of the pending invitation of Demo Comercial SAS, and its role. */
@@ -61,7 +61,7 @@ final class DemoSeeder extends Seeder
             Carbon::setTestNow($today->copy()->subDays(self::OWNER_DAYS_BACK));
 
             $user = User::create([
-                'name' => 'Demo User',
+                'name' => (string) __('identity::demo.users.owner'),
                 'email' => self::OWNER_EMAIL,
                 'password' => self::PASSWORD,
             ]);
@@ -99,10 +99,10 @@ final class DemoSeeder extends Seeder
                 'postal_code' => '050030',
             ]);
 
-            foreach (self::TEAM as [$name, $email, $role, $daysBack]) {
+            foreach (self::TEAM as [$email, $role, $daysBack]) {
                 Carbon::setTestNow($today->copy()->subDays($daysBack));
 
-                $member = User::create(['name' => $name, 'email' => $email, 'password' => self::PASSWORD]);
+                $member = User::create(['name' => (string) __("identity::demo.users.{$role->value}"), 'email' => $email, 'password' => self::PASSWORD]);
 
                 Membership::create([
                     'company_id' => $commerce->getKey(),

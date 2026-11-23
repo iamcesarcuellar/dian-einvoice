@@ -6,6 +6,7 @@ use App\Modules\Billing\Models\NumberTemplate;
 use App\Modules\Identity\Tenancy\CurrentCompany;
 use App\Modules\Reference\Enums\PaymentMeans;
 use App\Rules\DecimalString;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -45,14 +46,7 @@ final class RecordPaymentRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'contact_id' => 'customer',
-            'payment_date' => 'date',
-            'payment_means_code' => 'payment means',
-            'allocations' => 'invoices',
-            'allocations.*.document_id' => 'invoice',
-            'allocations.*.amount' => 'amount to apply',
-        ];
+        return Translation::lines('payments::validation.attributes.payment');
     }
 
     /**
@@ -60,8 +54,6 @@ final class RecordPaymentRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'payment_date.before_or_equal' => 'The payment date cannot be later than today.',
-        ];
+        return Translation::lines('payments::validation.messages.payment');
     }
 }

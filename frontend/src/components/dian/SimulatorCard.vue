@@ -26,7 +26,8 @@ import { useSessionStore } from '@/stores/session'
  * requests, the controls to change it, and the last requests the simulator received from it. The
  * API talks to the simulator; the browser never does.
  */
-const { t } = useI18n()
+const i18n = useI18n()
+const { t } = i18n
 const queryClient = useQueryClient()
 const session = useSessionStore()
 
@@ -160,6 +161,23 @@ watch(
     reset()
   },
 )
+
+/** What a request of the activity came to, as the simulator words it ("found accepted"), in the interface's language. */
+function resultLabel(result: string): string {
+  const withheld = result.endsWith(' (response withheld)')
+  const code = (withheld ? result.slice(0, -' (response withheld)'.length) : result).replace(/ /g, '_')
+  const key = `settings.dian.simulator.results.${code}`
+  const label = i18n.te(key) ? t(key) : result
+
+  return withheld ? t('settings.dian.simulator.withheld', { result: label }) : label
+}
+
+/** The failure mode that applied to a request, in the interface's language. */
+function modeLabel(mode: string): string {
+  const key = `settings.dian.simulator.activityModes.${mode}`
+
+  return i18n.te(key) ? t(key) : mode
+}
 </script>
 
 <template>
@@ -261,9 +279,9 @@ watch(
           </template>
           <template #cell-result="{ row }">
             <span class="grid gap-0.5">
-              <span>{{ row.result }}</span>
+              <span>{{ resultLabel(row.result) }}</span>
               <span v-if="row.mode || row.rules.length > 0" class="text-xs text-muted-foreground">
-                {{ [row.mode, row.rules.join(', ')].filter(Boolean).join(' · ') }}
+                {{ [row.mode ? modeLabel(row.mode) : null, row.rules.join(', ')].filter(Boolean).join(' · ') }}
               </span>
             </span>
           </template>

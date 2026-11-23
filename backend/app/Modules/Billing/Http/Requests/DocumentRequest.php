@@ -13,6 +13,7 @@ use App\Modules\Reference\Enums\PaymentForm;
 use App\Modules\Reference\Enums\PaymentMeans;
 use App\Modules\Reference\Enums\UnitOfMeasure;
 use App\Rules\DecimalString;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -121,7 +122,7 @@ final class DocumentRequest extends FormRequest
             $invoice = Document::query()->find($this->string('related_document_id')->toString());
 
             if ($invoice?->balance_status === BalanceStatus::Voided) {
-                $validator->errors()->add('related_document_id', "Invoice {$invoice->full_number} is voided, so no more notes can correct it.");
+                $validator->errors()->add('related_document_id', __('billing::errors.invoice_voided', ['number' => $invoice->full_number]));
             }
         }];
     }
@@ -131,23 +132,7 @@ final class DocumentRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'contact_id' => 'customer',
-            'related_document_id' => 'invoice',
-            'reason_code' => 'concept',
-            'reason_text' => 'description',
-            'number_template_id' => 'numbering',
-            'payment_form' => 'payment form',
-            'payment_means_code' => 'payment means',
-            'lines.*.item_id' => 'item',
-            'lines.*.description' => 'description',
-            'lines.*.unit_code' => 'unit',
-            'lines.*.quantity' => 'quantity',
-            'lines.*.unit_price' => 'unit price',
-            'lines.*.discount_rate' => 'discount',
-            'lines.*.tax_id' => 'tax',
-            'withholding_ids.*' => 'withholding',
-        ];
+        return Translation::lines('billing::validation.attributes.document');
     }
 
     private function creating(): bool

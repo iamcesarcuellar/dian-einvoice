@@ -18,7 +18,7 @@ const LETTER: Record<DocumentKind, string> = { invoice: 'F', credit_note: 'C', d
 /** schemes: the path of the XSD of each kind. */
 export async function validateDocument(xml: string, document: DocumentData, state: State, schemas: Record<DocumentKind, string>): Promise<Finding[]> {
   if (document.kind === null) {
-    return [finding('ZB01', 'the document is not a UBL 2.1 Invoice, CreditNote or DebitNote')]
+    return [finding('ZB01', 'el documento no es un Invoice, CreditNote ni DebitNote de UBL 2.1')]
   }
 
   const errors = await schemaErrors(xml, schemas[document.kind])
@@ -227,7 +227,7 @@ async function signature(xml: string, invoice: DocumentData, kind: DocumentKind)
   try {
     certificate = new X509Certificate(pem)
   } catch {
-    return [finding('ZD01', 'the X509Certificate cannot be read')]
+    return [finding('ZD01', 'no se puede leer el X509Certificate')]
   }
 
   const findings: Finding[] = []

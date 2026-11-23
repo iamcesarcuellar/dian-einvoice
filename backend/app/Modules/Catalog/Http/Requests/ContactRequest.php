@@ -10,6 +10,7 @@ use App\Modules\Reference\Enums\IdentificationType;
 use App\Modules\Reference\Enums\OrganizationType;
 use App\Modules\Reference\Enums\TaxScheme;
 use App\Modules\Reference\Rules\ValidFiscalResponsibilities;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -24,7 +25,7 @@ final class ContactRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->contact()?->is_system) {
-            throw new AccessDeniedHttpException('The final consumer is a system contact and cannot be edited.');
+            throw new AccessDeniedHttpException(__('catalog::errors.final_consumer_edit'));
         }
 
         return true;
@@ -89,11 +90,11 @@ final class ContactRequest extends FormRequest
             $municipality = $this->exists('municipality_code') ? $this->input('municipality_code') : $contact?->municipality_code;
 
             if ($country === Contact::COLOMBIA && blank($municipality)) {
-                $validator->errors()->add('municipality_code', 'Choose the municipality of a contact in Colombia.');
+                $validator->errors()->add('municipality_code', __('catalog::validation.municipality_required'));
             }
 
             if ($country !== Contact::COLOMBIA && filled($this->input('municipality_code'))) {
-                $validator->errors()->add('municipality_code', 'Only contacts in Colombia have a municipality.');
+                $validator->errors()->add('municipality_code', __('catalog::validation.municipality_abroad'));
             }
         }];
     }
@@ -103,13 +104,7 @@ final class ContactRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'identification_number' => 'identification number',
-            'legal_name' => 'name',
-            'fiscal_responsibilities' => 'fiscal responsibilities',
-            'municipality_code' => 'municipality',
-            'country_code' => 'country',
-        ];
+        return Translation::lines('catalog::validation.attributes.contact');
     }
 
     /**
@@ -117,12 +112,7 @@ final class ContactRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'identification_number.regex' => 'Use only digits for a NIT (without the check digit) and only letters or digits otherwise.',
-            'identification_number.unique' => 'A contact with this identification already exists.',
-            'check_digit.prohibited' => 'Only a NIT has a check digit.',
-            'country_code.regex' => 'Use the two-letter ISO country code, such as CO.',
-        ];
+        return Translation::lines('catalog::validation.messages.contact');
     }
 
     protected function prepareForValidation(): void

@@ -55,6 +55,7 @@ final class DianServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+        $this->loadTranslationsFrom(__DIR__.'/Lang', 'dian');
 
         // Each event of the chain starts its next step; the relay publishes them to the queue.
         $subscribers = $this->app->make(OutboxSubscribers::class);

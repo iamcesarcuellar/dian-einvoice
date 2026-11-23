@@ -43,7 +43,7 @@ final class MatchesNitCheckDigit implements DataAwareRule, ValidationRule
 
         // A check digit that is not a number at all is reported by the integer rule.
         if (is_scalar($value) && (int) $value !== NitCheckDigit::calculate($nit)) {
-            $fail('The check digit does not match the NIT.');
+            $fail(__('identity::validation.check_digit'));
         }
     }
 }

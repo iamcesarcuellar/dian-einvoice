@@ -49,7 +49,7 @@ final class GenerateXml extends ChainStep
                 $generator->generate($document);
             } catch (Throwable $exception) {
                 report($exception);
-                $pipeline->fail($document, 'generate', 'Generation failed: '.$exception->getMessage());
+                $pipeline->fail($document, 'generate', __('dian::chain.generation_failed', ['error' => $exception->getMessage()]));
 
                 return new ChainFailure("The XML of {$document->full_number} could not be generated.", previous: $exception);
             }

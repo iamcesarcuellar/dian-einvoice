@@ -119,6 +119,9 @@ services:
       WEB_URL: http://web:5173
     volumes:
       - ./e2e:/e2e
+      # The web app's messages, read-only: the tests and the screenshots name what they click in the language of the
+      # interface they run in (e2e/tests/messages.ts).
+      - ./frontend/src/i18n:/messages:ro
     depends_on:
       - web
 

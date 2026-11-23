@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EdgeClientAddress;
+use App\Http\Middleware\NegotiateLanguage;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\TraceRequest;
 use App\Http\ProblemDetails;
@@ -28,9 +29,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // Every answer, errors included: an X-Request-Id that the logs carry too, the X-Correlation-Id of the journey
-        // the request begins (docs/observability.md), and the security headers. Behind the edge, the address of the
-        // client is the one the edge saw (config/edge.php), before anything counts a request by its address.
-        $middleware->prepend([AssignRequestId::class, TraceRequest::class, EdgeClientAddress::class]);
+        // the request begins (docs/observability.md), the language of Accept-Language (English or Spanish) and the
+        // security headers. Behind the edge, the address of the client is the one the edge saw (config/edge.php),
+        // before anything counts a request by its address.
+        $middleware->prepend([AssignRequestId::class, TraceRequest::class, EdgeClientAddress::class, NegotiateLanguage::class]);
         $middleware->append(SecurityHeaders::class);
 
         // Of the forwarded headers, only the address of the client and the scheme, and only from the proxies

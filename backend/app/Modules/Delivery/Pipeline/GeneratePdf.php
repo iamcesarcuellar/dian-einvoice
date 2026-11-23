@@ -34,7 +34,7 @@ final class GeneratePdf extends DeliveryJob
                 $file = $pdfs->generate($document);
             } catch (Throwable $exception) {
                 report($exception);
-                $pipeline->fail($document, DeliveryStep::Pdf, 'The PDF could not be generated: '.$exception->getMessage());
+                $pipeline->fail($document, DeliveryStep::Pdf, __('delivery::chain.pdf_failed', ['error' => $exception->getMessage()]));
 
                 return new ChainFailure("The PDF of {$document->full_number} could not be generated.", previous: $exception);
             }

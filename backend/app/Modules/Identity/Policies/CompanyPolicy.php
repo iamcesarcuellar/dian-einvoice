@@ -22,6 +22,6 @@ final class CompanyPolicy
 
         return $role->can(Permission::ManageSettings)
             ? Response::allow()
-            : Response::deny('Only owners and admins can edit this company.');
+            : Response::deny(__('identity::errors.edit_company'));
     }
 }

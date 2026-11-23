@@ -74,13 +74,13 @@ final class TeamInvitations
             $this->lockCompany();
 
             if ($this->isMember($email)) {
-                throw ValidationException::withMessages(['email' => "{$email} already belongs to this company."]);
+                throw ValidationException::withMessages(['email' => __('identity::errors.invitations.member', ['email' => $email])]);
             }
 
             $earlier = TeamInvitation::query()->open()->where('email', $email)->lockForUpdate()->get();
 
             if ($earlier->contains(fn (TeamInvitation $invitation): bool => $invitation->status() === InvitationStatus::Pending)) {
-                throw ValidationException::withMessages(['email' => "{$email} already has a pending invitation to this company; resend it instead."]);
+                throw ValidationException::withMessages(['email' => __('identity::errors.invitations.pending', ['email' => $email])]);
             }
 
             foreach ($earlier as $expired) {
@@ -113,17 +113,17 @@ final class TeamInvitations
             $invitation = TeamInvitation::query()->whereKey($invitation->getKey())->lockForUpdate()->firstOrFail();
 
             match ($invitation->status()) {
-                InvitationStatus::Accepted => throw new ConflictHttpException('This invitation was already accepted.'),
-                InvitationStatus::Canceled => throw new ConflictHttpException('This invitation was canceled; send a new one instead.'),
+                InvitationStatus::Accepted => throw new ConflictHttpException(__('identity::errors.invitations.resend_accepted')),
+                InvitationStatus::Canceled => throw new ConflictHttpException(__('identity::errors.invitations.resend_canceled')),
                 default => null,
             };
 
             if ($invitation->role === Role::Owner && $this->currentCompany->role() !== Role::Owner) {
-                throw new AccessDeniedHttpException('Only an owner can resend an invitation to become an owner.');
+                throw new AccessDeniedHttpException(__('identity::errors.invitations.resend_owner'));
             }
 
             if ($this->isMember($invitation->email)) {
-                throw new ConflictHttpException("{$invitation->email} already belongs to this company; cancel this invitation instead.");
+                throw new ConflictHttpException(__('identity::errors.invitations.resend_member', ['email' => $invitation->email]));
             }
 
             $invitation->fill([
@@ -145,7 +145,7 @@ final class TeamInvitations
             $invitation = TeamInvitation::query()->whereKey($invitation->getKey())->lockForUpdate()->firstOrFail();
 
             if ($invitation->status() === InvitationStatus::Accepted) {
-                throw new ConflictHttpException('This invitation was already accepted; remove the member instead.');
+                throw new ConflictHttpException(__('identity::errors.invitations.cancel_accepted'));
             }
 
             if ($invitation->canceled_at === null) {
@@ -179,9 +179,9 @@ final class TeamInvitations
     {
         match ($invitation->status()) {
             InvitationStatus::Pending => null,
-            InvitationStatus::Expired => throw new ConflictHttpException('This invitation has expired. Ask the company to send it again.'),
-            InvitationStatus::Canceled => throw new ConflictHttpException('This invitation was canceled.'),
-            InvitationStatus::Accepted => throw new ConflictHttpException('This invitation has already been accepted.'),
+            InvitationStatus::Expired => throw new ConflictHttpException(__('identity::errors.invitations.expired')),
+            InvitationStatus::Canceled => throw new ConflictHttpException(__('identity::errors.invitations.canceled')),
+            InvitationStatus::Accepted => throw new ConflictHttpException(__('identity::errors.invitations.accepted')),
         };
     }
 
@@ -220,7 +220,7 @@ final class TeamInvitations
             $invitation = $this->lockPending($invitation);
 
             if (User::query()->where('email', $invitation->email)->exists()) {
-                throw new ConflictHttpException("An account for {$invitation->email} exists now. Sign in to accept the invitation.");
+                throw new ConflictHttpException(__('identity::errors.invitations.account_exists', ['email' => $invitation->email]));
             }
 
             $user = User::create(['name' => $name, 'email' => $invitation->email, 'password' => $password]);

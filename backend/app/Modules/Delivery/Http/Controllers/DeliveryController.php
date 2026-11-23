@@ -29,7 +29,7 @@ final class DeliveryController
      */
     public function pdf(Request $request, Document $document): Response
     {
-        $file = $this->file($document, DocumentFileKind::Pdf, 'The PDF of this document is not available yet.');
+        $file = $this->file($document, DocumentFileKind::Pdf, __('delivery::errors.missing.pdf'));
 
         return $this->serve($file, 'application/pdf', $document->full_number.'.pdf', $request->boolean('download') ? 'attachment' : 'inline');
     }
@@ -40,7 +40,7 @@ final class DeliveryController
      */
     public function attachedDocument(Document $document): Response
     {
-        $file = $this->file($document, DocumentFileKind::AttachedDocument, 'The AttachedDocument of this document is not available yet.');
+        $file = $this->file($document, DocumentFileKind::AttachedDocument, __('delivery::errors.missing.attached_document'));
 
         return $this->serve($file, 'application/xml; charset=UTF-8', $file->file_name, 'attachment');
     }
@@ -48,7 +48,7 @@ final class DeliveryController
     /** The zip the email carries: the AttachedDocument and the PDF. 409 while it does not exist. */
     public function package(Document $document): Response
     {
-        $file = $this->file($document, DocumentFileKind::Package, 'The zip of this document is not available yet.');
+        $file = $this->file($document, DocumentFileKind::Package, __('delivery::errors.missing.package'));
 
         return $this->serve($file, 'application/zip', $file->file_name, 'attachment');
     }
@@ -72,7 +72,7 @@ final class DeliveryController
     private function file(Document $document, DocumentFileKind $kind, string $missing): DocumentFile
     {
         if ($document->isDraft()) {
-            throw new ConflictHttpException('Drafts are not delivered. Issue the document first.');
+            throw new ConflictHttpException(__('delivery::errors.drafts'));
         }
 
         return $this->files->find($document, $kind) ?? throw new ConflictHttpException($missing);

@@ -67,7 +67,7 @@ final class TeamMembers
 
             if ($membership->role === Role::Owner && $this->owners() === 1) {
                 throw ValidationException::withMessages([
-                    'role' => 'The company needs at least one owner. Make another member an owner first.',
+                    'role' => __('identity::errors.team.last_owner_role'),
                 ]);
             }
 
@@ -83,13 +83,13 @@ final class TeamMembers
             $membership = $this->lock($membership);
 
             if ($membership->user_id === $actor->getKey()) {
-                throw new ConflictHttpException('You cannot remove yourself from the company. Another owner or admin can do it.');
+                throw new ConflictHttpException(__('identity::errors.team.remove_self'));
             }
 
             $this->ensureMayManage($membership);
 
             if ($membership->role === Role::Owner && $this->owners() === 1) {
-                throw new ConflictHttpException('The company needs at least one owner, so its last owner cannot be removed.');
+                throw new ConflictHttpException(__('identity::errors.team.remove_last_owner'));
             }
 
             $membership->delete();
@@ -102,7 +102,7 @@ final class TeamMembers
     public static function ensureMayGrant(CurrentCompany $currentCompany, Role $role, string $field = 'role'): void
     {
         if ($role === Role::Owner && $currentCompany->role() !== Role::Owner) {
-            throw ValidationException::withMessages([$field => 'Only an owner can make someone an owner.']);
+            throw ValidationException::withMessages([$field => __('identity::errors.team.grant_owner')]);
         }
     }
 
@@ -122,7 +122,7 @@ final class TeamMembers
     private function ensureMayManage(Membership $membership): void
     {
         if ($membership->role === Role::Owner && $this->currentCompany->role() !== Role::Owner) {
-            throw new AccessDeniedHttpException('Only an owner can change or remove an owner.');
+            throw new AccessDeniedHttpException(__('identity::errors.team.manage_owner'));
         }
     }
 

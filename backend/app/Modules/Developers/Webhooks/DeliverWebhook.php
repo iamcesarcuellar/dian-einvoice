@@ -80,7 +80,8 @@ final class DeliverWebhook implements ConsumesOutboxEvents
             return;
         }
 
-        $currentCompany->runAs($company, function () use ($sender, $policy, $outbox): void {
+        // In the language of the company's documents: the errors the delivery stores for its attempts.
+        $company->documentLanguage()->run(fn () => $currentCompany->runAs($company, function () use ($sender, $policy, $outbox): void {
             $claim = DB::transaction(fn (): ?array => $this->claim($policy), 3);
 
             if ($claim === null) {
@@ -101,7 +102,7 @@ final class DeliverWebhook implements ConsumesOutboxEvents
                 detail: ['status' => $result->statusCode, 'attempt' => $attempt->attempt, 'result' => $result->outcome->value],
                 level: $result->succeeded() ? 'info' : 'warning',
             );
-        });
+        }));
     }
 
     /** The queue gave up on the job: the delivery fails, if it still waits for this attempt. */
@@ -113,7 +114,7 @@ final class DeliverWebhook implements ConsumesOutboxEvents
             return;
         }
 
-        app(CurrentCompany::class)->runAs($company, function () use ($exception): void {
+        $company->documentLanguage()->run(fn () => app(CurrentCompany::class)->runAs($company, function () use ($exception): void {
             DB::transaction(function () use ($exception): void {
                 $delivery = WebhookDelivery::query()->whereKey($this->deliveryId)->lockForUpdate()->first();
 
@@ -125,10 +126,10 @@ final class DeliverWebhook implements ConsumesOutboxEvents
                     'status' => WebhookDeliveryStatus::Failed,
                     'failed_at' => Carbon::now(),
                     'next_attempt_at' => null,
-                    'last_error' => Str::limit('Unexpected error: '.($exception?->getMessage() ?? 'the job failed.'), 497),
+                    'last_error' => Str::limit(__('developers::webhooks.unexpected', ['error' => $exception?->getMessage() ?? __('developers::webhooks.job_failed')]), 497),
                 ])->save();
             });
-        });
+        }));
     }
 
     /**
@@ -160,7 +161,7 @@ final class DeliverWebhook implements ConsumesOutboxEvents
             $running->fill([
                 'finished_at' => Carbon::now(),
                 'outcome' => WebhookAttemptOutcome::Abandoned,
-                'error' => 'No outcome was recorded: the worker stopped during the call.',
+                'error' => __('developers::webhooks.interrupted'),
             ])->save();
         } else {
             return null;
@@ -176,7 +177,7 @@ final class DeliverWebhook implements ConsumesOutboxEvents
                 'status' => WebhookDeliveryStatus::Failed,
                 'failed_at' => Carbon::now(),
                 'next_attempt_at' => null,
-                'last_error' => 'Not sent: the subscription is switched off.',
+                'last_error' => __('developers::webhooks.switched_off'),
             ])->save();
 
             return null;
@@ -288,7 +289,7 @@ final class DeliverWebhook implements ConsumesOutboxEvents
                 $subscription->forceFill([
                     'is_active' => false,
                     'disabled_at' => $now,
-                    'disabled_reason' => sprintf('Switched off automatically after %d failed deliveries in a row. Fix the endpoint, then activate it again.', $failures),
+                    'disabled_reason' => __('developers::webhooks.disabled', ['failures' => $failures]),
                 ]);
             }
         }

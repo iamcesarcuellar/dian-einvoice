@@ -53,7 +53,7 @@ final class SignXml extends ChainStep
                 $signed = $generator->sign($document, $now);
             } catch (Throwable $exception) {
                 report($exception);
-                $pipeline->fail($document, 'sign', 'Signing failed: '.$exception->getMessage());
+                $pipeline->fail($document, 'sign', __('dian::chain.signing_failed', ['error' => $exception->getMessage()]));
 
                 return [null, new ChainFailure("The XML of {$document->full_number} could not be signed.", previous: $exception)];
             }

@@ -146,7 +146,7 @@
     { "name": "SaxonJS 2.7.0 and SchXslt 1.10.1", "how": "Downloaded by make dian-schematron into a Docker volume (scripts/dian-schematron/run.sh)." }
   ],
   "own": [
-    { "paths": ["docs/assets/*.png", "docs/assets/*.gif"], "why": "Screenshots and GIFs of this project's web app, written by make screenshots." },
+    { "paths": ["docs/assets/*.png", "docs/assets/*.gif", "docs/assets/es/*.png", "docs/assets/es/*.gif"], "why": "Screenshots and GIFs of this project's web app, in English and in Spanish, written by make screenshots." },
     { "paths": ["frontend/public/favicon.svg"], "why": "The icon of the web app, drawn for this project." },
     { "paths": ["scripts/dian-schematron/codelists.sch"], "why": "A wrapper written for make dian-schematron; it includes the toolbox's code lists at run time and copies nothing of them." },
     { "paths": ["simulator/test/fixtures/*.xml"], "why": "Synthetic documents of the demo company, produced by this project (simulator/test/fixtures/README.md)." },

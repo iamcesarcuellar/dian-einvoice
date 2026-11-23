@@ -48,9 +48,9 @@ final class TaxController
      */
     public function destroy(Tax $tax): Response
     {
-        abort_if($tax->is_system, 403, 'Default taxes cannot be deleted. Deactivate them instead.');
+        abort_if($tax->is_system, 403, __('catalog::errors.tax_default'));
 
-        Deletion::deleteOrConflict($tax, 'This tax is used by items or documents. Deactivate it instead.');
+        Deletion::deleteOrConflict($tax, __('catalog::errors.tax_in_use'));
 
         return response()->noContent();
     }

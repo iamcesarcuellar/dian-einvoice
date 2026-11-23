@@ -36,7 +36,7 @@ final class DeliveryActions
             $recipient = $email ?? $previous ?? DeliveryPipeline::defaultRecipient($document);
 
             if ($recipient === null) {
-                throw ValidationException::withMessages(['email' => ['The customer has no email address. Enter the address to send the invoice to.']]);
+                throw ValidationException::withMessages(['email' => [__('delivery::errors.no_email')]]);
             }
 
             $step = $document->delivery_status === DeliveryStatus::Failed && $document->delivery_step !== null
@@ -64,7 +64,7 @@ final class DeliveryActions
                 && in_array($document->delivery_step, [DeliveryStep::AttachedDocument, DeliveryStep::Pdf], true);
 
             if (! $failedBeforeEmail && ! $pdfMissing) {
-                throw new ConflictHttpException('Regenerate PDF is only available after the PDF failed or when it is missing.');
+                throw new ConflictHttpException(__('delivery::errors.regenerate_unavailable'));
             }
 
             $step = $this->files->find($document, DocumentFileKind::AttachedDocument) === null
@@ -87,11 +87,11 @@ final class DeliveryActions
         $document = $this->pipeline->lock($documentId) ?? throw new NotFoundHttpException;
 
         if ($document->electronic_status !== ElectronicStatus::Accepted || $document->delivery_status === null) {
-            throw new ConflictHttpException('Only invoices accepted by the local simulator are delivered to the customer.');
+            throw new ConflictHttpException(__('delivery::errors.not_accepted'));
         }
 
         if ($document->delivery_status === DeliveryStatus::Pending) {
-            throw new ConflictHttpException("This invoice's delivery is running right now.");
+            throw new ConflictHttpException(__('delivery::errors.running'));
         }
 
         return $document;

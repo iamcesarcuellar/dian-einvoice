@@ -88,8 +88,9 @@ abstract class DeliveryJob implements ConsumesOutboxEvents
         // A company deleted meanwhile, such as the temporary one of make stress or make chaos.
         $company = Company::query()->find($this->companyId);
 
+        // In the language of the company's documents: the texts the step stores for the timeline, its PDF and its email.
         if ($company !== null) {
-            $currentCompany->runAs($company, fn () => $this->resumesItsDeadLetter() || app()->call($process));
+            $company->documentLanguage()->run(fn () => $currentCompany->runAs($company, fn () => $this->resumesItsDeadLetter() || app()->call($process)));
         }
     }
 
@@ -149,7 +150,7 @@ abstract class DeliveryJob implements ConsumesOutboxEvents
             return;
         }
 
-        app(CurrentCompany::class)->runAs($company, function () use ($exception): void {
+        $company->documentLanguage()->run(fn () => app(CurrentCompany::class)->runAs($company, function () use ($exception): void {
             DB::transaction(function () use ($exception): void {
                 $pipeline = app(DeliveryPipeline::class);
                 $document = $pipeline->lock($this->documentId);
@@ -158,9 +159,9 @@ abstract class DeliveryJob implements ConsumesOutboxEvents
                     return;
                 }
 
-                $pipeline->fail($document, $this->step(), 'Unexpected error: '.($exception?->getMessage() ?? 'the job failed.'), $document->delivery_attempt);
+                $pipeline->fail($document, $this->step(), __('delivery::chain.unexpected', ['error' => $exception?->getMessage() ?? __('delivery::chain.job_failed')]), $document->delivery_attempt);
             });
-        });
+        }));
     }
 
     /** Whether the document still waits for this step, in the run of the event. */

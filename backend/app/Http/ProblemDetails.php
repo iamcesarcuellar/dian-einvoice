@@ -3,16 +3,19 @@
 namespace App\Http;
 
 use App\Http\Middleware\AssignRequestId;
+use App\Support\Language;
 use App\Support\Observability\Correlation;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Lang;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 /**
- * Error responses in the application/problem+json format (RFC 9457).
+ * Error responses in the application/problem+json format (RFC 9457), in the language of the request
+ * (App\Http\Middleware\NegotiateLanguage): the title of the status, the detail and the validation messages.
  */
 final class ProblemDetails
 {
@@ -56,7 +59,7 @@ final class ProblemDetails
     public static function fromThrowable(Throwable $e): JsonResponse
     {
         return match (true) {
-            $e instanceof ValidationException => self::response(422, 'The given data was invalid.', ['errors' => $e->errors()]),
+            $e instanceof ValidationException => self::response(422, __('problems.invalid'), ['errors' => $e->errors()]),
             $e instanceof AuthenticationException => self::unauthenticated($e),
             $e instanceof HttpExceptionInterface => self::fromHttpException($e),
             default => self::serverError($e),
@@ -72,7 +75,7 @@ final class ProblemDetails
         $message = $e->getMessage();
         $detail = $message !== '' && $message !== 'Unauthenticated.'
             ? $message
-            : 'Sign in to the web app, or send an API key in the Authorization header: Bearer dei_...';
+            : __('problems.unauthenticated');
 
         return self::response(401, $detail, headers: ['WWW-Authenticate' => 'Bearer realm="dian-einvoice"']);
     }
@@ -81,9 +84,14 @@ final class ProblemDetails
     {
         $status = $e->getStatusCode();
 
-        $detail = match ($status) {
-            404 => 'The requested resource was not found.',
-            419 => 'The CSRF token is missing or has expired. Reload the page and try again.',
+        // The framework's own texts of a wrong method, a body too large or a throttled route stay as they are in
+        // English; in Spanish they get a fixed text. Every other message is already in the language of the request.
+        $framework = "problems.framework.{$status}";
+
+        $detail = match (true) {
+            $status === 404 => __('problems.not_found'),
+            $status === 419 => __('problems.csrf'),
+            Language::current() !== Language::English && Lang::has($framework) && self::fromFramework($e) => __($framework),
             default => $e->getMessage(),
         };
 
@@ -93,7 +101,7 @@ final class ProblemDetails
     private static function serverError(Throwable $e): JsonResponse
     {
         if (! config('app.debug')) {
-            return self::response(500, 'Something went wrong on our side.');
+            return self::response(500, __('problems.server_error'));
         }
 
         return self::response(500, $e->getMessage(), [
@@ -103,9 +111,14 @@ final class ProblemDetails
 
     private static function title(int $status): string
     {
-        return match ($status) {
-            419 => 'CSRF Token Mismatch',
-            default => Response::$statusTexts[$status] ?? 'Error',
-        };
+        $key = "problems.titles.{$status}";
+
+        return Lang::has($key) ? __($key) : Response::$statusTexts[$status] ?? 'Error';
+    }
+
+    /** Whether the framework raised the exception, with a text of its own; this application writes its texts in the request's language. */
+    private static function fromFramework(Throwable $e): bool
+    {
+        return str_starts_with($e->getFile(), base_path('vendor').DIRECTORY_SEPARATOR);
     }
 }

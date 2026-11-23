@@ -42,6 +42,8 @@ final class CompanyResource extends JsonResource
                 ? MunicipalityResource::make($this->municipality)
                 : null),
             'postal_code' => $this->postal_code,
+            // The language of its documents: the PDF, the email to the customer and the texts of its timeline.
+            'document_language' => $this->document_language,
             // Role of the signed-in user in this company (owner, admin, member or viewer) and what it allows.
             'role' => $this->whenPivotLoadedAs('membership', 'memberships', fn () => $this->membershipRole()),
             'permissions' => $this->whenPivotLoadedAs('membership', 'memberships', fn () => array_map(

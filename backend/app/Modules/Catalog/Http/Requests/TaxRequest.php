@@ -21,9 +21,4 @@ final class TaxRequest extends RateRequest
     {
         return $this->route('tax');
     }
-
-    protected function defaultsName(): string
-    {
-        return 'Default taxes';
-    }
 }

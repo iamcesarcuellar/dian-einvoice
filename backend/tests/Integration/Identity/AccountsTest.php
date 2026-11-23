@@ -43,7 +43,7 @@ final class AccountsTest extends IntegrationTestCase
         foreach ([$takenEmail, $takenNit] as $response) {
             $response->assertStatus(422)
                 ->assertHeader('Content-Type', 'application/problem+json')
-                ->assertJsonPath('detail', AuthController::NOT_REGISTERED)
+                ->assertJsonPath('detail', __(AuthController::NOT_REGISTERED))
                 ->assertJsonMissingPath('errors');
         }
 
@@ -157,7 +157,7 @@ final class AccountsTest extends IntegrationTestCase
         $unknown = WebBrowser::at($this)->json('POST', '/api/v1/auth/forgot-password', ['email' => 'synthetic-nobody@example.com']);
 
         foreach ([$known, $unknown] as $response) {
-            $response->assertStatus(202)->assertExactJson(['data' => ['message' => PasswordResetController::LINK_SENT]]);
+            $response->assertStatus(202)->assertExactJson(['data' => ['message' => __(PasswordResetController::LINK_SENT)]]);
         }
 
         [$token, $to] = $this->resetLink();
@@ -167,10 +167,10 @@ final class AccountsTest extends IntegrationTestCase
         $reset = fn (string $token, string $password) => WebBrowser::at($this)->json('POST', '/api/v1/auth/reset-password', ['token' => $token, 'email' => $user->email, 'password' => $password, 'password_confirmation' => $password]);
 
         [$chosen, $again] = [Str::random(24), Str::random(24)];
-        $reset(Str::random(64), $chosen)->assertStatus(422)->assertJsonPath('detail', PasswordResetController::INVALID_LINK);
+        $reset(Str::random(64), $chosen)->assertStatus(422)->assertJsonPath('detail', __(PasswordResetController::INVALID_LINK));
         $reset($token, 'Short-pass1')->assertStatus(422)->assertJsonPath('errors.password.0', fn (string $message): bool => str_contains($message, '12'));
         $reset($token, $chosen)->assertOk();
-        $reset($token, $again)->assertStatus(422)->assertJsonPath('detail', PasswordResetController::INVALID_LINK);
+        $reset($token, $again)->assertStatus(422)->assertJsonPath('detail', __(PasswordResetController::INVALID_LINK));
 
         // The new password works, and the session from before ended.
         WebBrowser::at($this)->json('POST', '/api/v1/auth/login', ['email' => $user->email, 'password' => $chosen])->assertOk();
@@ -185,7 +185,7 @@ final class AccountsTest extends IntegrationTestCase
         try {
             WebBrowser::at($this)->json('POST', '/api/v1/auth/reset-password', ['token' => $lateToken, 'email' => $late->email, 'password' => 'synthetic-Reset-2026', 'password_confirmation' => 'synthetic-Reset-2026'])
                 ->assertStatus(422)
-                ->assertJsonPath('detail', PasswordResetController::INVALID_LINK);
+                ->assertJsonPath('detail', __(PasswordResetController::INVALID_LINK));
         } finally {
             Carbon::setTestNow();
         }

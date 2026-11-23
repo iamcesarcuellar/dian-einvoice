@@ -198,8 +198,8 @@ final class DocumentController
     {
         if (XmlStatus::of($document)?->available() !== true || $document->xml_path === null) {
             throw new ConflictHttpException($document->isDraft()
-                ? 'Drafts have no XML. Issue the document first.'
-                : 'The signed XML of this document is not available yet.');
+                ? __('billing::errors.no_xml')
+                : __('billing::errors.xml_pending'));
         }
 
         return response($storage->get($document->xml_path), 200, [
@@ -216,7 +216,7 @@ final class DocumentController
     public function dianResponse(Document $document, DocumentStorage $storage): Response
     {
         if ($document->dian_response_path === null) {
-            throw new ConflictHttpException('The local DIAN simulator has not responded for this document yet.');
+            throw new ConflictHttpException(__('billing::errors.no_response'));
         }
 
         return response($storage->get($document->dian_response_path), 200, [

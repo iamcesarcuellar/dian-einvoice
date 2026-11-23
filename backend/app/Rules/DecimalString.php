@@ -21,7 +21,7 @@ final class DecimalString implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! is_string($value) && ! is_int($value)) {
-            $fail('The :attribute must be sent as a string, such as "1234.50".');
+            $fail(__('rules.decimal.string'));
 
             return;
         }
@@ -29,13 +29,13 @@ final class DecimalString implements ValidationRule
         $pattern = sprintf('/^\d{1,%d}(\.\d{1,%d})?$/', $this->integerDigits, $this->scale);
 
         if (preg_match($pattern, (string) $value) !== 1) {
-            $fail(sprintf('The :attribute must be a number of zero or more, with up to %d decimals.', $this->scale));
+            $fail(__('rules.decimal.number', ['scale' => $this->scale]));
 
             return;
         }
 
         if ($this->max !== null && BigDecimal::of((string) $value)->isGreaterThan($this->max)) {
-            $fail("The :attribute may not be greater than {$this->max}.");
+            $fail(__('rules.decimal.max', ['max' => $this->max]));
         }
     }
 }

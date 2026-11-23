@@ -100,8 +100,7 @@ final class DocumentDrafts
     public function update(Document $document, array $input): Document
     {
         return DB::transaction(function () use ($document, $input): Document {
-            $noun = $document->type->noun();
-            $draft = $this->lockDraft($document, "Issued {$noun}s cannot be edited.");
+            $draft = $this->lockDraft($document, __("billing::errors.issued_edit.{$document->type->value}"));
 
             $draft->fill(array_intersect_key($input, array_flip($draft->isNote() ? self::NOTE_HEADER : self::INVOICE_HEADER)))->save();
 
@@ -127,7 +126,7 @@ final class DocumentDrafts
     {
         DB::transaction(function () use ($document): void {
             // Lines, taxes, withholdings and events go with it (foreign keys cascade).
-            $this->lockDraft($document, "Issued {$document->type->noun()}s cannot be deleted.")->delete();
+            $this->lockDraft($document, __("billing::errors.issued_delete.{$document->type->value}"))->delete();
         });
     }
 

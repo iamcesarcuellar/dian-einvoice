@@ -2,6 +2,7 @@
 
 namespace App\Modules\Delivery\Http\Requests;
 
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -17,6 +18,14 @@ final class DeliverRequest extends FormRequest
         return [
             'email' => ['sometimes', 'nullable', 'string', 'email:rfc', 'max:255'],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return Translation::lines('delivery::validation.attributes.deliver');
     }
 
     public function email(): ?string

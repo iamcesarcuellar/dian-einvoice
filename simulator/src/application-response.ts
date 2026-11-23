@@ -61,10 +61,10 @@ export function applicationResponse(record: DocumentRecord): string {
   <cbc:UUID schemeID="2" schemeName="CUDE-SHA384">${cude}</cbc:UUID>
   <cbc:IssueDate>${issued.date}</cbc:IssueDate>
   <cbc:IssueTime>${issued.time}</cbc:IssueTime>
-  <cbc:Note>SIMULATED: produced by the local DIAN simulator of dian-einvoice, a development tool. The DIAN did not issue it, it is not signed, and the document was not registered with the DIAN.</cbc:Note>
+  <cbc:Note>SIMULADO: lo produjo el simulador local de la DIAN de dian-einvoice, una herramienta de desarrollo. La DIAN no lo emitió, no está firmado y el documento no quedó registrado ante la DIAN.</cbc:Note>
   <cac:SenderParty>
     <cac:PartyTaxScheme>
-      <cbc:RegistrationName>Local DIAN simulator (development tool, not the DIAN)</cbc:RegistrationName>
+      <cbc:RegistrationName>Simulador local de la DIAN (herramienta de desarrollo, no es la DIAN)</cbc:RegistrationName>
       <cbc:CompanyID schemeID="${DIAN_CHECK_DIGIT}" schemeName="31" ${AGENCY}>${DIAN_NIT}</cbc:CompanyID>
       <cac:TaxScheme>
         <cbc:ID>01</cbc:ID>
@@ -85,7 +85,7 @@ export function applicationResponse(record: DocumentRecord): string {
   <cac:DocumentResponse>
     <cac:Response>
       <cbc:ResponseCode>${accepted ? '02' : '04'}</cbc:ResponseCode>
-      <cbc:Description>${accepted ? 'Accepted by the local DIAN simulator; not registered with the DIAN' : 'Rejected by the local DIAN simulator; not registered with the DIAN'}</cbc:Description>
+      <cbc:Description>${accepted ? 'Aceptado por el simulador local de la DIAN; no quedó registrado ante la DIAN' : 'Rechazado por el simulador local de la DIAN; no quedó registrado ante la DIAN'}</cbc:Description>
     </cac:Response>
     <cac:DocumentReference>
       <cbc:ID>${escapeXml(record.number)}</cbc:ID>

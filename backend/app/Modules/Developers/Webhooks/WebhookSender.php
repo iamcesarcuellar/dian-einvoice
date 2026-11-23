@@ -31,17 +31,17 @@ final class WebhookSender
     /** The only port webhooks go to where https is required: the only one the functions may open toward the internet. */
     public const int HTTPS_PORT = 443;
 
-    /** Why a webhook URL on another port is refused, when it is saved and before each attempt. */
-    public const string HTTPS_PORT_ONLY = 'Webhook URLs must use port 443, the default port of https: deliveries leave on no other port.';
+    /** Why a webhook URL on another port is refused, when it is saved and before each attempt: its translation key. */
+    public const string HTTPS_PORT_ONLY = 'developers::webhooks.https_port_only';
 
     public function send(string $url, string $messageId, string $body, #[SensitiveParameter] string $secret): SendResult
     {
         if ((bool) config('developers.webhooks.require_https', false) && strtolower((string) parse_url($url, PHP_URL_SCHEME)) !== 'https') {
-            return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: 'Only https endpoints receive webhooks here.');
+            return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: __('developers::webhooks.https_only'));
         }
 
         if ((bool) config('developers.webhooks.require_https', false) && PrivateTargets::port($url) !== self::HTTPS_PORT) {
-            return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: self::HTTPS_PORT_ONLY);
+            return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: __(self::HTTPS_PORT_ONLY));
         }
 
         $curl = [];
@@ -51,7 +51,7 @@ final class WebhookSender
             $address = $target['addresses'][0] ?? null;
 
             if ($target['reason'] !== null || $address === null) {
-                return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: $target['reason'] ?? 'The URL has no public address.');
+                return new SendResult(WebhookAttemptOutcome::Blocked, 0, error: PrivateTargets::explain($target) ?? __('developers::webhooks.no_public_address'));
             }
 
             // The address just checked, and no new DNS answer.
@@ -85,7 +85,7 @@ final class WebhookSender
             return new SendResult(
                 $timedOut ? WebhookAttemptOutcome::Timeout : WebhookAttemptOutcome::ConnectionError,
                 self::elapsed($started),
-                error: Str::limit($timedOut ? sprintf('No response within %s seconds.', rtrim(rtrim(number_format($timeout, 1), '0'), '.')) : $message, 497),
+                error: Str::limit($timedOut ? __('developers::webhooks.timeout', ['seconds' => rtrim(rtrim(number_format($timeout, 1), '0'), '.')]) : $message, 497),
             );
         } catch (Throwable $exception) {
             return new SendResult(WebhookAttemptOutcome::ConnectionError, self::elapsed($started), error: Str::limit($exception->getMessage(), 497));
@@ -98,7 +98,7 @@ final class WebhookSender
             $succeeded ? WebhookAttemptOutcome::Succeeded : WebhookAttemptOutcome::HttpError,
             self::elapsed($started),
             statusCode: $status,
-            error: $succeeded ? null : sprintf('The endpoint returned HTTP %d.', $status),
+            error: $succeeded ? null : (string) __('developers::webhooks.http_error', ['status' => $status]),
             snippet: Str::limit($response->body(), self::SNIPPET, '…'),
         );
     }

@@ -19,7 +19,7 @@ final class HealthController
         $checks = array_map(fn (bool $passed): string => $passed ? 'ok' : 'down', $health->run());
 
         if (in_array('down', $checks, true)) {
-            return ProblemDetails::response(503, 'A service the API needs is not reachable.', ['checks' => $checks]);
+            return ProblemDetails::response(503, __('problems.unhealthy'), ['checks' => $checks]);
         }
 
         return response()->json(['status' => 'ok', 'checks' => $checks]);

@@ -2,15 +2,28 @@ import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './policy'
 
 // The synthetic demo account of make demo, owner of Demo Comercial SAS, and what it sells: an
-// office chair (450.000) and a pack of paper (21.500), both at IVA 19 %.
+// office chair (P-001, 450.000) and a pack of paper (P-002, 21.500), both at IVA 19 %. Their names are those of the
+// demo data's language (make demo LOCALE=en|es), read from the API.
 const DEMO = { email: 'demo@example.com', password: 'password', company: 'Demo Comercial SAS' }
+const ORIGIN = 'http://localhost:8601'
 const TOTAL = '$ 561.085,00'
 
 // The queue workers run the chain and the delivery; a CI runner is slower than a laptop.
 const CHAIN_TIMEOUT = 120_000
 
+/** The names of the company's items by code, from the API, with the session of the page. */
+async function itemNames(page: Page): Promise<Map<string, string>> {
+  const company = await page.evaluate(() => localStorage.getItem('dian-einvoice.current-company'))
+  const response = await page.request.get('/api/v1/items?per_page=100', {
+    headers: { Accept: 'application/json', Referer: `${ORIGIN}/`, 'X-Company-Id': company ?? '' },
+  })
+  expect(response.ok(), 'the items of the demo').toBe(true)
+
+  return new Map(((await response.json()) as { data: { code: string; name: string }[] }).data.map((item) => [item.code, item.name]))
+}
+
 /** Opens a search select, types in it and takes the option that matches. */
-async function choose(page: Page, select: Locator, search: string, option: RegExp): Promise<void> {
+async function choose(page: Page, select: Locator, search: string, option: RegExp | string): Promise<void> {
   await select.click()
   await select.fill(search)
   await page.getByRole('option', { name: option }).click()
@@ -37,10 +50,13 @@ test('an invoice from draft to paid: issued, accepted by the DIAN simulator, del
     await choose(page, customer, 'Cordillera', /Distribuidora Cordillera Plata SAS/)
     await expect(customer).toHaveValue('Distribuidora Cordillera Plata SAS')
 
+    const names = await itemNames(page)
+    const chair = names.get('P-001') ?? 'P-001'
+    const paper = names.get('P-002') ?? 'P-002'
     const items = page.getByRole('combobox', { name: 'Item', exact: true })
-    await choose(page, items.nth(0), 'chair', /Ergonomic office chair/)
+    await choose(page, items.nth(0), chair.split(' ')[0] ?? chair, chair)
     await page.getByRole('button', { name: 'Add line' }).click()
-    await choose(page, items.nth(1), 'paper', /Letter paper, 500 sheets/)
+    await choose(page, items.nth(1), paper.split(' ')[0] ?? paper, paper)
     await expect(items).toHaveCount(2)
 
     await expect(page.getByText(TOTAL).first()).toBeVisible()

@@ -27,45 +27,66 @@ final class PrivateTargets
         return is_array($parts) && isset($parts['port']) ? $parts['port'] : ((is_array($parts) && strtolower($parts['scheme'] ?? '') === 'https') ? 443 : 80);
     }
 
-    /** Why the URL is refused, or null when every address of its host is public. */
+    /** Why the URL is refused, in the language of the application, or null when every address of its host is public. */
     public static function reason(string $url): ?string
     {
-        return self::inspect($url)['reason'];
+        return self::explain(self::inspect($url));
     }
 
     /**
-     * The public addresses the URL may be sent to, or why it may not.
+     * Why an inspected URL is refused, in the language of the application (developers::webhooks), or null.
      *
-     * @return array{reason: string|null, host: string, port: int, addresses: list<string>}
+     * @param  array{reason: string|null, replace: array<string, string>, host: string, port: int, addresses: list<string>}  $target
+     */
+    public static function explain(array $target): ?string
+    {
+        return $target['reason'] === null ? null : (string) __("developers::webhooks.{$target['reason']}", $target['replace']);
+    }
+
+    /**
+     * The public addresses the URL may be sent to, or why it may not: the key of the reason in developers::webhooks,
+     * with what fills it in.
+     *
+     * @return array{reason: string|null, replace: array<string, string>, host: string, port: int, addresses: list<string>}
      */
     public static function inspect(string $url): array
     {
         $parts = parse_url($url);
         $host = is_array($parts) && isset($parts['host']) ? strtolower(rtrim(trim($parts['host'], '[]'), '.')) : '';
         $port = self::port($url);
-        $refused = fn (string $reason): array => ['reason' => $reason, 'host' => $host, 'port' => $port, 'addresses' => []];
 
         if ($host === '') {
-            return $refused('The URL has no host.');
+            return self::refused('no_host', $host, $port);
         }
 
         if ($host === 'localhost' || str_ends_with($host, '.localhost')) {
-            return $refused('The URL points to this machine.');
+            return self::refused('local_host', $host, $port);
         }
 
         $addresses = filter_var($host, FILTER_VALIDATE_IP) !== false ? [$host] : self::resolve($host);
 
         if ($addresses === []) {
-            return $refused("The host {$host} does not resolve.");
+            return self::refused('unresolved', $host, $port, ['host' => $host]);
         }
 
         foreach ($addresses as $address) {
             if (! self::isPublic($address)) {
-                return $refused("The host {$host} resolves to {$address}, a private, local or reserved address.");
+                return self::refused('private', $host, $port, ['host' => $host, 'address' => $address]);
             }
         }
 
-        return ['reason' => null, 'host' => $host, 'port' => $port, 'addresses' => $addresses];
+        return ['reason' => null, 'replace' => [], 'host' => $host, 'port' => $port, 'addresses' => $addresses];
+    }
+
+    /**
+     * A refused target: the key of the reason and what fills it in, with no address to send to.
+     *
+     * @param  array<string, string>  $replace
+     * @return array{reason: string, replace: array<string, string>, host: string, port: int, addresses: list<string>}
+     */
+    private static function refused(string $reason, string $host, int $port, array $replace = []): array
+    {
+        return ['reason' => $reason, 'replace' => $replace, 'host' => $host, 'port' => $port, 'addresses' => []];
     }
 
     /** Whether one address is a global unicast address a webhook may reach. */

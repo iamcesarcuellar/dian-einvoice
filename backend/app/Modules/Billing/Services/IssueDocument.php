@@ -80,7 +80,7 @@ final class IssueDocument
             $document = Document::query()->whereKey($documentId)->lockForUpdate()->firstOrFail();
 
             if (! $document->isDraft()) {
-                throw new ConflictHttpException("This {$document->type->noun()} is already issued.");
+                throw new ConflictHttpException(__("billing::errors.issued.{$document->type->value}"));
             }
 
             $document->load('contact.municipality.department');
@@ -105,7 +105,7 @@ final class IssueDocument
             $payable = $this->pricing->calculate($lines, $withholdings)->totals->payableAmount;
 
             if (! $payable->isPositive()) {
-                throw ValidationException::withMessages(['lines' => ['The total must be greater than zero.']]);
+                throw ValidationException::withMessages(['lines' => [__('billing::errors.zero_total')]]);
             }
 
             if ($invoice !== null) {
@@ -214,43 +214,43 @@ final class IssueDocument
         $errors = [];
 
         if ($document->contact === null) {
-            $errors['contact_id'][] = 'Choose the customer.';
+            $errors['contact_id'][] = __('billing::errors.choose_customer');
         } elseif (! $document->isNote() && ! $document->contact->is_active) {
-            $errors['contact_id'][] = 'The customer is inactive. Activate it or choose another one.';
+            $errors['contact_id'][] = __('billing::errors.inactive_customer');
         }
 
         if ($lines === []) {
-            $errors['lines'][] = 'Add at least one line.';
+            $errors['lines'][] = __('billing::errors.no_lines');
         }
 
         foreach ($lines as $index => $line) {
             if (blank($line['description'])) {
-                $errors["lines.{$index}.description"][] = 'Describe the line.';
+                $errors["lines.{$index}.description"][] = __('billing::errors.describe_line');
             }
 
             if (! BigDecimal::of($line['quantity'])->isPositive()) {
-                $errors["lines.{$index}.quantity"][] = 'The quantity must be greater than zero.';
+                $errors["lines.{$index}.quantity"][] = __('billing::errors.quantity');
             }
 
             if (BigDecimal::of($line['unit_price'])->isNegative()) {
-                $errors["lines.{$index}.unit_price"][] = 'The unit price cannot be negative.';
+                $errors["lines.{$index}.unit_price"][] = __('billing::errors.unit_price');
             }
         }
 
         if ($document->payment_form === null) {
-            $errors['payment_form'][] = 'Choose the payment form.';
+            $errors['payment_form'][] = __('billing::errors.payment_form');
         }
 
         if ($document->payment_means_code === null) {
-            $errors['payment_means_code'][] = 'Choose the payment means.';
+            $errors['payment_means_code'][] = __('billing::errors.payment_means');
         }
 
         // A note takes the payment terms of its invoice as they are.
         if (! $document->isNote() && $document->payment_form === PaymentForm::Credit) {
             if ($document->due_date === null) {
-                $errors['due_date'][] = 'A credit invoice needs a due date.';
+                $errors['due_date'][] = __('billing::errors.due_date_required');
             } elseif ($document->due_date->toDateString() < $today) {
-                $errors['due_date'][] = 'The due date cannot be before today.';
+                $errors['due_date'][] = __('billing::errors.due_date_past');
             }
         }
 
@@ -288,21 +288,21 @@ final class IssueDocument
         $errors = [];
 
         if ($invoice->electronic_status !== ElectronicStatus::Accepted) {
-            $errors['related_document_id'][] = "Invoice {$invoice->full_number} has not been accepted by the local simulator, so no note can correct it yet.";
+            $errors['related_document_id'][] = __('billing::errors.invoice_not_accepted', ['number' => $invoice->full_number]);
         } elseif ($invoice->balance_status === BalanceStatus::Voided) {
-            $errors['related_document_id'][] = "Invoice {$invoice->full_number} is voided, so no more notes can correct it.";
+            $errors['related_document_id'][] = __('billing::errors.invoice_voided', ['number' => $invoice->full_number]);
         }
 
         $concepts = $note->type === DocumentType::CreditNote ? CreditNoteConcept::class : DebitNoteConcept::class;
 
         if (blank($note->reason_code) || $concepts::tryFrom((string) $note->reason_code) === null) {
-            $errors['reason_code'][] = "Choose the concept of the {$note->type->noun()}.";
+            $errors['reason_code'][] = __("billing::errors.choose_concept.{$note->type->value}");
         }
 
         $length = mb_strlen(trim((string) $note->reason_text));
 
         if ($length < self::REASON_MIN || $length > self::REASON_MAX) {
-            $errors['reason_text'][] = sprintf('Describe the correction in %d to %d characters.', self::REASON_MIN, self::REASON_MAX);
+            $errors['reason_text'][] = __('billing::errors.describe_correction', ['min' => self::REASON_MIN, 'max' => self::REASON_MAX]);
         }
 
         return $errors;
@@ -316,7 +316,7 @@ final class IssueDocument
             : Document::query()->whereKey($note->related_document_id)->lockForUpdate()->first();
 
         if ($invoice === null || $invoice->type !== DocumentType::Invoice || $invoice->isDraft()) {
-            throw ValidationException::withMessages(['related_document_id' => ['Choose the issued invoice the note corrects.']]);
+            throw ValidationException::withMessages(['related_document_id' => [__('billing::errors.choose_invoice')]]);
         }
 
         return $invoice;
@@ -384,16 +384,15 @@ final class IssueDocument
     private function rateProblem(Tax|Withholding|null $rate, string $name, string $code, string $copiedRate): ?string
     {
         if ($rate === null || ! $rate->is_active) {
-            return "{$name} is no longer active. Review the draft and choose another one.";
+            return __('billing::errors.rate_inactive', ['name' => $name]);
         }
 
         if ($rate->dian_code->value !== $code || ! BigDecimal::of($rate->rate)->isEqualTo($copiedRate)) {
-            return sprintf(
-                '%s changed from %s %% to %s %% since the draft was saved. Review the draft and save it again.',
-                $name,
-                BigDecimal::of($copiedRate)->strippedOfTrailingZeros(),
-                BigDecimal::of($rate->rate)->strippedOfTrailingZeros(),
-            );
+            return __('billing::errors.rate_changed', [
+                'name' => $name,
+                'from' => (string) BigDecimal::of($copiedRate)->strippedOfTrailingZeros(),
+                'to' => (string) BigDecimal::of($rate->rate)->strippedOfTrailingZeros(),
+            ]);
         }
 
         return null;
@@ -418,23 +417,23 @@ final class IssueDocument
     private function lockNumbering(Document $document): NumberTemplate
     {
         $id = $this->numberingId($document);
-        $noun = $document->type->noun();
+        $type = $document->type->value;
 
         $template = $id === null ? null : NumberTemplate::query()->whereKey($id)->lockForUpdate()->first();
 
         if ($template === null) {
-            throw ValidationException::withMessages(['number_template_id' => ["Choose the numbering for the {$noun}. Add one in Settings → Numbering."]]);
+            throw ValidationException::withMessages(['number_template_id' => [__("billing::errors.numbering.choose.{$type}")]]);
         }
 
-        $name = trim(($template->prefix ?? '').' '.$template->from_number.' to '.$template->to_number);
+        $name = trim(__('billing::errors.numbering.range', ['prefix' => $template->prefix ?? '', 'from' => $template->from_number, 'to' => $template->to_number]));
 
         $problem = match (true) {
-            $template->document_type !== NumberingType::forDocument($document->type) => "This numbering is not for {$noun}s.",
-            ! $template->is_active => "The numbering {$name} is inactive. Activate it or choose another one.",
+            $template->document_type !== NumberingType::forDocument($document->type) => __("billing::errors.numbering.wrong_type.{$type}"),
+            ! $template->is_active => __('billing::errors.numbering.inactive', ['name' => $name]),
             default => match ($template->status()) {
-                NumberingStatus::Exhausted => "The numbering {$name} has no numbers left. Add the next range in Settings.",
-                NumberingStatus::Expired => "The numbering {$name} expired on {$template->valid_to?->toDateString()}. Add the next range in Settings.",
-                NumberingStatus::Upcoming => "The numbering {$name} is valid from {$template->valid_from?->toDateString()}.",
+                NumberingStatus::Exhausted => __('billing::errors.numbering.exhausted', ['name' => $name]),
+                NumberingStatus::Expired => __('billing::errors.numbering.expired', ['name' => $name, 'date' => $template->valid_to?->format(__('formats.date')) ?? '']),
+                NumberingStatus::Upcoming => __('billing::errors.numbering.upcoming', ['name' => $name, 'date' => $template->valid_from?->format(__('formats.date')) ?? '']),
                 NumberingStatus::Active => null,
             },
         };

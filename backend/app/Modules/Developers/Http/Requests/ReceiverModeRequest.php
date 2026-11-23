@@ -3,6 +3,7 @@
 namespace App\Modules\Developers\Http\Requests;
 
 use App\Modules\Developers\Receiver\LocalWebhookReceiver;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -23,6 +24,14 @@ final class ReceiverModeRequest extends FormRequest
             'count' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'delay_ms' => ['nullable', 'integer', 'min:100', 'max:60000'],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return Translation::lines('developers::validation.attributes.receiver');
     }
 
     /**

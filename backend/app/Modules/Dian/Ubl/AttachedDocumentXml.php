@@ -34,8 +34,11 @@ final class AttachedDocumentXml
     /** AE52 when the DIAN validated the document. */
     public const string DIAN_VALIDATOR = 'Unidad Especial Dirección de Impuestos y Aduanas Nacionales';
 
-    /** ValidatorID when the local simulator validated it, which is always the case in this project. */
-    public const string SIMULATOR_VALIDATOR = 'Local DIAN simulator of dian-einvoice (development tool, not the DIAN)';
+    /**
+     * ValidatorID when the local simulator validated it, which is always the case in this project: in Spanish, as the
+     * simulator names itself in its ApplicationResponse and as the DIAN writes the rest of this document.
+     */
+    public const string SIMULATOR_VALIDATOR = 'Simulador local de la DIAN de dian-einvoice (herramienta de desarrollo, no es la DIAN)';
 
     /** Literals of AE02, AE03, AE04, AE08, AE45, AE35/AE48 and AE36/AE49. */
     private const string UBL_VERSION = 'UBL 2.1';

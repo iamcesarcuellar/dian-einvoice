@@ -58,7 +58,7 @@ final class RecordPayment
         $total = array_reduce($allocations, fn (BigDecimal $sum, array $allocation): BigDecimal => $sum->plus($allocation['amount']), BigDecimal::zero())->toScale(2);
 
         if (filled($input['amount'] ?? null) && ! BigDecimal::of((string) $input['amount'])->isEqualTo($total)) {
-            throw ValidationException::withMessages(['amount' => [sprintf('The payment amount must equal the sum applied to its invoices, %s.', ColombianFormat::money((string) $total))]]);
+            throw ValidationException::withMessages(['amount' => [__('payments::errors.amount_mismatch', ['total' => ColombianFormat::money((string) $total)])]]);
         }
 
         $contact = Contact::query()->findOrFail($input['contact_id']);
@@ -79,12 +79,11 @@ final class RecordPayment
                 try {
                     $applied[$index] = $this->ledger->apply($allocation['document_id'], $contact->id, (string) $allocation['amount'], $reference);
                 } catch (AmountExceedsBalance $exception) {
-                    throw ValidationException::withMessages(["allocations.{$index}.amount" => [sprintf(
-                        'Invoice %s has %s left to collect; %s cannot be applied to it.',
-                        $exception->invoiceNumber,
-                        ColombianFormat::money($exception->balance),
-                        ColombianFormat::money($exception->amount),
-                    )]]);
+                    throw ValidationException::withMessages(["allocations.{$index}.amount" => [__('payments::errors.exceeds_balance', [
+                        'number' => $exception->invoiceNumber,
+                        'balance' => ColombianFormat::money($exception->balance),
+                        'amount' => ColombianFormat::money($exception->amount),
+                    ])]]);
                 } catch (InvoiceNotPayable $exception) {
                     throw ValidationException::withMessages(["allocations.{$index}.document_id" => [$exception->getMessage()]]);
                 }
@@ -178,14 +177,14 @@ final class RecordPayment
             $amount = BigDecimal::of((string) $allocation['amount'])->toScale(2);
 
             if (! $amount->isPositive()) {
-                throw ValidationException::withMessages(["allocations.{$index}.amount" => ['The amount to apply must be greater than zero.']]);
+                throw ValidationException::withMessages(["allocations.{$index}.amount" => [__('payments::errors.zero_amount')]]);
             }
 
             $allocations[$index] = ['document_id' => (string) $allocation['document_id'], 'amount' => (string) $amount];
         }
 
         if ($allocations === []) {
-            throw ValidationException::withMessages(['allocations' => ['Apply the payment to at least one invoice.']]);
+            throw ValidationException::withMessages(['allocations' => [__('payments::errors.no_invoices')]]);
         }
 
         return $allocations;

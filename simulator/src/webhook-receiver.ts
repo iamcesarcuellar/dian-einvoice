@@ -48,7 +48,7 @@ function companyOf(state: State, id: string): ReceiverCompany {
 
 function validCompany(id: string | undefined): string {
   if (!id || !/^[0-9a-z]{26}$/i.test(id)) {
-    throw new ReceiverError(404, 'Unknown receiver: the path ends with the id of a company.')
+    throw new ReceiverError(404, 'Receptor desconocido: la ruta termina con el id de una empresa.')
   }
 
   return id.toLowerCase()
@@ -173,26 +173,26 @@ export async function receive(
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
   response.end(JSON.stringify(status === 200
     ? { received: true, verification }
-    : { error: 'Simulated error of the local webhook receiver (mode error_500).' }))
+    : { error: 'Error simulado del receptor local de webhooks (modo error_500).' }))
 }
 
 function asMode(body: Record<string, unknown>): ReceiverMode {
   const name = body.mode as ReceiverModeName
 
   if (!RECEIVER_MODES.includes(name)) {
-    throw new ReceiverError(422, `mode must be one of ${RECEIVER_MODES.join(', ')}.`)
+    throw new ReceiverError(422, `mode debe ser uno de estos: ${RECEIVER_MODES.join(', ')}.`)
   }
 
   const count = body.count === null || body.count === undefined ? null : Number(body.count)
 
   if (count !== null && (!Number.isInteger(count) || count < 1)) {
-    throw new ReceiverError(422, 'count must be a whole number of deliveries, 1 or more.')
+    throw new ReceiverError(422, 'count debe ser un número entero de entregas, 1 o más.')
   }
 
   const delay = body.delay_ms === null || body.delay_ms === undefined ? DEFAULT_SLOW_MS : Number(body.delay_ms)
 
   if (name === 'slow' && (!Number.isInteger(delay) || delay < 0 || delay > 600_000)) {
-    throw new ReceiverError(422, 'delay_ms must be between 0 and 600000.')
+    throw new ReceiverError(422, 'delay_ms debe estar entre 0 y 600000.')
   }
 
   return {
@@ -238,7 +238,7 @@ export function admin(state: State, method: string, segments: string[], url: URL
 
     if (method === 'PUT') {
       if (typeof body.secret !== 'string' || !body.secret.startsWith('whsec_')) {
-        throw new ReceiverError(422, 'secret must be a whsec_ secret.')
+        throw new ReceiverError(422, 'secret debe ser un secreto whsec_.')
       }
 
       company.secrets[subscriptionId] = body.secret
@@ -255,5 +255,5 @@ export function admin(state: State, method: string, segments: string[], url: URL
     }
   }
 
-  throw new ReceiverError(404, 'Unknown endpoint of the webhook receiver.')
+  throw new ReceiverError(404, 'Ruta desconocida del receptor de webhooks.')
 }

@@ -2414,7 +2414,8 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "description": "The description goes into the note's XML and PDF: in the language of the company's documents."
                                                 },
                                                 "notes": {
                                                     "type": "null"
@@ -7822,7 +7823,8 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "description": "The description goes into the note's XML and PDF: in the language of the company's documents."
                                                 },
                                                 "notes": {
                                                     "type": "null"

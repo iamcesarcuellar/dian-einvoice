@@ -3,6 +3,7 @@
 namespace App\Modules\Dian\Http\Requests;
 
 use App\Modules\Dian\Enums\DianEnvironment;
+use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,11 +31,7 @@ final class DianSettingsRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'software_id' => 'software ID',
-            'software_pin' => 'software PIN',
-            'test_set_id' => 'test set ID',
-        ];
+        return Translation::lines('dian::validation.attributes.settings');
     }
 
     /**
@@ -42,12 +39,7 @@ final class DianSettingsRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'environment.enum' => 'Only the test environment (2) is available. Production is not part of this project.',
-            'software_id.uuid' => 'The software ID is the identifier the DIAN assigned, such as 56f2ae4e-9812-4fad-9255-08fcfcd5ccb0.',
-            'test_set_id.uuid' => 'The test set ID is the identifier the DIAN assigned to the habilitación test set.',
-            'software_pin.regex' => 'The software PIN cannot contain spaces.',
-        ];
+        return Translation::lines('dian::validation.messages.settings');
     }
 
     /**

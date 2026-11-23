@@ -1,4 +1,5 @@
-// make docs-examples: the examples of README.md and docs/api-guide.md run against the demo (make demo), as a reader
+// make docs-examples: the examples of README.md, README.es.md and docs/api-guide.md run against the demo (make demo, in
+// English or with LOCALE=es in Spanish: the examples hold for both), as a reader
 // would run them, and the check fails when one stops working. Inside the e2e container (compose profile e2e), with the
 // repository read-only at /repo:
 //
@@ -6,7 +7,7 @@
 //     directory, with localhost:8600 passed on to the API (as on the host);
 //   - a fenced text block after <!-- output --> is what the example before it must print, line for line; a <word> in
 //     it stands for any text without spaces (an id, a number, a date);
-//   - in README.md, dei_... (the key make demo printed) becomes a key this check creates through a session and
+//   - in README.md and README.es.md, dei_... (the key make demo printed) becomes a key this check creates through a session and
 //     revokes at the end;
 //   - the blocks after <!-- example: node --> and <!-- example: php --> verify a webhook signature: this check runs
 //     the Node.js one here, and writes the PHP one with its cases for the api container (make docs-examples runs it
@@ -31,7 +32,9 @@ const RECEIVER_URL = `http://${process.env.RECEIVER_HOST ?? 'e2e'}:${RECEIVER_PO
 const OUT = '/e2e/test-results/docs-examples'
 const MARK = '@@docs-example-done@@'
 const TIMEOUT_MS = 240_000
-const DOCUMENTS = ['README.md', 'docs/api-guide.md']
+const DOCUMENTS = ['README.md', 'README.es.md', 'docs/api-guide.md']
+// The documents whose examples use the key make demo printed.
+const WITH_DEMO_KEY = new Set(['README.md', 'README.es.md'])
 
 // The Standard Webhooks reference example (www.standardwebhooks.com), the one tests/Unit/Developers/WebhookSignatureTest.php uses.
 const VECTOR = {
@@ -243,7 +246,7 @@ try {
 
   try {
     for (const path of DOCUMENTS) {
-      await run(path, blocksOf(path), path === 'README.md' ? [['dei_...', key.key]] : [])
+      await run(path, blocksOf(path), WITH_DEMO_KEY.has(path) ? [['dei_...', key.key]] : [])
     }
   } finally {
     await session(`/api-keys/${key.id}/revoke`, { method: 'POST' })

@@ -3,6 +3,7 @@
 namespace App\Modules\Catalog\Database\Seeders;
 
 use App\Modules\Catalog\Enums\ItemType;
+use App\Modules\Catalog\Listeners\ProvisionCompanyCatalog;
 use App\Modules\Catalog\Models\Contact;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\Tax;
@@ -20,7 +21,8 @@ use Illuminate\Database\Seeder;
  * not refer to real people or businesses, and phones follow the fictitious (604) 555 01NN pattern.
  * The final consumer and the default taxes and withholdings come from ProvisionCompanyCatalog;
  * Demo Servicios also has a ReteICA, whose example rate of 9.66 per thousand is not the rate of
- * any municipality.
+ * any municipality. The names of the items and of the ReteICA are in the language of the demo
+ * (catalog::demo); contacts keep their names in both.
  */
 final class DemoSeeder extends Seeder
 {
@@ -51,34 +53,31 @@ final class DemoSeeder extends Seeder
         ],
     ];
 
-    /** A ReteICA of Demo Servicios: its rate is stored as a percentage (9.66 per thousand). */
-    public const string RETE_ICA = 'ReteICA 9,66 ‰ (example)';
-
-    /** Code, name, type, unit, unit price and tax name (null means excluded). */
+    /** Code, type, unit, unit price and the key of its tax in catalog::defaults.taxes (null means excluded); the name is catalog::demo.items.{code}. */
     private const array ITEMS = [
         'commerce' => [
-            ['P-001', 'Ergonomic office chair', 'product', '94', '450000', 'IVA 19 %'],
-            ['P-002', 'Letter paper, 500 sheets', 'product', 'PK', '21500', 'IVA 19 %'],
-            ['P-003', 'Ground coffee, 500 g', 'product', '94', '18900', 'IVA 5 %'],
-            ['P-004', 'White rice, 1 kg', 'product', 'KGM', '4200', null],
-            ['P-005', 'Bottled water 600 ml, box of 24', 'product', 'BX', '26000', 'IVA 19 %'],
-            ['P-006', 'LED desk lamp', 'product', '94', '89900', 'IVA 19 %'],
-            ['P-007', 'Fresh eggs, dozen', 'product', 'DZN', '9800', 'IVA 0 % (exempt)'],
-            ['P-008', 'Cleaning liquid, 1 l', 'product', 'LTR', '12500', 'IVA 19 %'],
-            ['S-001', 'Local delivery', 'service', '94', '12000', 'IVA 19 %'],
-            ['S-002', 'Lunch menu', 'service', '94', '22000', 'INC 8 %'],
+            ['P-001', 'product', '94', '450000', 'iva_19'],
+            ['P-002', 'product', 'PK', '21500', 'iva_19'],
+            ['P-003', 'product', '94', '18900', 'iva_5'],
+            ['P-004', 'product', 'KGM', '4200', null],
+            ['P-005', 'product', 'BX', '26000', 'iva_19'],
+            ['P-006', 'product', '94', '89900', 'iva_19'],
+            ['P-007', 'product', 'DZN', '9800', 'iva_0'],
+            ['P-008', 'product', 'LTR', '12500', 'iva_19'],
+            ['S-001', 'service', '94', '12000', 'iva_19'],
+            ['S-002', 'service', '94', '22000', 'inc_8'],
         ],
         'services' => [
-            ['S-101', 'Accounting advisory', 'service', 'HUR', '180000', 'IVA 19 %'],
-            ['S-102', 'Monthly bookkeeping', 'service', '94', '1200000', 'IVA 19 %'],
-            ['S-103', 'Payroll processing', 'service', '94', '650000', 'IVA 19 %'],
-            ['S-104', 'Software support plan', 'service', '94', '4800000', 'IVA 19 %'],
-            ['S-105', 'Training workshop', 'service', 'DAY', '950000', 'IVA 19 %'],
-            ['S-106', 'Legal consultation', 'service', 'HUR', '250000.50', 'IVA 19 %'],
-            ['S-107', 'Occupational safety course', 'service', 'HUR', '120000', null],
-            ['S-108', 'Corporate catering, per person', 'service', '94', '38000', 'INC 8 %'],
-            ['P-101', 'Printed report binder', 'product', '94', '35000', 'IVA 19 %'],
-            ['P-102', 'USB flash drive 64 GB', 'product', '94', '42000', 'IVA 19 %'],
+            ['S-101', 'service', 'HUR', '180000', 'iva_19'],
+            ['S-102', 'service', '94', '1200000', 'iva_19'],
+            ['S-103', 'service', '94', '650000', 'iva_19'],
+            ['S-104', 'service', '94', '4800000', 'iva_19'],
+            ['S-105', 'service', 'DAY', '950000', 'iva_19'],
+            ['S-106', 'service', 'HUR', '250000.50', 'iva_19'],
+            ['S-107', 'service', 'HUR', '120000', null],
+            ['S-108', 'service', '94', '38000', 'inc_8'],
+            ['P-101', 'product', '94', '35000', 'iva_19'],
+            ['P-102', 'product', '94', '42000', 'iva_19'],
         ],
     ];
 
@@ -108,21 +107,27 @@ final class DemoSeeder extends Seeder
             }
 
             if ($set === 'services') {
-                Withholding::create(['dian_code' => WithholdingType::ReteIca, 'name' => self::RETE_ICA, 'rate' => '0.966']);
+                Withholding::create(['dian_code' => WithholdingType::ReteIca, 'name' => self::reteIca(), 'rate' => '0.966']);
             }
 
             $taxes = Tax::query()->pluck('id', 'name');
 
-            foreach (self::ITEMS[$set] as [$code, $name, $type, $unit, $price, $tax]) {
+            foreach (self::ITEMS[$set] as [$code, $type, $unit, $price, $tax]) {
                 Item::create([
                     'code' => $code,
-                    'name' => $name,
+                    'name' => (string) __("catalog::demo.items.{$code}"),
                     'type' => ItemType::from($type),
                     'unit_code' => $unit,
                     'unit_price' => $price,
-                    'tax_id' => $tax === null ? null : $taxes[$tax],
+                    'tax_id' => $tax === null ? null : $taxes[ProvisionCompanyCatalog::name("taxes.{$tax}")],
                 ]);
             }
         });
+    }
+
+    /** The name of the ReteICA of Demo Servicios, in the language of the demo: its rate is stored as a percentage (9.66 per thousand). */
+    public static function reteIca(): string
+    {
+        return (string) __('catalog::demo.rete_ica');
     }
 }

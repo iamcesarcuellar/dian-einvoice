@@ -49,7 +49,7 @@ final class ElectronicDocumentActions
                     ->exists();
 
                 if ($running) {
-                    throw new ConflictHttpException('An attempt is running right now.');
+                    throw new ConflictHttpException(__('dian::errors.attempt_running'));
                 }
 
                 $attempt = $document->electronic_attempt + 1;
@@ -80,7 +80,7 @@ final class ElectronicDocumentActions
                 return $document;
             }
 
-            throw new ConflictHttpException('Retry now is only available while a transmission waits for its next attempt, or after the document failed.');
+            throw new ConflictHttpException(__('dian::errors.retry_unavailable'));
         }, 3);
     }
 
@@ -90,13 +90,13 @@ final class ElectronicDocumentActions
             $document = $this->pipeline->lock($documentId) ?? throw new NotFoundHttpException;
 
             if ($document->electronic_status !== ElectronicStatus::Rejected) {
-                throw new ConflictHttpException('Resend is only available after the local simulator rejected the document.');
+                throw new ConflictHttpException(__('dian::errors.resend_unavailable'));
             }
 
             $settings = DianSetting::current();
 
             if (blank($settings->software_id) || blank($settings->software_pin)) {
-                throw ValidationException::withMessages(['dian' => ['Complete the software ID and PIN in Settings → DIAN before resending.']]);
+                throw ValidationException::withMessages(['dian' => [__('dian::errors.resend_settings')]]);
             }
 
             if ($document->isNote()) {
@@ -104,7 +104,7 @@ final class ElectronicDocumentActions
                 $invoice = Document::query()->whereKey($document->related_document_id)->lockForUpdate()->firstOrFail();
 
                 if ($invoice->balance_status === BalanceStatus::Voided) {
-                    throw new ConflictHttpException("Invoice {$invoice->full_number} is voided, so no more notes can correct it.");
+                    throw new ConflictHttpException(__('billing::errors.invoice_voided', ['number' => $invoice->full_number]));
                 }
 
                 $this->balances->assertFits($document, $invoice, BigDecimal::of((string) $document->payable_amount));

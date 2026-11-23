@@ -76,9 +76,9 @@ export function schemaErrors(xml: string, schema: string): Promise<string[]> {
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line !== '' && !line.endsWith('validates') && !line.endsWith('fails to validate'))
-      .map((line) => line.replace(`${file}:`, 'line '))
+      .map((line) => line.replace(`${file}:`, 'línea '))
 
-    return errors.length > 0 ? errors : [`xmllint exited with ${result.code}`]
+    return errors.length > 0 ? errors : [`xmllint terminó con el código ${result.code}`]
   }))
 }
 

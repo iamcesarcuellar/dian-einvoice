@@ -53,7 +53,7 @@ final class RateLimitApiKeys
         if (! $allowed) {
             return ProblemDetails::response(
                 429,
-                sprintf('This API key allows %d requests per minute. Try again in %d seconds.', $limit, $resetIn),
+                __('developers::errors.rate_limited', ['limit' => $limit, 'seconds' => $resetIn]),
                 headers: [...$headers, 'Retry-After' => (string) $resetIn],
             );
         }

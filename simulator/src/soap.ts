@@ -96,7 +96,7 @@ export function faultEnvelope(code: 'Sender' | 'Receiver', reason: string): stri
 <s:Body>
 <s:Fault>
 <s:Code><s:Value>s:${code}</s:Value></s:Code>
-<s:Reason><s:Text xml:lang="en-US">${escapeXml(reason)}</s:Text></s:Reason>
+<s:Reason><s:Text xml:lang="es-CO">${escapeXml(reason)}</s:Text></s:Reason>
 </s:Fault>
 </s:Body>
 </s:Envelope>

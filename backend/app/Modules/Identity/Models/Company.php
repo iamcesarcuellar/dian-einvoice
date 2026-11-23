@@ -6,6 +6,7 @@ use App\Modules\Identity\Support\NitCheckDigit;
 use App\Modules\Reference\Enums\OrganizationType;
 use App\Modules\Reference\Enums\TaxScheme;
 use App\Modules\Reference\Models\Municipality;
+use App\Support\Language;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property int $check_digit
  * @property list<string>|null $fiscal_responsibilities
+ * @property Language $document_language The language of its PDFs, its emails to customers and the texts its chain stores.
  */
 class Company extends Model
 {
@@ -37,6 +39,7 @@ class Company extends Model
         'address',
         'municipality_code',
         'postal_code',
+        'document_language',
     ];
 
     /**
@@ -49,6 +52,7 @@ class Company extends Model
             'organization_type' => OrganizationType::class,
             'tax_scheme' => TaxScheme::class,
             'fiscal_responsibilities' => 'array',
+            'document_language' => Language::class,
         ];
     }
 
@@ -62,6 +66,17 @@ class Company extends Model
                 $company->legal_name = $company->name;
             }
         });
+    }
+
+    /**
+     * The language of its documents: the PDF, the email to the customer and the texts its chain and its webhook
+     * deliveries store. English for a company loaded without the column.
+     */
+    public function documentLanguage(): Language
+    {
+        $language = $this->getAttribute('document_language');
+
+        return $language instanceof Language ? $language : Language::English;
     }
 
     /**

@@ -20,6 +20,8 @@ final class WorkspaceServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
+        $this->loadTranslationsFrom(__DIR__.'/Lang', 'workspace');
+
         // The search of the command palette asks as the user types: 120 searches a minute per user.
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(120)->by('search|'.Actor::limitKey($request)));
 

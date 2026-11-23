@@ -6,6 +6,7 @@ use App\Modules\Identity\Enums\InvitationStatus;
 use App\Modules\Identity\Mail\TeamInvitationMail;
 use App\Modules\Identity\Models\TeamInvitation;
 use App\Modules\Identity\Tenancy\CompanyScope;
+use App\Support\Language;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -19,7 +20,8 @@ use SensitiveParameter;
  * Sends the email of an invitation from the queue, retried on failure. The job carries the token of
  * the link, so its payload is encrypted with the application key (ShouldBeEncrypted): the queue and
  * failed_jobs hold it only encrypted, and the database only its hash. An invitation that is no
- * longer pending, or that was resent with a newer link since, is not sent.
+ * longer pending, or that was resent with a newer link since, is not sent. The email is in the language of the
+ * request that invited or resent (Accept-Language), which the job carries.
  */
 final class SendTeamInvitation implements ShouldBeEncrypted, ShouldQueue
 {
@@ -38,10 +40,16 @@ final class SendTeamInvitation implements ShouldBeEncrypted, ShouldQueue
     /** Seconds before the worker stops the job; the SMTP connection has its own timeout. */
     public int $timeout = 30;
 
+    /** The language of the email: the one of the request that sent the invitation (en or es). */
+    public string $language = 'en';
+
     public function __construct(
         public readonly string $invitationId,
         #[SensitiveParameter] public readonly string $token,
-    ) {}
+        ?Language $language = null,
+    ) {
+        $this->language = ($language ?? Language::current())->value;
+    }
 
     public function handle(): void
     {
@@ -56,7 +64,7 @@ final class SendTeamInvitation implements ShouldBeEncrypted, ShouldQueue
             return;
         }
 
-        Mail::to($invitation->email)->send(new TeamInvitationMail($invitation, $this->token));
+        Mail::to($invitation->email)->locale($this->language)->send(new TeamInvitationMail($invitation, $this->token));
 
         $invitation->forceFill(['last_sent_at' => Carbon::now()])->save();
     }

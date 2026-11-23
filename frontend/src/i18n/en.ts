@@ -16,6 +16,12 @@ export default {
     choose: 'Choose…',
     noResults: 'No results.',
   },
+  // Each language by its own name, the same in every language of the interface.
+  languages: {
+    label: 'Language',
+    en: 'English',
+    es: 'Español',
+  },
   // How this language writes dates, filled in by lib/format.ts: the day ({day}, or {dd} with two
   // digits), the month ({month} in letters, or {mm} with two digits) and the year ({year}).
   format: {
@@ -140,6 +146,8 @@ export default {
     fiscalResponsibilities: 'Fiscal responsibilities',
     registrationNumber: 'Commercial registration',
     registrationNumberHint: 'The chamber of commerce registration number.',
+    documentLanguage: 'Document language',
+    documentLanguageHint: 'The language of the PDF, the customer email and the timeline texts. The interface keeps its own language.',
     active: 'Active',
   },
   nav: {
@@ -185,6 +193,7 @@ export default {
       dark: 'Dark',
       auto: 'System',
     },
+    language: 'Language',
     about: 'About',
     logout: 'Sign out',
   },
@@ -553,6 +562,27 @@ export default {
           duration: 'Duration',
         },
         duration: '{ms} ms',
+        // What each request of the activity came to, and the mode that applied to it, as the local simulator
+        // names them.
+        results: {
+          accepted: 'accepted',
+          rejected: 'rejected',
+          duplicate: 'duplicate',
+          not_found: 'not_found',
+          found_accepted: 'found accepted',
+          found_rejected: 'found rejected',
+          invalid_request: 'invalid_request',
+          error_500: 'error_500',
+          reset: 'reset',
+        },
+        withheld: '{result} (response withheld)',
+        activityModes: {
+          reject: 'reject',
+          no_response: 'no_response',
+          error_500: 'error_500',
+          slow: 'slow',
+          intermittent: 'intermittent',
+        },
       },
       mailbox: {
         title: 'Local mailbox (development tool)',
@@ -571,6 +601,8 @@ export default {
       taxDescription: 'How the company is classified for taxes. It goes on every electronic document.',
       contact: 'Address and contact',
       contactDescription: "The company's registered address, in Colombia, and how customers reach it.",
+      documents: 'Documents',
+      documentsDescription: 'The language of what the company sends its customers.',
       readOnly: 'Only owners and admins can edit the company. You can still view its details.',
       saved: 'Company saved.',
     },
@@ -1058,7 +1090,6 @@ export default {
       total: 'Total',
       status: 'Status',
       electronic: 'Electronic',
-      delivery: 'Delivery',
       balance: 'Balance',
     },
     electronic: {

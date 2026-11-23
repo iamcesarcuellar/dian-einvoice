@@ -41,15 +41,15 @@ final class ApiKeyAuthenticator
         }
 
         if ($key === null) {
-            throw new AuthenticationException("The API key is not valid. Send one of this platform's API keys in the Authorization header: Bearer dei_...", [self::GUARD]);
+            throw new AuthenticationException(__('developers::errors.key_invalid'), [self::GUARD]);
         }
 
         if ($key->status() === 'revoked') {
-            throw new AuthenticationException(sprintf('The API key %s was revoked.', $key->visibleId()), [self::GUARD]);
+            throw new AuthenticationException(__('developers::errors.key_revoked', ['key' => $key->visibleId()]), [self::GUARD]);
         }
 
         if ($key->status() === 'expired') {
-            throw new AuthenticationException(sprintf('The API key %s expired on %s.', $key->visibleId(), $key->expires_at?->toIso8601String()), [self::GUARD]);
+            throw new AuthenticationException(__('developers::errors.key_expired', ['key' => $key->visibleId(), 'date' => (string) $key->expires_at?->toIso8601String()]), [self::GUARD]);
         }
 
         $key->touchLastUsed();

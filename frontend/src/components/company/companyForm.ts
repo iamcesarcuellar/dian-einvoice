@@ -15,6 +15,8 @@ export interface CompanyFormModel {
   address: string
   municipality_code: string | null
   postal_code: string
+  /** The language of the company's documents; null for a new company, which takes the language of the request. */
+  document_language: string | null
 }
 
 export function emptyCompanyForm(): CompanyFormModel {
@@ -32,6 +34,7 @@ export function emptyCompanyForm(): CompanyFormModel {
     address: '',
     municipality_code: null,
     postal_code: '',
+    document_language: null,
   }
 }
 
@@ -50,6 +53,7 @@ export function companyFormFrom(company: Company): CompanyFormModel {
     address: company.address ?? '',
     municipality_code: company.municipality_code,
     postal_code: company.postal_code ?? '',
+    document_language: company.document_language,
   }
 }
 
@@ -75,5 +79,6 @@ export function toCompanyInput(form: CompanyFormModel): CompanyInput {
     address: orNull(form.address),
     municipality_code: form.municipality_code,
     postal_code: orNull(form.postal_code),
+    ...(form.document_language === 'en' || form.document_language === 'es' ? { document_language: form.document_language } : {}),
   }
 }

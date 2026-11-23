@@ -90,22 +90,20 @@ final class InvoiceBalance
         $remaining = BigDecimal::of($this->of($invoice, $note->id, $this->lockedNotes($invoice))['remaining_to_credit']);
 
         if ($payable->isGreaterThan($remaining)) {
-            throw ValidationException::withMessages(['lines' => [sprintf(
-                'The credit note is for %s, more than the %s left to credit on invoice %s.',
-                ColombianFormat::money((string) $payable),
-                ColombianFormat::money((string) $remaining),
-                $invoice->full_number,
-            )]]);
+            throw ValidationException::withMessages(['lines' => [__('billing::errors.credit_exceeds', [
+                'amount' => ColombianFormat::money((string) $payable),
+                'remaining' => ColombianFormat::money((string) $remaining),
+                'number' => $invoice->full_number,
+            ])]]);
         }
 
         // A void takes all that is left; less than one peso may stay, and then counts as credited.
         if ($note->reason_code === CreditNoteConcept::Void->value && $remaining->minus($payable)->isGreaterThanOrEqualTo(self::ONE_PESO)) {
-            throw ValidationException::withMessages(['reason_code' => [sprintf(
-                'A credit note that voids invoice %s must be for all that is left to credit, %s, or less than one peso below it; this one is for %s.',
-                $invoice->full_number,
-                ColombianFormat::money((string) $remaining),
-                ColombianFormat::money((string) $payable),
-            )]]);
+            throw ValidationException::withMessages(['reason_code' => [__('billing::errors.void_mismatch', [
+                'number' => $invoice->full_number,
+                'remaining' => ColombianFormat::money((string) $remaining),
+                'amount' => ColombianFormat::money((string) $payable),
+            ])]]);
         }
     }
 

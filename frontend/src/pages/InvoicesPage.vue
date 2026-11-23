@@ -100,17 +100,22 @@ const { page, search, rows, meta, isLoading, error, refetch } = useListQuery(
   },
 )
 
+// The customer takes the width the others leave: every column keeps a narrower padding, and the delivery shows as an
+// icon next to the electronic status, so a name such as "Distribuidora Cordillera Plata SAS" fits at 1440 px.
+const TIGHT = 'px-1.5'
+
 const columns = computed<DataTableColumn[]>(() => [
-  { key: 'number', label: t('invoices.columns.number') },
-  ...(isNote.value ? [{ key: 'related', label: t('notes.columns.invoice') }] : []),
-  { key: 'customer', label: t('invoices.columns.customer'), truncate: true },
-  { key: 'issue_date', label: t('invoices.columns.issueDate') },
-  isNote.value ? { key: 'concept', label: t('notes.columns.concept'), truncate: true } : { key: 'due_date', label: t('invoices.columns.dueDate') },
-  { key: 'total', label: t('invoices.columns.total'), align: 'right' },
-  ...(isNote.value ? [] : [{ key: 'balance', label: t('invoices.columns.balance'), align: 'right' as const }]),
-  { key: 'status', label: t('invoices.columns.status') },
-  { key: 'electronic', label: t('invoices.columns.electronic') },
-  { key: 'delivery', label: t('invoices.columns.delivery') },
+  { key: 'number', label: t('invoices.columns.number'), class: TIGHT },
+  ...(isNote.value ? [{ key: 'related', label: t('notes.columns.invoice'), class: TIGHT }] : []),
+  { key: 'customer', label: t('invoices.columns.customer'), truncate: true, class: TIGHT },
+  { key: 'issue_date', label: t('invoices.columns.issueDate'), class: TIGHT },
+  isNote.value
+    ? { key: 'concept', label: t('notes.columns.concept'), truncate: true, class: TIGHT }
+    : { key: 'due_date', label: t('invoices.columns.dueDate'), class: TIGHT },
+  { key: 'total', label: t('invoices.columns.total'), align: 'right', class: TIGHT },
+  ...(isNote.value ? [] : [{ key: 'balance', label: t('invoices.columns.balance'), align: 'right' as const, class: TIGHT }]),
+  { key: 'status', label: t('invoices.columns.status'), class: TIGHT },
+  { key: 'electronic', label: t('invoices.columns.electronic'), class: TIGHT },
 ])
 
 function conceptOf(document: Invoice): string {
@@ -142,11 +147,12 @@ function actions(document: Invoice): RowAction[] {
     @retry="refetch"
   >
     <template #toolbar>
+      <!-- Each filter is as wide as its longest label needs, never narrower than before: the Spanish labels are longer. -->
       <div class="flex flex-wrap gap-2">
-        <div class="w-44">
+        <div class="min-w-44">
           <SelectInput v-model="status" :options="statusOptions" :placeholder="t('invoices.filters.status')" :label="t('invoices.filters.status')" />
         </div>
-        <div class="w-52">
+        <div class="min-w-52">
           <SelectInput
             v-model="electronic"
             :options="electronicOptions"
@@ -154,10 +160,10 @@ function actions(document: Invoice): RowAction[] {
             :label="t('invoices.filters.electronic')"
           />
         </div>
-        <div v-if="!isNote" class="w-48">
+        <div v-if="!isNote" class="min-w-48">
           <SelectInput v-model="balance" :options="balanceOptions" :placeholder="t('notes.filters.balance')" :label="t('notes.filters.balance')" />
         </div>
-        <div v-if="!isNote" class="w-48">
+        <div v-if="!isNote" class="min-w-48">
           <SelectInput v-model="payment" :options="paymentOptions" :placeholder="t('invoices.filters.payment')" :label="t('invoices.filters.payment')" />
         </div>
         <RouterLink
@@ -228,17 +234,17 @@ function actions(document: Invoice): RowAction[] {
       </span>
     </template>
     <template #cell-electronic="{ row }">
-      <StatusBadge v-if="row.electronic" domain="electronic" :status="electronicGroup(row.electronic.status)" :hint="t('invoices.electronic.bySimulator')" />
-      <span v-else class="text-muted-foreground">—</span>
-    </template>
-    <template #cell-delivery="{ row }">
-      <StatusBadge
-        v-if="row.delivery && row.electronic?.status === 'accepted'"
-        domain="delivery"
-        :status="row.delivery.status ?? 'waiting'"
-        :hint="t(`invoices.delivery.statusTitle.${row.delivery.status ?? 'waiting'}`)"
-        compact
-      />
+      <!-- The electronic status, and once accepted the delivery to the customer as an icon with its own hint. -->
+      <span v-if="row.electronic" class="inline-flex items-center gap-1.5">
+        <StatusBadge domain="electronic" :status="electronicGroup(row.electronic.status)" :hint="t('invoices.electronic.bySimulator')" />
+        <StatusBadge
+          v-if="row.delivery && row.electronic.status === 'accepted'"
+          domain="delivery"
+          :status="row.delivery.status ?? 'waiting'"
+          :hint="t(`invoices.delivery.statusTitle.${row.delivery.status ?? 'waiting'}`)"
+          compact
+        />
+      </span>
       <span v-else class="text-muted-foreground">—</span>
     </template>
     <template #actions="{ row }">

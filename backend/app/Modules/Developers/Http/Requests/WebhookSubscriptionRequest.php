@@ -6,6 +6,7 @@ use App\Modules\Developers\Models\WebhookSubscription;
 use App\Modules\Developers\Webhooks\PrivateTargets;
 use App\Modules\Developers\Webhooks\WebhookEventTypes;
 use App\Modules\Developers\Webhooks\WebhookSender;
+use App\Support\Translation;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -31,7 +32,7 @@ final class WebhookSubscriptionRequest extends FormRequest
                 // Where https is required (production), on its own port: the only one the functions may open
                 // toward the internet (the security group of the functions, docs/infrastructure.md).
                 if ((bool) config('developers.webhooks.require_https', false) && is_string($value) && PrivateTargets::port($value) !== WebhookSender::HTTPS_PORT) {
-                    $fail(WebhookSender::HTTPS_PORT_ONLY);
+                    $fail(__(WebhookSender::HTTPS_PORT_ONLY));
 
                     return;
                 }
@@ -45,5 +46,13 @@ final class WebhookSubscriptionRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return Translation::lines('developers::validation.attributes.subscription');
     }
 }

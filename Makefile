@@ -7,6 +7,15 @@ export HOST_GID := $(shell id -g)
 # of the backend, the same file Laravel reads; make env creates it and fills them in.
 COMPOSE := docker compose --env-file backend/.env
 
+# The language of the demo data of make demo, make seed and make cloud-demo: en (the default) or es. In Spanish every
+# text of the data is Spanish and both demo companies issue their documents in Spanish; the documents, the amounts
+# and the dates are the same.
+LOCALE ?= en
+ifeq ($(filter $(LOCALE),en es),)
+$(error LOCALE must be en or es, not "$(LOCALE)")
+endif
+DEMO_SEEDER := $(if $(filter es,$(LOCALE)),SpanishDemoSeeder,DatabaseSeeder)
+
 # Size of make stress.
 INVOICES ?= 60
 CONCURRENCY ?= 20
@@ -89,15 +98,16 @@ logs: ## Local stack | Follow the logs of every service
 ps: ## Local stack | Show this project's containers and their health
 	$(COMPOSE) ps
 
-# Rebuild the database from scratch and load the synthetic demo data; local data is lost. The workers and
-# the relay are stopped meanwhile: the demo runs its invoices through the chain itself, in line.
-seed: ## Local stack | Rebuild the database and reload the synthetic demo data (local data is lost)
+# Rebuild the database from scratch and load the synthetic demo data, in English or with LOCALE=es in Spanish; local
+# data is lost. The workers and the relay are stopped meanwhile: the demo runs its invoices through the chain itself,
+# in line.
+seed: ## Local stack | Rebuild the database and reload the synthetic demo data, LOCALE=en|es (local data is lost)
 	$(COMPOSE) stop worker relay
-	$(COMPOSE) exec api php artisan migrate:fresh --seed --force --no-interaction || { $(COMPOSE) up -d worker relay; exit 1; }
+	$(COMPOSE) exec api php artisan migrate:fresh --seed --seeder=$(DEMO_SEEDER) --force --no-interaction || { $(COMPOSE) up -d worker relay; exit 1; }
 	$(COMPOSE) up -d worker relay
 
-# Start the stack and load the synthetic demo data.
-demo: up ## Get started | Start the local stack and load the synthetic demo data: the quick start
+# Start the stack and load the synthetic demo data, in English or with LOCALE=es in Spanish.
+demo: up ## Get started | Start the local stack and load the synthetic demo data, LOCALE=en|es: the quick start
 	@$(MAKE) --no-print-directory seed
 
 # On a temporary company, issue INVOICES invoices from CONCURRENCY parallel processes, check the numbers have
@@ -167,12 +177,13 @@ delivery-check: ## Checks on the running stack | Validate the AttachedDocument a
 payments-check: ## Checks on the running stack | Record twenty simultaneous payments of a tenth of a balance: exactly ten fit
 	$(COMPOSE) exec api php artisan payments:check
 
-# The examples of README.md and docs/api-guide.md against the demo (make demo), as a reader runs them
-# (e2e/docs/examples.mjs, in the container of the browser tooling, the repository read-only): each curl block runs and
-# prints what the docs say it prints, and the webhook signature examples in Node.js and PHP verify the Standard
-# Webhooks reference example and a real webhook of the demo; the PHP one runs next, in the api image. Each run adds a
-# contact, an item and an invoice to Demo Comercial SAS; the keys and subscriptions it creates are revoked and deleted.
-docs-examples: ## Checks on the running stack | Run the README.md and docs/api-guide.md examples against the demo, webhook signatures included
+# The examples of README.md, README.es.md and docs/api-guide.md against the demo (make demo, in either language), as a
+# reader runs them (e2e/docs/examples.mjs, in the container of the browser tooling, the repository read-only): each curl
+# block runs and prints what the docs say it prints, and the webhook signature examples in Node.js and PHP verify the
+# Standard Webhooks reference example and a real webhook of the demo; the PHP one runs next, in the api image. Each run
+# adds a contact, an item and an invoice to Demo Comercial SAS; the keys and subscriptions it creates are revoked and
+# deleted.
+docs-examples: ## Checks on the running stack | Run the examples of both READMEs and docs/api-guide.md against the demo, webhook signatures included
 	$(COMPOSE) --profile e2e run --rm --no-deps --use-aliases -T -v $(CURDIR):/repo:ro e2e node docs/examples.mjs /repo
 	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/e2e/test-results/docs-examples:/examples:ro api php /examples/verify.php
 
@@ -199,7 +210,7 @@ lint: ## Quality | Run the formatters and linters, then docs-check; the stack ne
 	@$(MAKE) --no-print-directory docs-check
 
 # The documentation holds true (e2e/docs/check.mjs, in the browser tooling of profile e2e, the repository read-only):
-# every make target and file README.md and docs/README.md name exists, every relative link and anchor of every
+# every make target and file README.md, README.es.md and docs/README.md name exists, every relative link and anchor of every
 # Markdown file resolves, every image exists and keeps to its size (a screenshot 400 KB, a GIF 5 MB), and Mermaid
 # draws every diagram.
 docs-check: ## Quality | Check the docs' make targets, files, links, anchors, images and Mermaid diagrams, and the cost estimate
@@ -303,7 +314,7 @@ migrations-check: ## Quality | Refuse a migration that drops or renames without 
 # The end-to-end test in a browser (Playwright, profile e2e) against the full stack with the demo data (make demo):
 # sign in, issue an invoice, see it accepted and delivered, open its PDF, record its payment and see it paid; then
 # every list of the web app at 1440×900, none wider than its box.
-e2e: ## Checks on the running stack | Run the browser test: an invoice from draft to paid, and every list at 1440×900
+e2e: ## Checks on the running stack | Run the browser tests: an invoice from draft to paid, one in Spanish, and every list at 1440×900
 	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 
 # The checks of the stack, in a row, against the demo data (make demo). make dian-schematron stays optional, apart.
@@ -358,8 +369,8 @@ cloud-deploy: ## Emulated cloud operations | Run one step of scripts/deploy.sh a
 # The emulated cloud with the synthetic demo data, through the real chain with the AWS adapters (the demo documents
 # in the bucket, their emails in SES), run by the console function. The seeder runs the chain of its documents in
 # line and holds back the relay function and the scheduled sweepers meanwhile, as make seed stops the local relay.
-cloud-demo: cloud-up ## Emulated cloud | Run cloud-up, then load the synthetic demo data through the functions
-	$(FUNCTIONS) node scripts/console.mjs migrate:fresh --seed --force --no-interaction
+cloud-demo: cloud-up ## Emulated cloud | Run cloud-up, then load the synthetic demo data through the functions, LOCALE=en|es
+	$(FUNCTIONS) node scripts/console.mjs migrate:fresh --seed --seeder=$(DEMO_SEEDER) --force --no-interaction
 
 # Stop and remove the containers of the emulated cloud and of the stack it uses, and those its emulator started for
 # the functions; every volume is kept.
@@ -503,10 +514,11 @@ sh-api: ## Local stack | Open a shell in the api container
 sh-web: ## Local stack | Open a shell in the web container
 	$(COMPOSE) exec web sh
 
-# The screenshots and the GIFs of the README in docs/assets, made by script only (scripts/screenshots.sh): the demo data
-# reloaded as make seed does (local data is lost) under the story clock of the demo, Thursday, November 19, 2026, 3 p.m.
-# in Medellín, then the browser of profile e2e (e2e/screenshots) at 1440×900, the screenshots at twice the density.
+# The screenshots and the GIFs of the README in English (docs/assets) and of README.es.md in Spanish (docs/assets/es, the
+# same names), made by script only (scripts/screenshots.sh): for each language, the demo data reloaded in it as make
+# seed does (local data is lost) under the story clock of the demo, Thursday, November 19, 2026, 3 p.m. in Medellín,
+# then the browser of profile e2e (e2e/screenshots) at 1440×900 in that language, the screenshots at twice the density.
 # Any error in the console of the browser or on screen fails it, and so does a screenshot over 400 KB or a GIF over
 # 5 MB. The backend and the simulator get the clock of the machine back at the end.
-screenshots: up ## Checks on the running stack | Reload the demo data on the story day and write the screenshots and GIFs of docs/assets
+screenshots: up ## Checks on the running stack | Reload the demo data on the story day and write the README's screenshots and GIFs, in English and in Spanish
 	@sh scripts/screenshots.sh

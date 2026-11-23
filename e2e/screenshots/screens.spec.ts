@@ -2,19 +2,26 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Browser, BrowserContext, BrowserContextOptions, Locator, Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
+import { t } from '../tests/messages'
+import type { Language } from '../tests/messages'
 
 /**
- * make screenshots (scripts/screenshots.sh): the screenshots and the frames of the two GIFs of the README, against the
- * local stack with the synthetic demo data the script has just reloaded, under the story clock (Thursday, November 19,
- * 2026, 3 p.m. in Medellín; SCREENSHOTS_CLOCK_OFFSET seconds from the clock of the machine, the same offset the backend
- * and the DIAN simulator run with). Desktop, 1440×900, in a browser set to British English (en-GB), so the native date
- * field of the editor reads day, month and year in the order of the app's own dates. The screenshots at twice the
- * density, 1440 px wide and at most 900 px high: each starts with the page header or a card and ends with a card or a
- * table row, shortened when the screen ends in the middle of one. The frames of the GIFs at once, with a drawn pointer.
- * Any error in the console of the browser, an uncaught exception or an error on screen that the story does not expect
- * fails the run. The files go to SCREENSHOTS_RAW; screenshots/encode.mjs writes docs/assets.
+ * make screenshots (scripts/screenshots.sh): the screenshots and the frames of the two GIFs of the README, in English or
+ * in Spanish (SCREENSHOTS_LANGUAGE, en or es), against the local stack with the synthetic demo data the script has just
+ * reloaded in that language, under the story clock (Thursday, November 19, 2026, 3 p.m. in Medellín;
+ * SCREENSHOTS_CLOCK_OFFSET seconds from the clock of the machine, the same offset the backend and the DIAN simulator run
+ * with). Desktop, 1440×900, in a browser set to British English (en-GB) or to Colombian Spanish (es-CO), so the native
+ * date field of the editor reads day, month and year in the order of the app's own dates, and the web app opens in that
+ * language. Every text the story clicks or reads is the web app's message in that language (tests/messages.ts); the
+ * names of the demo data come from its API. The screenshots at twice the density, 1440 px wide and at most 900 px high:
+ * each starts with the page header or a card and ends with a card or a table row, shortened when the screen ends in the
+ * middle of one. The frames of the GIFs at once, with a drawn pointer. Any error in the console of the browser, an
+ * uncaught exception or an error on screen that the story does not expect fails the run. The files go to
+ * SCREENSHOTS_RAW; screenshots/encode.mjs writes docs/assets, or docs/assets/es.
  */
 
+const LANGUAGE: Language = process.env.SCREENSHOTS_LANGUAGE === 'es' ? 'es' : 'en'
+const LOCALE = LANGUAGE === 'es' ? 'es-CO' : 'en-GB'
 const RAW = process.env.SCREENSHOTS_RAW ?? '/tmp/screenshots'
 const OFFSET_SECONDS = Number(process.env.SCREENSHOTS_CLOCK_OFFSET)
 const ORIGIN = 'http://localhost:8601'
@@ -36,12 +43,37 @@ const SEARCH_PAUSE = 300
 const CHAIN_TIMEOUT = 120_000
 const OUTAGE_TIMEOUT = 420_000
 
+/** A message of the web app in the language of the run, its placeholders filled in. */
+function say(key: string, values: Record<string, string | number> = {}): string {
+  return t(LANGUAGE, key, values)
+}
+
+/** What a message says before its first placeholder: "Accepted by the local simulator on " of "… on {date} …". */
+function lead(key: string): string {
+  return say(key).split('{')[0] ?? ''
+}
+
+/** The state of a step of the electronic document strip, as it tells screen readers: "Accepted (done)". */
+function done(stepKey: string): string {
+  return `${say(`invoices.progress.${stepKey}`)} (${say('invoices.progress.done')})`
+}
+
+/**
+ * What the story types to find each item of the demo, by its code, in the language of the demo data; the option it
+ * takes is the item's name from the API.
+ */
+const SEARCHES: Record<Language, Record<string, string>> = {
+  en: { 'P-001': 'chair', 'P-002': 'paper', 'P-003': 'coffee' },
+  es: { 'P-001': 'silla', 'P-002': 'papel', 'P-003': 'café' },
+}
+
 interface Listed {
   readonly id: string
   readonly status?: string
   readonly full_number?: string | null
   readonly customer_name?: string | null
   readonly reason_text?: string | null
+  readonly reason_code?: string | null
   readonly payment_status?: string | null
   readonly electronic?: { readonly status?: string } | null
   readonly delivery?: { readonly status?: string } | null
@@ -65,7 +97,7 @@ function watch(page: Page, name: string): Page {
 
 /** A context of the run: the story clock installed before any page opens, and the session of the demo user. */
 async function context(browser: Browser, options: BrowserContextOptions): Promise<BrowserContext> {
-  const created = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: 'en-GB', timezoneId: 'America/Bogota', ...options })
+  const created = await browser.newContext({ baseURL: ORIGIN, viewport: VIEWPORT, locale: LOCALE, timezoneId: 'America/Bogota', ...options })
   await created.clock.install({ time: Date.now() + OFFSET_SECONDS * 1000 })
 
   return created
@@ -390,7 +422,7 @@ async function pick(page: Page, select: Locator, option: string, film?: Film): P
 
 /** The totals panel of an invoice or a note, on the pages that have one. */
 function totalsPanel(page: Page): Locator {
-  return page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]', { hasText: /^Totals$/ }) })
+  return page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]', { hasText: new RegExp(`^${say('invoices.totals.title')}$`) }) })
 }
 
 /** The totals panel shows the totals of the lines on screen: nothing being calculated, and the total given (or any but zero). */
@@ -398,7 +430,7 @@ async function totalsShow(page: Page, total?: string): Promise<void> {
   const panel = totalsPanel(page)
   const amount = panel
     .locator('dl > div')
-    .filter({ has: page.locator('dt', { hasText: /^Total$/ }) })
+    .filter({ has: page.locator('dt', { hasText: new RegExp(`^${say('invoices.totals.total')}$`) }) })
     .locator('dd')
 
   await expect(panel.getByRole('status')).toHaveCount(0)
@@ -445,7 +477,21 @@ async function inCompany(context: BrowserContext, company: string): Promise<void
 
 /** The strip of the electronic document: each step tells its state, as in "Accepted (done)". */
 function step(page: Page, text: string): Locator {
-  return page.getByRole('region', { name: 'Electronic document progress' }).getByRole('listitem').filter({ hasText: text })
+  return page.getByRole('region', { name: say('invoices.progress.label') }).getByRole('listitem').filter({ hasText: text })
+}
+
+/** The names of the company's items by code, from its API: those of the demo data's language. */
+async function itemNames(page: Page): Promise<Map<string, string>> {
+  const items = (await list(page, 'items?per_page=100')) as unknown as { code: string; name: string }[]
+
+  return new Map(items.map((item) => [item.code, item.name]))
+}
+
+/** The search for an item and the option to take: what the story types for its code, and its name. */
+function itemChoice(names: Map<string, string>, code: string): [string, RegExp] {
+  const name = names.get(code) ?? code
+
+  return [SEARCHES[LANGUAGE][code] ?? name, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))]
 }
 
 /** The card of the page with this title. */
@@ -496,15 +542,15 @@ async function scrollToEndOf(page: Page, title: string): Promise<void> {
 /** Sets the failure mode of the simulator for the company, from its card in Settings → DIAN. */
 async function setSimulatorMode(page: Page, mode: string, film?: Film): Promise<void> {
   await page.goto('/settings/dian')
-  await scrollToSection(page, 'Local simulator (development tool)')
+  await scrollToSection(page, say('settings.dian.simulator.title'))
 
   if (film) {
     await settle(page)
     await film.frame(1100)
   }
 
-  await pick(page, page.getByRole('combobox', { name: 'Failure mode' }), mode, film)
-  const apply = page.getByRole('button', { name: 'Apply', exact: true })
+  await pick(page, page.getByRole('combobox', { name: say('settings.dian.simulator.mode') }), say(`settings.dian.simulator.modes.${mode}`), film)
+  const apply = page.getByRole('button', { name: say('settings.dian.simulator.apply'), exact: true })
 
   if (film) {
     await film.click(apply, 400)
@@ -512,7 +558,7 @@ async function setSimulatorMode(page: Page, mode: string, film?: Film): Promise<
     await apply.click()
   }
 
-  await expect(page.getByText('Mode applied.')).toBeVisible()
+  await expect(page.getByText(say('settings.dian.simulator.applied'))).toBeVisible()
 }
 
 test('the screenshots and the GIFs of the README', async ({ browser }) => {
@@ -548,26 +594,28 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await still(night, 'dashboard-dark')
 
     await page.goto('/invoices')
-    await expect(page.getByRole('link', { name: 'New invoice' })).toBeVisible()
+    await expect(page.getByRole('link', { name: say('invoices.new') })).toBeVisible()
     await still(page, 'invoices')
   })
 
+  const names = await itemNames(page)
+
   await test.step('the editor with its live totals', async () => {
     await page.goto('/invoices/new')
-    await choose(page, page.getByRole('combobox', { name: 'Customer' }), 'Cordillera', /Distribuidora Cordillera Plata SAS/)
-    const items = page.getByRole('combobox', { name: 'Item', exact: true })
-    await choose(page, items.nth(0), 'chair', /Ergonomic office chair/)
-    await page.getByLabel('Quantity').nth(0).fill('2')
-    await page.getByRole('button', { name: 'Add line' }).click()
-    await choose(page, items.nth(1), 'paper', /Letter paper, 500 sheets/)
-    await page.getByLabel('Quantity').nth(1).fill('10')
-    await page.getByRole('button', { name: 'Add line' }).click()
-    await choose(page, items.nth(2), 'coffee', /Ground coffee, 500 g/)
-    await page.getByLabel('Quantity').nth(2).fill('6')
+    await choose(page, page.getByRole('combobox', { name: say('invoices.editor.customer') }), 'Cordillera', /Distribuidora Cordillera Plata SAS/)
+    const items = page.getByRole('combobox', { name: say('invoices.editor.item'), exact: true })
+    await choose(page, items.nth(0), ...itemChoice(names, 'P-001'))
+    await page.getByLabel(say('invoices.editor.quantity')).nth(0).fill('2')
+    await page.getByRole('button', { name: say('invoices.editor.addLine') }).click()
+    await choose(page, items.nth(1), ...itemChoice(names, 'P-002'))
+    await page.getByLabel(say('invoices.editor.quantity')).nth(1).fill('10')
+    await page.getByRole('button', { name: say('invoices.editor.addLine') }).click()
+    await choose(page, items.nth(2), ...itemChoice(names, 'P-003'))
+    await page.getByLabel(say('invoices.editor.quantity')).nth(2).fill('6')
     await expect(items).toHaveCount(3)
     // 2 chairs and 10 packs of paper at IVA 19 %, 6 packs of coffee at IVA 5 %.
     await totalsShow(page, '$ 1.445.920,00')
-    await scrollToSection(page, 'Lines')
+    await scrollToSection(page, say('invoices.editor.lines'))
     await still(page, 'invoice-editor')
   })
 
@@ -578,28 +626,28 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await camera.goto('/invoices')
     await settle(camera)
     await film.frame(1100)
-    await film.click(camera.getByRole('link', { name: 'New invoice' }))
-    await expect(camera.getByRole('combobox', { name: 'Customer' })).toBeVisible()
+    await film.click(camera.getByRole('link', { name: say('invoices.new') }))
+    await expect(camera.getByRole('combobox', { name: say('invoices.editor.customer') })).toBeVisible()
     await settle(camera)
     await film.frame(500)
 
-    await choose(camera, camera.getByRole('combobox', { name: 'Customer' }), 'Cordillera', /Distribuidora Cordillera Plata SAS/, film)
-    const items = camera.getByRole('combobox', { name: 'Item', exact: true })
-    await choose(camera, items.nth(0), 'chair', /Ergonomic office chair/, film)
+    await choose(camera, camera.getByRole('combobox', { name: say('invoices.editor.customer') }), 'Cordillera', /Distribuidora Cordillera Plata SAS/, film)
+    const items = camera.getByRole('combobox', { name: say('invoices.editor.item'), exact: true })
+    await choose(camera, items.nth(0), ...itemChoice(names, 'P-001'), film)
     // An office chair at IVA 19 %.
     await totalsShow(camera, '$ 535.500,00')
     await film.frame(900)
-    await film.click(camera.getByRole('button', { name: 'Add line' }))
-    await choose(camera, items.nth(1), 'paper', /Letter paper, 500 sheets/, film)
+    await film.click(camera.getByRole('button', { name: say('invoices.editor.addLine') }))
+    await choose(camera, items.nth(1), ...itemChoice(names, 'P-002'), film)
     // And a pack of paper, also at IVA 19 %.
     await totalsShow(camera, '$ 561.085,00')
     await film.frame(1400)
 
-    await film.click(camera.getByRole('button', { name: 'Issue invoice' }))
-    const dialog = camera.getByRole('dialog', { name: 'Issue this invoice?' })
+    await film.click(camera.getByRole('button', { name: say('invoices.editor.issue') }))
+    const dialog = camera.getByRole('dialog', { name: say('invoices.editor.issueTitle') })
     await expect(dialog).toBeVisible()
     await film.frame(900)
-    await film.click(dialog.getByRole('button', { name: 'Issue invoice' }))
+    await film.click(dialog.getByRole('button', { name: say('invoices.editor.issue') }))
 
     const heading = camera.getByRole('heading', { level: 1 })
     await expect(heading).toHaveText(/^SETP\d+$/)
@@ -607,13 +655,13 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await camera.mouse.move(900, 28, { steps: 6 })
 
     // The workers take it through the chain: a frame whenever the strip changes, until it is delivered.
-    for (const done of ['XML (done)', 'Signed (done)', 'Sent (done)', 'Accepted (done)', 'Delivered (done)']) {
-      await expect(step(camera, done)).toBeVisible({ timeout: CHAIN_TIMEOUT })
-      await film.frame(done.startsWith('Delivered') ? 1500 : 450)
+    for (const state of ['xml', 'signed', 'sent', 'accepted', 'delivered']) {
+      await expect(step(camera, done(state))).toBeVisible({ timeout: CHAIN_TIMEOUT })
+      await film.frame(state === 'delivered' ? 1500 : 450)
     }
 
-    await film.click(camera.getByRole('button', { name: 'View PDF' }))
-    const viewer = camera.getByTitle(/^PDF of invoice SETP\d+$/)
+    await film.click(camera.getByRole('button', { name: say('invoices.delivery.viewPdf') }))
+    const viewer = camera.getByTitle(new RegExp(`^${say('invoices.delivery.pdfFrame', { number: 'SETP\\d+' })}$`))
     await expect(viewer).toBeVisible()
     await expect(viewer).toHaveAttribute('src', /^blob:.*#navpanes=0/)
     await camera.mouse.move(900, 28, { steps: 4 })
@@ -630,27 +678,28 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
       (item) => item.customer_name === 'Distribuidora Cordillera Plata SAS' && item.payment_status === 'paid' && item.delivery?.status === 'delivered',
     )
     await page.goto(`/invoices/${invoice.id}`)
-    await expect(step(page, 'Delivered (done)')).toBeVisible()
-    await scrollToSection(page, 'Electronic document')
+    await expect(step(page, done('delivered'))).toBeVisible()
+    await scrollToSection(page, say('invoices.dian.title'))
     await still(page, 'invoice-accepted')
 
     await page.evaluate(() => window.scrollTo(0, 0))
-    await page.getByRole('button', { name: 'View PDF' }).click()
-    const viewer = page.getByTitle(`PDF of invoice ${invoice.full_number}`)
+    await page.getByRole('button', { name: say('invoices.delivery.viewPdf') }).click()
+    const viewer = page.getByTitle(say('invoices.delivery.pdfFrame', { number: invoice.full_number ?? '' }))
     await expect(viewer).toHaveAttribute('src', /^blob:.*#navpanes=0/)
     await page.waitForTimeout(2500)
     await still(page, 'invoice-pdf', { idle: false, dialog: true })
     await page.keyboard.press('Escape')
 
     await night.goto(`/invoices/${invoice.id}`)
-    await expect(step(night, 'Delivered (done)')).toBeVisible()
+    await expect(step(night, done('delivered'))).toBeVisible()
     await still(night, 'invoice-dark')
   })
 
   await test.step('a credit note, the receivables, the developers and the numbering', async () => {
-    const note = await find(page, 'credit-notes?per_page=50', (item) => (item.reason_text ?? '').includes('arrived damaged'))
+    // The return of goods that arrived damaged: the one issued credit note of concept 1 (the other is a draft).
+    const note = await find(page, 'credit-notes?per_page=50', (item) => item.reason_code === '1' && item.status === 'issued')
     await page.goto(`/invoices/credit-notes/${note.id}`)
-    await expect(step(page, 'Delivered (done)')).toBeVisible()
+    await expect(step(page, done('delivered'))).toBeVisible()
     await still(page, 'credit-note')
 
     await page.goto('/payments/receivables')
@@ -658,7 +707,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
 
     // The API keys and, below them, the subscription to the local receiver with its last delivery.
     await page.goto('/settings/developers')
-    await scrollToSection(page, 'API keys')
+    await scrollToSection(page, say('developers.keys.title'))
     await still(page, 'developers')
 
     await page.goto('/settings/numbering')
@@ -668,7 +717,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
   await test.step('the command palette', async () => {
     await page.goto('/')
     await expect(page.locator('[data-chart]').first()).toBeVisible()
-    await page.getByRole('button', { name: 'Open the command palette' }).click()
+    await page.getByRole('button', { name: say('palette.open') }).click()
     const palette = page.getByRole('dialog')
     await expect(palette).toBeVisible()
     await page.keyboard.type('Cordillera')
@@ -684,7 +733,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
 
   await test.step('GIF: the DIAN down, the invoice that fails, the retry and the acceptance', async () => {
     const film = new Film(camera, 'dian-outage')
-    await setSimulatorMode(camera, 'Error 500', film)
+    await setSimulatorMode(camera, 'error_500', film)
     await film.frame(900)
 
     // The draft of the demo for Cordillera Plata, issued while the simulator answers HTTP 500.
@@ -693,11 +742,11 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await settle(camera)
     await totalsShow(camera)
     await film.frame(900)
-    await film.click(camera.getByRole('button', { name: 'Issue invoice' }))
-    const dialog = camera.getByRole('dialog', { name: 'Issue this invoice?' })
+    await film.click(camera.getByRole('button', { name: say('invoices.editor.issue') }))
+    const dialog = camera.getByRole('dialog', { name: say('invoices.editor.issueTitle') })
     await expect(dialog).toBeVisible()
     await film.frame(700)
-    await film.click(dialog.getByRole('button', { name: 'Issue invoice' }))
+    await film.click(dialog.getByRole('button', { name: say('invoices.editor.issue') }))
     await expect(camera.getByRole('heading', { level: 1 })).toHaveText(/^SETP\d+$/)
     await camera.mouse.move(900, 28, { steps: 6 })
     await film.frame(900)
@@ -709,15 +758,15 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     const newest = page.locator('[data-slot="table-body"] tr')
 
     for (const index of [0, 1, 2]) {
-      await expect(newest.nth(index)).toContainText('error_500', { timeout: CHAIN_TIMEOUT })
+      await expect(newest.nth(index)).toContainText(say('settings.dian.simulator.results.error_500'), { timeout: CHAIN_TIMEOUT })
     }
 
-    await scrollToSection(page, 'Local simulator (development tool)')
+    await scrollToSection(page, say('settings.dian.simulator.title'))
     await still(page, 'dian-settings')
 
     // Every attempt fails; a frame each time the strip tells something new, until the transmission gives up.
-    const strip = camera.getByRole('region', { name: 'Electronic document progress' })
-    const failed = camera.getByText('The transmission failed.', { exact: true })
+    const strip = camera.getByRole('region', { name: say('invoices.progress.label') })
+    const failed = camera.getByText(say('invoices.dian.failedAt', { step: say('invoices.view.events.steps.transmit') }), { exact: true })
     const deadline = Date.now() + OUTAGE_TIMEOUT
     let told = await strip.innerText()
 
@@ -732,35 +781,35 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     }
 
     await expect(failed).toBeVisible()
-    await scrollToSection(camera, 'Electronic document')
+    await scrollToSection(camera, say('invoices.dian.title'))
     await film.frame(1800, 1)
 
     // The DIAN is back: the mode goes back to normal, and Retry now takes the invoice through.
-    await setSimulatorMode(camera, 'Normal', film)
+    await setSimulatorMode(camera, 'normal', film)
     await film.frame(700)
     await camera.goto(`/invoices/${draft.id}`)
-    await scrollToSection(camera, 'Electronic document')
+    await scrollToSection(camera, say('invoices.dian.title'))
     await settle(camera)
     await film.frame(700, 1)
-    await film.click(camera.getByRole('button', { name: 'Retry now' }), 350, 1)
+    await film.click(camera.getByRole('button', { name: say('invoices.dian.retryNow') }), 350, 1)
     await camera.mouse.move(900, 28, { steps: 6 })
 
     // Accepted and delivered: the six steps of the strip done, then the acceptance, then the end of the timeline. The
     // cards of its payments and balance appear once it is accepted, so each frame scrolls to what it shows.
-    await expect(step(camera, 'Delivered (done)')).toBeVisible({ timeout: CHAIN_TIMEOUT })
+    await expect(step(camera, done('delivered'))).toBeVisible({ timeout: CHAIN_TIMEOUT })
     await camera.evaluate(() => window.scrollTo(0, 0))
     await settle(camera)
     await film.frame(2000)
-    await scrollToSection(camera, 'Electronic document')
-    await expect(camera.getByText(/^Accepted by the local simulator on/)).toBeInViewport()
+    await scrollToSection(camera, say('invoices.dian.title'))
+    await expect(camera.getByText(new RegExp(`^${lead('invoices.dian.acceptedOn')}`))).toBeInViewport()
     await film.frame(2200)
-    await scrollToEndOf(camera, 'Timeline')
+    await scrollToEndOf(camera, say('invoices.view.timeline'))
     await film.frame(3500)
     film.save()
 
     await page.goto(`/invoices/${draft.id}`)
-    await expect(step(page, 'Delivered (done)')).toBeVisible({ timeout: CHAIN_TIMEOUT })
-    await scrollToEndOf(page, 'Timeline')
+    await expect(step(page, done('delivered'))).toBeVisible({ timeout: CHAIN_TIMEOUT })
+    await scrollToEndOf(page, say('invoices.view.timeline'))
     await still(page, 'invoice-recovered')
   })
 

@@ -64,9 +64,9 @@ final class ContactController
      */
     public function destroy(Contact $contact): Response
     {
-        abort_if($contact->is_system, 403, 'The final consumer is a system contact and cannot be deleted.');
+        abort_if($contact->is_system, 403, __('catalog::errors.final_consumer_delete'));
 
-        Deletion::deleteOrConflict($contact, 'This contact is used by documents. Deactivate it instead.');
+        Deletion::deleteOrConflict($contact, __('catalog::errors.contact_in_use'));
 
         return response()->noContent();
     }

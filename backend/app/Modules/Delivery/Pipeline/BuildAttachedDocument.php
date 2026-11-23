@@ -34,7 +34,7 @@ final class BuildAttachedDocument extends DeliveryJob
                 $file = $attachedDocuments->build($document);
             } catch (Throwable $exception) {
                 report($exception);
-                $pipeline->fail($document, DeliveryStep::AttachedDocument, 'The AttachedDocument could not be built: '.$exception->getMessage());
+                $pipeline->fail($document, DeliveryStep::AttachedDocument, __('delivery::chain.attached_failed', ['error' => $exception->getMessage()]));
 
                 return new ChainFailure("The AttachedDocument of {$document->full_number} could not be built.", previous: $exception);
             }

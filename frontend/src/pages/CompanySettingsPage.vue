@@ -8,13 +8,16 @@ import { companiesApi } from '@/api/companies'
 import CompanyFields from '@/components/company/CompanyFields.vue'
 import { companyFormFrom, emptyCompanyForm, toCompanyInput } from '@/components/company/companyForm'
 import FormError from '@/components/FormError.vue'
+import FormField from '@/components/FormField.vue'
 import FormSection from '@/components/FormSection.vue'
+import SelectInput from '@/components/SelectInput.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFormMutation } from '@/composables/useFormMutation'
 import { useSession } from '@/composables/useSession'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { LANGUAGES } from '@/i18n'
 import { queryKeys } from '@/lib/query'
 
 const { t } = useI18n()
@@ -31,6 +34,9 @@ const { data: company } = useQuery({
 })
 
 const form = ref(emptyCompanyForm())
+
+// Each language by its own name, as the language menu lists them.
+const documentLanguages = computed(() => LANGUAGES.map((language) => ({ value: language, label: t(`languages.${language}`) })))
 const canEdit = computed(() => company.value?.permissions?.includes('manage-settings') ?? false)
 
 const unsaved = useUnsavedChanges(form, canEdit)
@@ -98,6 +104,23 @@ watch(companyId, () => {
           :errors="errors"
           :disabled="!canEdit || isPending"
         />
+      </FormSection>
+
+      <FormSection :title="t('settings.company.documents')" :description="t('settings.company.documentsDescription')">
+        <FormField
+          id="settings-document-language"
+          :label="t('fields.documentLanguage')"
+          :hint="t('fields.documentLanguageHint')"
+          :error="errors.document_language?.[0]"
+        >
+          <SelectInput
+            id="settings-document-language"
+            v-model="form.document_language"
+            :options="documentLanguages"
+            :disabled="!canEdit || isPending"
+            :invalid="!!errors.document_language"
+          />
+        </FormField>
 
         <template v-if="canEdit" #footer>
           <Button type="submit" :disabled="isPending">

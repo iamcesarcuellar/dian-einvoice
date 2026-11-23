@@ -1,5 +1,7 @@
 # dian-einvoice
 
+**English** · [Español](README.es.md)
+
 Electronic invoicing for Colombian small and medium businesses, API first.
 
 It shows the full electronic invoicing chain and a serverless AWS architecture as code, running on a local emulator with no AWS account.
@@ -19,7 +21,8 @@ A multi-tenant platform for companies and for the software that serves them (acc
 - **Correct under concurrency and failure.** Twenty parallel processes take numbers without a gap (`make stress`), and with the workers and the relay killed mid-chain every invoice is accepted once (`make chaos`). Of twenty simultaneous payments, exactly the ten that fit are recorded (`make payments-check`).
 - **The AWS architecture as code, run on an emulator.** A CDK app and a serverless service put the API on Lambda behind API Gateway and CloudFront, with SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES and EventBridge Scheduler. `make cloud-check` proves the local stage end to end, and the prod stage, with its VPC, Aurora MySQL and AWS WAF, is validated offline ([infrastructure](docs/infrastructure.md), [cost estimate](docs/cost.md)).
 - **Operated like a service.** One correlation id follows an invoice from its request to its webhooks, through JSON logs, metrics, alarms that each name a runbook, and a notifier that posts to a chat. `make cloud-drill` takes the DIAN down and brings every invoice back once ([runbooks](docs/runbooks/README.md), [observability](docs/observability.md)).
-- **Checked from end to end.** 618 tests, PHPStan at level 10 without a baseline, audits of every dependency and the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
+- **In English and in Spanish.** The web app, the API's messages, the PDF and the emails come in English or in Colombian Spanish: the interface follows the browser or the user's choice, each request its `Accept-Language`, and each company chooses the language of its documents. `make demo LOCALE=es` loads the demo data in Spanish ([LanguageTest](backend/tests/Integration/Security/LanguageTest.php), [the browser test in Spanish](e2e/tests/spanish.spec.ts)).
+- **Checked from end to end.** 663 tests, PHPStan at level 10 without a baseline, audits of every dependency and the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
 
 ## Gallery
 
@@ -32,7 +35,7 @@ A multi-tenant platform for companies and for the software that serves them (acc
 | ![The timeline of an invoice that failed while the simulator was down and was accepted after Retry now](docs/assets/invoice-recovered.png) | ![API keys and the webhook subscription to the local receiver, with its last delivery](docs/assets/developers.png) |
 | The end of that invoice's timeline: the failed attempts, Retry now, accepted and delivered. | API keys, and the webhook subscription to a local receiver with its last delivery. |
 
-Every screen in [docs/assets](docs/assets/), the dark theme included, comes from `make screenshots`.
+Every screen in [docs/assets](docs/assets/), the dark theme included, comes from `make screenshots`, which also records them in Spanish in [docs/assets/es](docs/assets/es/).
 
 ## Quick start
 
@@ -63,6 +66,8 @@ The first `make demo` builds the images, installs the dependencies, migrates the
 
 Sign in as `demo@example.com` with the password `password`: the owner of Demo Comercial SAS and Demo Servicios SAS, both synthetic and set in Medellín. `admin@example.com`, `member@example.com` and `viewer@example.com`, with the same password, show the other roles.
 
+The web app opens in the browser's language, English or Spanish, and the account menu switches it. `make demo LOCALE=es` loads the same demo data with every text in Spanish, and both demo companies issue their documents in Spanish.
+
 `make down` stops everything and keeps the data, `make clean` also deletes it, and `make help` lists every target.
 
 If something does not start, `make ps` shows each container's health and `make logs` follows their logs. A port already taken on 127.0.0.1 stops the service that publishes it: free the port, or stop the other project that holds it. `make seed` reloads the demo data from scratch at any time.
@@ -75,12 +80,12 @@ If something does not start, `make ps` shows each container's health and `make l
 | --- | --- |
 | `make demo` | Starts the local stack and loads the synthetic demo data |
 | `make up`, `make down` | Starts the stack with the current code; stops it and keeps the data |
-| `make seed` | Reloads the demo data from scratch |
+| `make seed` | Reloads the demo data from scratch; `LOCALE=es` loads it in Spanish |
 | `make test`, `make lint`, `make analyse` | Tests without a browser, formatters and linters, static analysis |
 | `make e2e`, `make checks` | The browser test, and the checks against the running stack |
 | `make security` | Audits the dependencies, their licenses and the third-party files, and scans the history for secrets |
 | `make cloud-demo`, `make cloud-check` | Deploys the AWS architecture to the local emulator and checks it end to end |
-| `make screenshots` | Writes this page's screenshots and GIFs again |
+| `make screenshots` | Writes this page's screenshots and GIFs again, in English and in Spanish |
 | `make logs`, `make ps` | Follows the logs; shows the containers and their health |
 
 ## A five-minute tour
@@ -102,7 +107,7 @@ API=http://localhost:8600/api/v1
 first_id() { grep -o '"id":"[0-9a-z]\{26\}"' | head -n 1 | cut -d '"' -f 4; }
 
 CONTACT=$(curl -s "$API/contacts?search=Cordillera" -H "Authorization: Bearer $KEY" | first_id)
-ITEM=$(curl -s "$API/items?search=chair" -H "Authorization: Bearer $KEY" | first_id)
+ITEM=$(curl -s "$API/items?search=P-001" -H "Authorization: Bearer $KEY" | first_id)
 INVOICE=$(curl -s "$API/invoices" -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
   -d "{\"contact_id\":\"$CONTACT\",\"payment_form\":\"1\",\"payment_means_code\":\"10\",\"lines\":[{\"item_id\":\"$ITEM\",\"quantity\":\"2\"}]}" | first_id)
 
@@ -145,9 +150,9 @@ Every response carries an `X-Correlation-Id`, which every log line of the journe
 
 The results of the runs for this commit, with the emulator's figures on this machine, not AWS's:
 
-- `make cloud-check` passed in 3 min 40 s. Thirty invoices went from issue to delivery in a median of 25.1 s through the outbox's fast path, and one more, issued through the edge, was followed by its correlation id. Ten more, with the functions' containers killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the application's database identity, with the functions warm, broke no request. Every log line was JSON that matched the schema, none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.92 s, and a warm response a median of 17 ms.
-- `make cloud-drill` passed in 224 s. With the DIAN down, five transmissions gave up into the dead-letter queue, and the alarm reached the chat with its runbook 147 s after the outage began. The runbook's commands brought every invoice back, accepted and delivered once, at 160 s ([drill-report.md](docs/runbooks/drill-report.md) reviews an earlier run).
-- `make cloud-e2e` passed in 83 s. First, the console function found the demo data. It also found that the cloud's own records in the simulator hold no document of the demo companies under a number the cloud's database has yet to issue. Then came an invoice's journey through the functions, the web app's lists at 1440×900, the API reference, and a tour of its 31 routes with 17 of its dialogs. All of it went through the edge, under its Content-Security-Policy, without a violation.
+- `make cloud-check` passed in 3 min 34 s. Thirty invoices went from issue to delivery in a median of 27.2 s through the outbox's fast path, and one more, issued through the edge, was followed by its correlation id. Ten more, with the functions' containers killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the application's database identity, with the functions warm, broke no request. Every log line was JSON that matched the schema, none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.97 s, and a warm response a median of 18 ms.
+- `make cloud-drill` passed in 230 s. With the DIAN down, five transmissions gave up into the dead-letter queue, and the alarm reached the chat with its runbook 163 s after the outage began. The runbook's commands brought every invoice back, accepted and delivered once, at 176 s ([drill-report.md](docs/runbooks/drill-report.md) reviews an earlier run).
+- `make cloud-e2e` passed in 122 s. First, the console function found the demo data. It also found that the cloud's own records in the simulator hold no document of the demo companies under a number the cloud's database has yet to issue. Then came an invoice's journey through the functions, one more in Spanish with its PDF and the email SES took, the web app's lists at 1440×900 in both languages, the API reference, and a tour of its 31 routes with 17 of its dialogs. All of it went through the edge, under its Content-Security-Policy, without a violation.
 
 ## Architecture
 
@@ -226,14 +231,14 @@ The results of the runs for this commit, on the quick start's machine. Continuou
 
 | What | Command | Result |
 | --- | --- | --- |
-| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 211 tests and 6,515 assertions, in 43 s |
-| Web app, simulator, infrastructure and tooling tests | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 77 web app tests, 121 simulator tests, 193 tests for the CDK app and the functions, cdk-nag included, and 16 for the screenshots' image encoder |
-| Formatters, linters and the documentation | `make lint` | Laravel Pint over 537 files, ESLint and Prettier: clean; in the docs, 273 relative links and 47 anchors resolve, 8 images stay within their size limits, Mermaid draws 10 diagrams, and the cost estimate matches its prices and assumptions |
+| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 252 tests and 6,750 assertions, in 44 s |
+| Web app, simulator, infrastructure and tooling tests | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 81 web app tests, 121 simulator tests, 193 tests for the CDK app and the functions, cdk-nag included, and 16 for the screenshots' image encoder |
+| Formatters, linters and the documentation | `make lint` | Laravel Pint over 605 files, ESLint and Prettier: clean; in the docs, 338 relative links and 54 anchors resolve, 16 images stay within their size limits, Mermaid draws 13 diagrams, and the cost estimate matches its prices and assumptions |
 | Static analysis | `make analyse` | PHPStan level 10 without a baseline, vue-tsc and tsc for the simulator, the CDK app and the functions: no errors |
 | Dependencies, licenses and secrets | `make security` | No high or critical advisory in the six audits; 480 production dependencies, every license compatible with MIT; the 174 third-party files in 8 groups, as NOTICE lists them; gitleaks finds no secret in the history or the changes |
 | Infrastructure as code, offline | `make cdk-check` | 21 stacks across both stages and 3 function packages: cdk-nag (AWS Solutions) with no finding left without a reason, cfn-lint and actionlint clean |
-| An invoice from draft to paid, and every list, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 9.0 s; and the web app's lists at 1440×900, none wider than its box, in 16.5 s |
-| Checks against the running stack | `make checks` | Every check passes: the 15 examples on this page and in the API guide print what the docs say, and both webhook signature examples get 6 of 6 cases right; 60 invoices from 20 processes are numbered without a gap and accepted in 4.6 s; and 40 are accepted once each with the workers and the relay killed mid-chain |
+| An invoice from draft to paid, one in Spanish, and every list, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 8.9 s; an invoice issued in Spanish, with its PDF and its email to the customer in Spanish, in 8.4 s; and the web app's lists at 1440×900, none wider than its box, in 16.3 s in English and 15.6 s in Spanish |
+| Checks against the running stack | `make checks` | Every check passes: the 16 examples on this page, in README.es.md and in the API guide print what the docs say, and both webhook signature examples get 6 of 6 cases right; 60 invoices from 20 processes are numbered without a gap and accepted in 4.55 s; and 40 are accepted once each with the workers and the relay killed mid-chain |
 | The emulated cloud, end to end | `make cloud-check`, `make cloud-e2e`, `make cloud-drill` | Every check passes; their figures are [above](#the-aws-cloud-on-your-machine) |
 
 Known gaps are written down, not hidden: [docs/limitations.md](docs/limitations.md#tests-and-tooling) lists what the tests do not cover.

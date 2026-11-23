@@ -39,6 +39,8 @@ export interface Company {
   municipality_code: string | null
   municipality?: Municipality | null
   postal_code: string | null
+  /** The language of its documents: the PDF, the customer email and the timeline texts. */
+  document_language: 'en' | 'es'
   /** Role of the signed-in user in this company, and what it allows. */
   role?: Role
   permissions?: Permission[]
@@ -72,6 +74,8 @@ export interface CompanyInput {
   address: string | null
   municipality_code: string | null
   postal_code: string | null
+  /** Left out, a new company takes the language of the request that creates it. */
+  document_language?: 'en' | 'es'
 }
 
 export type CompanyIdentityInput = Pick<CompanyInput, 'name' | 'legal_name' | 'identification_number' | 'check_digit'>
