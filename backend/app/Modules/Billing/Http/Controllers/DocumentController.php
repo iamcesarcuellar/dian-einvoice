@@ -41,15 +41,20 @@ final class DocumentController
     private const string PROCESSING = 'processing';
 
     /**
-     * Drafts first, then issued documents from the newest number down. ?status=draft|issued,
-     * ?electronic_status=pending|generated|signed|sending|accepted|rejected|failed, or processing
-     * for the first four, ?from= and ?to= (dates of issue, or of creation for drafts), ?search=
-     * (number or customer; for notes also the number of the invoice), ?balance_status= for
-     * invoices and ?related_document_id= for the notes of one invoice, ?contact_id= for one
-     * customer, and for invoices ?payment_status=unpaid|partially_paid|paid and ?overdue=1 (accepted
-     * invoices with something left to collect after their due date, or their issue date for cash).
-     * Rows are summaries: the frozen copies of the company, customer and numbering, and the nested
-     * contact, come only with the detail.
+     * List documents.
+     *
+     * Drafts first, then issued documents from the newest number down.
+     *
+     * Filters: ?status=draft|issued; ?electronic_status=pending|generated|signed|sending|accepted|rejected|failed,
+     * or processing for the first four; ?from= and ?to= (the issue date, or the creation date of a
+     * draft); ?search= (the number or the customer, and for a note its invoice's number); ?contact_id=
+     * for one customer. Invoices also take ?balance_status=, ?payment_status=unpaid|partially_paid|paid
+     * and ?overdue=1 (accepted invoices with something left to collect after their due date, or
+     * after their issue date when paid in cash). Notes also take ?related_document_id= for the notes
+     * of one invoice.
+     *
+     * Rows are summaries: the frozen copies of the company, the customer and the numbering, and the
+     * nested contact, come only with the detail.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -105,7 +110,9 @@ final class DocumentController
     }
 
     /**
-     * Create a draft. It can be incomplete; its totals are calculated and stored. A note needs the
+     * Create a draft.
+     *
+     * A draft can be incomplete; the API calculates its totals and stores them. A note needs the
      * accepted invoice it corrects (related_document_id).
      */
     public function store(DocumentRequest $request, DocumentDrafts $drafts): JsonResponse
@@ -116,7 +123,9 @@ final class DocumentController
     }
 
     /**
-     * Calculate lines, taxes, withholdings and totals of a draft body without storing anything.
+     * Preview a draft's totals.
+     *
+     * Calculates the lines, taxes, withholdings and totals of a draft body, and stores nothing.
      */
     public function preview(DocumentRequest $request, DocumentPricing $pricing): CalculationResource
     {
@@ -132,10 +141,12 @@ final class DocumentController
     }
 
     /**
-     * A credit or debit note not saved yet, for an accepted invoice (?invoice_id=): its customer,
-     * payment terms, the lines and withholdings of the invoice and its balance, with what is left
-     * to credit. ?void=1 prepares a credit note that voids the invoice: the void concept and all
-     * that is left to credit.
+     * Prefill a note.
+     *
+     * A credit or debit note for an accepted invoice (?invoice_id=), not saved yet: the invoice's
+     * customer, payment terms, lines and withholdings, and its balance with what is left to credit.
+     * ?void=1 prepares a credit note that voids the invoice: the void concept and everything left to
+     * credit.
      */
     public function prefill(Request $request, NotePrefill $prefill): JsonResponse
     {
@@ -152,9 +163,12 @@ final class DocumentController
     }
 
     /**
-     * A document with its lines, totals, timeline and electronic document: the state of its chain,
-     * the current attempt, the time of the next one and the answer of the local simulator; its
-     * delivery to the customer; and, for an invoice, its balance and notes, or, for a note, its invoice.
+     * Show a document.
+     *
+     * The document with its lines, totals and timeline, and its electronic document: the chain's
+     * state, the current attempt, the time of the next one and the local simulator's response. Also
+     * its delivery to the customer and, for an invoice, its balance and notes, or, for a note, its
+     * invoice.
      */
     public function show(Document $document): DocumentResource
     {
@@ -162,7 +176,9 @@ final class DocumentController
     }
 
     /**
-     * Update a draft. Issued documents answer 409.
+     * Update a draft.
+     *
+     * An issued document returns 409.
      */
     public function update(DocumentRequest $request, Document $document, DocumentDrafts $drafts): DocumentResource
     {
@@ -170,7 +186,9 @@ final class DocumentController
     }
 
     /**
-     * Delete a draft. Issued documents answer 409.
+     * Delete a draft.
+     *
+     * An issued document returns 409.
      */
     public function destroy(Document $document, DocumentDrafts $drafts): Response
     {
@@ -180,10 +198,12 @@ final class DocumentController
     }
 
     /**
-     * Issue a draft: it gets the next number of its numbering and becomes final, and its electronic
-     * document chain starts in the background (status pending). A second request answers 409; a
-     * draft that is not ready, a numbering that cannot be used, or a credit note above what is left
-     * to credit on its invoice, answers 422.
+     * Issue a draft.
+     *
+     * The draft takes the next number of its numbering and becomes final, and its electronic
+     * document chain starts in the background (status pending). A second request returns 409. A draft
+     * that is not ready, a numbering that cannot be used, or a credit note above what is left to
+     * credit on its invoice returns 422.
      */
     public function issue(Request $request, Document $document, IssueDocument $issue): DocumentResource
     {
@@ -191,8 +211,10 @@ final class DocumentController
     }
 
     /**
-     * Download the signed UBL 2.1 XML, named after the document number. Drafts, and documents whose
-     * XML is not signed yet or failed, answer 409.
+     * Download the signed XML.
+     *
+     * The signed UBL 2.1 XML, named after the document number. A draft, or a document whose XML is
+     * not signed yet or failed, returns 409.
      */
     public function xml(Document $document, DocumentStorage $storage): Response
     {
@@ -210,8 +232,10 @@ final class DocumentController
     }
 
     /**
-     * Download the ApplicationResponse the local DIAN simulator returned with its last answer. It is
-     * a simulated response: the DIAN never saw the document. 409 while there is none.
+     * Download the simulator's response.
+     *
+     * The ApplicationResponse of the local DIAN simulator's last response. It is a simulated
+     * response: the DIAN never saw the document. 409 while there is none.
      */
     public function dianResponse(Document $document, DocumentStorage $storage): Response
     {
@@ -227,8 +251,10 @@ final class DocumentController
     }
 
     /**
-     * Retry now: while a transmission waits for its next attempt, make it now; after a failure,
-     * start again from the step that failed. Otherwise 409.
+     * Retry now.
+     *
+     * While a transmission waits for its next attempt, the attempt runs now; after a failure, the
+     * chain starts again from the step that failed. Otherwise 409.
      */
     public function retry(Request $request, Document $document, ElectronicDocumentActions $actions): DocumentResource
     {
@@ -236,8 +262,10 @@ final class DocumentController
     }
 
     /**
-     * Resend after the local simulator rejected the document: the chain runs again from the
-     * generation of the XML. A credit note must still fit what is left to credit. Otherwise 409.
+     * Resend a rejected document.
+     *
+     * After the local simulator rejected the document, the chain runs again from the XML
+     * generation. A credit note must still fit what is left to credit. Otherwise 409.
      */
     public function resend(Request $request, Document $document, ElectronicDocumentActions $actions): DocumentResource
     {

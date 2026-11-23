@@ -32,7 +32,7 @@ CLOUD := $(COMPOSE) --profile cloud
 CLOUD_APP := cloud-gateway floci
 # osls and the scripts of the functions, on the network of the stack.
 FUNCTIONS := $(CLOUD) run --rm --no-deps -T functions-deploy
-# The deployment of the stage local, the same script as a real account (scripts/deploy.sh, docs/deployment.md).
+# The deployment of the local stage, the same script as a real account (scripts/deploy.sh, docs/deployment.md).
 DEPLOY = BUILD="$(BUILD)" sh scripts/deploy.sh local
 
 # Size of make cloud-drill: invoices of the baseline, then those issued while the DIAN is down.
@@ -360,7 +360,7 @@ cloud-up: ## Emulated cloud | Deploy the AWS architecture's local stage to the l
 	$(DEPLOY) smoke
 	@echo "Emulated cloud, behind the edge. Web app and API on one origin: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8601/docs/api  DIAN simulator, with the cloud's records: http://localhost:8602/cloud/health  AWS emulator: http://localhost:8604/_floci/health  Its web console: http://localhost:8604/_floci/ui  Emails SES took: http://localhost:8604/_aws/ses"
 
-# One step of scripts/deploy.sh against the stage local, as make cloud-up runs it: make cloud-deploy STEP=functions
+# One step of scripts/deploy.sh against the local stage, as make cloud-up runs it: make cloud-deploy STEP=functions
 # IMAGE=<image> (the last one pushed by default), STEP=versions, STEP=rollback-image IMAGE=<earlier image>,
 # STEP=rollback-panel...
 cloud-deploy: ## Emulated cloud operations | Run one step of scripts/deploy.sh against the local stage: STEP=<step> [IMAGE=<image>]
@@ -380,7 +380,7 @@ cloud-down: ## Emulated cloud | Stop the emulated cloud and keep its state
 	@sh scripts/cloud/containers.sh remove
 
 # Like cloud-down, and also remove the state of the emulated cloud: the volume of the emulator (every resource of the
-# stage local, the documents, the emails, the keys and the secrets), the volume of the registry behind its ECR, its
+# local stage, the documents, the emails, the keys and the secrets), the volume of the registry behind its ECR, its
 # database with its two identities (scripts/cloud/clean.sql), and the settings make cloud-up wrote.
 cloud-clean: ## Emulated cloud | Stop the emulated cloud and remove its state
 	$(CLOUD) up -d --wait db
@@ -396,7 +396,7 @@ cloud-clean: ## Emulated cloud | Stop the emulated cloud and remove its state
 # the console function: no process of the application running all the time, the bundle of the RDS certificate
 # authorities in the image, every function and trigger present, each function with its identity of the database, the
 # migrations identity holding the schema and the application identity refused any change to it, the cold start and
-# warm answers of the API, CLOUD_INVOICES invoices through the fast path of the outbox (their time from issue to
+# the API's warm responses, CLOUD_INVOICES invoices through the fast path of the outbox (their time from issue to
 # delivery), the session cookie with CSRF and the downloads through API Gateway, a partial batch response with an
 # unreadable message, CLOUD_CHAOS_INVOICES more invoices with the containers of the functions killed mid-process and
 # an outbox event left for the relay function, nothing done twice, the scheduler run, the topic, the queues, the
@@ -417,7 +417,7 @@ cloud-alarm-check: ## Emulated cloud | Have the emulator evaluate an alarm for r
 	$(FUNCTIONS) node scripts/observability.mjs evaluation
 
 # In the emulated cloud, every line of one journey, in order, with the saved query follow-a-journey: make cloud-follow
-# ID=<the X-Correlation-Id of an answer of the API> (HOURS=24 back by default).
+# ID=<the X-Correlation-Id of an API response> (HOURS=24 back by default).
 cloud-follow: ## Emulated cloud operations | Print every log line of one journey: ID=<correlation id>
 	$(FUNCTIONS) node scripts/observability.mjs follow $(ID) $(or $(HOURS),24)
 

@@ -1,4 +1,4 @@
-# What the stage prod adds to serverless.yml: the functions run in the private subnets of the stack network
+# What the prod stage adds to serverless.yml: the functions run in the private subnets of the stack network
 # of the CDK app, with its security group, and reach the managed database of the stack database, which
 # publish these SSM parameters (NETWORK_PARAMETERS and DATABASE_PARAMETERS in infra/cdk/lib/stage.ts). The
 # secrets of the two identities of the database are read in both stages (resources/parameters.yml).

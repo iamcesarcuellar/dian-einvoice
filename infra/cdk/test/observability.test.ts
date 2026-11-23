@@ -1,9 +1,9 @@
-// The observability of both stages (Infrastructure task 5), on the synthesized templates and the template osls
+// The observability of both stages, on the synthesized templates and the template osls
 // packaged for the functions: every metric filter reads fields of the schema of the log lines and lies on the log
 // group of a function that exists; every alarm has its actions and a description that names its runbook; the topics
 // of the alarms are encrypted with a key CloudWatch may use; the dashboard draws each function against its reserved
 // concurrency; the saved queries read groups that exist, the one that follows a journey with commands the emulator
-// evaluates; the objectives of service name alarms that exist; the firewall of prod logs what it blocks without
+// evaluates; the service objectives name alarms that exist; the firewall of prod logs what it blocks without
 // secrets; and docs/observability.md names every metric and alarm.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -131,7 +131,7 @@ for (const stage of ['local', 'prod'] as const) {
       }
     })
 
-    it('defend the objectives of service with alarms that exist', () => {
+    it('defend the service objectives with alarms that exist', () => {
       const names = new Set([...alarms.map((alarm) => alarm.AlarmName), `dian-einvoice-${stage}-service-degraded`])
 
       for (const objective of SERVICE_OBJECTIVES) {

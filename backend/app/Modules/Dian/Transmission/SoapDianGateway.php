@@ -275,7 +275,7 @@ final class SoapDianGateway implements DianGateway
         try {
             return new DOMXPath(SafeXml::load($body));
         } catch (XmlRefused) {
-            // Not well formed, or with a DTD: not an answer of the service.
+            // Not well formed, or with a DTD: not the service's response.
             return null;
         }
     }

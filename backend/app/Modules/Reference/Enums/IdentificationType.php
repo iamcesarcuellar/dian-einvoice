@@ -6,10 +6,10 @@ use App\Modules\Reference\Enums\Concerns\CodeList;
 
 /**
  * Identity document types (annex 1.9, table 13.2.1 of the toolbox, cbc:CompanyID/@schemeName).
- * The issuer is always identified by NIT (31, rule FAJ25); every code of the table is valid for
+ * The issuer is always identified by NIT (31, rule FAJ25); every code in the table is valid for
  * the customer, PEP (47) and PPT (48) included, and NUIP (91) only for the customer, as the
- * table notes. The code-list schematron of the toolbox (listacodigos v1.6, 2019) predates 10, 47
- * and 48; annex 1.9 added 48.
+ * table notes. The toolbox's code-list schematron (listacodigos v1.6, 2019) predates 10, 47 and
+ * 48; annex 1.9 added 48.
  */
 enum IdentificationType: string
 {

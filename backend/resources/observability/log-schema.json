@@ -32,7 +32,7 @@
     "attempt": { "type": "integer", "description": "The attempt of a job or a delivery, from 1." },
     "operation": { "type": "string", "description": "The operation of the web service of the DIAN: SendBillSync, GetStatus." },
     "result": { "type": "string", "description": "How a call ended in detail: responded, found, not_found, timeout, connection_error, server_error, client_error, invalid_response." },
-    "status_code": { "type": "string", "description": "The StatusCode of an answer of the DIAN: 00 validated, 66 not processed, 99 with errors." },
+    "status_code": { "type": "string", "description": "The StatusCode of a DIAN response: 00 validated, 66 not processed, 99 with errors." },
     "rule": { "type": "string", "description": "A rule of the DIAN that rejected or notified a document: FAD06." },
     "document_type": { "type": "string", "description": "invoice, credit_note or debit_note." },
     "event_type": { "type": "string", "description": "The type of an outbox or webhook event: document.issued." },

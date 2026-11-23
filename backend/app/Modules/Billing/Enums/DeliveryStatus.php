@@ -3,16 +3,14 @@
 namespace App\Modules\Billing\Enums;
 
 /**
- * Delivery of an accepted document to its customer, apart from its electronic status. It starts
- * when the local DIAN simulator accepts the document and runs three queued steps (DeliveryStep):
- *
- *   pending (attached_document → pdf → email) → delivered | not_applicable
- *   any step ↘ failed → pending (Send again, or Regenerate PDF when the PDF failed)
- *   delivered | not_applicable → pending (Send again)
- *
- * The email always goes to the local development mailbox in this project: delivered means "the
- * local mailbox accepted it", and nothing leaves the machine. Drafts and documents not accepted yet
- * have no delivery status.
+ * The delivery of an accepted document to its customer, apart from its electronic status. It starts
+ * when the local DIAN simulator accepts the document, and runs three queued steps (DeliveryStep)
+ * while pending: attached_document, pdf and email. Then it is delivered, or not_applicable when the
+ * customer has no email. A step that fails leads to failed; Send again, or Regenerate PDF when the
+ * PDF failed, takes it back to pending, and so does Send again after delivered or not_applicable.
+ * In this project the email always goes to the local development mailbox, so delivered means
+ * "the local mailbox accepted it", and nothing leaves the machine. Drafts and documents not
+ * accepted yet have no delivery status.
  */
 enum DeliveryStatus: string
 {

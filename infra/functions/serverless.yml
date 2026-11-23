@@ -1,10 +1,10 @@
-# The functions of dian-einvoice and their triggers (Infrastructure tasks 2, 4 and 5), as the serverless service
+# The functions of dian-einvoice and their triggers, as the serverless service
 # dian-einvoice-<stage>-functions, deployed with osls, the free fork of the Serverless Framework. Every function
 # of the application runs the same container image (the target lambda of backend/Dockerfile, Bref on PHP 8.5)
 # with a runtime and a handler of its own; the origin verifier of the edge and the notifier of the alarms are small
 # functions of their own in TypeScript on Node.js, packaged as a zip apart from that image. Every function writes
 # one JSON object per line, in the schema of backend/resources/observability/log-schema.json, to a log group of its
-# own with its retention (docs/observability.md). The stage local is deployed to the local AWS emulator by make
+# own with its retention (docs/observability.md). The local stage is deployed to the local AWS emulator by make
 # cloud-up; prod is packaged and validated without a network or credentials (make cdk-check), never deployed.
 #
 # One definition for every stage, with differences only in parameters: the scalar settings below (params),

@@ -161,7 +161,7 @@ const error = computed(() => downloadPdf.error.value ?? downloadPackage.error.va
         <p v-if="delivery?.status === 'not_applicable'" class="text-sm text-muted-foreground">{{ t('invoices.delivery.notApplicable') }}</p>
       </div>
 
-      <dl class="grid gap-4 sm:grid-cols-2">
+      <dl class="grid items-start gap-4 sm:grid-cols-2">
         <div class="grid gap-0.5">
           <dt class="text-xs text-muted-foreground">{{ t('invoices.delivery.recipient') }}</dt>
           <dd class="break-all">{{ delivery?.recipient ?? t('invoices.delivery.noRecipient') }}</dd>

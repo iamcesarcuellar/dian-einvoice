@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { i18n } from '@/i18n'
-import { formatDate, formatDateRange, formatDateTime, formatMoney, formatPercent, formatPerMil, formatWholeMoney } from '@/lib/format'
+import { formatDate, formatDateRange, formatDateTime, formatDeduction, formatMoney, formatPercent, formatPerMil, formatWholeMoney } from '@/lib/format'
 
 // The one formatter of the app: every list, total, detail and timeline shows amounts, rates and dates through it.
 describe('the formatter', () => {
@@ -14,6 +14,16 @@ describe('the formatter', () => {
     ['21500.125000', '$ 21.500,125'],
   ])('writes the amount %s with two decimals at least: %s', (value, written) => {
     expect(formatMoney(value)).toBe(written)
+  })
+
+  it.each([
+    ['45000.00', '− $ 45.000,00'],
+    ['28167.5', '− $ 28.167,50'],
+    ['0.00', '$ 0,00'],
+    ['0', '$ 0,00'],
+    [undefined, '$ 0,00'],
+  ])('writes the deduction %s with a minus sign unless it is zero: %s', (value, written) => {
+    expect(formatDeduction(value)).toBe(written)
   })
 
   it.each([

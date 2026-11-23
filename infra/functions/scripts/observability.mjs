@@ -1,4 +1,4 @@
-// The checks of the observability of the emulated cloud (Infrastructure task 5), which read the local AWS emulator
+// The checks of the observability of the emulated cloud, which read the local AWS emulator
 // and the local receiver of the chat:
 //
 //   node scripts/observability.mjs check <since-ms> <correlation-id>
@@ -265,7 +265,7 @@ async function sweep(lines, since) {
     }
   }
 
-  verify(values.length >= 4 && found.length === 0, `No log holds a secret or personal data: ${texts.length} lines swept for the ${values.length} values of the secrets of the stage and for emails, keys, certificates and tokens${found.length === 0 ? '' : `; found: ${found.join('; ')}`}.`)
+  verify(values.length >= 4 && found.length === 0, `No log holds a secret or personal data: ${texts.length} lines swept for the stage's ${values.length} secret values and for emails, keys, certificates and tokens${found.length === 0 ? '' : `; found: ${found.join('; ')}`}.`)
 }
 
 async function metric(since) {
@@ -283,7 +283,7 @@ async function metric(since) {
   }
 
   const names = [...new Set(listed.map((candidate) => candidate.MetricName))].sort()
-  verify(sum > 0, `The metric filters of the application produce their metrics: DocumentsIssued counted ${sum} documents issued during the check (metrics of ${namespace}: ${names.join(', ') || 'none'}).`)
+  verify(sum > 0, `The application's metric filters produce their metrics: DocumentsIssued counted ${sum} documents issued during the check (metrics of ${namespace}: ${names.join(', ') || 'none'}).`)
 }
 
 /** The messages the local receiver of the chat took since a moment, newest first. */
@@ -318,8 +318,8 @@ async function notification() {
   const reason = `make cloud-check forced this state at ${new Date().toISOString()} to follow the path of an alarm to the chat.`
   const since = Date.now() - 2000
   await cloudwatch.send(new SetAlarmStateCommand({ AlarmName: alarm, StateValue: 'ALARM', StateReason: reason }))
-  const text = await message(since, [`*ALARM* ${alarm}`, `Reason: ${reason}`, 'Runbook: docs/runbooks/dead-letters.md', 'A message reached the dead-letter queue'], 60)
-  verify(text !== null, `A state forced on the alarm ${alarm} goes through the topic of the alarms and the notifier to the chat (the local receiver) as a short message: ${text === null ? 'none arrived within 60 s' : JSON.stringify(text.split('\n').slice(0, 1)[0])}, with its reason, what it means and its runbook.`)
+  const text = await message(since, [`*ALARM* ${alarm}`, `Reason: ${reason}`, 'Runbook: docs/runbooks/dead-letters.md', "A message reached the chain queue's dead-letter queue"], 60)
+  verify(text !== null, `A state forced on the alarm ${alarm} goes through the alarms topic and the notifier to the chat (the local receiver) as a short message: ${text === null ? 'none arrived within 60 s' : JSON.stringify(text.split('\n').slice(0, 1)[0])}, with its reason, what it means and its runbook.`)
 
   const back = Date.now() - 2000
   await cloudwatch.send(new SetAlarmStateCommand({ AlarmName: alarm, StateValue: 'OK', StateReason: 'make cloud-check put it back.' }))
@@ -354,7 +354,7 @@ async function deployed() {
   const notifier = subscriptions.find((subscription) => subscription.Protocol === 'lambda' && String(subscription.Endpoint).endsWith(`:function:${PREFIX}-notifier`))
   // The key of the topic is accepted and not applied by the emulator, which does not report it (docs/limitations.md).
   verify(notifier !== undefined,
-    `The notifier is subscribed to the topic of the alarms, ${topic.split(':').pop()} (${subscriptions.length} subscriptions${attributes.KmsMasterKeyId === undefined ? '; its KMS key, which the emulator accepts and does not apply, checked on the template' : `, encrypted with ${attributes.KmsMasterKeyId}`}).`)
+    `The notifier is subscribed to the alarms topic, ${topic.split(':').pop()} (${subscriptions.length} subscriptions${attributes.KmsMasterKeyId === undefined ? '; its KMS key, which the emulator accepts and does not apply, checked on the template' : `, encrypted with ${attributes.KmsMasterKeyId}`}).`)
 }
 
 async function check() {
@@ -391,8 +391,8 @@ async function evaluation() {
     await cloudwatch.send(new SetAlarmStateCommand({ AlarmName: alarm, StateValue: 'OK', StateReason: 'make cloud-alarm-check starts from OK.' }))
   }
 
-  await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: JSON.stringify({ marker, note: 'A message make cloud-alarm-check puts in the dead-letter queue of the chain, and takes out.' }) }))
-  process.stdout.write(`   A message in the dead-letter queue of the chain; waiting for the emulator to publish the metrics of SQS and evaluate ${alarm}...\n`)
+  await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: JSON.stringify({ marker, note: "A message make cloud-alarm-check puts in the chain's dead-letter queue, and takes out." }) }))
+  process.stdout.write(`   A message in the chain's dead-letter queue; waiting for the emulator to publish the SQS metrics and evaluate ${alarm}...\n`)
 
   let reached = null
 
@@ -469,7 +469,7 @@ async function notifierFailure(sqs) {
   const alarmed = kept === null ? null : await until(async () => await state(failures) === 'ALARM', 300)
   const text = alarmed === null ? null : await message(started, [`*ALARM* ${failures}`, 'Runbook: docs/runbooks/notifier.md'], 60)
   verify(kept !== null && alarmed !== null && text !== null,
-    `When the chat refuses a notification, the notifier keeps it in its dead-letter queue after its three attempts (${kept === null ? 'none within 60 s' : `after ${Math.round((kept - started) / 1000)} s`}), the emulator turns ${failures} to ALARM (${alarmed === null ? 'not within 300 s' : `after ${Math.round((alarmed - started) / 1000)} s`}), and that alarm reaches the chat, and the fallback topic of the email: ${text === null ? 'no message' : JSON.stringify(text.split('\n')[0])}.`)
+    `When the chat refuses a notification, the notifier keeps it in its dead-letter queue after its three attempts (${kept === null ? 'none within 60 s' : `after ${Math.round((kept - started) / 1000)} s`}), the emulator turns ${failures} to ALARM (${alarmed === null ? 'not within 300 s' : `after ${Math.round((alarmed - started) / 1000)} s`}), and that alarm reaches the chat and the email fallback topic: ${text === null ? 'no message' : JSON.stringify(text.split('\n')[0])}.`)
 
   // Put back as it was: the dead-letter queue of the notifier empty, both alarms OK.
   for (let attempt = 0; attempt < 10 && await depth(sqs, deadLetters) > 0; attempt++) {
@@ -490,7 +490,7 @@ async function followJourney() {
   const hours = Number(process.argv[4] ?? 24)
 
   if (!new RegExp(SCHEMA.correlation.pattern).test(correlation)) {
-    process.stderr.write('usage: make cloud-follow ID=<correlation-id>, the X-Correlation-Id of an answer of the API: a ULID in lower case\n')
+    process.stderr.write('usage: make cloud-follow ID=<correlation-id>, the X-Correlation-Id of an API response: a lowercase ULID\n')
     process.exit(2)
   }
 
@@ -524,7 +524,7 @@ async function resolved(value, parameters, ssm) {
       const name = parameters[value.Ref]?.Default
 
       if (typeof name !== 'string') {
-        throw new Error(`The template refers to ${value.Ref}, which is not a parameter of SSM.`)
+        throw new Error(`The template refers to ${value.Ref}, which is not an SSM parameter.`)
       }
 
       return (await ssm.send(new GetParameterCommand({ Name: name }))).Parameter?.Value
@@ -612,7 +612,7 @@ async function reconcileAlarms(template, deployedAt, ssm) {
   }
 
   if (given.length > 0) {
-    process.stdout.write(`Gave ${given.length} of the ${declared.length} alarms of the stack observability the metrics the CloudFormation of the emulator dropped from their template (docs/limitations.md): ${given.join(', ')}.\n`)
+    process.stdout.write(`Gave ${given.length} of the observability stack's ${declared.length} alarms the metrics the emulator's CloudFormation dropped from their template (docs/limitations.md): ${given.join(', ')}.\n`)
   }
 
   if (kept.length > 0) {
@@ -621,8 +621,8 @@ async function reconcileAlarms(template, deployedAt, ssm) {
 
   if (given.length === 0 && kept.length === 0) {
     process.stdout.write(math === 0
-      ? `None of the ${declared.length} alarms of the stack observability is of metric math: this part of the step has nothing to do.\n`
-      : `Every one of the ${declared.length} alarms of the stack observability holds its metrics as CloudFormation deployed them, the ${math} of metric math included: the emulator no longer drops them, and this part of the step (observability.mjs reconcile in make cloud-up) can be retired, with its note in docs/limitations.md.\n`)
+      ? `None of the observability stack's ${declared.length} alarms uses metric math: this part of the step has nothing to do.\n`
+      : `Every one of the observability stack's ${declared.length} alarms holds its metrics as CloudFormation deployed them, the ${math} of metric math included: the emulator no longer drops them, and this part of the step (observability.mjs reconcile in make cloud-up) can be retired, with its note in docs/limitations.md.\n`)
   }
 }
 
@@ -641,8 +641,8 @@ async function reconcileQueries(template) {
 
   if (declared.length === 0) {
     process.stdout.write(resources > 0
-      ? `The template of the stack observability declares its ${resources} saved queries as resources, which CloudFormation creates: nothing to save, and this part of the step can be retired, with its note in docs/limitations.md.\n`
-      : 'The template of the stack observability declares no saved query: nothing to save.\n')
+      ? `The observability stack's template declares its ${resources} saved queries as resources, which CloudFormation creates: nothing to save, and this part of the step can be retired, with its note in docs/limitations.md.\n`
+      : "The observability stack's template declares no saved query: nothing to save.\n")
 
     return
   }
@@ -665,15 +665,15 @@ async function reconcileQueries(template) {
   }
 
   process.stdout.write(saved.length + updated.length === 0
-    ? `Nothing new to save: the ${declared.length} queries of Logs Insights the template declares in its metadata are saved as it declares them.\n`
-    : `Saved the queries of Logs Insights the template declares in its metadata, which the CloudFormation of the emulator cannot create (docs/limitations.md): ${[...saved.map((name) => `${name} (new)`), ...updated.map((name) => `${name} (changed)`)].join(', ')}${kept > 0 ? `; ${kept} kept as saved before` : ''}.\n`)
+    ? `Nothing new to save: the ${declared.length} Logs Insights queries the template declares in its metadata are saved as it declares them.\n`
+    : `Saved the Logs Insights queries the template declares in its metadata, which the emulator's CloudFormation cannot create (docs/limitations.md): ${[...saved.map((name) => `${name} (new)`), ...updated.map((name) => `${name} (changed)`)].join(', ')}${kept > 0 ? `; ${kept} kept as saved before` : ''}.\n`)
 }
 
 async function reconcile() {
   const endpoint = process.env.AWS_ENDPOINT_URL ?? ''
 
   if (!/^http:\/\/floci:4566\/?$/.test(endpoint)) {
-    process.stderr.write('observability.mjs reconcile works around the CloudFormation of the local emulator only; AWS_ENDPOINT_URL is not the emulator.\n')
+    process.stderr.write("observability.mjs reconcile works around the local emulator's CloudFormation only; AWS_ENDPOINT_URL is not the emulator.\n")
     process.exit(2)
   }
 
@@ -692,13 +692,13 @@ async function reconcile() {
   const version = await emulatorVersion()
 
   if (later(version, WORKAROUND_RELEASE) && (template.Metadata?.[SAVED_QUERIES_METADATA] ?? []).length > 0) {
-    process.stdout.write(`The emulator is Floci ${version}, later than the ${WORKAROUND_RELEASE} whose CloudFormation could not create AWS::Logs::QueryDefinition: deploy the stage local with savedQueries 'resources' (infra/cdk/lib/stage.ts) and, if the stack observability deploys, retire the part of the saved queries.\n`)
+    process.stdout.write(`The emulator is Floci ${version}, later than the ${WORKAROUND_RELEASE} whose CloudFormation could not create AWS::Logs::QueryDefinition: deploy the local stage with savedQueries 'resources' (infra/cdk/lib/stage.ts) and, if the stack observability deploys, retire the part of the saved queries.\n`)
   }
 }
 
 async function alarmsAndMessages() {
   const alarms = (await cloudwatch.send(new DescribeAlarmsCommand({ AlarmNamePrefix: `${PREFIX}-`, MaxRecords: 100 }))).MetricAlarms ?? []
-  process.stdout.write(`The ${alarms.length} alarms of the stage ${STAGE}:\n`)
+  process.stdout.write(`The ${alarms.length} alarms of the ${STAGE} stage:\n`)
 
   for (const alarm of alarms.sort((a, b) => String(a.AlarmName).localeCompare(String(b.AlarmName)))) {
     process.stdout.write(`  ${String(alarm.StateValue).padEnd(17)} ${String(alarm.AlarmName).padEnd(46)} since ${alarm.StateUpdatedTimestamp?.toISOString() ?? '?'}  ${/Runbook: (\S+)/.exec(alarm.AlarmDescription ?? '')?.[1] ?? ''}\n`)

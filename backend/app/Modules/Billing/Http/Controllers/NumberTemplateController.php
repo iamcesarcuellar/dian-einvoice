@@ -29,7 +29,9 @@ final class NumberTemplateController
     ) {}
 
     /**
-     * Ranges by document type, the default first; ?search= matches the prefix and the resolution.
+     * List numbering ranges.
+     *
+     * Sorted by document type, the default first. ?search= matches the prefix and the resolution.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -43,7 +45,10 @@ final class NumberTemplateController
     }
 
     /**
-     * Create a range. Marking it as default unmarks the previous default of its document type.
+     * Create a numbering range.
+     *
+     * Marking it as the default unmarks the previous default for its document type. Owners and
+     * admins, in the web app; API keys get 403.
      */
     public function store(NumberTemplateRequest $request): JsonResponse
     {
@@ -63,11 +68,19 @@ final class NumberTemplateController
         return NumberTemplateResource::make($template->refresh())->response()->setStatusCode(201);
     }
 
+    /**
+     * Show a numbering range.
+     */
     public function show(NumberTemplate $numberTemplate): NumberTemplateResource
     {
         return NumberTemplateResource::make($numberTemplate);
     }
 
+    /**
+     * Update a numbering range.
+     *
+     * Owners and admins, in the web app; API keys get 403.
+     */
     public function update(NumberTemplateRequest $request, NumberTemplate $numberTemplate): NumberTemplateResource
     {
         DB::transaction(function () use ($request, $numberTemplate): void {
@@ -85,7 +98,10 @@ final class NumberTemplateController
     }
 
     /**
-     * Delete a range that no document uses; otherwise deactivate it instead.
+     * Delete a numbering range.
+     *
+     * A range that a document uses is deactivated instead. Owners and admins, in the web app; API
+     * keys get 403.
      */
     public function destroy(NumberTemplate $numberTemplate): Response
     {

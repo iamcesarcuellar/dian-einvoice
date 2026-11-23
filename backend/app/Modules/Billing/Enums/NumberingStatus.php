@@ -7,6 +7,7 @@ namespace App\Modules\Billing\Enums;
  */
 enum NumberingStatus: string
 {
+    /** In force: its validity has started and has not ended, and numbers are left. */
     case Active = 'active';
 
     /** Its validity has not started yet. */

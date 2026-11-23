@@ -71,12 +71,12 @@ describe('TotalsPanel', () => {
     ])
   })
 
-  it('shows zeros before the first preview, and a notice instead of the figures when the draft cannot be calculated', async () => {
+  it('shows zeros before the first preview, the discounts with no minus sign, and a notice instead of the figures when the draft cannot be calculated', async () => {
     const wrapper = mount(TotalsPanel, { props: { totals: null, taxes: [], withholdings: [] }, global: { plugins: [i18n] } })
 
     expect(rows(wrapper)).toEqual([
       ['Subtotal', '$ 0,00'],
-      ['Discounts', '− $ 0,00'],
+      ['Discounts', '$ 0,00'],
       ['Total', '$ 0,00'],
       ['Net to receive', '$ 0,00'],
     ])

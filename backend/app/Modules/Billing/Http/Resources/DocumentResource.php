@@ -62,12 +62,12 @@ final class DocumentResource extends JsonResource
             'number' => $this->number,
             'full_number' => $this->full_number,
             'contact_id' => $this->contact_id,
-            // On the detail only; a list row loads its contact just for the name of a draft.
+            // Only on the detail; a list row loads its contact just for a draft's name.
             'contact' => $this->when(! $this->summary && $this->resource->relationLoaded('contact'), fn () => $this->contact ? ContactResource::make($this->contact) : null),
             // The customer as issued, or as it is now while the invoice is a draft.
             'customer_name' => $this->customer_snapshot['legal_name']
                 ?? ($this->relationLoaded('contact') ? $this->contact?->legal_name : null),
-            // Colombian date and time of issue, the time with its offset (10:53:10-05:00); issued_at
+            // The Colombian issue date and time, the time with its offset (10:53:10-05:00); issued_at
             // is the same instant in UTC.
             'issue_date' => $this->issue_date?->toDateString(),
             'issue_time' => $this->issue_time,
@@ -83,8 +83,8 @@ final class DocumentResource extends JsonResource
             'related_document' => $this->relatedReference(),
             'reason_code' => $this->reason_code,
             'reason_text' => $this->reason_text,
-            // An invoice: open, partially_credited or voided, from the notes the local simulator
-            // accepted; null for drafts and notes.
+            // An invoice: open, partially_credited, credited or voided, from the notes the local
+            // simulator accepted; null for drafts and notes.
             'balance_status' => $this->balance_status,
             ...$this->balanceDetails(),
             ...$this->receivable(),
@@ -94,12 +94,12 @@ final class DocumentResource extends JsonResource
             'withholdings' => DocumentWithholdingResource::collection($this->whenLoaded('withholdings')),
             'lines' => DocumentLineResource::collection($this->whenLoaded('lines')),
             'events' => DocumentEventResource::collection($this->whenLoaded('events')),
-            // The copies frozen on issue, on the detail only.
+            // The copies frozen on issue; only on the detail.
             'company_snapshot' => $this->when(! $this->summary, fn () => $this->company_snapshot),
             'customer_snapshot' => $this->when(! $this->summary, fn () => $this->customer_snapshot),
             'numbering_snapshot' => $this->when(! $this->summary, fn () => $this->numbering_snapshot),
-            // Set on issue: the CUFE of an invoice or the CUDE of a note (key_name says which), the
-            // DIAN verification URL drawn as the QR code and the environment (always 2, habilitación).
+            // Set on issue: an invoice's CUFE or a note's CUDE (key_name says which), the DIAN
+            // verification URL the QR code draws, and the environment (always 2, habilitación).
             'cufe' => $this->cufe,
             'key_name' => $this->keyName(),
             'qr_url' => $this->qr_url,
@@ -117,8 +117,8 @@ final class DocumentResource extends JsonResource
                 'certificate_serial' => $this->signing_certificate_serial,
             ],
             'electronic' => $this->electronic(),
-            // Delivery to the customer once accepted: AttachedDocument, PDF and the email with both in
-            // a zip, always caught by the local development mailbox. Files only on the detail.
+            // The delivery to the customer once accepted: the AttachedDocument, the PDF and the email
+            // with both in a zip, always caught by the local development mailbox. Files only on the detail.
             'delivery' => DeliveryPresenter::present($this->resource),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
@@ -263,9 +263,9 @@ final class DocumentResource extends JsonResource
             'status' => $status,
             'final' => $status->isFinal(),
             'status_changed_at' => $this->electronic_status_at,
-            // Pass of the chain: 1 on issue, one more on each Resend or Retry after a failure.
+            // The chain's pass: 1 on issue, and one more on each Resend, or Retry after a failure.
             'run' => $this->electronic_run,
-            // Transmission attempt of this run: the current one, or the last that failed while waiting.
+            // This run's transmission attempt: the current one, or the last one that failed while waiting.
             'attempt' => $this->electronic_attempt,
             'max_attempts' => $pipeline->maxAttempts(),
             // Set while waiting to retry after a transient failure.
@@ -278,7 +278,7 @@ final class DocumentResource extends JsonResource
             'xml_file_name' => $this->dian_xml_file_name,
             // Who validates: always the local simulator, never the DIAN.
             'validated_by' => 'local_simulator',
-            // The last answer of the local simulator; null until it answers.
+            // The local simulator's last response; null until it responds.
             'result' => $this->dian_status_code === null ? null : [
                 'gateway' => $this->dian_gateway,
                 'accepted' => $status === ElectronicStatus::Accepted,

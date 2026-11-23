@@ -3,17 +3,14 @@
 namespace App\Modules\Billing\Enums;
 
 /**
- * State machine of the electronic document of an issued invoice. Each step of the chain runs as a
- * queued job that locks the document, checks it is in the state the step expects and moves it on:
- *
- *   pending → generated → signed → sending → accepted
- *                                          ↘ rejected → pending (Resend)
- *   any step ↘ failed → pending | generated | signed (Retry now, from the step that failed)
- *
- * While sending, a transmission that failed for a transient reason waits for its next attempt;
- * the attempt number and the time of the next one are kept on the document. Drafts have no state.
- * In this project the DIAN is always the local simulator, so accepted and rejected mean "by the
- * local simulator", never by the DIAN.
+ * The state machine of an issued invoice's electronic document. Each step of the chain runs as a
+ * queued job that locks the document, checks that it is in the state the step expects, and moves it
+ * on: pending, generated, signed and sending, then accepted or rejected. Resend takes a rejected
+ * document back to pending. A failure in any step leads to failed, and Retry now starts again from
+ * the step that failed: pending, generated or signed. While sending, a transmission that failed for
+ * a transient reason waits for its next attempt; the document keeps the attempt number and the time
+ * of the next one. Drafts have no state. In this project the DIAN is always the local simulator, so
+ * accepted and rejected mean "by the local simulator", never by the DIAN.
  */
 enum ElectronicStatus: string
 {
@@ -32,7 +29,7 @@ enum ElectronicStatus: string
     /** Accepted by the local DIAN simulator, possibly with notifications. */
     case Accepted = 'accepted';
 
-    /** Rejected by the rules of the local DIAN simulator; it can be sent again with Resend. */
+    /** Rejected by the local DIAN simulator's rules; it can be sent again with Resend. */
     case Rejected = 'rejected';
 
     /** A step failed, or every transmission attempt did; Retry now starts again from that step. */

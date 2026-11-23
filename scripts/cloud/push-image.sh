@@ -1,6 +1,6 @@
 #!/bin/sh
 # make cloud-up: pushes the image of the functions (dian-einvoice-lambda, target lambda of backend/Dockerfile)
-# to the ECR repository of the stage local in the local AWS emulator, under the first 16 characters of its
+# to the ECR repository of the local stage in the local AWS emulator, under the first 16 characters of its
 # image id, and prints the reference the functions are deployed with: the AWS-shaped URI of the repository
 # by digest, as in production. The emulator pulls it from its own registry, which the push goes to through
 # its published port (127.0.0.1:8604), path style.

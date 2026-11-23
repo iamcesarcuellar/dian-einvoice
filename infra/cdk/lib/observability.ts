@@ -1,7 +1,7 @@
 // What the observability of the platform is made of, as data the stack observability builds and the tests and
 // docs/observability.md check: the metrics of the application (each one a metric filter over the structured log
 // lines of the functions that write its event: the application calls no API to publish a metric), the runbooks the
-// alarms name (written in Infrastructure task 6), the objectives of service the alarms defend, and the saved queries
+// alarms name, the service objectives the alarms defend, and the saved queries
 // of CloudWatch Logs Insights. The fields every filter and query reads are fields of the schema of the log lines
 // (backend/resources/observability/log-schema.json), which a test holds them to.
 import { Unit } from 'aws-cdk-lib/aws-cloudwatch'
@@ -85,7 +85,7 @@ export function filterPatternOf(metric: ApplicationMetric): IFilterPattern {
   return conditions.length === 1 ? conditions[0] as IFilterPattern : FilterPattern.all(...conditions)
 }
 
-/** The runbook of each alarm, written in Infrastructure task 6. */
+/** The runbook of each alarm, in docs/runbooks. */
 export const RUNBOOKS = {
   deadLetters: 'docs/runbooks/dead-letters.md',
   queueBacklog: 'docs/runbooks/queue-backlog.md',
@@ -102,12 +102,12 @@ export const RUNBOOKS = {
   serviceDegraded: 'docs/runbooks/service-degraded.md',
 } as const
 
-/** The description of an alarm: what its state means, and the runbook that attends it. */
+/** The description of an alarm: what its state means, and the runbook that handles it. */
 export function alarmDescription(meaning: string, runbook: string): string {
   return `${meaning} Runbook: ${runbook}`
 }
 
-/** The objectives of service (docs/observability.md), and the alarms that defend each one, by their short name. */
+/** The service objectives (docs/observability.md), and the alarms that defend each one, by their short name. */
 export const SERVICE_OBJECTIVES = [
   { name: 'API availability', objective: '99.9% of API requests over 30 days return no 5xx (an error budget of 43 minutes a month).', alarms: ['api-server-errors', 'function-errors', 'function-throttles', 'origin-verifier-errors', 'database-connections', 'service-degraded'] },
   { name: 'API latency', objective: '99% of API requests over 30 days get a response within 1 second at API Gateway.', alarms: ['api-latency', 'database-capacity', 'function-throttles', 'service-degraded'] },

@@ -13,8 +13,8 @@ use Illuminate\Validation\Rule;
 
 /**
  * A payment of one customer and the invoices it is applied to. The amount, when sent, must be the
- * sum applied; whether each amount fits the balance of its invoice is checked with the invoice
- * locked, when the payment is recorded. Decimals travel as strings.
+ * sum applied; whether each amount fits its invoice's balance is checked, with the invoice locked,
+ * when the payment is recorded. Decimals travel as strings.
  */
 final class RecordPaymentRequest extends FormRequest
 {

@@ -153,7 +153,7 @@ final class DianCheckCommand extends Command
         $ok = hash_equals(self::ANNEX_CUDE, $cude);
 
         $this->newLine();
-        $this->line('6. CUDE of the credit note example of the annex 1.9 (section 11.4.3)');
+        $this->line('6. CUDE of the annex 1.9 credit note example (section 11.4.3)');
         $this->line('   Composition: '.Cude::composition($input));
         $this->line('   Calculated:  '.$cude);
         $this->line('   Expected:    '.self::ANNEX_CUDE);
@@ -276,7 +276,7 @@ final class DianCheckCommand extends Command
         $certificatePem = $certificates->credentials($certificate)->certificatePem;
 
         $this->line(sprintf('   Container:   %s of %s (%s bytes)', $file->file_name, $invoice->full_number, number_format(strlen($xml))));
-        $this->line(sprintf('   Certificate: serial %s, the one of %s', $certificate->serial_number, $invoice->companySnapshot()['legal_name']));
+        $this->line(sprintf('   Certificate: serial %s, that of %s', $certificate->serial_number, $invoice->companySnapshot()['legal_name']));
 
         $verification = $this->xmlsec($certificatePem, $xml);
         $this->line('   xmlsec1:     '.$verification['output']);

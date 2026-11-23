@@ -119,7 +119,7 @@ final class ErrorsAndHeadersTest extends IntegrationTestCase
     }
 
     /**
-     * The headers of an answer of the API, as the single source of truth declares them for its kind of document
+     * The headers of an API response, as the single source of truth declares them for its kind of document
      * (resources/http/security-headers.json), and their values as they always were.
      *
      * @param  TestResponse<Response>  $response

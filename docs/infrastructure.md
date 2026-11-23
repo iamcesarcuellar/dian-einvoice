@@ -176,21 +176,21 @@ sequenceDiagram
     participant Client as Web app or API client
     participant Edge as Edge (CloudFront)
     participant APIGW as API Gateway (HTTP API)
-    participant API as Function api
+    participant API as api function
     participant DB as MySQL (outbox)
-    participant SNS as SNS topic of document events
-    participant SQS as SQS queues chain and webhooks
-    participant Chain as Function chain
+    participant SNS as SNS document events topic
+    participant SQS as SQS queues: chain and webhooks
+    participant Chain as chain function
     participant DIAN as DIAN (local simulator)
     participant S3 as S3 documents bucket
     participant SES as SES
-    participant Relay as Function relay (every minute)
+    participant Relay as relay function (every minute)
 
     Client->>Edge: POST /api/v1/invoices/{id}/issue (session cookie and CSRF, or API key)
-    Edge->>APIGW: the request and the secret of the edge (origin verifier)
-    APIGW->>API: event of payload 2.0
+    Edge->>APIGW: the request and the edge's secret (origin verifier)
+    APIGW->>API: a payload 2.0 event
     API->>DB: number, document and outbox event, in one transaction
-    API->>SNS: after the commit, before answering: publish the event, mark it published (fast path)
+    API->>SNS: after the commit, before responding: publish the event, mark it published (fast path)
     API-->>Client: 200 through API Gateway and the edge
     SNS->>SQS: filtered by event type (raw delivery)
     SQS->>Chain: batch of messages (event source mapping)
@@ -200,9 +200,9 @@ sequenceDiagram
     Chain-->>SQS: partial batch response: only the failed messages stay
     SQS->>Chain: transmission step
     Chain->>DIAN: SendBillSync (SOAP), ApplicationResponse
-    Chain->>S3: answer, AttachedDocument, PDF and zip
+    Chain->>S3: response, AttachedDocument, PDF and zip
     Chain->>SES: email to the customer with the zip
-    Note over SQS,Chain: Webhooks go the same way through the queue webhooks and its function
+    Note over SQS,Chain: Webhooks go the same way, through the webhooks queue and its function
     Relay->>DB: events older than 10 s still unpublished (a writer that died after its commit)
     Relay->>SNS: publish them, claimed with FOR UPDATE SKIP LOCKED
 ```
@@ -337,7 +337,7 @@ They are proven on what synthesis produces: by cdk-nag, cfn-lint, CDK's schema v
 flowchart TB
     internet(("Internet: the DIAN, webhook endpoints, AWS APIs"))
     lambda[["AWS Lambda: invokes the functions, polls the queues, pulls the image, ships the logs"]]
-    subgraph vpc["VPC 10.40.0.0/16 (stack network)"]
+    subgraph vpc["VPC 10.40.0.0/16 (network stack)"]
         igw["Internet gateway"]
         subgraph zoneA["Zone us-east-1a"]
             publicA["Public 10.40.0.0/24<br/>NAT gateway, fixed address"]
@@ -352,7 +352,7 @@ flowchart TB
         gateways["Gateway endpoints: S3, DynamoDB"]
         interfaces["Interface endpoints, an option, off:<br/>SNS, SQS, KMS, Secrets Manager, SES"]
     end
-    lambda -. "network interfaces of the functions" .-> privateA & privateB
+    lambda -. "the functions' network interfaces" .-> privateA & privateB
     privateA & privateB -- "0.0.0.0/0, HTTPS" --> publicA
     publicA --> igw --> internet
     publicB --> igw
@@ -526,29 +526,29 @@ sequenceDiagram
     participant Client as API client (API key)
     participant WAF as AWS WAF (prod)
     participant CF as CloudFront distribution
-    participant Fn as CloudFront Function (routes of the web app)
-    participant S3 as Bucket of the web app
+    participant Fn as CloudFront Function (web app routes)
+    participant S3 as Web app bucket
     participant APIGW as API Gateway (HTTP API)
     participant Verifier as Origin verifier (Lambda, Node.js)
-    participant API as Function api (PHP)
+    participant API as api function (PHP)
 
     Browser->>WAF: GET /invoices/01J... over HTTPS (HTTP/2 or HTTP/3)
     WAF->>CF: managed rules and limits per address passed
     CF->>Fn: viewer request of the default behaviour
-    Fn-->>CF: /index.html: a path without an extension is a route of the web app
+    Fn-->>CF: /index.html: a path without an extension is a web app route
     CF->>S3: GET /index.html, signed with origin access control
     S3-->>CF: index.html, Cache-Control no-cache
-    CF-->>Browser: index.html with the security headers of the web app
+    CF-->>Browser: index.html with the web app's security headers
     Browser->>CF: GET /assets/index-1a2b3c4d.js (cached a year, immutable)
     Browser->>WAF: POST /api/v1/invoices with the session cookie and X-XSRF-TOKEN
     WAF->>CF: passed
-    CF->>APIGW: uncached, every header but Host, every cookie and query, X-Forwarded-For with the address of the client appended, and X-Origin-Verify with the secret of the edge
+    CF->>APIGW: uncached, every header except Host, every cookie and query, X-Forwarded-For with the client's address appended, and X-Origin-Verify with the edge's secret
     APIGW->>Verifier: X-Origin-Verify, once per value and 5 minutes
-    Verifier-->>APIGW: isAuthorized: the current or the previous value of the secret
-    APIGW->>API: event of payload 2.0
-    API-->>Browser: the answer with the headers of the application, through CloudFront
+    Verifier-->>APIGW: isAuthorized: the secret's current or previous value
+    APIGW->>API: a payload 2.0 event
+    API-->>Browser: the response with the application's headers, through CloudFront
     Client->>WAF: GET /api/v1/invoices with Authorization: Bearer dei_...
-    Note over Client,API: the same way as the POST of the web app
+    Note over Client,API: the same way as the web app's POST
     Client-xAPIGW: straight to API Gateway: 401 without X-Origin-Verify, 403 with a wrong value, never the application
 ```
 

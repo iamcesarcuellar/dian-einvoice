@@ -144,7 +144,7 @@ The pipeline never deploys the delivery stack: only an administrator changes its
 
 ## A routine deployment
 
-1. Merge to `main` once CI has passed. While the repository is private, CI runs only when dispatched by hand.
+1. Merge to `main` once CI has passed on the pull request.
 2. Dispatch the Deploy workflow from `main`, or from a release tag (`vMAJOR.MINOR.PATCH`), and approve it.
 3. The workflow runs the offline checks, shows the differences, then deploys.
 

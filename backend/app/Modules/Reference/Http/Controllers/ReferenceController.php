@@ -27,6 +27,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 final class ReferenceController
 {
     /**
+     * List the DIAN code lists.
+     *
      * Every code list in one response, with English names.
      */
     public function index(): JsonResponse
@@ -46,7 +48,7 @@ final class ReferenceController
                 'units' => UnitOfMeasure::options(),
                 'payment_forms' => PaymentForm::options(),
                 'payment_means' => PaymentMeans::options(),
-                // Concepts of credit and debit notes, from the official lists of the toolbox.
+                // The concepts of credit and debit notes, from the toolbox's official lists.
                 'credit_note_concepts' => CreditNoteConcept::reference(),
                 'debit_note_concepts' => DebitNoteConcept::reference(),
                 'departments' => Department::query()->orderBy('name')->get(['code', 'name']),
@@ -55,7 +57,9 @@ final class ReferenceController
     }
 
     /**
-     * Municipalities, optionally of one department (?department=05), searched by name or code.
+     * List the municipalities.
+     *
+     * Optionally those of one department (?department=05); ?search= matches the name or the code.
      */
     public function municipalities(Request $request): AnonymousResourceCollection
     {

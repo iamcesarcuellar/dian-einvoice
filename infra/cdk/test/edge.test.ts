@@ -196,7 +196,7 @@ for (const name of ['local', 'prod'] as const) {
         assert.equal(behaviour.CachePolicyId, CACHING_DISABLED)
         assert.equal(behaviour.OriginRequestPolicyId, ALL_VIEWER_EXCEPT_HOST_HEADER)
         assert.deepEqual([...behaviour.AllowedMethods].sort(), ['DELETE', 'GET', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT'])
-        // The answers of the API keep the headers of the application, neither duplicated nor contradicted.
+        // The API's responses keep the headers of the application, neither duplicated nor contradicted.
         assert.equal(behaviour.ResponseHeadersPolicyId, undefined)
         assert.equal(behaviour.Compress, false)
         assert.equal(behaviour.FunctionAssociations, undefined)

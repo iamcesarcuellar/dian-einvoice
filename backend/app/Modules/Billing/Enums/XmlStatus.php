@@ -5,8 +5,8 @@ namespace App\Modules\Billing\Enums;
 use App\Modules\Billing\Models\Document;
 
 /**
- * State of the UBL XML file of an issued document, derived from its electronic status: the API
- * shows it next to the chain so clients know whether the signed XML can be downloaded. Drafts
+ * The state of an issued document's UBL XML file, derived from its electronic status: the API
+ * shows it next to the chain, so clients know whether the signed XML can be downloaded. Drafts
  * have none.
  */
 enum XmlStatus: string

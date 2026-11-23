@@ -1,6 +1,6 @@
 {
   "AlarmName": "dian-einvoice-prod-chain-dead-letters",
-  "AlarmDescription": "A message reached the dead-letter queue of the chain queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it. Runbook: docs/runbooks/dead-letters.md",
+  "AlarmDescription": "A message reached the chain queue's dead-letter queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it. Runbook: docs/runbooks/dead-letters.md",
   "AWSAccountId": "111111111111",
   "AlarmConfigurationUpdatedTimestamp": "2026-11-20T15:00:00.000+0000",
   "NewStateValue": "ALARM",

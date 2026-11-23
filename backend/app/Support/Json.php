@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * Typed reads of decoded JSON (json_decode into arrays): the answers of the local services and,
+ * Typed reads of decoded JSON (json_decode into arrays): the local services' responses and,
  * in the check commands, of the API itself. A path takes dots, as data_get() does. A value of
  * another type reads as missing: null, or an empty array.
  */

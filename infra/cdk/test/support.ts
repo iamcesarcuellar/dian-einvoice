@@ -26,13 +26,13 @@ export function stageOf(name: 'local' | 'prod'): PlatformStacks {
   return stage
 }
 
-/** The stage prod built alone with other settings: the options of the network and of the database. */
+/** The prod stage built alone with other settings: the options of the network and of the database. */
 export function variantOf(config: StageConfig): { app: ReturnType<typeof buildApp>['app'], stacks: PlatformStacks } {
   const variant = buildApp({ stages: ['prod'], configs: { prod: config }, context: cdkContext(), routes, services, outdir: mkdtempSync(join(tmpdir(), 'cdk-variant-')) })
   const stacks = variant.stages[0]
 
   if (stacks === undefined) {
-    throw new Error('No stage prod.')
+    throw new Error('No prod stage.')
   }
 
   return { app: variant.app, stacks }

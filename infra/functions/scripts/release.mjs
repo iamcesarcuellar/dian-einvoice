@@ -1,5 +1,5 @@
-// The steps of scripts/deploy.sh that read or check a stage through the AWS API, the same for the emulator (stage local,
-// make cloud-up) and for a real account (stage prod, .github/workflows/deploy.yml, never run):
+// The steps of scripts/deploy.sh that read or check a stage through the AWS API, the same for the emulator (the local stage,
+// make cloud-up) and for a real account (the prod stage, .github/workflows/deploy.yml, never run):
 //
 //   node scripts/release.mjs registry-password       the password docker login takes for the ECR registry of the account
 //                                                    (prod), piped, never printed to a terminal
@@ -86,7 +86,7 @@ function call(url, { host, headers = {} } = {}) {
       response.on('data', (chunk) => chunks.push(chunk))
       response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks).toString('utf8') }))
     })
-    sent.on('timeout', () => sent.destroy(new Error(`${url} did not answer within 30 s`)))
+    sent.on('timeout', () => sent.destroy(new Error(`${url} did not respond within 30 s`)))
     sent.on('error', reject)
     sent.end()
   })
@@ -105,7 +105,7 @@ async function smoke() {
   const edge = EMULATED ? (process.env.EDGE_CHECK_URL ?? 'http://api:8000') : `https://${process.env.EDGE_DOMAIN_NAME || found['edge/distribution-domain-name']}`
   const health = await call(`${edge}/api/v1/health`)
   const through = health.headers['apigw-requestid'] !== undefined || health.headers['x-amzn-requestid'] !== undefined
-  verify(health.status === 200 && through && health.body.includes('"status"'), `The API answers its health through the edge, ${edge}: HTTP ${health.status}${through ? ', through API Gateway' : ''}.`)
+  verify(health.status === 200 && through && health.body.includes('"status"'), `The API responds to its health check through the edge, ${edge}: HTTP ${health.status}${through ? ', through API Gateway' : ''}.`)
 
   // API Gateway, called directly as a client that skips the edge would: refused before the application.
   const direct = (headers) => EMULATED
@@ -119,7 +119,7 @@ async function smoke() {
 
 async function versions() {
   const lambda = new LambdaClient({})
-  process.stdout.write(`What runs in the stage ${STAGE}, at ${new Date().toISOString()}:\n\nFunctions:\n`)
+  process.stdout.write(`What runs in the ${STAGE} stage, at ${new Date().toISOString()}:\n\nFunctions:\n`)
 
   for (const fn of FUNCTIONS) {
     try {

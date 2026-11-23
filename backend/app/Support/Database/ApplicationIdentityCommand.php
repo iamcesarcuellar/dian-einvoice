@@ -26,7 +26,7 @@ final class ApplicationIdentityCommand extends Command
 {
     protected $signature = 'db:application-identity';
 
-    protected $description = 'Create or update the application identity of the database: it reads and writes data and changes nothing of the schema';
+    protected $description = 'Create or update the database\'s application identity: it reads and writes data and changes nothing of the schema';
 
     /** All the application identity may do: data, never the schema. */
     public const array PRIVILEGES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];

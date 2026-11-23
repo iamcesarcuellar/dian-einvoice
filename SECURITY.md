@@ -24,7 +24,7 @@ There is no bug bounty. This is a personal project maintained by one person. The
 
 ## Supported versions
 
-Only the latest commit on `main`. There are no releases yet.
+The latest release, 1.0.0, and the latest commit on `main`. A fix lands on `main` first, then in the next release ([CHANGELOG.md](CHANGELOG.md)).
 
 ## In scope
 

@@ -12,7 +12,7 @@ flowchart LR
   integrations["API clients<br/>accounting, point of sale, e-commerce"] -->|"HTTP /api/v1, API keys"| system
   system["dian-einvoice<br/>web app and API"] -->|"SOAP: SendBillSync, GetStatus"| dian["DIAN<br/>the local simulator here"]
   system -->|"email: PDF and AttachedDocument"| customers["The invoice's customer"]
-  system -->|"signed webhooks"| receivers["Webhook endpoints<br/>of the integrations"]
+  system -->|"signed webhooks"| receivers["The integrations'<br/>webhook endpoints"]
 ```
 
 - **Company users** work in the web app, signed in with a session. A user may belong to several companies, with one role in each: owner, admin, member or viewer (`app/Modules/Identity/Enums`).
@@ -157,7 +157,7 @@ stateDiagram-v2
   signed --> sending: SendBillSync
   sending --> sending: a transient failure, retried
   sending --> accepted: status 00
-  sending --> rejected: a rule of the annex
+  sending --> rejected: an annex rule
   pending --> failed
   generated --> failed
   signed --> failed

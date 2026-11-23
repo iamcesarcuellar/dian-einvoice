@@ -75,6 +75,17 @@ export function formatMoney(value: string | null | undefined): string {
 }
 
 /**
+ * An amount a document takes off, such as a discount or a withholding: "− $ 45.000,00". Zero takes no sign:
+ * "$ 0,00".
+ */
+export function formatDeduction(value: string | null | undefined): string {
+  const money = formatMoney(value || '0')
+  const decimal = parts(value || '0')
+
+  return decimal !== null && /^0+$/.test(decimal.integer) && /^0*$/.test(decimal.fraction) ? money : `− ${money}`
+}
+
+/**
  * Whole pesos, for the figures of the dashboard: "9798831.87" becomes "$ 9.798.832", rounded half
  * away from zero. The exact amount (formatMoney) goes in the tooltip of each figure.
  */

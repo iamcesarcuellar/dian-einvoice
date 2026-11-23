@@ -52,7 +52,7 @@ async function parameters() {
   const value = (name) => found.find((parameter) => parameter.Name === `/dian-einvoice/${STAGE}/edge/${name}`)?.Value
 
   if (value('panel-bucket-name') === undefined || value('distribution-id') === undefined) {
-    throw new Error(`The stack edge of the stage ${STAGE} publishes no bucket or distribution: deploy it first.`)
+    throw new Error(`The edge stack of the ${STAGE} stage publishes no bucket or distribution: deploy it first.`)
   }
 
   return { bucket: value('panel-bucket-name'), distribution: value('distribution-id') }
@@ -82,7 +82,7 @@ function headersOf(key) {
 
 async function invalidate(distribution, keys) {
   if (STAGE === 'local') {
-    process.stdout.write('The emulator caches nothing: no invalidation in the stage local.\n')
+    process.stdout.write('The emulator caches nothing: no invalidation in the local stage.\n')
 
     return
   }

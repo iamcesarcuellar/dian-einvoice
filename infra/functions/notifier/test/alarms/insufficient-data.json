@@ -1,6 +1,6 @@
 {
   "AlarmName": "dian-einvoice-prod-api-latency",
-  "AlarmDescription": "The 99th percentile of the time the API takes to answer has been above 2 seconds for 15 minutes, twice the objective. Runbook: docs/runbooks/api-latency.md",
+  "AlarmDescription": "For 15 minutes, the 99th percentile of the API's response time has been above 2 seconds, twice the objective. Runbook: docs/runbooks/api-latency.md",
   "AWSAccountId": "111111111111",
   "NewStateValue": "INSUFFICIENT_DATA",
   "NewStateReason": "Insufficient Data: 3 datapoints were unknown.",

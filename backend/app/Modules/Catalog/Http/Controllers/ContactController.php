@@ -18,7 +18,9 @@ use Illuminate\Http\Response;
 final class ContactController
 {
     /**
-     * Contacts, the final consumer first; ?search= matches names, identification and email, and
+     * List contacts.
+     *
+     * The final consumer first. ?search= matches the names, the identification and the email;
      * ?active=1 leaves out inactive contacts.
      */
     public function index(Request $request): AnonymousResourceCollection
@@ -35,7 +37,9 @@ final class ContactController
     }
 
     /**
-     * Create a contact. For a NIT, the check digit is computed by the API.
+     * Create a contact.
+     *
+     * For a NIT, the API computes the check digit.
      */
     public function store(ContactRequest $request): JsonResponse
     {
@@ -44,13 +48,18 @@ final class ContactController
         return ContactResource::make($contact->load('municipality.department'))->response()->setStatusCode(201);
     }
 
+    /**
+     * Show a contact.
+     */
     public function show(Contact $contact): ContactResource
     {
         return ContactResource::make($contact->load('municipality.department'));
     }
 
     /**
-     * Update a contact. The final consumer cannot be edited.
+     * Update a contact.
+     *
+     * The final consumer cannot be edited.
      */
     public function update(ContactRequest $request, Contact $contact): ContactResource
     {
@@ -60,7 +69,9 @@ final class ContactController
     }
 
     /**
-     * Delete a contact that no document uses; otherwise deactivate it instead.
+     * Delete a contact.
+     *
+     * A contact that a document uses is deactivated instead.
      */
     public function destroy(Contact $contact): Response
     {

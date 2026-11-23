@@ -28,7 +28,7 @@ use Tests\IntegrationTestCase;
 use Tests\Support\SecretShapes;
 
 /**
- * The observability of the backend (Infrastructure task 5): the structured log line of the functions holds exactly
+ * The observability of the backend: the structured log line of the functions holds exactly
  * the fields of resources/observability/log-schema.json, masks what looks like a secret or personal data, and
  * drops what the schema does not name; the API answers the correlation id of every request and keeps the one a
  * client sends only when it has the form of one; the journey travels with the outbox events, their messages and
@@ -173,7 +173,7 @@ final class ObservabilityTest extends IntegrationTestCase
         $this->assertIsArray($document);
         $header = LogSchema::correlationHeader();
         $this->assertIsArray($document['info'] ?? null);
-        $this->assertStringContainsString("## Correlation\n\nEvery answer carries `{$header}`", $this->text($document['info']['description'] ?? null));
+        $this->assertStringContainsString("## Correlation\n\nEvery response carries `{$header}`", $this->text($document['info']['description'] ?? null));
         $this->assertIsArray($document['paths'] ?? null);
         $operations = 0;
 
@@ -272,7 +272,7 @@ final class ObservabilityTest extends IntegrationTestCase
         try {
             $answer = (new ArtisanHandler)->handle('--version', $this->lambda());
             $this->assertSame(0, $answer['exitCode']);
-            $this->assertStringContainsString('Laravel Framework', $answer['output'], 'What the command printed is the answer of the invocation.');
+            $this->assertStringContainsString('Laravel Framework', $answer['output'], "What the command printed is the invocation's response.");
 
             try {
                 (new ArtisanHandler)->handle('no-such-command --with arguments@example.com', $this->lambda());

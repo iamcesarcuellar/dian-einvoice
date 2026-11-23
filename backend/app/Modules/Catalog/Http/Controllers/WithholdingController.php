@@ -17,6 +17,9 @@ use Illuminate\Http\Response;
  */
 final class WithholdingController
 {
+    /**
+     * List withholdings.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Withholding::query()->orderBy('dian_code')->orderByDesc('rate')->orderBy('name');
@@ -24,6 +27,11 @@ final class WithholdingController
         return WithholdingResource::collection(Listing::paginate($query, $request, ['name']));
     }
 
+    /**
+     * Create a withholding.
+     *
+     * Owners and admins, in the web app; API keys get 403.
+     */
     public function store(WithholdingRequest $request): JsonResponse
     {
         $withholding = Withholding::create($request->validated());
@@ -31,11 +39,19 @@ final class WithholdingController
         return WithholdingResource::make($withholding)->response()->setStatusCode(201);
     }
 
+    /**
+     * Show a withholding.
+     */
     public function show(Withholding $withholding): WithholdingResource
     {
         return WithholdingResource::make($withholding);
     }
 
+    /**
+     * Update a withholding.
+     *
+     * Owners and admins, in the web app; API keys get 403.
+     */
     public function update(WithholdingRequest $request, Withholding $withholding): WithholdingResource
     {
         $withholding->update($request->validated());
@@ -44,7 +60,10 @@ final class WithholdingController
     }
 
     /**
-     * Delete a withholding that no document uses. Defaults cannot be deleted.
+     * Delete a withholding.
+     *
+     * Only a withholding that no document uses; the defaults cannot be deleted. Owners and admins,
+     * in the web app; API keys get 403.
      */
     public function destroy(Withholding $withholding): Response
     {

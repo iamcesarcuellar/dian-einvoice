@@ -1,4 +1,4 @@
-// Assertions on the stack network of the stage prod as synthesized (it is never deployed, not even to the
+// Assertions on the stack network of the prod stage as synthesized (it is never deployed, not even to the
 // emulator): the zones and the three tiers of subnets, isolated subnets without any route out, the NAT gateways
 // the stage asks for with their fixed addresses, the gateway endpoints, a path for every AWS service the
 // adapters call (backend/resources/aws/services.json) and the table of docs/infrastructure.md that lists them,
@@ -133,7 +133,7 @@ function assertPathToEveryService(resources: Resources, settings: NetworkSetting
   }
 }
 
-describe('network of the stage prod', () => {
+describe('network of the prod stage', () => {
   const stacks = stageOf('prod')
   const network = stacks.network as NetworkStack
   const resources = resourcesOf(network)
@@ -211,13 +211,13 @@ describe('network of the stage prod', () => {
     assert.deepEqual(parameters, ['/dian-einvoice/prod/network/egress-addresses', '/dian-einvoice/prod/network/functions-security-group-id', '/dian-einvoice/prod/network/private-subnet-ids'])
   })
 
-  it('does not exist in the stage local, whose functions run on the network of compose', () => {
+  it('does not exist in the local stage, whose functions run on the network of compose', () => {
     assert.equal(stageOf('local').network, null)
     assert.equal(stageOf('local').database, null)
   })
 })
 
-describe('the stage prod with every option of the network and the database turned the other way', () => {
+describe('the prod stage with every option of the network and the database turned the other way', () => {
   const managed = prod.database.managed
 
   if (managed === null) {

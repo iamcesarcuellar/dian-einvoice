@@ -15,6 +15,13 @@ use Illuminate\Http\JsonResponse;
  */
 final class OpenInvoicesController
 {
+    /**
+     * List a customer's open invoices.
+     *
+     * The customer's accepted invoices with something left to collect, oldest due first, with their
+     * due date, balance and whether they are overdue. Credits in favor of the customer (negative
+     * balances) are listed apart.
+     */
     public function __invoke(Contact $contact, InvoiceLedger $ledger): JsonResponse
     {
         $customer = $contact;

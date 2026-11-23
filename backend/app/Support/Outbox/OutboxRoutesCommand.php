@@ -16,7 +16,7 @@ final class OutboxRoutesCommand extends Command
 
     protected $signature = 'outbox:routes {--write : Write resources/outbox/routes.json instead of printing it}';
 
-    protected $description = 'Print the event types each SQS queue receives from the topic of document events (the filters of the CDK app)';
+    protected $description = 'Print the event types each SQS queue receives from the document events topic (the CDK app\'s filters)';
 
     public function handle(OutboxSubscribers $subscribers): int
     {

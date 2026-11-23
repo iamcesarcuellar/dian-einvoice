@@ -24,8 +24,10 @@ final class DeliveryController
     public function __construct(private readonly DocumentFiles $files) {}
 
     /**
-     * The PDF, the graphic representation of the document: inline, for the viewer of the browser, or
-     * as a download with ?download=1. 409 while it does not exist.
+     * Get the PDF.
+     *
+     * The document's graphic representation: inline, for the browser's viewer, or as a download
+     * with ?download=1. 409 while it does not exist.
      */
     public function pdf(Request $request, Document $document): Response
     {
@@ -35,8 +37,10 @@ final class DeliveryController
     }
 
     /**
-     * The signed AttachedDocument (annex 1.9, section 6.4) with the signed document and the
-     * ApplicationResponse of the local simulator inside. 409 while it does not exist.
+     * Download the AttachedDocument.
+     *
+     * The signed AttachedDocument (annex 1.9, section 6.4), with the signed document and the local
+     * simulator's ApplicationResponse inside. 409 while it does not exist.
      */
     public function attachedDocument(Document $document): Response
     {
@@ -45,7 +49,11 @@ final class DeliveryController
         return $this->serve($file, 'application/xml; charset=UTF-8', $file->file_name, 'attachment');
     }
 
-    /** The zip the email carries: the AttachedDocument and the PDF. 409 while it does not exist. */
+    /**
+     * Download the email's zip.
+     *
+     * The zip the email carries: the AttachedDocument and the PDF. 409 while it does not exist.
+     */
     public function package(Document $document): Response
     {
         $file = $this->file($document, DocumentFileKind::Package, __('delivery::errors.missing.package'));
@@ -54,16 +62,22 @@ final class DeliveryController
     }
 
     /**
-     * Send again, once the delivery has ended: to the current recipient, or to the email sent in the
-     * body. It starts from the step that failed, if one did. 409 while a delivery runs; 422 when
-     * there is no address at all.
+     * Send again.
+     *
+     * Once the delivery has ended, the document goes again to the current recipient, or to the email
+     * in the body. It starts from the step that failed, if one did. 409 while a delivery runs; 422
+     * when there is no address at all.
      */
     public function deliver(DeliverRequest $request, Document $document, DeliveryActions $actions): DocumentResource
     {
         return DocumentResource::make($actions->sendAgain($document->id, $request->email(), Actor::user($request))->load(Document::DETAILS));
     }
 
-    /** Regenerate PDF, after it failed or when it is missing; the delivery then goes on. Otherwise 409. */
+    /**
+     * Regenerate the PDF.
+     *
+     * After the PDF failed, or when it is missing; the delivery then goes on. Otherwise 409.
+     */
     public function regeneratePdf(Request $request, Document $document, DeliveryActions $actions): DocumentResource
     {
         return DocumentResource::make($actions->regeneratePdf($document->id, Actor::user($request))->load(Document::DETAILS));

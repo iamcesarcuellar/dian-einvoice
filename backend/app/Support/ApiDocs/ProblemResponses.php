@@ -30,15 +30,15 @@ final class ProblemResponses
         $schema->addProperty('status', (new IntegerType)->example($status));
         $schema->addProperty('detail', (new StringType)->setDescription('What went wrong, in a sentence for people.'));
         $schema->addProperty('instance', (new StringType)->setDescription('The path of the request.')->example('/api/v1/invoices'));
-        $schema->addProperty('request_id', (new StringType)->setDescription('The X-Request-Id of the answer, which the logs carry: quote it when asking about a request.'));
-        $schema->addProperty('correlation_id', (new StringType)->setDescription('The X-Correlation-Id of the answer: the id of the journey of the request, which every log line, event, webhook and email of it carries.')->example('01jcz9w6n8s0k3q4r5t6v7w8x9'));
+        $schema->addProperty('request_id', (new StringType)->setDescription('The response\'s X-Request-Id, which the logs carry: quote it when asking about a request.'));
+        $schema->addProperty('correlation_id', (new StringType)->setDescription('The response\'s X-Correlation-Id: the request\'s journey id, which every log line, event, webhook and email of the journey carries.')->example('01jcz9w6n8s0k3q4r5t6v7w8x9'));
 
         $required = ['type', 'title', 'status', 'instance'];
 
         if ($validation) {
             $messages = new ArrayType;
             $messages->setItems(new StringType);
-            $errors = (new ObjectType)->setDescription('The messages of each field that failed, by field name, such as lines.0.quantity.');
+            $errors = (new ObjectType)->setDescription('Each failed field\'s messages, by field name, such as lines.0.quantity.');
             $errors->additionalProperties($messages);
             $schema->addProperty('errors', $errors);
             $required[] = 'errors';

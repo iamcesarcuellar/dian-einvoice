@@ -82,7 +82,7 @@ function eventDetail(event: PaymentEvent): string | null {
     <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div class="grid min-w-0 gap-6">
         <FormSection :title="t('payments.view.details')">
-          <dl class="grid gap-4 sm:grid-cols-3">
+          <dl class="grid items-start gap-4 sm:grid-cols-3">
             <div class="grid gap-0.5 sm:col-span-2">
               <dt class="text-xs text-muted-foreground">{{ t('payments.columns.customer') }}</dt>
               <dd>

@@ -42,6 +42,8 @@ const SEARCH_PAUSE = 300
 // The queue workers run the chain and the delivery; every transmission attempt of the outage waits its delay.
 const CHAIN_TIMEOUT = 120_000
 const OUTAGE_TIMEOUT = 420_000
+/** How often a GIF reads the strip of the electronic document while the workers move it. */
+const STRIP_POLL = 150
 
 /** A message of the web app in the language of the run, its placeholders filled in. */
 function say(key: string, values: Record<string, string | number> = {}): string {
@@ -480,6 +482,37 @@ function step(page: Page, text: string): Locator {
   return page.getByRole('region', { name: say('invoices.progress.label') }).getByRole('listitem').filter({ hasText: text })
 }
 
+/**
+ * Films the strip of the electronic document while the workers take the document through the chain, until the step
+ * `until` is done. The strip is read every 150 ms and filmed whenever it tells something new: each frame is shown for
+ * `each` ms and the last one for `last`. The GIF holds the steps the page really showed, and nothing is slowed down for
+ * the camera. `alerts`, when given, are the error alerts the page may still show, such as the failure of a transmission
+ * that is being retried.
+ */
+async function filmStrip(page: Page, film: Film, until: string, each: number, last: number, alerts?: Locator): Promise<void> {
+  const strip = page.getByRole('region', { name: say('invoices.progress.label') })
+  const finished = step(page, done(until))
+  const deadline = Date.now() + CHAIN_TIMEOUT
+  let told = ''
+
+  for (;;) {
+    const now = await strip.innerText()
+    const over = await finished.isVisible()
+
+    if (over || now !== told) {
+      told = now
+      await film.frame(over ? last : each, alerts ? await alerts.count() : 0)
+    }
+
+    if (over) {
+      return
+    }
+
+    expect(Date.now(), `the strip shows ${done(until)}`).toBeLessThan(deadline)
+    await page.waitForTimeout(STRIP_POLL)
+  }
+}
+
 /** The names of the company's items by code, from its API: those of the demo data's language. */
 async function itemNames(page: Page): Promise<Map<string, string>> {
   const items = (await list(page, 'items?per_page=100')) as unknown as { code: string; name: string }[]
@@ -632,6 +665,9 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await film.frame(500)
 
     await choose(camera, camera.getByRole('combobox', { name: say('invoices.editor.customer') }), 'Cordillera', /Distribuidora Cordillera Plata SAS/, film)
+    // The customer's data, which the editor shows below the field once the customer is chosen.
+    await expect(camera.locator('dl').filter({ has: camera.getByText(say('invoices.editor.identification'), { exact: true }) })).toBeVisible()
+    await film.frame(600)
     const items = camera.getByRole('combobox', { name: say('invoices.editor.item'), exact: true })
     await choose(camera, items.nth(0), ...itemChoice(names, 'P-001'), film)
     // An office chair at IVA 19 %.
@@ -654,13 +690,12 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     issued = new URL(camera.url()).pathname
     await camera.mouse.move(900, 28, { steps: 6 })
 
-    // The workers take it through the chain: a frame whenever the strip changes, until it is delivered.
-    for (const state of ['xml', 'signed', 'sent', 'accepted', 'delivered']) {
-      await expect(step(camera, done(state))).toBeVisible({ timeout: CHAIN_TIMEOUT })
-      await film.frame(state === 'delivered' ? 1500 : 450)
-    }
+    // The workers take it through the chain and the delivery: a frame whenever the strip changes, until it is delivered.
+    await filmStrip(camera, film, 'delivered', 450, 1500)
 
-    await film.click(camera.getByRole('button', { name: say('invoices.delivery.viewPdf') }))
+    // The customer delivery card for 1.2 s, then the PDF.
+    await scrollToSection(camera, say('invoices.delivery.title'))
+    await film.click(camera.getByRole('button', { name: say('invoices.delivery.viewPdf') }), 1200)
     const viewer = camera.getByTitle(new RegExp(`^${say('invoices.delivery.pdfFrame', { number: 'SETP\\d+' })}$`))
     await expect(viewer).toBeVisible()
     await expect(viewer).toHaveAttribute('src', /^blob:.*#navpanes=0/)
@@ -771,7 +806,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     let told = await strip.innerText()
 
     while (!(await failed.isVisible()) && Date.now() < deadline) {
-      await camera.waitForTimeout(1_000)
+      await camera.waitForTimeout(STRIP_POLL)
       const now = await strip.innerText()
 
       if (now !== told) {
@@ -794,10 +829,11 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await film.click(camera.getByRole('button', { name: say('invoices.dian.retryNow') }), 350, 1)
     await camera.mouse.move(900, 28, { steps: 6 })
 
-    // Accepted and delivered: the six steps of the strip done, then the acceptance, then the end of the timeline. The
-    // cards of its payments and balance appear once it is accepted, so each frame scrolls to what it shows.
-    await expect(step(camera, done('delivered'))).toBeVisible({ timeout: CHAIN_TIMEOUT })
+    // The strip as the workers take the invoice through again, until the six steps are done; then the acceptance, then
+    // the end of the timeline. The cards of its payments and balance appear once it is accepted, so each frame scrolls
+    // to what it shows. The failure stays on screen until the page reloads the invoice.
     await camera.evaluate(() => window.scrollTo(0, 0))
+    await filmStrip(camera, film, 'delivered', 450, 450, failed)
     await settle(camera)
     await film.frame(2000)
     await scrollToSection(camera, say('invoices.dian.title'))

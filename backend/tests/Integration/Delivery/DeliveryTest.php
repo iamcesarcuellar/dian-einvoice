@@ -61,6 +61,9 @@ final class DeliveryTest extends IntegrationTestCase
         $text = $this->pdfText($files->contents($pdf));
         $this->assertStringContainsString((string) $invoice->full_number, $text);
         $this->assertStringContainsString(substr((string) $invoice->cufe, 0, 24), str_replace([' ', "\n"], '', $text));
+        // The invoice has no discount: a zero is written with no minus sign.
+        $this->assertMatchesRegularExpression('/Discounts\s+\$ 0,00/', $text);
+        $this->assertStringNotContainsString('− $ 0,00', $text);
 
         $email = $this->onlyEmail();
         $this->assertSame(['synthetic-customer@example.com'], array_map(fn ($address): string => $address->getAddress(), $email->getTo()));

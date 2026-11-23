@@ -6,7 +6,7 @@ Facturación electrónica para pequeñas y medianas empresas colombianas, con la
 
 Muestra la cadena completa de la facturación electrónica y una arquitectura serverless de AWS como código, que corre en un emulador local sin cuenta de AWS.
 
-[![Licencia: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) ![PHP 8.5 y Laravel 13](https://img.shields.io/badge/PHP_8.5-Laravel_13-ff2d20.svg) ![Vue 3 y TypeScript](https://img.shields.io/badge/Vue_3-TypeScript-42b883.svg) ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479a1.svg) ![AWS CDK](https://img.shields.io/badge/AWS_CDK-TypeScript-ff9900.svg) ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ed.svg)
+[![CI](https://github.com/iamcesarcuellar/dian-einvoice/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/iamcesarcuellar/dian-einvoice/actions/workflows/ci.yml) [![Licencia: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) ![PHP 8.5 y Laravel 13](https://img.shields.io/badge/PHP_8.5-Laravel_13-ff2d20.svg) ![Vue 3 y TypeScript](https://img.shields.io/badge/Vue_3-TypeScript-42b883.svg) ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479a1.svg) ![AWS CDK](https://img.shields.io/badge/AWS_CDK-TypeScript-ff9900.svg) ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ed.svg)
 
 ![Una factura escrita en el editor, emitida, aceptada por el simulador local de la DIAN y entregada, y luego su PDF](docs/assets/es/issue-invoice.gif)
 
@@ -24,7 +24,7 @@ Una plataforma multiempresa para compañías y para el software que las atiende 
 - **La arquitectura de AWS como código, corriendo en un emulador.** Una app de CDK y un servicio serverless ponen la API en Lambda detrás de API Gateway y CloudFront, con SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES y EventBridge Scheduler. `make cloud-check` prueba la etapa local de punta a punta, y la etapa de producción, con su VPC, Aurora MySQL y AWS WAF, se valida sin conexión ([infraestructura](docs/infrastructure.md), [estimación de costos](docs/cost.md)).
 - **Operada como un servicio.** Un id de correlación sigue a una factura desde su petición hasta sus webhooks, a través de registros en JSON, métricas, alarmas que nombran cada una su runbook y un notificador que publica en un chat. `make cloud-drill` tumba la DIAN y trae de vuelta cada factura una sola vez ([runbooks](docs/runbooks/README.md), [observabilidad](docs/observability.md)).
 - **En inglés y en español.** La aplicación web, los mensajes de la API, el PDF y los correos salen en inglés o en español de Colombia: la interfaz sigue al navegador o a lo que elija cada usuario, cada petición su `Accept-Language`, y cada empresa elige el idioma de sus documentos. `make demo LOCALE=es` carga los datos de ejemplo en español ([LanguageTest](backend/tests/Integration/Security/LanguageTest.php), [la prueba en el navegador en español](e2e/tests/spanish.spec.ts)).
-- **Revisada de punta a punta.** 663 pruebas, PHPStan en el nivel 10 sin línea base, auditorías de cada dependencia y del historial de git, y una prueba en el navegador bajo la Content-Security-Policy del borde. cdk-nag y cfn-lint revisan las dos etapas ([calidad](#calidad)).
+- **Revisada de punta a punta.** 668 pruebas, PHPStan en el nivel 10 sin línea base, auditorías de cada dependencia y del historial de git, y una prueba en el navegador bajo la Content-Security-Policy del borde. cdk-nag y cfn-lint revisan las dos etapas ([calidad](#calidad)).
 
 ## Galería
 
@@ -44,11 +44,11 @@ Todas las pantallas de [docs/assets/es](docs/assets/es/), el tema oscuro incluid
 Necesitas:
 
 - Docker con Docker Compose 2.24 o posterior, GNU make y git. No se instala nada más en tu equipo.
-- Unos 3 GB de disco y 2 GB de memoria para el stack local. La prueba en el navegador y la nube emulada piden más.
+- Unos 3 GB de disco y 3 GB de memoria para el stack local. La prueba en el navegador y la nube emulada piden más.
 - Los puertos 8600 a 8603 libres en 127.0.0.1. La nube emulada usa además el 8604, el 8605 y del 8610 al 8619.
 - Linux, o Windows con WSL 2: se probó en Linux bajo WSL 2, con Docker 29.1, Compose 2.40 y GNU make 4.3.
 
-> En un clon nuevo, el stack local ocupó 2,7 GB de disco: 1,7 GB de imágenes, 0,3 GB de volúmenes y 0,7 GB de dependencias en la carpeta del repositorio. Ya arriba, usó 1,6 GB de memoria, dentro de límites de memoria que suman 4,8 GB. La prueba en el navegador y las capturas suman la imagen de Playwright (2,6 GB), y la nube emulada unos 2 GB más.
+> En un clon nuevo, el stack local ocupó 2,7 GB de disco: 1,7 GB de imágenes, 0,3 GB de volúmenes y 0,7 GB de dependencias en la carpeta del repositorio. Ya arriba, usó 2,4 GB de memoria con los datos de ejemplo en inglés y 2,5 GB con los de español, dentro de límites de memoria que suman 4,8 GB. Solo el servidor de desarrollo de la aplicación web ocupó de 1,6 a 1,7 GB. La prueba en el navegador y las capturas suman la imagen de Playwright (2,6 GB), y la nube emulada unos 2 GB más.
 
 ```sh
 git clone https://github.com/iamcesarcuellar/dian-einvoice.git
@@ -56,7 +56,7 @@ cd dian-einvoice
 make demo
 ```
 
-El primer `make demo` construye las imágenes, instala las dependencias, migra la base de datos y carga seis meses de datos de ejemplo sintéticos a través de la cadena real; `make demo LOCALE=es` hace lo mismo con los datos de ejemplo en español. En un clon nuevo, `make demo` tardó 56 segundos, en una máquina cuyo Docker ya tenía las imágenes base y su caché de construcción. Sin ellas, primero descarga unos 1,5 GB de imágenes base. Crea `backend/.env` con secretos locales aleatorios e imprime una sola vez una llave de API sintética. Luego abre:
+El primer `make demo` construye las imágenes, instala las dependencias, migra la base de datos y carga seis meses de datos de ejemplo sintéticos a través de la cadena real; `make demo LOCALE=es` hace lo mismo con los datos de ejemplo en español. En un clon nuevo, `make demo` tardó 58 segundos, y `make demo LOCALE=es` tardó 57 en otro clon nuevo. Los dos corrieron en una máquina cuyo Docker ya tenía las imágenes base y su caché de construcción. Sin ellas, primero descarga unos 1,5 GB de imágenes base. Crea `backend/.env` con secretos locales aleatorios e imprime una sola vez una llave de API sintética. Luego abre:
 
 | Qué | Dirección |
 | --- | --- |
@@ -152,9 +152,9 @@ Para recibir los mensajes de la API en español, agrega `-H 'Accept-Language: es
 
 Los resultados de las ejecuciones de este commit, con las cifras del emulador en esta máquina, no las de AWS:
 
-- `make cloud-check` pasó en 3 min 34 s. Treinta facturas fueron de la emisión a la entrega en una mediana de 27,2 s por el camino rápido del outbox, y una más, emitida a través del borde, se siguió por su id de correlación. Otras diez, con los contenedores de las funciones matados a mitad del proceso y un evento del outbox dejado para el relay, terminaron como las demás: 41 de 41 aceptadas y entregadas una sola vez, numeradas sin saltos. Dos rotaciones de la identidad de la aplicación en la base de datos, con las funciones calientes, no rompieron ninguna petición. Cada línea de registro fue un JSON que cumplía el esquema, ninguna tenía un secreto, y una alarma forzada a ALARM llegó al chat. Un arranque en frío de la API tardó 0,97 s, y una respuesta en caliente una mediana de 18 ms.
-- `make cloud-drill` pasó en 230 s. Con la DIAN caída, cinco transmisiones se rindieron y fueron a la cola de mensajes fallidos, y la alarma llegó al chat con su runbook 163 s después de empezar la caída. Los comandos del runbook trajeron de vuelta cada factura, aceptada y entregada una sola vez, a los 176 s ([drill-report.md](docs/runbooks/drill-report.md), en inglés, revisa una ejecución anterior).
-- `make cloud-e2e` pasó en 122 s. Primero, la función de consola encontró los datos de ejemplo. También comprobó que los registros propios de la nube en el simulador no tienen ningún documento de las empresas de la demo con un número que la base de datos de la nube aún no haya emitido. Luego vino el recorrido de una factura a través de las funciones, otra en español con su PDF y el correo que recibió SES, las listas de la aplicación web a 1440×900 en los dos idiomas, la referencia de la API y una visita a sus 31 rutas con 17 de sus diálogos. Todo pasó por el borde, bajo su Content-Security-Policy, sin una sola violación.
+- `make cloud-check` pasó en 3 min 19 s. Treinta facturas fueron de la emisión a la entrega en una mediana de 25,7 s por el camino rápido del outbox, y una más, emitida a través del borde, se siguió por su id de correlación. Otras diez, con los contenedores de las funciones matados a mitad del proceso y un evento del outbox dejado para el relay, terminaron como las demás: 41 de 41 aceptadas y entregadas una sola vez, numeradas sin saltos. Dos rotaciones de la identidad de la aplicación en la base de datos, con las funciones calientes, no rompieron ninguna petición. Cada línea de registro fue un JSON que cumplía el esquema, ninguna tenía un secreto, y una alarma forzada a ALARM llegó al chat. Un arranque en frío de la API tardó 0,93 s, y una respuesta en caliente una mediana de 17 ms.
+- `make cloud-drill` pasó en 271 s. Con la DIAN caída, cinco transmisiones se rindieron y fueron a la cola de mensajes fallidos, y la alarma llegó al chat con su runbook 192 s después de empezar la caída. Los comandos del runbook trajeron de vuelta cada factura, aceptada y entregada una sola vez, a los 204 s ([drill-report.md](docs/runbooks/drill-report.md), en inglés, revisa una ejecución anterior).
+- `make cloud-e2e` pasó en 113 s. Primero, la función de consola encontró los datos de ejemplo. También comprobó que los registros propios de la nube en el simulador no tienen ningún documento de las empresas de la demo con un número que la base de datos de la nube aún no haya emitido. Luego vino el recorrido de una factura a través de las funciones, otra en español con su PDF y el correo que recibió SES, las listas de la aplicación web a 1440×900 en los dos idiomas, la referencia de la API y una visita a sus 31 rutas con 17 de sus diálogos. Todo pasó por el borde, bajo su Content-Security-Policy, sin una sola violación.
 
 ## Arquitectura
 
@@ -229,18 +229,18 @@ Los detalles, en inglés: [docs/architecture.md](docs/architecture.md) para los 
 
 ## Calidad
 
-Los resultados de las ejecuciones de este commit, en la máquina de la sección para empezar. La integración continua (`.github/workflows/ci.yml`) también corre estos comandos, menos el simulacro y parte de `make checks`, y solo cuando se lanza a mano mientras el repositorio es privado:
+Los resultados de las ejecuciones de este commit, en la máquina de la sección para empezar. La integración continua (`.github/workflows/ci.yml`) también corre estos comandos, menos el simulacro y parte de `make checks`. Corre en cada push a `main`, en cada pull request y a mano, y deja la nube emulada fuera de los pull requests:
 
 | Qué | Comando | Resultado |
 | --- | --- | --- |
-| Backend: pruebas unitarias, y de integración contra MySQL, Redis y el simulador | `make test-backend` | 252 pruebas y 6.750 aserciones, en 44 s |
-| Pruebas de la aplicación web, del simulador, de la infraestructura y de las herramientas | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 81 pruebas de la aplicación web, 121 del simulador, 193 de la app de CDK y de las funciones, cdk-nag incluido, y 16 del codificador de imágenes de las capturas |
-| Formateadores, linters y la documentación | `make lint` | Laravel Pint sobre 605 archivos, ESLint y Prettier: limpios; en la documentación, 338 enlaces relativos y 54 anclas resuelven, 16 imágenes respetan su límite de tamaño, Mermaid dibuja 13 diagramas, y la estimación de costos coincide con sus precios y supuestos |
+| Backend: pruebas unitarias, y de integración contra MySQL, Redis y el simulador | `make test-backend` | 252 pruebas y 6.752 aserciones, en 45 s |
+| Pruebas de la aplicación web, del simulador, de la infraestructura y de las herramientas | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 86 pruebas de la aplicación web, 121 del simulador, 193 de la app de CDK y de las funciones, cdk-nag incluido, y 16 del codificador de imágenes de las capturas |
+| Formateadores, linters y la documentación | `make lint` | Laravel Pint sobre 605 archivos, ESLint y Prettier: limpios; en la documentación, 342 enlaces relativos y 54 anclas resuelven, 16 imágenes respetan su límite de tamaño, Mermaid dibuja 13 diagramas, y la estimación de costos coincide con sus precios y supuestos |
 | Análisis estático | `make analyse` | PHPStan nivel 10 sin línea base, vue-tsc y tsc para el simulador, la app de CDK y las funciones: sin errores |
 | Dependencias, licencias y secretos | `make security` | Ningún aviso alto o crítico en las seis auditorías; 480 dependencias de producción, todas con licencia compatible con MIT; los 174 archivos de terceros en 8 grupos, como los lista NOTICE; gitleaks no encuentra secretos en el historial ni en los cambios |
 | Infraestructura como código, sin conexión | `make cdk-check` | 21 stacks entre las dos etapas y 3 paquetes de funciones: cdk-nag (AWS Solutions) sin hallazgos sin justificar, cfn-lint y actionlint limpios |
-| Una factura de borrador a pagada, una en español, y cada lista, en un navegador | `make e2e` | El recorrido en Chromium, del editor a aceptada, entregada, su PDF y pagada, en 8,9 s; una factura emitida en español, con su PDF y su correo al cliente en español, en 8,4 s; y las listas de la aplicación web a 1440×900, ninguna más ancha que su caja, en 16,3 s en inglés y 15,6 s en español |
-| Revisiones contra el stack en marcha | `make checks` | Todas pasan: los 16 ejemplos de esta página, del README en inglés y de la guía de la API imprimen lo que dicen los documentos, y los dos ejemplos de verificación de firmas de webhooks aciertan 6 de 6 casos; 60 facturas de 20 procesos quedan numeradas sin saltos y aceptadas en 4,55 s; y 40 se aceptan una sola vez cada una con los workers y el relay matados a mitad de la cadena |
+| Una factura de borrador a pagada, una en español, y cada lista, en un navegador | `make e2e` | El recorrido en Chromium, del editor a aceptada, entregada, su PDF y pagada, en 9,2 s; una factura emitida en español, con su PDF y su correo al cliente en español, en 8,4 s; y las listas de la aplicación web a 1440×900, ninguna más ancha que su caja, en 17,1 s en inglés y 16,1 s en español |
+| Revisiones contra el stack en marcha | `make checks` | Todas pasan: los 16 ejemplos de esta página, del README en inglés y de la guía de la API imprimen lo que dicen los documentos, y los dos ejemplos de verificación de firmas de webhooks aciertan 6 de 6 casos; 60 facturas de 20 procesos quedan numeradas sin saltos y aceptadas en 4,56 s; y 40 se aceptan una sola vez cada una con los workers y el relay matados a mitad de la cadena |
 | La nube emulada, de punta a punta | `make cloud-check`, `make cloud-e2e`, `make cloud-drill` | Todas pasan; sus cifras están [más arriba](#la-nube-de-aws-en-tu-máquina) |
 
 Los vacíos conocidos están escritos, no escondidos: [docs/limitations.md](docs/limitations.md#tests-and-tooling), en inglés, lista lo que las pruebas no cubren.
@@ -251,7 +251,7 @@ Los vacíos conocidos están escritos, no escondidos: [docs/limitations.md](docs
 | --- | --- |
 | Backend | PHP 8.5, Laravel 13 (solo API), FrankenPHP en local y Bref 3 en Lambda, dompdf, bacon-qr-code, AWS SDK para PHP |
 | Aplicación web | Vue 3, TypeScript 6, Vite 8, Pinia, Vue Router, Tailwind CSS 4, shadcn-vue sobre Reka UI, Unovis, vue-i18n |
-| Datos y mensajería | MySQL 8.4, Redis 7; en la nube SNS, SQS y DynamoDB; Aurora MySQL Serverless v2 en producción |
+| Datos y mensajería | MySQL 8.4, Redis 8; en la nube SNS, SQS y DynamoDB; Aurora MySQL Serverless v2 en producción |
 | Simulador de la DIAN | Node.js y TypeScript, SOAP 1.2, los XSD oficiales de la caja de herramientas de la DIAN |
 | Infraestructura como código | AWS CDK en TypeScript con cdk-nag, osls 4.8.1, cfn-lint, actionlint, Floci como emulador |
 | Pruebas y revisiones | PHPUnit, Vitest, node:test, Playwright, PHPStan con Larastan, Laravel Pint, ESLint, Prettier, vue-tsc, gitleaks |
@@ -269,7 +269,7 @@ Todo eso, con sus razones, en [docs/limitations.md](docs/limitations.md), en ing
 
 ## Documentación
 
-[docs/README.md](docs/README.md) indexa todos los documentos, en inglés, y su glosario da la traducción al español de cada término de la interfaz. Para ir más allá de esta página: la [arquitectura](docs/architecture.md) de la aplicación, la [guía de la API](docs/api-guide.md), la [conformidad con la DIAN](docs/dian-conformance.md) y la [estimación de costos](docs/cost.md); luego las limitaciones, el modelo de amenazas, la infraestructura, la observabilidad, el despliegue, los runbooks y las licencias de terceros.
+[docs/README.md](docs/README.md) indexa todos los documentos, en inglés, y su glosario da la traducción al español de cada término de la interfaz. Para ir más allá de esta página: la [arquitectura](docs/architecture.md) de la aplicación, la [guía de la API](docs/api-guide.md), la [conformidad con la DIAN](docs/dian-conformance.md) y la [estimación de costos](docs/cost.md); luego las limitaciones, el modelo de amenazas, la infraestructura, la observabilidad, el despliegue, los runbooks y las licencias de terceros. [CHANGELOG.md](CHANGELOG.md), en inglés, recoge lo que trae cada versión.
 
 ## Hoja de ruta
 

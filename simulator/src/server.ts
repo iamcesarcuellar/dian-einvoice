@@ -43,7 +43,7 @@ if (TOKEN === '') {
 /** The official XSDs: the xsd folder of the image, or SIMULATOR_XSD_DIR. */
 const SCHEMAS = schemaPaths(process.env.SIMULATOR_XSD_DIR ?? join(import.meta.dirname, '..', 'xsd'))
 
-/** How the DIAN names each kind in the answer of an authorized document. */
+/** How the DIAN names each kind in an authorized document's response. */
 const AUTHORIZED: Record<DocumentKind, string> = {
   invoice: 'La Factura electrónica',
   credit_note: 'La Nota Crédito electrónica',

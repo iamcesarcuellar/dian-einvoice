@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  * since it started, and the open ones by user and state: the application identity (every function but the console,
  * with its two alternating users), the migrations identity (the console function, the rotation functions), RDS Proxy
  * when on. The console function connects as the migrations identity, which sees every connection with the privilege
- * PROCESS (the master user of Aurora holds it; the stage local grants it); without it MySQL shows its own only.
+ * PROCESS (the master user of Aurora holds it; the local stage grants it); without it MySQL shows its own only.
  *
  *   make cloud-artisan ARGS="db:connections"
  */
@@ -19,7 +19,7 @@ final class ConnectionsCommand extends Command
 {
     protected $signature = 'db:connections';
 
-    protected $description = 'Who holds the connections of the database now, by user and state (an operation command of the runbooks)';
+    protected $description = 'Who holds the database\'s connections now, by user and state (an operation command of the runbooks)';
 
     /** The connections the functions may hold at once, their reserved concurrency (docs/infrastructure.md). */
     public const int FUNCTIONS_BUDGET = 60;
@@ -44,7 +44,7 @@ final class ConnectionsCommand extends Command
             $byUser[$user]['idle'] += is_numeric($values['idle'] ?? null) && (int) $values['idle'] === 1 ? $connections : 0;
         }
 
-        $this->line(sprintf('The connections of the database %s, seen as %s:', $connection->getDatabaseName(), is_object($current) && is_string($current->user ?? null) ? $current->user : '?'));
+        $this->line(sprintf('The connections to the database %s, seen as %s:', $connection->getDatabaseName(), is_object($current) && is_string($current->user ?? null) ? $current->user : '?'));
         $this->line(sprintf('  max_connections %d; open now %d; the most open at once since the server started %d.', $max, $open, $most));
 
         foreach ($byUser as $user => $counts) {

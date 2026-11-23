@@ -1,5 +1,5 @@
-// The runbooks of the alarms (docs/runbooks, Infrastructure task 6) against the alarms of both stages: every alarm
-// names a runbook that exists, the index lists every alarm with its runbook and the objectives of service it defends,
+// The runbooks of the alarms (docs/runbooks) against the alarms of both stages: every alarm
+// names a runbook that exists, the index lists every alarm with its runbook and the service objectives it defends,
 // every page of the folder is listed (no orphan), every runbook of an alarm has its six parts, and every saved query a
 // runbook names is one the stack observability saves. The commands they cite are checked where they live: the make
 // targets and the AWS CLI in infra/functions/test/runbooks.test.mjs, the commands of the application in the backend.
@@ -49,7 +49,7 @@ describe('the runbooks of the alarms', () => {
     }
   })
 
-  it('are listed in the index, each alarm with its runbook and the objectives of service it defends', () => {
+  it('are listed in the index, each alarm with its runbook and the service objectives it defends', () => {
     const rows = indexRows()
     assert.deepEqual([...rows.keys()].sort(), [...alarms.keys()].sort())
 

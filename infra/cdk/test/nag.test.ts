@@ -113,7 +113,7 @@ describe('cdk-nag', () => {
     assert.deepEqual([...new Set(suppressed)].sort(), expected.sort())
   })
 
-  it('synthesized the nine stacks of the stage local and the twelve of prod, which adds the network, the database and the delivery', () => {
+  it('synthesized the nine stacks of the local stage and the twelve of the prod stage, which adds the network, the database and the delivery', () => {
     assert.deepEqual(assembly.nestedAssemblies.map((nested) => nested.directoryName).sort(), ['assembly-local', 'assembly-prod'])
     assert.deepEqual(assembly.nestedAssemblies.flatMap((nested) => nested.nestedAssembly.stacks.map((stack) => stack.stackName)).sort(), [
       'dian-einvoice-local-alerts', 'dian-einvoice-local-compute', 'dian-einvoice-local-data', 'dian-einvoice-local-edge', 'dian-einvoice-local-mail', 'dian-einvoice-local-messaging', 'dian-einvoice-local-observability', 'dian-einvoice-local-security', 'dian-einvoice-local-storage',

@@ -18,7 +18,9 @@ use Illuminate\Http\Response;
 final class ItemController
 {
     /**
-     * Items by name; ?search= matches the code and the name, and ?active=1 leaves out inactive items.
+     * List items.
+     *
+     * Sorted by name. ?search= matches the code and the name; ?active=1 leaves out inactive items.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -30,6 +32,9 @@ final class ItemController
         return ItemResource::collection(Listing::paginate($query, $request, ['code', 'name']));
     }
 
+    /**
+     * Create an item.
+     */
     public function store(ItemRequest $request): JsonResponse
     {
         $item = Item::create($request->validated());
@@ -37,11 +42,17 @@ final class ItemController
         return ItemResource::make($item->load('tax'))->response()->setStatusCode(201);
     }
 
+    /**
+     * Show an item.
+     */
     public function show(Item $item): ItemResource
     {
         return ItemResource::make($item->load('tax'));
     }
 
+    /**
+     * Update an item.
+     */
     public function update(ItemRequest $request, Item $item): ItemResource
     {
         $item->update($request->validated());
@@ -50,7 +61,9 @@ final class ItemController
     }
 
     /**
-     * Delete an item that no document uses; otherwise deactivate it instead.
+     * Delete an item.
+     *
+     * An item that a document uses is deactivated instead.
      */
     public function destroy(Item $item): Response
     {

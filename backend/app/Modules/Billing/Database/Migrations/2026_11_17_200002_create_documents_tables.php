@@ -75,7 +75,7 @@ return new class extends Migration
             $table->timestamp('xml_signed_at')->nullable()->comment('xades:SigningTime');
             $table->string('signing_certificate_serial', 100)->nullable()->comment('Decimal serial number of the certificate that signed');
             // Transmission: file names of annex 1.9 (6.5.7 and 6.5.8), set on the first attempt of a
-            // run, and the last answer of the DIAN web service, which here is always the local simulator.
+            // run, and the DIAN web service's last response, which here is always the local simulator's.
             $table->string('dian_zip_file_name', 40)->nullable()->comment('z + NIT + 000 + year + hexadecimal consecutive, .zip');
             $table->string('dian_xml_file_name', 40)->nullable()->comment('fv + NIT + 000 + year + hexadecimal consecutive, .xml');
             $table->string('dian_gateway', 20)->nullable()->comment('Who answered: simulator');

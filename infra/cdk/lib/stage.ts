@@ -166,7 +166,7 @@ export interface StageConfig {
     // Images ECR keeps; the functions name theirs by digest.
     readonly keep: number
     // At rest: 'kms', with the AWS managed key of ECR (every pull and push in CloudTrail, no key policy to keep), or
-    // 'default', the AES-256 of ECR the repository of the stage local was created with (a repository cannot change
+    // 'default', the AES-256 of ECR the repository of the local stage was created with (a repository cannot change
     // its encryption once created).
     readonly encryption: 'default' | 'kms'
   }
@@ -220,7 +220,7 @@ export const ORIGIN_VERIFIER = 'origin-verifier'
 export const NOTIFIER = 'notifier'
 
 /**
- * The company id of the local webhook receiver of the DIAN simulator under which the stage local takes the messages
+ * The company id of the local webhook receiver of the DIAN simulator under which the local stage takes the messages
  * of the notifier, as a chat would (make cloud-check reads them there).
  */
 export const ALARM_RECEIVER = '0alarmnotifications0000000'
@@ -242,7 +242,7 @@ export function functionName(stage: StageConfig, fn: FunctionName): string {
 }
 
 /**
- * The SSM parameters of the network and of the database, under /dian-einvoice/<stage>/, which the stage prod
+ * The SSM parameters of the network and of the database, under /dian-einvoice/<stage>/, which the prod stage
  * of the functions reads (infra/functions/stages/prod.yml and resources/parameters.yml). The secrets of the
  * two identities exist in both stages; the rest only where there is a network and a managed database.
  */

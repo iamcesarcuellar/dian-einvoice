@@ -1,6 +1,6 @@
 {
   "AlarmName": "dian-einvoice-local-chain-dead-letters",
-  "AlarmDescription": "A message reached the dead-letter queue of the chain queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it. Runbook: docs/runbooks/dead-letters.md",
+  "AlarmDescription": "A message reached the chain queue's dead-letter queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it. Runbook: docs/runbooks/dead-letters.md",
   "AWSAccountId": "000000000000",
   "NewStateValue": "ALARM",
   "NewStateReason": "make cloud-check forced this state to follow the path of an alarm to the chat.",

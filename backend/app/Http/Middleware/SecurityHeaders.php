@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Security headers of every answer of the API, from their single source of truth
+ * Security headers of every API response, from their single source of truth
  * (resources/http/security-headers.json): the browser must not guess content types, send a referrer or frame any
  * answer. JSON answers (data and problems) also get a Content-Security-Policy that allows nothing, since none is
  * meant to render as a page; files (PDF, XML, zip) keep their own content, and the page of the API reference has a

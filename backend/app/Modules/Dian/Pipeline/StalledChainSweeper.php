@@ -64,7 +64,7 @@ final class StalledChainSweeper implements Sweeper
     }
 
     /**
-     * While sending: record the answer of the last call if it got one, take over a call that never
+     * While sending: record the last call's response if it got one, take over a call that never
      * finished, or else start the next attempt.
      *
      * @return array{0: string, 1: array<string, mixed>}

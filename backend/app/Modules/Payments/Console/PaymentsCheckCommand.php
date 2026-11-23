@@ -38,7 +38,7 @@ final class PaymentsCheckCommand extends Command
 {
     protected $signature = 'payments:check';
 
-    protected $description = 'Record 20 simultaneous payments of a tenth of the balance of one invoice, on a temporary company, and check that exactly 10 fit';
+    protected $description = 'Record 20 simultaneous payments of a tenth of one invoice\'s balance, on a temporary company, and check that exactly 10 fit';
 
     private const int PROCESSES = 20;
 
@@ -81,7 +81,7 @@ final class PaymentsCheckCommand extends Command
             ], $temporary->user);
 
             $issue($invoice->id, $temporary->user);
-            $this->line('Invoice issued; waiting for the chain: XML, signature, transmission to the local DIAN simulator and its answer...');
+            $this->line('Invoice issued; waiting for the chain: XML, signature, transmission to the local DIAN simulator and its response...');
             $invoice = $this->waitFor($invoice, fn (Document $document): bool => $document->electronic_status?->isFinal() === true, self::CHAIN_TIMEOUT);
 
             if ($invoice->electronic_status !== ElectronicStatus::Accepted) {
@@ -231,7 +231,7 @@ final class PaymentsCheckCommand extends Command
         $results = [$this->verdict($recorded === self::SHARES && $rejected === self::PROCESSES - self::SHARES && $errors === 0, 'exactly 10 payments recorded and 10 rejected for exceeding the balance.', 'expected 10 recorded and 10 rejected for exceeding the balance.')];
 
         $this->line(sprintf('Invoice %s: balance %s, payment status %s, %d open invoices left for the customer.', $invoice->full_number, $balance->toScale(2), $invoice->payment_status->value ?? '—', count($open)));
-        $results[] = $this->verdict($balance->isZero() && $open === [], 'the final balance of the invoice is zero.', 'the final balance of the invoice is not zero.');
+        $results[] = $this->verdict($balance->isZero() && $open === [], 'the invoice\'s final balance is zero.', 'the invoice\'s final balance is not zero.');
 
         $this->line(sprintf('Applied: %s of a starting balance of %s.', $applied->toScale(2), $start->toScale(2)));
         $results[] = $this->verdict($applied->isEqualTo($start) && BigDecimal::of((string) $invoice->paid_amount)->isEqualTo($start), 'the sum applied is the starting balance.', 'the sum applied is not the starting balance.');

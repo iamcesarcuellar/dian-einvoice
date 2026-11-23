@@ -1,4 +1,4 @@
-# What the stage local adds to serverless.yml: nothing. Its functions run on the network of compose, where
+# What the local stage adds to serverless.yml: nothing. Its functions run on the network of compose, where
 # the local emulator starts their containers, and reach the MySQL of compose, the emulator and the DIAN
 # simulator by name.
 resources: {}

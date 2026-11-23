@@ -183,8 +183,8 @@ final class DeliveryCheckCommand extends Command
 
         $responseInside = $this->embedded($response, 'ApplicationResponse', $document);
         $sameResponse = $document->dian_response_path !== null && $response === $storage->get($document->dian_response_path);
-        $this->line(sprintf('   Response:    %s, %s bytes, %s', $responseInside ?? 'not an ApplicationResponse', number_format(strlen($response)), $sameResponse ? 'identical to the stored response of the local simulator' : 'different from the stored response'));
-        $hasResponse = $this->verdict($responseInside !== null && $sameResponse, 'it holds the ApplicationResponse of the local simulator, byte for byte.', 'it does not hold the ApplicationResponse as stored.');
+        $this->line(sprintf('   Response:    %s, %s bytes, %s', $responseInside ?? 'not an ApplicationResponse', number_format(strlen($response)), $sameResponse ? 'identical to the local simulator\'s stored response' : 'different from the stored response'));
+        $hasResponse = $this->verdict($responseInside !== null && $sameResponse, 'it holds the local simulator\'s ApplicationResponse, byte for byte.', 'it does not hold the ApplicationResponse as stored.');
 
         $this->line('   Signature:   '.($signed ? 'one ds:Signature of the issuer in its UBLExtensions' : 'missing'));
 
@@ -314,7 +314,7 @@ final class DeliveryCheckCommand extends Command
         $pdf = $files->find($document, DocumentFileKind::Pdf);
 
         if (count($attachments) !== 1 || $package === null || $attached === null || $pdf === null || ($attachments[0]['FileName'] ?? null) !== $package->file_name) {
-            return [$addressed, $this->verdict(false, '', 'the email does not carry exactly one attachment, the zip of the invoice.')];
+            return [$addressed, $this->verdict(false, '', 'the email does not carry exactly one attachment, the invoice\'s zip.')];
         }
 
         try {

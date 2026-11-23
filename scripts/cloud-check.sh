@@ -4,7 +4,7 @@
 #  1. no process of the application runs all the time: only the emulator, the database, the DIAN simulator,
 #     the web app and the proxy in front of API Gateway are up; the image of the functions starts on a
 #     read-only file system and carries the bundle of the RDS certificate authorities;
-#  2. every function, mapping, route, authorizer and schedule of the stage local exists for real in the emulator,
+#  2. every function, mapping, route, authorizer and schedule of the local stage exists for real in the emulator,
 #     and each function connects to the database as its identity;
 #  3. the edge: the distribution holds the behaviours of its template; API Gateway refuses a request without the
 #     secret of the edge or with a wrong one, before the application; through the edge the API answers with the
@@ -13,7 +13,7 @@
 #     Function), and the errors of the API stay problems of the API;
 #  4. the two identities of the database: the migrations run through the console function with the migrations
 #     identity, which provisions the application identity; the application identity cannot change the schema;
-#  5. the cold start and the warm answers of the API through the edge (figures of the emulator);
+#  5. the cold start and the API's warm responses through the edge (figures of the emulator);
 #  6. the fast path: CLOUD_INVOICES invoices through the chain, each step published by its writer as it
 #     commits, with the time from issue to delivery; through the edge, on the origin of the web app, the session
 #     cookie with CSRF, the downloads of an invoice, a 403 of the API, and an address the client writes, which

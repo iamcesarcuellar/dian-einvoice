@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Tests\IntegrationTestCase;
 
 /**
- * The application behind the edge (Infrastructure task 4): every route of the application is one the edge sends
+ * The application behind the edge: every route of the application is one the edge sends
  * to the API, never to the bucket of the web app (resources/http/paths.json); the address of the client is the entry
  * the edge appended to X-Forwarded-For, whether API Gateway appended the address of its peer after it or not, and
  * whatever headers the client sent; the URLs the application generates take the public origin; the page of the API reference pins its renderer and allows its inline scripts by hash; and CORS is not

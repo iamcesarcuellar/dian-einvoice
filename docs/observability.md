@@ -104,31 +104,31 @@ In the log, `request_id` names the request or invocation that wrote a line. `cor
 sequenceDiagram
     autonumber
     participant Client as Web app or API client
-    participant API as Function api
+    participant API as api function
     participant DB as MySQL (outbox_events)
-    participant SNS as SNS topic of document events
-    participant SQS as SQS queues chain and webhooks
-    participant Chain as Function chain
+    participant SNS as SNS document events topic
+    participant SQS as SQS queues: chain and webhooks
+    participant Chain as chain function
     participant DIAN as DIAN (local simulator)
     participant Mail as SES
-    participant Hooks as Function webhooks
+    participant Hooks as webhooks function
     participant Endpoint as Webhook endpoint
-    participant Relay as Function relay
+    participant Relay as relay function
 
     Client->>API: POST /api/v1/invoices/{id}/issue, X-Correlation-Id kept only when it is a ULID
-    Note over API: TraceRequest: the id of the journey in Laravel's Context, so in every line
+    Note over API: TraceRequest: the journey's id in Laravel's Context, so in every line
     API->>DB: the outbox event, with correlation_id
     API->>SNS: the event, correlation_id in its body and as a message attribute
     API-->>Client: 200 with X-Correlation-Id
     SNS->>SQS: raw delivery, body and attributes as they are
-    SQS->>Chain: a record: its job is built inside the journey of its event
-    Note over Chain: the payload of the job carries the id (Laravel's Context), restored when it runs
+    SQS->>Chain: a record: its job is built inside its event's journey
+    Note over Chain: the job's payload carries the id (Laravel's Context), restored when it runs
     Chain->>DIAN: SendBillSync with X-Correlation-Id
     Chain->>DB: the next events, with the same correlation_id
-    Chain->>Mail: the email of the invoice with X-Correlation-Id
-    SQS->>Hooks: the webhook events of the document, in the same journey
+    Chain->>Mail: the invoice's email, with X-Correlation-Id
+    SQS->>Hooks: the document's webhook events, in the same journey
     Hooks->>Endpoint: each delivery with X-Correlation-Id
-    Relay->>SNS: an event its writer left behind, logged in the journey of that event
+    Relay->>SNS: an event its writer left behind, logged in that event's journey
 ```
 
 Locally, the relay process dispatches each event's jobs inside the event's journey. The workers restore the journey as each job starts, the same way. A sweeper that restarts a stalled chain records the new events in its own journey, a scheduled run. The restarted chain's lines still name the document (`document_id`).
@@ -204,7 +204,7 @@ The notifier is subscribed to the alarm topic. For each notification, it writes 
 
 ```text
 :red_circle: *ALARM* dian-einvoice-prod-chain-dead-letters (was OK)
-A message reached the dead-letter queue of the chain queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it.
+A message reached the chain queue's dead-letter queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it.
 Reason: Threshold Crossed: 1 out of the last 1 datapoints [3.0 (20/11/26 20:59:00)] was greater than the threshold (0.0) (minimum 1 datapoint for OK -> ALARM transition).
 Runbook: docs/runbooks/dead-letters.md
 At 2026-11-20T21:00:12.345+0000 in US East (N. Virginia)

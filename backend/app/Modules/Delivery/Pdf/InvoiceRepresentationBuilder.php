@@ -207,7 +207,7 @@ final class InvoiceRepresentationBuilder
     {
         $rows = [
             ['label' => (string) __('delivery::pdf.subtotal'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->subtotal_amount), 'kind' => 'amount'],
-            ['label' => (string) __('delivery::pdf.discounts'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->discount_total), 'kind' => 'deduction'],
+            ['label' => (string) __('delivery::pdf.discounts'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->discount_total), 'kind' => $this->deduction((string) $document->discount_total)],
         ];
 
         foreach ($document->taxes as $tax) {
@@ -233,13 +233,21 @@ final class InvoiceRepresentationBuilder
                 'label' => (string) $withholding->name,
                 'detail' => (string) __('delivery::pdf.rate_on', ['rate' => $rate, 'base' => ColombianFormat::money((string) $withholding->base_amount)]),
                 'value' => ColombianFormat::money((string) $withholding->amount),
-                'kind' => 'deduction',
+                'kind' => $this->deduction((string) $withholding->amount),
             ];
         }
 
         $rows[] = ['label' => (string) __('delivery::pdf.net'), 'detail' => null, 'value' => ColombianFormat::money((string) $document->amount_due), 'kind' => 'net'];
 
         return $rows;
+    }
+
+    /**
+     * A row the document takes off, written with a minus sign; a zero is written as a plain amount, with no sign.
+     */
+    private function deduction(string $amount): string
+    {
+        return BigDecimal::of($amount)->isZero() ? 'amount' : 'deduction';
     }
 
     /**

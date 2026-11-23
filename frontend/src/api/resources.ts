@@ -80,7 +80,7 @@ function documentApi(path: string) {
       return requestText(`${path}/${id}/xml`)
     },
 
-    /** The ApplicationResponse of the last answer of the local DIAN simulator. */
+    /** The ApplicationResponse of the local DIAN simulator's last response. */
     dianResponse(id: string): Promise<string> {
       return requestText(`${path}/${id}/dian-response`)
     },

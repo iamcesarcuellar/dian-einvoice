@@ -1,5 +1,5 @@
 // Mail: the sending identity of SES for the email of the platform (delivery of documents to customers,
-// invitations, password resets). The stage local verifies the sender address, which the emulator accepts
+// invitations, password resets). The local stage verifies the sender address, which the emulator accepts
 // at once; prod verifies the whole domain with Easy DKIM and a MAIL FROM subdomain, whose DNS records
 // (DKIM, SPF, DMARC) the owner of the domain publishes: no hosted zone of the domain is managed here
 // (docs/limitations.md).

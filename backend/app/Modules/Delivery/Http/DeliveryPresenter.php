@@ -38,7 +38,7 @@ final class DeliveryPresenter
             // attached_document, pdf or email: the step running while pending, the one that failed while failed.
             'step' => $document->delivery_step,
             'status_changed_at' => $document->delivery_status_at,
-            // Pass of the delivery: 1 on acceptance, one more on each Send again or Regenerate PDF.
+            // The delivery's pass: 1 on acceptance, and one more on each Send again or Regenerate PDF.
             'run' => $document->delivery_run,
             'attempt' => $document->delivery_attempt,
             'max_attempts' => app(DeliveryPipeline::class)->maxAttempts(),

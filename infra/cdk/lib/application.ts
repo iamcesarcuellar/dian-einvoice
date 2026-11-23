@@ -1,10 +1,10 @@
-// The CDK app: one CDK stage per stage of the platform, with the five stacks of Infrastructure task 1, the
-// compute stack of task 2 (the roles and the image repository of the functions, which the serverless service
-// in infra/functions defines), the edge stack of task 4 (the distribution in front of the web app and the API,
-// deployed after the functions, whose HTTP API it fronts), the alerts and observability stacks of task 5 (where the
+// The CDK app: one CDK stage per stage of the platform, with the messaging, storage, data, security and mail stacks,
+// the compute stack (the roles and the image repository of the functions, which the serverless service
+// in infra/functions defines), the edge stack (the distribution in front of the web app and the API,
+// deployed after the functions, whose HTTP API it fronts), the alerts and observability stacks (where the
 // alarms go, before the functions, whose notifier subscribes to it; the metrics, alarms, dashboard and saved queries,
 // after the functions and the edge, whose logs and metrics they read) and, in prod only, the network and database
-// stacks of task 3 and the delivery stack of task 6 (the roles of the deployment pipeline of a real account), which
+// stacks and the delivery stack (the roles of the deployment pipeline of a real account), which
 // are validated offline and never deployed; common tags, names with the stage and the AWS Solutions checks of cdk-nag. Every finding of cdk-nag must be fixed or acknowledged with its reason next to the resource; any
 // other one stops synthesis.
 import { readFileSync } from 'node:fs'
@@ -47,9 +47,6 @@ export interface PlatformStacks {
   readonly delivery: DeliveryStack | null
 }
 
-/** The Infrastructure task that brought each stack, for its description. */
-const TASKS: Readonly<Record<string, number>> = { compute: 2, network: 3, database: 3, edge: 4, alerts: 5, observability: 5, delivery: 6 }
-
 export function tagsOf(config: StageConfig, component: string): Record<string, string> {
   return { project: PROJECT, stage: config.name, component, 'managed-by': 'aws-cdk' }
 }
@@ -59,7 +56,7 @@ export function addStage(app: App, config: StageConfig, routes: EventRoutes, ser
   const stage = new Stage(app, config.name, { env: { account: config.account, region: config.region } })
   const common = (component: string) => ({
     stackName: `${PROJECT}-${config.name}-${component}`,
-    description: `dian-einvoice ${config.name}: ${component} (Infrastructure task ${TASKS[component] ?? 1})`,
+    description: `dian-einvoice ${config.name}: ${component}`,
     terminationProtection: config.terminationProtection,
     tags: tagsOf(config, component),
     stage: config,

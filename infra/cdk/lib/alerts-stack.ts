@@ -1,4 +1,4 @@
-// Alerts (Infrastructure task 5): where the alarms of the platform go, deployed before the functions, since the
+// Alerts: where the alarms of the platform go, deployed before the functions, since the
 // notifier of the serverless service subscribes to its topic. Every alarm publishes to a topic encrypted with a KMS
 // key of its own (CloudWatch cannot publish to a topic encrypted with the AWS managed key of SNS); the notifier
 // turns each change of state into a message to a chat webhook compatible with Slack, whose address is in a secret;
@@ -93,7 +93,7 @@ export class AlertsStack extends Stack {
       conditions: { ArnEquals: { 'aws:SourceArn': this.alarms.topicArn } },
     }))
 
-    // The address of the chat webhook, which is a credential: whoever holds it posts to the chat. The stage local
+    // The address of the chat webhook, which is a credential: whoever holds it posts to the chat. The local stage
     // names its local receiver; prod starts empty, and the notifier only logs until the operators set it.
     this.chatWebhook = new Secret(this, 'ChatWebhook', {
       secretName: chatWebhookSecretName(stage),

@@ -2,7 +2,7 @@
   "name": "dian-einvoice-functions",
   "private": true,
   "license": "MIT",
-  "description": "The serverless service of dian-einvoice: its Lambda functions and their triggers, the origin verifier of the edge and the notifier of the alarms (TypeScript on Node.js), and the scripts that deploy the web app to the edge and check the emulated cloud, deployed with osls to the local AWS emulator (stage local) or packaged and validated without a network (stage prod).",
+  "description": "The serverless service of dian-einvoice: its Lambda functions and their triggers, the origin verifier of the edge and the notifier of the alarms (TypeScript on Node.js), and the scripts that deploy the web app to the edge and check the emulated cloud, deployed with osls to the local AWS emulator (the local stage) or packaged and validated without a network (the prod stage).",
   "type": "module",
   "engines": {
     "node": ">=24"

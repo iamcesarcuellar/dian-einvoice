@@ -89,7 +89,7 @@ describe('the message of an alarm', () => {
     const text = formatMessage(parseNotification(sample('metric-alarm')) ?? assert.fail('a notification')).text
 
     assert.equal(text.split('\n')[0], ':red_circle: *ALARM* dian-einvoice-prod-chain-dead-letters (was OK)')
-    assert.match(text, /^A message reached the dead-letter queue of the chain queue: a job failed every attempt/m)
+    assert.match(text, /^A message reached the chain queue's dead-letter queue: a job failed every attempt/m)
     assert.match(text, /^Reason: Threshold Crossed: 1 out of the last 1 datapoints \[3\.0/m)
     assert.match(text, /^Runbook: docs\/runbooks\/dead-letters\.md$/m)
     assert.match(text, /^At 2026-11-20T21:00:12\.345\+0000 in US East \(N\. Virginia\)$/m)

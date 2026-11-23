@@ -5,7 +5,7 @@
 # worker and relay); the code is mounted, nothing is copied. development (the one compose builds) adds
 # php.ini-development and the tools of the local checks.
 #
-# lambda: the image of the functions of the emulated cloud and of production (Infrastructure task 2), on
+# lambda: the image of the functions of the emulated cloud and of production, on
 # the official image of Bref for the same PHP version, with the application and its production
 # dependencies only. One image for every function: each one chooses its Bref runtime (BREF_RUNTIME) and its
 # handler (the command of the image). It is the artifact that would go to Amazon ECR: the emulator runs it

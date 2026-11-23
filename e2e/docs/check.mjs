@@ -1,22 +1,21 @@
 // make docs-check (part of make lint): the README and the documentation hold true. Every make target and every file of
 // the repository that README.md, README.es.md, docs/README.md and the reference documents name exist; every relative link of every
-// Markdown file of the repository resolves, its anchor included; every image they show exists and keeps to its size (a
+// Markdown file git tracks resolves, its anchor included; every image they show exists and keeps to its size (a
 // screenshot of docs/assets 400 KB, a GIF 5 MB); and every Mermaid diagram can be drawn, by Mermaid itself in the
 // browser of the container. It writes nothing.
 //
 //   node docs/check.mjs <root of the repository>
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { chromium } from 'playwright'
 
 const root = resolve(process.argv[2] ?? '/repo')
 const LIMITS = { '.png': 400 * 1024, '.gif': 5 * 1024 * 1024 }
-// Generated, installed or local working files: never documentation of the repository.
-const SKIPPED = new Set(['.git', '.claude', 'node_modules', 'vendor', 'dist', 'cdk.out', 'storage', 'test-results', '.package', '.serverless', 'CLAUDE.md'])
 // The directories and files at the root a path of the docs may start with.
 const ROOTS = /^(backend|frontend|simulator|infra|scripts|docs|e2e|\.github)\//
-const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'README.md', 'README.es.md', 'SECURITY.md', 'CONTRIBUTING.md', 'openapi.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
+const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'NOTICE', 'README.md', 'README.es.md', 'CHANGELOG.md', 'SECURITY.md', 'CONTRIBUTING.md', 'openapi.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
 // Files the docs name that make creates, never in git: they exist once the target that writes them has run.
 const GENERATED = new Map([['backend/.env', 'make env']])
 // The documents whose make targets and files are checked, and the folder their short paths start from: the
@@ -35,16 +34,12 @@ const BACKEND_PATHS = /^(app|bootstrap|config|database|resources|routes|tests)\/
 const problems = []
 const counts = { files: 0, links: 0, anchors: 0, images: 0, targets: 0, paths: 0, diagrams: 0 }
 
-function markdownFiles(directory) {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (SKIPPED.has(entry.name)) {
-      return []
-    }
-
-    const path = join(directory, entry.name)
-
-    return entry.isDirectory() ? markdownFiles(path) : entry.name.endsWith('.md') ? [path] : []
-  })
+/** The Markdown files git tracks: what is generated, installed or ignored is never documentation of the repository. */
+function markdownFiles() {
+  return execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--', '*.md'], { encoding: 'utf8' })
+    .split('\0')
+    .filter((path) => path !== '' && existsSync(join(root, path)))
+    .map((path) => join(root, path))
 }
 
 /** The text without its fenced code blocks, which hold no links. */
@@ -137,7 +132,7 @@ function targetsOf() {
 const targets = targetsOf()
 const diagrams = []
 
-for (const file of markdownFiles(root).sort()) {
+for (const file of markdownFiles().sort()) {
   counts.files += 1
   const text = readFileSync(file, 'utf8')
   const body = prose(text)

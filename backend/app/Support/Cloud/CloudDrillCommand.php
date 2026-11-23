@@ -222,7 +222,7 @@ final class CloudDrillCommand extends Command
     private function restore(DianSimulator $simulator): int
     {
         $simulator->setMode(self::EVERY_NIT, ['mode' => 'normal']);
-        $this->line('The DIAN simulator answers every NIT again (mode normal).');
+        $this->line('The DIAN simulator responds to every NIT again (mode normal).');
 
         return self::SUCCESS;
     }
@@ -258,7 +258,7 @@ final class CloudDrillCommand extends Command
         // Each one came back from its dead letter: the transmission of run 1 gave up, run 2 started from the redrive.
         $resumed = $affected->filter(fn (Document $document): bool => $document->electronic_run === 2)->count();
         $gaveUp = DianTransmission::query()->whereIn('document_id', array_keys($incident))->where('run', 1)->get()->groupBy('document_id')->filter(fn ($calls): bool => $calls->every(fn (DianTransmission $call): bool => $call->outcome?->isTransient() === true))->count();
-        $this->verify($resumed === count($incident) && $gaveUp === count($incident), sprintf('Each invoice of the incident gave up its transmission in run 1 (%d, every call without an answer) and started again in run 2 from its dead letter (%d), as Retry now does.', $gaveUp, $resumed));
+        $this->verify($resumed === count($incident) && $gaveUp === count($incident), sprintf('Each invoice of the incident gave up its transmission in run 1 (%d, every call without a response) and started again in run 2 from its dead letter (%d), as Retry now does.', $gaveUp, $resumed));
 
         // Exactly once: one email, one accepted record in the simulator, one acceptance per invoice.
         $sent = DeliveryAttempt::query()->where('outcome', EmailOutcome::Sent)->get()->groupBy('document_id');
@@ -273,7 +273,7 @@ final class CloudDrillCommand extends Command
         $records = collect($simulator->documents($temporary->company->identification_number));
         $distinct = $records->where('status', 'accepted')->pluck('cufe')->unique()->count();
         $repeated = (int) $records->sum(fn (array $record): int => max(0, (Json::int($record, 'submissions') ?? 1) - 1));
-        $this->verify($records->count() === $count && $distinct === $count, sprintf('The simulator holds %d distinct accepted documents of the company and nothing else (%d records, %d repeated submissions answered by rule 90): nothing was accepted twice.', $distinct, $records->count(), $repeated));
+        $this->verify($records->count() === $count && $distinct === $count, sprintf('The simulator holds %d distinct accepted documents of the company and nothing else (%d records, %d repeated submissions rejected with rule 90): nothing was accepted twice.', $distinct, $records->count(), $repeated));
 
         $numbers = $documents->pluck('number')->map(fn (mixed $number): int => is_numeric($number) ? (int) $number : 0)->all();
         $gaps = $numbers === [] ? [] : array_diff(range(1, max($numbers)), $numbers);
@@ -323,7 +323,7 @@ final class CloudDrillCommand extends Command
         $id = (string) $this->argument('company');
         $temporary = $id === '' ? null : TemporaryCompany::find($id);
         $temporary?->delete();
-        $this->line($temporary === null ? 'The DIAN simulator answers again; no company to delete.' : 'The DIAN simulator answers again; temporary company deleted.');
+        $this->line($temporary === null ? 'The DIAN simulator responds again; no company to delete.' : 'The DIAN simulator responds again; temporary company deleted.');
 
         return self::SUCCESS;
     }

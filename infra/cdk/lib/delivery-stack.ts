@@ -1,4 +1,4 @@
-// Delivery (Infrastructure task 6, prod only, synthesized and validated, never deployed): what the deployment
+// Delivery (prod only, synthesized and validated, never deployed): what the deployment
 // pipeline of a real account needs, and nothing more.
 //
 // - The OpenID Connect provider of GitHub Actions, or the one the account already has (an account holds one per URL).

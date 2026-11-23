@@ -14,6 +14,12 @@ use Illuminate\Http\JsonResponse;
  */
 final class HealthController
 {
+    /**
+     * Check the health of the API.
+     *
+     * 200 with the checks when the services the API needs respond, or 503 as a problem that names
+     * the one that failed.
+     */
     public function __invoke(HealthChecks $health): JsonResponse
     {
         $checks = array_map(fn (bool $passed): string => $passed ? 'ok' : 'down', $health->run());

@@ -2,7 +2,7 @@
 import type { DocumentTaxSubtotal, DocumentTotals, DocumentWithholdingAmount } from '@/api/types'
 import { useI18n } from 'vue-i18n'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatMoney, formatPercent } from '@/lib/format'
+import { formatDeduction, formatMoney, formatPercent } from '@/lib/format'
 
 /** Totals of a document as the API calculated them; the web app does no arithmetic. */
 withDefaults(
@@ -43,7 +43,7 @@ function money(value: string | undefined): string {
         </div>
         <div class="flex items-baseline justify-between gap-4">
           <dt class="text-muted-foreground">{{ t('invoices.totals.discounts') }}</dt>
-          <dd class="whitespace-nowrap tabular-nums">− {{ money(totals?.discount_total) }}</dd>
+          <dd class="whitespace-nowrap tabular-nums">{{ formatDeduction(totals?.discount_total) }}</dd>
         </div>
         <div v-for="tax in taxes" :key="`${tax.dian_code}-${tax.rate}`" class="flex items-baseline justify-between gap-4">
           <dt class="grid text-muted-foreground">
@@ -61,7 +61,7 @@ function money(value: string | undefined): string {
             <span>{{ withholding.name }}</span>
             <span class="text-xs">{{ t('invoices.totals.on', { base: money(withholding.base_amount) }) }}</span>
           </dt>
-          <dd class="whitespace-nowrap tabular-nums">− {{ money(withholding.amount) }}</dd>
+          <dd class="whitespace-nowrap tabular-nums">{{ formatDeduction(withholding.amount) }}</dd>
         </div>
         <div class="flex items-baseline justify-between gap-4 border-t pt-2.5 text-base font-semibold">
           <dt>{{ t('invoices.totals.netToReceive') }}</dt>

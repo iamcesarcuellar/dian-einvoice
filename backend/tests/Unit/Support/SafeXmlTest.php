@@ -8,8 +8,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Every XML the backend parses goes through SafeXml: what it signs and validates, and the answers of
- * the DIAN. A DTD is refused before libxml reads it and again after, so no external entity is read
+ * Every XML the backend parses goes through SafeXml: what it signs and validates, and the DIAN's
+ * responses. A DTD is refused before libxml reads it and again after, so no external entity is read
  * and no entity is expanded; plain UBL still parses.
  */
 final class SafeXmlTest extends TestCase

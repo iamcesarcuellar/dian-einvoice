@@ -6,7 +6,7 @@ use App\Modules\Reference\Enums\Concerns\CodeList;
 
 /**
  * Payment means offered (annex 1.9, table 13.3.4.2 of the toolbox, cbc:PaymentMeansCode): a subset
- * of the table, with English names of the official ones.
+ * of the table, with English names for the official ones.
  */
 enum PaymentMeans: string
 {

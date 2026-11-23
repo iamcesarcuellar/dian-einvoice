@@ -1,6 +1,6 @@
 #!/bin/sh
-# The deployment of a stage, one script for every stage: make cloud-up runs its steps against the emulator (stage local),
-# and the workflow .github/workflows/deploy.yml runs the same steps against a real account (stage prod; it has never
+# The deployment of a stage, one script for every stage: make cloud-up runs its steps against the emulator (the local stage),
+# and the workflow .github/workflows/deploy.yml runs the same steps against a real account (the prod stage; it has never
 # run). Every tool runs in a container of compose.yaml: the CDK app (cdk-deploy for the emulator, cdk-release for an
 # account), the serverless service of the functions and its scripts (functions-deploy, functions-release), the web app
 # (web). A part marked EMULATOR ONLY exists because the emulator is not AWS, and says what AWS does instead

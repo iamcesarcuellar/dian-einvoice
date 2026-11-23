@@ -366,7 +366,7 @@ const lineColumns = computed<DataTableColumn[]>(() => [
       <div class="grid min-w-0 gap-6">
         <FormSection v-if="isNote" :title="t('notes.view.corrects')">
           <div class="grid gap-4">
-            <dl class="grid gap-4 sm:grid-cols-3">
+            <dl class="grid items-start gap-4 sm:grid-cols-3">
               <div class="grid gap-0.5">
                 <dt class="text-xs text-muted-foreground">{{ t('notes.reference.number') }}</dt>
                 <dd class="font-medium tabular-nums">
@@ -414,7 +414,7 @@ const lineColumns = computed<DataTableColumn[]>(() => [
         </FormSection>
 
         <FormSection :title="t('invoices.view.details')">
-          <dl class="grid gap-4 sm:grid-cols-3">
+          <dl class="grid items-start gap-4 sm:grid-cols-3">
             <div class="grid gap-0.5">
               <dt class="text-xs text-muted-foreground">{{ t('invoices.view.issueDate') }}</dt>
               <dd class="tabular-nums">{{ formatDate(invoice.issue_date) || '—' }}</dd>

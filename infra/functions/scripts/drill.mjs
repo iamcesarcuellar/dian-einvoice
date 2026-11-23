@@ -99,7 +99,7 @@ async function healthy() {
   const leftOver = await state() === 'ALARM'
   const okAt = await until(async () => await state() !== 'ALARM', 180)
   const dead = { chain: await depth('chain-dlq'), webhooks: await depth('webhooks-dlq') }
-  verify(okAt !== null && dead.chain === 0 && dead.webhooks === 0, `Healthy before the incident: the dead-letter queues of the chain and of the webhooks hold ${dead.chain} and ${dead.webhooks} messages, and ${ALARM} is ${await state()}${leftOver ? ' (an earlier run had left it in ALARM)' : ''}.`)
+  verify(okAt !== null && dead.chain === 0 && dead.webhooks === 0, `Healthy before the incident: the chain's and the webhooks' dead-letter queues hold ${dead.chain} and ${dead.webhooks} messages, and ${ALARM} is ${await state()}${leftOver ? ' (an earlier run had left it in ALARM)' : ''}.`)
 }
 
 async function detect(since, expected) {
@@ -123,7 +123,7 @@ async function detect(since, expected) {
     await sleep(deadAt !== null && alarmAt !== null && notifiedAt !== null ? 0 : 3000)
   }
 
-  verify(deadAt !== null, `The ${expected} messages of the transmissions that gave up are in the dead-letter queue of the chain${deadAt === null ? ': not within 8 minutes' : ''}.`)
+  verify(deadAt !== null, `The ${expected} messages of the transmissions that gave up are in the chain's dead-letter queue${deadAt === null ? ': not within 8 minutes' : ''}.`)
   verify(alarmAt !== null, `The emulator turned ${ALARM} to ALARM${alarmAt === null ? ': not within 8 minutes' : ''}.`)
   verify(notifiedAt !== null, `Its notification reached the chat (the local receiver) naming its runbook${notifiedAt === null ? ': none within 8 minutes' : `: ${JSON.stringify(text.split('\n')[0])}, ${JSON.stringify(text.split('\n').find((line) => line.startsWith('Runbook:')) ?? '')}`}.`)
   process.stdout.write(`dead_letters_at=${deadAt ?? ''}\nalarm_at=${alarmAt ?? ''}\nnotified_at=${notifiedAt ?? ''}\n`)
@@ -206,7 +206,7 @@ async function story(correlation, since) {
   const functions = [...new Set(rows.map((row) => row.function).filter((name) => name !== undefined && name !== 'null'))].sort()
   const failed = rows.filter((row) => row.event === 'dian.call' && row.outcome === 'failure').length
   const requested = rows.some((row) => row.function === 'api' && row.event === 'http.request')
-  verify(told !== null && requested, `make cloud-follow ID=${correlation} tells the invoice of the incident as one story under its correlation id: its request to the API${requested ? '' : ' (missing)'}, then in order ${failed} calls to the DIAN that failed, ${CHAPTERS.slice(1).map((chapter) => chapter[2]).join(', ')} (${rows.length} lines in ${functions.join(', ')})${told === null ? `; missing, after what came before it: ${missing?.[2]} (${missing?.[0]} ${missing?.[1]})` : ''}.`)
+  verify(told !== null && requested, `make cloud-follow ID=${correlation} tells an incident invoice as one story under its correlation id: its request to the API${requested ? '' : ' (missing)'}, then in order ${failed} calls to the DIAN that failed, ${CHAPTERS.slice(1).map((chapter) => chapter[2]).join(', ')} (${rows.length} lines in ${functions.join(', ')})${told === null ? `; missing, after what came before it: ${missing?.[2]} (${missing?.[0]} ${missing?.[1]})` : ''}.`)
 }
 
 function timeline(pairs) {
@@ -215,24 +215,24 @@ function timeline(pairs) {
   const since = (name) => (moments[name] === null || moments[name] === undefined || start === null ? 'not observed' : `+${((moments[name] - start) / 1000).toFixed(0)} s`)
   const at = (name) => (moments[name] === null || moments[name] === undefined ? '-' : new Date(moments[name]).toISOString().slice(11, 19))
   const rows = [
-    ['incident', 'The DIAN goes down: the simulator answers HTTP 500 to every call; the invoices of the incident are issued through the edge'],
-    ['first_failure', 'The first call to the DIAN without an answer; the transmissions retry (2 and 5 s in the stage local)'],
-    ['dead_letters', 'Every transmission of the incident gave up: its message is in the dead-letter queue of the chain'],
+    ['incident', "The DIAN goes down: the simulator responds with HTTP 500 to every call; the incident's invoices are issued through the edge"],
+    ['first_failure', 'The first call to the DIAN without a response; the transmissions retry (after 2 and 5 s in the local stage)'],
+    ['dead_letters', "Every transmission of the incident gave up: its message is in the chain's dead-letter queue"],
     ['alarm', 'The emulator turns chain-dead-letters to ALARM: detected'],
     ['notified', 'Its notification reaches the chat with its runbook: notified'],
-    ['restored', 'The DIAN answers again (the drill restores the simulator; dian:probe confirms it)'],
+    ['restored', 'The DIAN responds again (the drill restores the simulator; dian:probe confirms it)'],
     ['redriven', 'The dead letters are moved back to the chain queue with the native redrive of SQS'],
-    ['recovered', 'The last invoice of the incident accepted and delivered: recovered'],
+    ['recovered', "The incident's last invoice accepted and delivered: recovered"],
     ['ok', 'chain-dead-letters back to OK'],
   ]
 
-  process.stdout.write('Timeline of the drill (UTC; the times are those of the emulator, Floci 2.5.0 on this machine, not of AWS):\n')
+  process.stdout.write("The drill's timeline (UTC; the emulator's times, Floci 2.5.0 on this machine, not AWS's):\n")
 
   for (const [name, what] of rows) {
     process.stdout.write(`  ${at(name)}  ${since(name).padEnd(13)} ${what}\n`)
   }
 
-  process.stdout.write(`Time to detect ${since('alarm')}, to notify ${since('notified')}, to recover ${since('recovered')} (to the alarm back to OK ${since('ok')}), from the start of the incident.\n`)
+  process.stdout.write(`Time to detect ${since('alarm')}, to notify ${since('notified')}, to recover ${since('recovered')} (to the alarm back to OK ${since('ok')}), from the incident's start.\n`)
 }
 
 const [action, ...rest] = process.argv.slice(2)

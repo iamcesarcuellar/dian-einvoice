@@ -186,7 +186,7 @@ final class CloudCheckCommand extends Command
         $leftovers = is_string($dlq) ? count($cloud->takeDeadLetters($dlq, self::POISON)) : 0;
 
         if ($leftovers > 0) {
-            $this->line("Took {$leftovers} unreadable messages an earlier make cloud-check left in the dead-letter queue of the chain.");
+            $this->line("Took {$leftovers} unreadable messages an earlier make cloud-check left in the chain's dead-letter queue.");
         }
 
         $count = max(1, (int) $this->option('invoices'));
@@ -308,7 +308,7 @@ final class CloudCheckCommand extends Command
         $replaced = Http::withHeaders([$header => 'not-a-correlation-id; a client wrote it'])->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/health');
         $this->verify(
             $kept->header($header) === $chosen && Correlation::valid($replaced->header($header)) && $replaced->header($header) !== $chosen,
-            sprintf('Through the edge the API answers %s on every request: the id a client sends is kept when it has the form of one (%s), replaced otherwise (%s).', $header, $kept->header($header) === $chosen ? 'kept' : 'NOT kept', Correlation::valid($replaced->header($header)) ? 'replaced' : 'NOT replaced'),
+            sprintf('Through the edge the API returns %s on every request: the id a client sends is kept when it has the form of one (%s), replaced otherwise (%s).', $header, $kept->header($header) === $chosen ? 'kept' : 'NOT kept', Correlation::valid($replaced->header($header)) ? 'replaced' : 'NOT replaced'),
         );
 
         $draft = app(DocumentDrafts::class)->create(DocumentType::Invoice, [
@@ -321,7 +321,7 @@ final class CloudCheckCommand extends Command
         $correlation = $issued->header($header);
         $this->verify(
             $issued->successful() && $this->throughApiGateway($issued) && Correlation::valid($correlation),
-            sprintf('An invoice issued through the edge with an API key (HTTP %d) answers the correlation id of its journey in %s: %s.', $issued->status(), $header, $correlation === '' ? 'none' : $correlation),
+            sprintf('An invoice issued through the edge with an API key (HTTP %d) returns its journey\'s correlation id in %s: %s.', $issued->status(), $header, $correlation === '' ? 'none' : $correlation),
         );
 
         $this->waitForChain($companyId, [$draft->id]);
@@ -365,7 +365,7 @@ final class CloudCheckCommand extends Command
         $me = $browser()->withHeaders(['X-XSRF-TOKEN' => $token])->get($api.'/auth/me');
         $this->verify(
             $csrf->successful() && $token !== '' && $refused->status() === 419 && $login->successful() && $me->successful() && $me->json('data.email', $me->json('email')) === $temporary->user->email && $cookies->getCookieByName(config()->string('session.cookie')) !== null && $this->throughApiGateway($login),
-            sprintf('Through the edge (%s, the origin %s of the web app), the session cookie and the CSRF token sign in: the CSRF cookie answered %d, a sign-in without the token %d, with it %d, and the current user %d.', $origin, self::WEB_ORIGIN, $csrf->status(), $refused->status(), $login->status(), $me->status()),
+            sprintf('Through the edge (%s, the origin %s of the web app), the session cookie and the CSRF token sign in: the CSRF cookie request returned %d, a sign-in without the token %d, with it %d, and the current user %d.', $origin, self::WEB_ORIGIN, $csrf->status(), $refused->status(), $login->status(), $me->status()),
         );
 
         $document = $documents->first();
@@ -384,7 +384,7 @@ final class CloudCheckCommand extends Command
         }
 
         $reference = Http::connectTimeout(5)->timeout(30)->get($origin.'/docs/api');
-        $this->verify($reference->successful() && str_contains($reference->body(), '"openapi"') && str_contains($reference->body(), 'integrity="sha384-') && str_contains((string) $reference->header('Content-Security-Policy'), "'sha256-") && $this->throughApiGateway($reference), sprintf('The API reference answers at /docs/api through the edge, its renderer pinned by Subresource Integrity and its inline scripts by hash (HTTP %d, %d bytes).', $reference->status(), strlen($reference->body())));
+        $this->verify($reference->successful() && str_contains($reference->body(), '"openapi"') && str_contains($reference->body(), 'integrity="sha384-') && str_contains((string) $reference->header('Content-Security-Policy'), "'sha256-") && $this->throughApiGateway($reference), sprintf('The API reference is served at /docs/api through the edge, its renderer pinned by Subresource Integrity and its inline scripts by hash (HTTP %d, %d bytes).', $reference->status(), strlen($reference->body())));
 
         [, $key] = app(ApiKeys::class)->create('Cloud check (read only)', ApiKeyLevel::ReadOnly, creator: $temporary->user);
         $listing = Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/invoices', ['per_page' => 1]);
@@ -394,7 +394,7 @@ final class CloudCheckCommand extends Command
 
         // A 403 of the API is a problem of the API, not the web app: a key on a route of the web app session.
         $forbidden = Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/api-keys');
-        $this->verify($forbidden->status() === 403 && str_contains((string) $forbidden->header('Content-Type'), 'application/problem+json') && $forbidden->json('status') === 403, sprintf('Through the edge a 403 of the API stays a problem of the API: %d %s.', $forbidden->status(), $forbidden->header('Content-Type')));
+        $this->verify($forbidden->status() === 403 && str_contains((string) $forbidden->header('Content-Type'), 'application/problem+json') && $forbidden->json('status') === 403, sprintf('Through the edge, an API 403 stays an API problem: %d %s.', $forbidden->status(), $forbidden->header('Content-Type')));
 
         // The client writes addresses of its own, in X-Forwarded-For, in CloudFront-Viewer-Address and in both, and
         // ends X-Forwarded-For with the peer API Gateway reports (127.0.0.1 in the emulator), the entry the application
@@ -423,7 +423,7 @@ final class CloudCheckCommand extends Command
         $written = array_sum(array_map(fn (string $address): int => $this->attempts('login', $address), $spoofed));
         $this->verify(
             array_unique($statuses) === [400] && $counted === count($attempts) && $written === 0,
-            sprintf('A client that writes its address in %s changes nothing: the rate limit of the sign-in counted the %d attempts for the address the edge saw, %s (%d), and %d for the %d addresses the client wrote (HTTP %s).', implode(', ', array_keys($attempts)), count($attempts), $seen, $counted, $written, count($spoofed), implode(', ', array_unique($statuses))),
+            sprintf('A client that writes its address in %s changes nothing: the sign-in\'s rate limit counted the %d attempts for the address the edge saw, %s (%d), and %d for the %d addresses the client wrote (HTTP %s).', implode(', ', array_keys($attempts)), count($attempts), $seen, $counted, $written, count($spoofed), implode(', ', array_unique($statuses))),
         );
 
         // The session of the sign-in and the rate limits of the sign-in and of the key, in their tables.
@@ -516,15 +516,15 @@ final class CloudCheckCommand extends Command
         $together = array_filter($batches, fn (array $batch): bool => in_array($poison, $batch, true));
 
         $this->verify($runs === array_fill(0, self::PROBES, 1), sprintf('The %d valid messages sent with an unreadable one ran once each (%s).', self::PROBES, implode(', ', $runs)));
-        $this->verify($together !== [], sprintf('%d of them ran in the same batch as the unreadable message: the chain function answered a partial batch response, so the failure did not send them back.', count($together)));
+        $this->verify($together !== [], sprintf('%d of them ran in the same batch as the unreadable message: the chain function returned a partial batch response, so the failure did not send them back.', count($together)));
 
         if ($keeps) {
             $receives = $taken[0]['receives'] ?? 0;
-            $this->verify(count($taken) === 1, sprintf('The unreadable message %s reached the dead-letter queue of the chain after %.1f s%s, retried on its own.', $poison, microtime(true) - $started, $taken === [] ? '' : " and {$receives} receives"));
+            $this->verify(count($taken) === 1, sprintf('The unreadable message %s reached the chain\'s dead-letter queue after %.1f s%s, retried on its own.', $poison, microtime(true) - $started, $taken === [] ? '' : " and {$receives} receives"));
         } else {
             $receives = $this->receivesOf($held, $poison);
             $this->verify($receives >= 2 && count($held) === 1, sprintf('The chain function reported the unreadable message %s as failed: the chain queue kept it, alone, and gave it back on its own (%d receives in %.1f s).', $poison, $receives, microtime(true) - $started));
-            $this->note(sprintf('Floci %s returns a record a function reported as failed after the visibility timeout of its queue (60 s), not after the 1 s the function set, so the 10 receives that take the unreadable message to the dead-letter queue would last about 10 minutes: the step stops at its second receive and purges the chain queue (docs/limitations.md).', $cloud->version()));
+            $this->note(sprintf('Floci %s returns a record a function reported as failed after its queue\'s visibility timeout (60 s), not after the 1 s the function set, so the 10 receives that take the unreadable message to the dead-letter queue would last about 10 minutes: the step stops at its second receive and purges the chain queue (docs/limitations.md).', $cloud->version()));
 
             if (count($held) === 1) {
                 $cloud->purge($url);
@@ -630,7 +630,7 @@ final class CloudCheckCommand extends Command
         $simulated = collect(app(DianSimulator::class)->documents($temporary->company->identification_number));
         $simulatedAccepted = $simulated->where('status', 'accepted');
         $repeated = (int) $simulated->sum(fn (array $record): int => max(0, (Json::int($record, 'submissions') ?? 1) - 1));
-        $this->verify($simulatedAccepted->count() === $count && $simulatedAccepted->pluck('cufe')->unique()->count() === $count && $simulated->count() === $count, sprintf('The simulator holds %d distinct accepted documents of the company and nothing else (%d records; %d repeated submissions answered by rule 90): nothing was issued twice.', $simulatedAccepted->pluck('cufe')->unique()->count(), $simulated->count(), $repeated));
+        $this->verify($simulatedAccepted->count() === $count && $simulatedAccepted->pluck('cufe')->unique()->count() === $count && $simulated->count() === $count, sprintf('The simulator holds %d distinct accepted documents of the company and nothing else (%d records; %d repeated submissions rejected with rule 90): nothing was issued twice.', $simulatedAccepted->pluck('cufe')->unique()->count(), $simulated->count(), $repeated));
 
         // 2. Events through the topic and both queues.
         $events = OutboxEvent::query()->where('company_id', $companyId)->get();
@@ -639,8 +639,8 @@ final class CloudCheckCommand extends Command
         $toWebhooks = $events->filter(fn (OutboxEvent $event): bool => in_array($event->type, $routes[OutboxSubscribers::WEBHOOKS], true))->count();
         $sources = $events->filter(fn (OutboxEvent $event): bool => in_array($event->type, WebhookEventTypes::SOURCES, true))->pluck('id')->all();
         $webhookEvents = WebhookEvent::query()->whereIn('source_event_id', $sources)->count();
-        $this->verify($events->isNotEmpty() && $events->whereNull('published_at')->isEmpty(), sprintf('%d outbox events published to the topic of document events: %d routed to the chain queue, %d to the webhooks queue.', $events->count(), $toChain, $toWebhooks));
-        $this->verify($toChain > 0 && $accepted === $count && $delivered === $count, sprintf('The chain function took every step from its queue: XML, signature, transmission, answer, AttachedDocument, PDF and email of %d invoices.', $count));
+        $this->verify($events->isNotEmpty() && $events->whereNull('published_at')->isEmpty(), sprintf('%d outbox events published to the document events topic: %d routed to the chain queue, %d to the webhooks queue.', $events->count(), $toChain, $toWebhooks));
+        $this->verify($toChain > 0 && $accepted === $count && $delivered === $count, sprintf('The chain function took every step from its queue: XML, signature, transmission, response, AttachedDocument, PDF and email of %d invoices.', $count));
         $this->verify($sources !== [] && $webhookEvents === count($sources), sprintf('The webhooks function took every webhook from its queue: %d webhook events for %d source events.', $webhookEvents, count($sources)));
 
         $hooks = WebhookDelivery::query()->get();
@@ -669,7 +669,7 @@ final class CloudCheckCommand extends Command
         $waited = $orphan instanceof OutboxEvent && $orphan->published_at !== null ? $orphan->published_at->getTimestamp() - $orphan->created_at->getTimestamp() : null;
         $this->verify($waited !== null && $waited >= $after && $waited < self::SAFETY_NET_SECONDS, sprintf('The outbox event left unpublished after its commit was published by the relay function %s s after it was recorded (it takes events older than %d s, once a minute).', $waited ?? 'never', $after));
 
-        // 4. Files in the bucket: the signed XML and the answer of each invoice, its AttachedDocument, PDF and zip.
+        // 4. Files in the bucket: each invoice's signed XML and response, its AttachedDocument, PDF and zip.
         $storage = app(DocumentStorage::class);
         $keys = $cloud->objectKeys($companyId.'/');
         $files = DocumentFile::query()->get();
@@ -688,7 +688,7 @@ final class CloudCheckCommand extends Command
         }
 
         $firstPdf = $files->where('kind', DocumentFileKind::Pdf)->first();
-        $this->verify($files->count() === 3 * $count && $intact === $expected, sprintf('%d objects of the company in the bucket; %d of %d files of the invoices read back with their SHA-256 (signed XML, answer, AttachedDocument, PDF and zip).', count($keys), $intact, $expected));
+        $this->verify($files->count() === 3 * $count && $intact === $expected, sprintf('%d objects of the company in the bucket; %d of %d files of the invoices read back with their SHA-256 (signed XML, response, AttachedDocument, PDF and zip).', count($keys), $intact, $expected));
         $this->verify($firstPdf instanceof DocumentFile && str_starts_with($storage->get($firstPdf->path), '%PDF-'), 'A PDF read back from the bucket is a PDF.');
 
         // 5. Email through SES: one per invoice, to the customer, as the delivery attempts recorded.
@@ -710,16 +710,16 @@ final class CloudCheckCommand extends Command
         $identity = $cloud->secretValue((string) config('database.connections.mysql.secrets_id'));
         $this->verify(
             ($secret['APP_KEY'] ?? null) === config('app.key') && ! isset($secret['DB_PASSWORD']) && ($identity['username'] ?? null) === config('database.connections.mysql.username') && ($identity['password'] ?? null) === config('database.connections.mysql.password'),
-            sprintf('APP_KEY of this function comes from the secret of the application, which holds nothing of the database, and its database credentials from the secret of its identity (%s).', (string) config('database.connections.mysql.username')),
+            sprintf('This function\'s APP_KEY comes from the application secret, which holds nothing of the database, and its database credentials from its identity\'s secret (%s).', (string) config('database.connections.mysql.username')),
         );
-        $this->verify(KmsKeyStoreEntry::query()->count() === 1 && KeyStoreEntry::query()->count() === 0, 'The signing certificate of the company is in the KMS key store (envelope encryption), not in the local one.');
+        $this->verify(KmsKeyStoreEntry::query()->count() === 1 && KeyStoreEntry::query()->count() === 0, 'The company\'s signing certificate is in the KMS key store (envelope encryption), not in the local one.');
 
         // 7. The scheduler function runs the Laravel scheduler once a minute.
         $lastRun = SchedulerHeartbeat::lastRun();
         $this->verify($lastRun !== null && Carbon::now()->getTimestamp() - $lastRun <= 150, sprintf('The scheduler function ran the Laravel scheduler (%s).', $lastRun === null ? 'never' : (Carbon::now()->getTimestamp() - $lastRun).' s ago'));
 
         $this->newLine();
-        $this->line(sprintf('   Time: %.1f s from the first issue until every invoice was accepted, delivered and notified (%.1f s of it in this last wait, after the functions died: the messages they held came back after the visibility timeout of their queue).', $elapsed, microtime(true) - $waitStarted));
+        $this->line(sprintf('   Time: %.1f s from the first issue until every invoice was accepted, delivered and notified (%.1f s of it in this last wait, after the functions died: the messages they held came back after their queue\'s visibility timeout).', $elapsed, microtime(true) - $waitStarted));
     }
 
     /**
@@ -836,7 +836,7 @@ final class CloudCheckCommand extends Command
 
             [$from, $to] = $this->rotate($cloud, $secret);
             $this->line("   Rotation 1: the secret moved from {$from} to {$to}, with a new password; {$from} keeps its own until the next rotation.");
-            $this->traffic($temporary, $customer, $key, 'After the first rotation: the warm functions keep the credentials of before, still valid');
+            $this->traffic($temporary, $customer, $key, 'After the first rotation: the warm functions keep their earlier credentials, still valid');
 
             $since = (int) floor(microtime(true) * 1000);
             [$from, $to] = $this->rotate($cloud, $secret);
@@ -953,7 +953,7 @@ final class CloudCheckCommand extends Command
 
         $this->verify(
             $errors === [] && count($ids) === 2 && $done === 2 && $hooks->every(fn (WebhookDelivery $delivery): bool => $delivery->status === WebhookDeliveryStatus::Succeeded),
-            sprintf('%s: %d requests through the edge answered %s; the 2 invoices issued through the API ended accepted and delivered (%d), and %d webhooks arrived.', $when, count($statuses), $errors === [] ? 'without an error' : 'errors '.implode(', ', $errors), $done, $hooks->where('status', WebhookDeliveryStatus::Succeeded)->count()),
+            sprintf('%s: %d requests through the edge returned %s; the 2 invoices issued through the API ended accepted and delivered (%d), and %d webhooks arrived.', $when, count($statuses), $errors === [] ? 'without an error' : 'errors '.implode(', ', $errors), $done, $hooks->where('status', WebhookDeliveryStatus::Succeeded)->count()),
         );
     }
 

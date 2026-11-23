@@ -46,7 +46,7 @@ final class WebhooksStatusCommand extends Command
 
         foreach ($subscriptions as $subscription) {
             $this->line(sprintf(
-                '  %s of the company %s, to %s: %s, %d failures in a row, %d deliveries failed, the last answer %s%s.',
+                '  %s of the company %s, to %s: %s, %d failures in a row, %d deliveries failed, the last response %s%s.',
                 $subscription->id,
                 $subscription->company_id,
                 (string) (parse_url((string) $subscription->url, PHP_URL_HOST) ?: 'an address without a host'),

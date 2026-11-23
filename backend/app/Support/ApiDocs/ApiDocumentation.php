@@ -21,12 +21,12 @@ final class ApiDocumentation
 {
     /** Tag of each group of routes, by the first part of the route name, in the order shown. */
     private const array TAGS = [
-        'health' => ['Health', 'Whether the API and its database answer.'],
+        'health' => ['Health', 'Whether the API and its database respond.'],
         'reference' => ['Reference data', 'DIAN code lists and the municipalities of Colombia (DIVIPOLA).'],
-        'contacts' => ['Contacts', 'Customers and suppliers of the company.'],
+        'contacts' => ['Contacts', 'The company\'s customers and suppliers.'],
         'items' => ['Items', 'Products and services, with their price and tax.'],
-        'taxes' => ['Taxes', 'Tax rates of the company (read only with API keys).'],
-        'withholdings' => ['Withholdings', 'Withholding rates of the company (read only with API keys).'],
+        'taxes' => ['Taxes', 'The company\'s tax rates (read only with API keys).'],
+        'withholdings' => ['Withholdings', 'The company\'s withholding rates (read only with API keys).'],
         'number-templates' => ['Numbering', 'Numbering ranges authorized by the DIAN (read only with API keys).'],
         'invoices' => ['Invoices', 'Electronic sales invoices: drafts, issue, the electronic document chain and the delivery to the customer.'],
         'credit-notes' => ['Credit notes', 'Credit notes of accepted invoices, voids included.'],
@@ -43,7 +43,7 @@ final class ApiDocumentation
             ->withDocumentTransformers(function (OpenApi $openApi): void {
                 $openApi->secure((new HttpSecurityScheme('bearer', 'API key'))
                     ->as('apiKey')
-                    ->setDescription('An API key of the company, created by an owner or admin in Settings → Developers: Authorization: Bearer dei_...'));
+                    ->setDescription('A company API key, created by an owner or admin in Settings → Developers: Authorization: Bearer dei_...'));
             });
 
         Scramble::resolveTagsUsing(fn (RouteInfo $routeInfo, Operation $operation): array => [self::tag($routeInfo->route)]);

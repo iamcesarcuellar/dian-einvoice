@@ -27,8 +27,10 @@ use Illuminate\Validation\Rule;
 final class PaymentController
 {
     /**
-     * Newest first. ?contact_id=, ?from= and ?to= (date of the payment), ?payment_means_code=,
-     * ?status=recorded|voided, ?search= (number, customer or reference).
+     * List payments.
+     *
+     * Newest first. Filters: ?contact_id=, ?from= and ?to= (the payment date), ?payment_means_code=,
+     * ?status=recorded|voided and ?search= (the number, the customer or the reference).
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -59,9 +61,11 @@ final class PaymentController
     }
 
     /**
-     * Record a payment and apply it to invoices of its customer: 201 with the payment; 422 when an
-     * amount is above what is left to collect on its invoice, or the invoice is not an accepted
-     * invoice of that customer.
+     * Record a payment.
+     *
+     * The payment is applied to invoices of its customer: 201 with the payment. 422 when an amount is
+     * above what is left to collect on its invoice, or when the invoice is not an accepted invoice of
+     * that customer.
      */
     public function store(RecordPaymentRequest $request, RecordPayment $record): JsonResponse
     {
@@ -72,15 +76,21 @@ final class PaymentController
         return PaymentResource::make($payment->load(Payment::DETAILS))->response()->setStatusCode(201);
     }
 
-    /** A payment with the invoices it was applied to and its timeline. */
+    /**
+     * Show a payment.
+     *
+     * The payment with the invoices it was applied to, and its timeline.
+     */
     public function show(Payment $payment): PaymentResource
     {
         return PaymentResource::make($payment->load(Payment::DETAILS));
     }
 
     /**
-     * Void a payment, with its reason: its invoices get their balance back. 409 when it is already
-     * voided. Owners and admins only.
+     * Void a payment.
+     *
+     * The void needs a reason, and the invoices get their balance back. 409 when the payment is
+     * already voided. Owners, admins and read_write API keys only.
      */
     public function void(VoidPaymentRequest $request, Payment $payment, VoidPayment $void): PaymentResource
     {

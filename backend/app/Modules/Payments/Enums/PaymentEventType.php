@@ -2,7 +2,7 @@
 
 namespace App\Modules\Payments\Enums;
 
-/** Entries of the timeline of a payment. */
+/** Entries of a payment's timeline. */
 enum PaymentEventType: string
 {
     /** Payload: number, amount and the invoices with what each one took and its balance after. */

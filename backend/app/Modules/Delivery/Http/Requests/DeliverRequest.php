@@ -6,7 +6,7 @@ use App\Support\Translation;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Send again: optionally to another address than the current recipient.
+ * Send again: optionally to an address other than the current recipient.
  */
 final class DeliverRequest extends FormRequest
 {

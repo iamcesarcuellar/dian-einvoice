@@ -343,7 +343,7 @@ final class FunctionsTest extends IntegrationTestCase
     }
 
     /**
-     * The chain queue of the stage local, with the AWS SDK answering from memory, as the connection sqs.
+     * The chain queue of the local stage, with the AWS SDK answering from memory, as the connection sqs.
      */
     private function queue(): SqsEventsQueue
     {

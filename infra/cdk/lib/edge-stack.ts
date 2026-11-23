@@ -1,11 +1,11 @@
-// The edge (Infrastructure task 4): one CloudFront distribution in front of the web app and the API, under one
+// The edge: one CloudFront distribution in front of the web app and the API, under one
 // domain. The web app is served from a private, versioned bucket that only the distribution reads (origin access
 // control); the paths of the API (backend/resources/http/paths.json) go to API Gateway of the functions, uncached,
 // with every header but Host, every cookie and every query string, and the secret of the edge in X-Origin-Verify,
 // which the origin verifier of API Gateway checks. A CloudFront Function, on the default behaviour only, answers
 // the routes of the web app with index.html (never custom error responses, which would cover the errors of the API
 // too). The security headers of the web app come from their single source of truth (security-headers.json); the
-// answers of the API keep those of the application. HTTPS only, HTTP/2 and HTTP/3, compression for the web app,
+// API's responses keep those of the application. HTTPS only, HTTP/2 and HTTP/3, compression for the web app,
 // access logs kept a while, and in prod a domain of its own with TLS 1.2 at least and a firewall (AWS WAF). The
 // reasons of each setting are in docs/infrastructure.md.
 import { resolve } from 'node:path'
@@ -160,7 +160,7 @@ export class EdgeStack extends Stack {
 
     // Never cached, every method, every header but Host (API Gateway answers by its own name), every cookie and
     // query string; CloudFront appends the address of the client to X-Forwarded-For, which the application counts
-    // by (backend/config/edge.php). No response headers policy: the answers of the API carry the headers of the
+    // by (backend/config/edge.php). No response headers policy: the API's responses carry the headers of the
     // application, neither duplicated nor contradicted.
     const api: BehaviorOptions = {
       origin: apiOrigin,
@@ -214,14 +214,14 @@ export class EdgeStack extends Stack {
     if (domain === null) {
       Validations.of(this.distribution).acknowledge({
         id: 'AwsSolutions::AwsSolutions-CFR4',
-        reason: 'Without a domain of its own the distribution answers with the default certificate of CloudFront, whose security policy AWS sets to TLSv1 and allows no other. The stage prod runs with its domain, where TLSv1.2_2021 is the minimum; the emulated cloud serves plain HTTP through its proxy.',
+        reason: 'Without a domain of its own the distribution answers with the default certificate of CloudFront, whose security policy AWS sets to TLSv1 and allows no other. The prod stage runs with its domain, where TLSv1.2_2021 is the minimum; the emulated cloud serves plain HTTP through its proxy.',
       })
     }
 
     if (this.firewall === null) {
       Validations.of(this.distribution).acknowledge({
         id: 'AwsSolutions::AwsSolutions-CFR2',
-        reason: 'The stage local runs in the emulator, which applies no AWS WAF; the stage prod associates its web ACL with the distribution.',
+        reason: 'The local stage runs in the emulator, which applies no AWS WAF; the prod stage associates its web ACL with the distribution.',
       })
     }
 
@@ -236,7 +236,7 @@ export class EdgeStack extends Stack {
   }
 
   /**
-   * The logs of the firewall (Infrastructure task 5): the requests it blocked or counted, in a log group whose name
+   * The logs of the firewall: the requests it blocked or counted, in a log group whose name
    * AWS WAF requires to start with aws-waf-logs-, kept as long as the access logs, without the Authorization and
    * Cookie headers, which carry API keys and sessions. Requests it allowed are not logged: the access logs of the
    * distribution and of API Gateway have them, and logging them all would cost per request.

@@ -17,6 +17,7 @@ Every document in the repository, one line each, and a glossary of the terms the
 - [SECURITY.md](../SECURITY.md): how to report a vulnerability privately, and what is in scope.
 - [CONTRIBUTING.md](../CONTRIBUTING.md): the repository's rules and the checks a change runs.
 - [LICENSE](../LICENSE): the project's MIT License.
+- [CHANGELOG.md](../CHANGELOG.md): what each release brings, from 1.0.0 on.
 
 ## The cloud, as code and on an emulator
 

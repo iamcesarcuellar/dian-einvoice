@@ -6,7 +6,7 @@ Electronic invoicing for Colombian small and medium businesses, API first.
 
 It shows the full electronic invoicing chain and a serverless AWS architecture as code, running on a local emulator with no AWS account.
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) ![PHP 8.5 and Laravel 13](https://img.shields.io/badge/PHP_8.5-Laravel_13-ff2d20.svg) ![Vue 3 and TypeScript](https://img.shields.io/badge/Vue_3-TypeScript-42b883.svg) ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479a1.svg) ![AWS CDK](https://img.shields.io/badge/AWS_CDK-TypeScript-ff9900.svg) ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ed.svg)
+[![CI](https://github.com/iamcesarcuellar/dian-einvoice/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/iamcesarcuellar/dian-einvoice/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) ![PHP 8.5 and Laravel 13](https://img.shields.io/badge/PHP_8.5-Laravel_13-ff2d20.svg) ![Vue 3 and TypeScript](https://img.shields.io/badge/Vue_3-TypeScript-42b883.svg) ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479a1.svg) ![AWS CDK](https://img.shields.io/badge/AWS_CDK-TypeScript-ff9900.svg) ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ed.svg)
 
 ![An invoice written in the editor, issued, accepted by the local DIAN simulator and delivered, then its PDF](docs/assets/issue-invoice.gif)
 
@@ -22,7 +22,7 @@ A multi-tenant platform for companies and for the software that serves them (acc
 - **The AWS architecture as code, run on an emulator.** A CDK app and a serverless service put the API on Lambda behind API Gateway and CloudFront, with SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES and EventBridge Scheduler. `make cloud-check` proves the local stage end to end, and the prod stage, with its VPC, Aurora MySQL and AWS WAF, is validated offline ([infrastructure](docs/infrastructure.md), [cost estimate](docs/cost.md)).
 - **Operated like a service.** One correlation id follows an invoice from its request to its webhooks, through JSON logs, metrics, alarms that each name a runbook, and a notifier that posts to a chat. `make cloud-drill` takes the DIAN down and brings every invoice back once ([runbooks](docs/runbooks/README.md), [observability](docs/observability.md)).
 - **In English and in Spanish.** The web app, the API's messages, the PDF and the emails come in English or in Colombian Spanish: the interface follows the browser or the user's choice, each request its `Accept-Language`, and each company chooses the language of its documents. `make demo LOCALE=es` loads the demo data in Spanish ([LanguageTest](backend/tests/Integration/Security/LanguageTest.php), [the browser test in Spanish](e2e/tests/spanish.spec.ts)).
-- **Checked from end to end.** 663 tests, PHPStan at level 10 without a baseline, audits of every dependency and the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
+- **Checked from end to end.** 668 tests, PHPStan at level 10 without a baseline, audits of every dependency and the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
 
 ## Gallery
 
@@ -42,11 +42,11 @@ Every screen in [docs/assets](docs/assets/), the dark theme included, comes from
 You need:
 
 - Docker with Docker Compose 2.24 or later, GNU make and git. Nothing else is installed on the host.
-- About 3 GB of disk and 2 GB of memory for the local stack. The browser test and the emulated cloud take more.
+- About 3 GB of disk and 3 GB of memory for the local stack. The browser test and the emulated cloud take more.
 - Ports 8600 to 8603 free on 127.0.0.1. The emulated cloud also uses 8604, 8605 and 8610 to 8619.
 - Linux, or Windows with WSL 2: it was tested on Linux under WSL 2, with Docker 29.1, Compose 2.40 and GNU make 4.3.
 
-> On a clean clone, the local stack took 2.7 GB of disk: 1.7 GB of images, 0.3 GB of volumes and 0.7 GB of dependencies in the repository folder. Once up, it used 1.6 GB of memory, within memory limits that add up to 4.8 GB. The browser test and the screenshots add Playwright's image (2.6 GB), and the emulated cloud about 2 GB more.
+> On a clean clone, the local stack took 2.7 GB of disk: 1.7 GB of images, 0.3 GB of volumes and 0.7 GB of dependencies in the repository folder. Once up, it used 2.4 GB of memory with the English demo data and 2.5 GB with the Spanish one, within memory limits that add up to 4.8 GB. The web app's development server alone took 1.6 to 1.7 GB. The browser test and the screenshots add Playwright's image (2.6 GB), and the emulated cloud about 2 GB more.
 
 ```sh
 git clone https://github.com/iamcesarcuellar/dian-einvoice.git
@@ -54,7 +54,7 @@ cd dian-einvoice
 make demo
 ```
 
-The first `make demo` builds the images, installs the dependencies, migrates the database and loads six months of synthetic demo data through the real chain. On a clean clone it took 56 seconds, on a machine whose Docker already held the base images and their build cache. Without them, it first pulls about 1.5 GB of base images. It creates `backend/.env` with random local secrets and prints a synthetic API key once. Then open:
+The first `make demo` builds the images, installs the dependencies, migrates the database and loads six months of synthetic demo data through the real chain. On a clean clone it took 58 seconds, and `make demo LOCALE=es` took 57 on another clean clone. Both ran on a machine whose Docker already held the base images and their build cache. Without them, it first pulls about 1.5 GB of base images. It creates `backend/.env` with random local secrets and prints a synthetic API key once. Then open:
 
 | What | Address |
 | --- | --- |
@@ -150,9 +150,9 @@ Every response carries an `X-Correlation-Id`, which every log line of the journe
 
 The results of the runs for this commit, with the emulator's figures on this machine, not AWS's:
 
-- `make cloud-check` passed in 3 min 34 s. Thirty invoices went from issue to delivery in a median of 27.2 s through the outbox's fast path, and one more, issued through the edge, was followed by its correlation id. Ten more, with the functions' containers killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the application's database identity, with the functions warm, broke no request. Every log line was JSON that matched the schema, none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.97 s, and a warm response a median of 18 ms.
-- `make cloud-drill` passed in 230 s. With the DIAN down, five transmissions gave up into the dead-letter queue, and the alarm reached the chat with its runbook 163 s after the outage began. The runbook's commands brought every invoice back, accepted and delivered once, at 176 s ([drill-report.md](docs/runbooks/drill-report.md) reviews an earlier run).
-- `make cloud-e2e` passed in 122 s. First, the console function found the demo data. It also found that the cloud's own records in the simulator hold no document of the demo companies under a number the cloud's database has yet to issue. Then came an invoice's journey through the functions, one more in Spanish with its PDF and the email SES took, the web app's lists at 1440×900 in both languages, the API reference, and a tour of its 31 routes with 17 of its dialogs. All of it went through the edge, under its Content-Security-Policy, without a violation.
+- `make cloud-check` passed in 3 min 19 s. Thirty invoices went from issue to delivery in a median of 25.7 s through the outbox's fast path, and one more, issued through the edge, was followed by its correlation id. Ten more, with the functions' containers killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the application's database identity, with the functions warm, broke no request. Every log line was JSON that matched the schema, none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.93 s, and a warm response a median of 17 ms.
+- `make cloud-drill` passed in 271 s. With the DIAN down, five transmissions gave up into the dead-letter queue, and the alarm reached the chat with its runbook 192 s after the outage began. The runbook's commands brought every invoice back, accepted and delivered once, at 204 s ([drill-report.md](docs/runbooks/drill-report.md) reviews an earlier run).
+- `make cloud-e2e` passed in 113 s. First, the console function found the demo data. It also found that the cloud's own records in the simulator hold no document of the demo companies under a number the cloud's database has yet to issue. Then came an invoice's journey through the functions, one more in Spanish with its PDF and the email SES took, the web app's lists at 1440×900 in both languages, the API reference, and a tour of its 31 routes with 17 of its dialogs. All of it went through the edge, under its Content-Security-Policy, without a violation.
 
 ## Architecture
 
@@ -184,7 +184,7 @@ stateDiagram-v2
   Signed --> Sent: SendBillSync
   Sent --> Sent: HTTP 5xx or no response, retried
   Sent --> Accepted: status 00
-  Sent --> Rejected: a rule of the annex
+  Sent --> Rejected: an annex rule
   Sent --> Failed: attempts exhausted
   Failed --> Sent: Retry now or redrive
   Accepted --> Delivered: AttachedDocument, PDF and email
@@ -227,18 +227,18 @@ The details: [docs/architecture.md](docs/architecture.md) for the modules, the d
 
 ## Quality
 
-The results of the runs for this commit, on the quick start's machine. Continuous integration (`.github/workflows/ci.yml`) runs these targets too, except for the drill and part of `make checks`, and only when it is dispatched by hand while the repository is private:
+The results of the runs for this commit, on the quick start's machine. Continuous integration (`.github/workflows/ci.yml`) runs these targets too, except for the drill and part of `make checks`. It runs on every push to `main`, on every pull request and by hand, and leaves the emulated cloud out of pull requests:
 
 | What | Command | Result |
 | --- | --- | --- |
-| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 252 tests and 6,750 assertions, in 44 s |
-| Web app, simulator, infrastructure and tooling tests | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 81 web app tests, 121 simulator tests, 193 tests for the CDK app and the functions, cdk-nag included, and 16 for the screenshots' image encoder |
-| Formatters, linters and the documentation | `make lint` | Laravel Pint over 605 files, ESLint and Prettier: clean; in the docs, 338 relative links and 54 anchors resolve, 16 images stay within their size limits, Mermaid draws 13 diagrams, and the cost estimate matches its prices and assumptions |
+| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 252 tests and 6,752 assertions, in 45 s |
+| Web app, simulator, infrastructure and tooling tests | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 86 web app tests, 121 simulator tests, 193 tests for the CDK app and the functions, cdk-nag included, and 16 for the screenshots' image encoder |
+| Formatters, linters and the documentation | `make lint` | Laravel Pint over 605 files, ESLint and Prettier: clean; in the docs, 342 relative links and 54 anchors resolve, 16 images stay within their size limits, Mermaid draws 13 diagrams, and the cost estimate matches its prices and assumptions |
 | Static analysis | `make analyse` | PHPStan level 10 without a baseline, vue-tsc and tsc for the simulator, the CDK app and the functions: no errors |
 | Dependencies, licenses and secrets | `make security` | No high or critical advisory in the six audits; 480 production dependencies, every license compatible with MIT; the 174 third-party files in 8 groups, as NOTICE lists them; gitleaks finds no secret in the history or the changes |
 | Infrastructure as code, offline | `make cdk-check` | 21 stacks across both stages and 3 function packages: cdk-nag (AWS Solutions) with no finding left without a reason, cfn-lint and actionlint clean |
-| An invoice from draft to paid, one in Spanish, and every list, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 8.9 s; an invoice issued in Spanish, with its PDF and its email to the customer in Spanish, in 8.4 s; and the web app's lists at 1440×900, none wider than its box, in 16.3 s in English and 15.6 s in Spanish |
-| Checks against the running stack | `make checks` | Every check passes: the 16 examples on this page, in README.es.md and in the API guide print what the docs say, and both webhook signature examples get 6 of 6 cases right; 60 invoices from 20 processes are numbered without a gap and accepted in 4.55 s; and 40 are accepted once each with the workers and the relay killed mid-chain |
+| An invoice from draft to paid, one in Spanish, and every list, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 9.2 s; an invoice issued in Spanish, with its PDF and its email to the customer in Spanish, in 8.4 s; and the web app's lists at 1440×900, none wider than its box, in 17.1 s in English and 16.1 s in Spanish |
+| Checks against the running stack | `make checks` | Every check passes: the 16 examples on this page, in README.es.md and in the API guide print what the docs say, and both webhook signature examples get 6 of 6 cases right; 60 invoices from 20 processes are numbered without a gap and accepted in 4.56 s; and 40 are accepted once each with the workers and the relay killed mid-chain |
 | The emulated cloud, end to end | `make cloud-check`, `make cloud-e2e`, `make cloud-drill` | Every check passes; their figures are [above](#the-aws-cloud-on-your-machine) |
 
 Known gaps are written down, not hidden: [docs/limitations.md](docs/limitations.md#tests-and-tooling) lists what the tests do not cover.
@@ -249,7 +249,7 @@ Known gaps are written down, not hidden: [docs/limitations.md](docs/limitations.
 | --- | --- |
 | Backend | PHP 8.5, Laravel 13 (API only), FrankenPHP locally and Bref 3 on Lambda, dompdf, bacon-qr-code, AWS SDK for PHP |
 | Web app | Vue 3, TypeScript 6, Vite 8, Pinia, Vue Router, Tailwind CSS 4, shadcn-vue on Reka UI, Unovis |
-| Data and messaging | MySQL 8.4, Redis 7; in the cloud SNS, SQS and DynamoDB; Aurora MySQL Serverless v2 in prod |
+| Data and messaging | MySQL 8.4, Redis 8; in the cloud SNS, SQS and DynamoDB; Aurora MySQL Serverless v2 in prod |
 | DIAN simulator | Node.js and TypeScript, SOAP 1.2, the DIAN toolbox's official XSDs |
 | Infrastructure as code | AWS CDK in TypeScript with cdk-nag, osls 4.8.1, cfn-lint, actionlint, Floci as the emulator |
 | Tests and checks | PHPUnit, Vitest, node:test, Playwright, PHPStan with Larastan, Laravel Pint, ESLint, Prettier, vue-tsc, gitleaks |
@@ -267,7 +267,7 @@ All of it, with the reasons, in [docs/limitations.md](docs/limitations.md).
 
 ## Documentation
 
-[docs/README.md](docs/README.md) indexes every document. To go further than this page: the application's [architecture](docs/architecture.md), the [API guide](docs/api-guide.md), the [DIAN conformance](docs/dian-conformance.md) and the [cost estimate](docs/cost.md); then the limitations, the threat model, the infrastructure, observability, deployment, the runbooks and the third-party licenses.
+[docs/README.md](docs/README.md) indexes every document. To go further than this page: the application's [architecture](docs/architecture.md), the [API guide](docs/api-guide.md), the [DIAN conformance](docs/dian-conformance.md) and the [cost estimate](docs/cost.md); then the limitations, the threat model, the infrastructure, observability, deployment, the runbooks and the third-party licenses. [CHANGELOG.md](CHANGELOG.md) lists what each release brings.
 
 ## Roadmap
 

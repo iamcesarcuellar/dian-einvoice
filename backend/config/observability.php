@@ -1,6 +1,6 @@
 <?php
 
-// The structured logs of the functions (Infrastructure task 5): one JSON object per line with the fields of
+// The structured logs of the functions: one JSON object per line with the fields of
 // resources/observability/log-schema.json (App\Support\Observability\JsonLogFormatter, LOG_STDERR_FORMATTER of
 // the functions), from which the metric filters of the CDK app make the metrics of the application. The local
 // stack keeps the line format of Laravel and logs neither of the lines below: nothing changes there.

@@ -1,6 +1,6 @@
 {
   "AlarmName": "dian-einvoice-prod-dian-error-rate",
-  "AlarmDescription": "More than 20% of the calls to the DIAN in 5 minutes, of 5 or more, got no validation result, for 10 minutes: the DIAN or the way out to it is failing, and the chain waits on its retries. Runbook: docs/runbooks/dian-errors.md",
+  "AlarmDescription": "For 10 minutes, more than 20% of the calls to the DIAN in 5 minutes (5 calls or more) got no validation result: the DIAN, or the way out to it, is failing, and the chain waits on its retries. Runbook: docs/runbooks/dian-errors.md",
   "AWSAccountId": "111111111111",
   "NewStateValue": "ALARM",
   "NewStateReason": "Threshold Crossed: 2 out of the last 2 datapoints [45.0 (20/11/26 20:55:00), 33.3 (20/11/26 20:50:00)] were greater than the threshold (20.0) (minimum 2 datapoints for OK -> ALARM transition).",

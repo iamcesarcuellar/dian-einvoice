@@ -104,7 +104,7 @@ final class RecordDianResponse extends ChainStep
     }
 
     /**
-     * After the commit: the answer of the DIAN, and one line per rule that rejected the document or notified
+     * After the commit: the DIAN's response, and one line per rule that rejected the document or notified
      * something about it, by its id (never the text of the DIAN, which may quote the document).
      *
      * @param  array{accepted: bool, type: string, status_code: string|null, messages: list<array{rule: string|null, kind: string, message: string}>}  $recorded

@@ -1,7 +1,6 @@
 <?php
 
-// The edge in front of the functions (the content delivery network of the emulated cloud and of prod, Infrastructure
-// task 4): every request reaches API Gateway through it, which refuses any other (the origin verifier). Locally there
+// The edge in front of the functions (the content delivery network of the emulated cloud and of prod): every request reaches API Gateway through it, which refuses any other (the origin verifier). Locally there
 // is no edge: the development server of the web app forwards /api and /sanctum to the API.
 return [
     // BEHIND_EDGE of the functions. Behind the edge the application sees the host of API Gateway, which refuses

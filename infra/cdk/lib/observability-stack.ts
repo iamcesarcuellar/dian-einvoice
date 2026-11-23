@@ -1,4 +1,4 @@
-// Observability (Infrastructure task 5), deployed after the functions and the edge, whose log groups, HTTP API and
+// Observability, deployed after the functions and the edge, whose log groups, HTTP API and
 // distribution it reads: the metrics of the application, as metric filters over the structured log lines of the
 // functions (lib/observability.ts); the alarms, few and each with its runbook, which publish every change of state to
 // the topic of the stack alerts; in prod a composite alarm of a degraded service; one operations dashboard; and the
@@ -138,7 +138,7 @@ export class ObservabilityStack extends Stack {
     // longer than every retry of its queue is a chain that stopped.
     for (const channel of ['chain', 'webhooks'] as const) {
       alarm(`${channel}-dead-letters`, {
-        meaning: `A message reached the dead-letter queue of the ${channel} queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it.`,
+        meaning: `A message reached the ${channel} queue's dead-letter queue: a job failed every attempt, or SNS could not deliver an event, and nothing will retry it.`,
         runbook: RUNBOOKS.deadLetters,
         metric: this.queueMetric(`${channel}-dlq`, 'ApproximateNumberOfMessagesVisible', 'Maximum', Duration.minutes(1)),
         threshold: 0,
@@ -146,7 +146,7 @@ export class ObservabilityStack extends Stack {
         evaluationPeriods: 1,
       })
       alarm(`${channel}-queue-age`, {
-        meaning: `The oldest message of the ${channel} queue has waited more than 10 minutes for 5 minutes, longer than any retry of its jobs: its consumer does not take it.`,
+        meaning: `For 5 minutes, the ${channel} queue's oldest message has waited more than 10 minutes, longer than any retry of its jobs: its consumer does not take it.`,
         runbook: RUNBOOKS.queueBacklog,
         metric: this.queueMetric(channel, 'ApproximateAgeOfOldestMessage', 'Maximum', Duration.minutes(1)),
         threshold: 600,
@@ -158,8 +158,8 @@ export class ObservabilityStack extends Stack {
     // The functions: an invocation that failed (a crash, a timeout, a command that exited with an error) or one
     // Lambda refused at the reserved concurrency, in any function.
     for (const [short, metricName, meaning, runbook] of [
-      ['function-errors', 'Errors', 'An invocation of a function failed (a crash, a timeout, a scheduled command that exited with an error): partial batch failures and HTTP errors are not counted here.', RUNBOOKS.functionErrors],
-      ['function-throttles', 'Throttles', 'Lambda refused invocations of a function at its reserved concurrency: requests answered 429 or 503, or messages that wait.', RUNBOOKS.functionThrottles],
+      ['function-errors', 'Errors', 'A function invocation failed (a crash, a timeout, a scheduled command that exited with an error): partial batch failures and HTTP errors are not counted here.', RUNBOOKS.functionErrors],
+      ['function-throttles', 'Throttles', "Lambda refused a function's invocations at its reserved concurrency: requests got 429 or 503, or messages wait.", RUNBOOKS.functionThrottles],
     ] as const) {
       alarm(short, {
         meaning,
@@ -176,9 +176,9 @@ export class ObservabilityStack extends Stack {
       })
     }
 
-    // The API, at API Gateway: answers of the platform that failed, and answers too slow for the objective.
+    // The API, at API Gateway: platform responses that failed, and responses too slow for the objective.
     alarm('api-server-errors', {
-      meaning: 'The API answered 5 or more 5xx in 5 minutes: requests of the web app and of the integrations are failing.',
+      meaning: 'The API returned 5 or more 5xx responses in 5 minutes: requests from the web app and the integrations are failing.',
       runbook: RUNBOOKS.apiErrors,
       metric: this.apiMetric(apiId, '5xx', 'Sum', Duration.minutes(5)),
       threshold: 5,
@@ -186,7 +186,7 @@ export class ObservabilityStack extends Stack {
       evaluationPeriods: 1,
     })
     alarm('api-latency', {
-      meaning: 'The 99th percentile of the time the API takes to answer has been above 2 seconds for 15 minutes, twice the objective.',
+      meaning: "For 15 minutes, the 99th percentile of the API's response time has been above 2 seconds, twice the objective.",
       runbook: RUNBOOKS.apiLatency,
       metric: this.apiMetric(apiId, 'Latency', 'p99', Duration.minutes(5)),
       threshold: 2000,
@@ -205,7 +205,7 @@ export class ObservabilityStack extends Stack {
       treatMissingData: TreatMissingData.BREACHING,
     })
     alarm('outbox-lag', {
-      meaning: 'An outbox event has waited more than 2 minutes to be published for 2 runs of the relay: the topic refuses them, or the relay cannot keep up.',
+      meaning: 'For 2 runs of the relay, an outbox event has waited more than 2 minutes to be published: the topic refuses events, or the relay cannot keep up.',
       runbook: RUNBOOKS.outboxRelay,
       metric: this.applicationMetric('OutboxLag', Duration.minutes(1)),
       threshold: 120,
@@ -215,7 +215,7 @@ export class ObservabilityStack extends Stack {
 
     // The DIAN: the share of calls without a validation result, once there are enough calls to tell.
     alarm('dian-error-rate', {
-      meaning: 'More than 20% of the calls to the DIAN in 5 minutes, of 5 or more, got no validation result, for 10 minutes: the DIAN or the way out to it is failing, and the chain waits on its retries.',
+      meaning: 'For 10 minutes, more than 20% of the calls to the DIAN in 5 minutes (5 calls or more) got no validation result: the DIAN, or the way out to it, is failing, and the chain waits on its retries.',
       runbook: RUNBOOKS.dianErrors,
       metric: new MathExpression({
         expression: 'IF(calls >= 5, 100 * errors / calls, 0)',
@@ -229,7 +229,7 @@ export class ObservabilityStack extends Stack {
     })
 
     alarm('webhook-failures', {
-      meaning: '20 or more webhook deliveries failed in 15 minutes: endpoints of the companies, or the way out of the platform, fail.',
+      meaning: "20 or more webhook deliveries failed in 15 minutes: the companies' endpoints, or the platform's way out, are failing.",
       runbook: RUNBOOKS.webhookFailures,
       metric: this.applicationMetric('WebhookDeliveriesFailed', Duration.minutes(15)),
       threshold: 20,
@@ -238,7 +238,7 @@ export class ObservabilityStack extends Stack {
     })
 
     alarm('origin-verifier-errors', {
-      meaning: 'The origin verifier could not read the secret of the edge: once the values it holds expire, every request through the edge is refused.',
+      meaning: 'The origin verifier could not read the edge secret: once the values it holds expire, every request through the edge is refused.',
       runbook: RUNBOOKS.originVerifier,
       metric: this.applicationMetric('OriginVerifierFailures', Duration.minutes(1)),
       threshold: 1,
@@ -249,7 +249,7 @@ export class ObservabilityStack extends Stack {
     // The notifier: a notification it could not deliver. This one also goes to the fallback topic, whose email does
     // not depend on the notifier.
     alarm('notifier-failures', {
-      meaning: 'The notifier could not deliver a notification of an alarm to the chat: it waits in its dead-letter queue, and the chat misses alarms.',
+      meaning: 'The notifier could not deliver an alarm notification to the chat: it waits in its dead-letter queue, and the chat misses alarms.',
       runbook: RUNBOOKS.notifier,
       metric: this.queueMetric('notifier-dlq', 'ApproximateNumberOfMessagesVisible', 'Maximum', Duration.minutes(1)),
       threshold: 0,
@@ -263,7 +263,7 @@ export class ObservabilityStack extends Stack {
     if (managed !== null) {
       const cluster = resourceName(stage, 'database')
       alarm('database-capacity', {
-        meaning: `The database has used more than ${(managed.maxCapacity * 0.875).toFixed(1)} of its ${managed.maxCapacity} ACU for 15 minutes: it is about to stop growing, and max_connections is tied to its maximum.`,
+        meaning: `For 15 minutes, the database has used more than ${(managed.maxCapacity * 0.875).toFixed(1)} of its ${managed.maxCapacity} ACU: it is about to stop growing, and max_connections is tied to its maximum.`,
         runbook: RUNBOOKS.database,
         metric: this.databaseMetric(cluster, 'ServerlessDatabaseCapacity', 'Maximum', Duration.minutes(5)),
         threshold: managed.maxCapacity * 0.875,
@@ -271,7 +271,7 @@ export class ObservabilityStack extends Stack {
         evaluationPeriods: 3,
       })
       alarm('database-connections', {
-        meaning: `The database has held more than 80% of its ${DATABASE_CONNECTIONS_AT_MAX} connections for 5 minutes: new connections of the functions, of the rotation functions and of the operators are about to be refused.`,
+        meaning: `For 5 minutes, the database has held more than 80% of its ${DATABASE_CONNECTIONS_AT_MAX} connections: new connections from the functions, the rotation functions and the operators are about to be refused.`,
         runbook: RUNBOOKS.database,
         metric: this.databaseMetric(cluster, 'DatabaseConnections', 'Maximum', Duration.minutes(1)),
         threshold: Math.floor(DATABASE_CONNECTIONS_AT_MAX * 0.8),

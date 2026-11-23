@@ -282,7 +282,7 @@ for (const stage of ['local', 'prod'] as const) {
 
         // Lambda refuses a mapping whose queue hides a message for less than the function may run; AWS
         // recommends six times that (and the batching window), so a batch retried after a throttle is not
-        // received twice. The stage local keeps the minimum, so a message a killed function held comes back
+        // received twice. The local stage keeps the minimum, so a message a killed function held comes back
         // soon (docs/limitations.md).
         const queue = Object.values(queues).find((candidate) => candidate.Properties.QueueName === `dian-einvoice-${stage}-${channel}`)
         const visibility = Number(queue?.Properties.VisibilityTimeout)

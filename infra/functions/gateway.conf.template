@@ -1,6 +1,6 @@
 # The edge of the emulated cloud as a browser reaches it (compose service cloud-gateway): 127.0.0.1:8601, the web app
 # and the API on one origin, as in production, and 127.0.0.1:8600, the address of the API, through the same edge. The
-# emulator serves the CloudFront distribution of the stage local by its host name (<id>.cloudfront.localhost.floci.io)
+# emulator serves the CloudFront distribution of the local stage by its host name (<id>.cloudfront.localhost.floci.io)
 # and runs no CloudFront Function, so this proxy does only what the emulator does not: it gives each request that
 # host name, and rewrites the routes of the web app to /index.html as the function of the default behaviour does
 # (infra/cdk/edge/panel-routes.js; make cloud-check runs the same cases, infra/cdk/edge/panel-routes.cases.json,

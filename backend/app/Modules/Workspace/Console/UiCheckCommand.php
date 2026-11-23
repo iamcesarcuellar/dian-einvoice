@@ -85,7 +85,7 @@ final class UiCheckCommand extends Command
     {
         $csrf = $this->http()->get($this->origin.'/sanctum/csrf-cookie');
 
-        if (! $this->check($csrf->status() === 204 && $this->xsrfToken() !== null, 'GET /sanctum/csrf-cookie sets the XSRF-TOKEN cookie', "GET /sanctum/csrf-cookie answered {$csrf->status()}".($this->xsrfToken() === null ? ' without an XSRF-TOKEN cookie' : ''))) {
+        if (! $this->check($csrf->status() === 204 && $this->xsrfToken() !== null, 'GET /sanctum/csrf-cookie sets the XSRF-TOKEN cookie', "GET /sanctum/csrf-cookie returned {$csrf->status()}".($this->xsrfToken() === null ? ' without an XSRF-TOKEN cookie' : ''))) {
             return;
         }
 
@@ -100,7 +100,7 @@ final class UiCheckCommand extends Command
         $me = $this->http()->get($this->api.'/auth/me');
         $company = collect(Json::objects($me->json(), 'data.companies'))->firstWhere('name', self::COMPANY);
 
-        if (! $this->check($me->status() === 200 && is_array($company), 'GET /auth/me lists '.self::COMPANY, 'GET /auth/me answered '.$me->status().' without '.self::COMPANY.': run make demo first')) {
+        if (! $this->check($me->status() === 200 && is_array($company), 'GET /auth/me lists '.self::COMPANY, 'GET /auth/me returned '.$me->status().' without '.self::COMPANY.': run make demo first')) {
             return;
         }
 

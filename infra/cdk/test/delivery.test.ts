@@ -1,4 +1,4 @@
-// The delivery of prod (Infrastructure task 6), on the synthesized templates and the templates osls packaged, never
+// The delivery of prod, on the synthesized templates and the templates osls packaged, never
 // deployed: the repository of the image of the functions (immutable tags, scan on push, lifecycle, encryption), the
 // role of the deployment workflow (trusted through OpenID Connect by exactly one environment of one repository, an
 // hour at most, no administrator and no wildcard without its reason), the reuse of a provider the account already

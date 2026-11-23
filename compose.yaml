@@ -169,7 +169,7 @@ services:
   # none, so nothing leaves this machine. Web interface and API on 127.0.0.1:8603; SMTP (1025) only
   # on the internal network.
   mail:
-    image: axllent/mailpit:v1.33.0
+    image: axllent/mailpit:v1.34.0
     restart: "no"
     mem_limit: 128m
     environment:
@@ -234,7 +234,7 @@ services:
   # Optional (profile security), only through make security: the secret scan of the git history and of
   # the changes not committed yet, read-only, with the rules of .gitleaks.toml.
   gitleaks:
-    image: ghcr.io/gitleaks/gitleaks:v8.28.0
+    image: ghcr.io/gitleaks/gitleaks:v8.30.1
     profiles: ["security"]
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart: "no"
@@ -346,7 +346,7 @@ services:
       - ./docs:/workspace/docs:ro
       - ./frontend/index.html:/workspace/frontend/index.html:ro
 
-  # The same, on the network of the stack: cdk bootstrap and cdk deploy of the stage local to the emulator
+  # The same, on the network of the stack: cdk bootstrap and cdk deploy of the local stage to the emulator
   # (make cloud-up), which takes any credentials.
   cdk-deploy:
     image: dian-einvoice-cdk:latest
@@ -409,10 +409,10 @@ services:
       - ./Makefile:/workspace/Makefile:ro
       - ./scripts:/workspace/scripts:ro
 
-  # The same, on the network of the stack: osls deploy of the stage local to the emulator, and the scripts
+  # The same, on the network of the stack: osls deploy of the local stage to the emulator, and the scripts
   # that invoke the console function and read the functions, upload the web app to the edge and check it (make
   # cloud-up, make cloud-check). The admin token of the DIAN simulator (backend/.env) is given to the functions
-  # of the stage local. Read-only: the web app (its build, frontend/dist), the paths and security headers of the
+  # of the local stage. Read-only: the web app (its build, frontend/dist), the paths and security headers of the
   # edge, and the cases of the routes of the web app.
   functions-deploy:
     image: dian-einvoice-functions:latest
@@ -489,7 +489,7 @@ services:
   # network (make cdk-check): the deployment workflow is validated here and never run. Read-only: the repository, whose
   # root it finds by its .git.
   actionlint:
-    image: rhysd/actionlint:1.7.7
+    image: rhysd/actionlint:1.7.12
     profiles: ["tools"]
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart: "no"
@@ -524,7 +524,7 @@ services:
   # does (infra/functions/gateway.conf.template). make cloud-up writes the id of the distribution it deployed and
   # the paths of the API to infra/functions/.env.cloud. Every request goes through the distribution.
   cloud-gateway:
-    image: nginx:1.30.6-alpine-slim
+    image: nginx:1.31.9-alpine-slim
     profiles: ["cloud"]
     restart: "no"
     mem_limit: 32m
@@ -573,7 +573,7 @@ services:
   # Queue, cache and sessions. Append-only file, so queued jobs survive a restart. No published port, and
   # a password (REDIS_PASSWORD of backend/.env): it does not start without one.
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     restart: "no"
     mem_limit: 128m
     environment:

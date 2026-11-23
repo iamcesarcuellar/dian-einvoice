@@ -8,9 +8,16 @@ namespace App\Modules\Billing\Enums;
  */
 enum DocumentEventType: string
 {
+    /** The draft was created. */
     case Created = 'created';
+
+    /** Issued: numbered and final. Payload: number, full_number, cufe (the CUFE or CUDE) and, for a note, related_number. */
     case Issued = 'issued';
+
+    /** The UBL XML was generated; payload: run. */
     case XmlGenerated = 'xml_generated';
+
+    /** The XML was signed; payload: run, certificate_serial, test_certificate, sha256 and size. */
     case XmlSigned = 'xml_signed';
 
     /**
@@ -35,7 +42,7 @@ enum DocumentEventType: string
     /** Accepted by the local simulator; payload: status_code and notifications. */
     case Accepted = 'accepted';
 
-    /** Rejected by the rules of the local simulator; payload: status_code and rules. */
+    /** Rejected by the local simulator's rules; payload: status_code and rules. */
     case Rejected = 'rejected';
 
     /** Every transmission attempt failed; payload: attempts and reason. */

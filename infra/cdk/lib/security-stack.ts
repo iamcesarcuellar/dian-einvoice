@@ -23,7 +23,7 @@ export class SecurityStack extends Stack {
   readonly signingKey: Key
   readonly appSecret: Secret
   readonly originSecret: Secret
-  // The identities of the database where no stack database holds them (the stage local).
+  // The identities of the database where no stack database holds them (the local stage).
   readonly databaseIdentities: DatabaseIdentities | null
 
   constructor(scope: Construct, id: string, props: SecurityStackProps) {

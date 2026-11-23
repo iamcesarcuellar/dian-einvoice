@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * A scheduled task of the scheduler function: notes in the shared cache when the scheduler last ran, so
- * make cloud-check (and the alarms of Infrastructure task 5) can tell that it runs.
+ * make cloud-check (and the alarms of the observability stack) can tell that it runs.
  */
 final class SchedulerHeartbeat
 {

@@ -184,7 +184,7 @@ final class StressNumberingCommand extends Command
     /** Waits until every issued invoice reaches a final state, or the timeout, and reports. */
     private function reportChain(int $count, int $started, int $timeout): bool
     {
-        $this->line('Waiting for the chain: XML, signature, transmission to the local DIAN simulator and its answer...');
+        $this->line('Waiting for the chain: XML, signature, transmission to the local DIAN simulator and its response...');
 
         $deadline = $started + $timeout * 1_000_000_000;
 

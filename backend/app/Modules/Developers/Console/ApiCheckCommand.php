@@ -70,7 +70,7 @@ final class ApiCheckCommand extends Command
                 'description' => 'make api-check',
             ], $temporary->user);
 
-            $this->line(sprintf('Setup, outside HTTP: temporary company %s, a read_write and a read_only API key, and a subscription of the local webhook receiver to every event (%s).', $temporary->company->name, $subscription->url));
+            $this->line(sprintf('Setup, outside HTTP: temporary company %s, a read_write and a read_only API key, and the local webhook receiver subscribed to every event (%s).', $temporary->company->name, $subscription->url));
             $this->line("Every step below is an HTTP request to {$this->base} with an API key.");
             $this->newLine();
 
@@ -147,7 +147,7 @@ final class ApiCheckCommand extends Command
         $again = $this->api($write)->withHeaders([HandleIdempotency::HEADER => $key])->post("/invoices/{$firstId}/issue");
         $this->check(
             $again->status() === $issued->status() && $again->body() === $issued->body() && $again->header(HandleIdempotency::REPLAYED) === 'true',
-            sprintf('the same key again answers the same %d with the same body and %s: true', $again->status(), HandleIdempotency::REPLAYED),
+            sprintf('the same key again returns the same %d with the same body and %s: true', $again->status(), HandleIdempotency::REPLAYED),
             sprintf('got %d, %s: %s, same body: %s', $again->status(), HandleIdempotency::REPLAYED, $again->header(HandleIdempotency::REPLAYED) ?: 'missing', $again->body() === $issued->body() ? 'yes' : 'no'),
         );
         $total = Json::int($this->api($read)->get('/invoices')->json(), 'meta.total') ?? 0;
@@ -155,7 +155,7 @@ final class ApiCheckCommand extends Command
 
         // 3. The same key with another body.
         $other = $this->api($write)->withHeaders([HandleIdempotency::HEADER => $key])->post("/invoices/{$firstId}/issue", ['notes' => 'Another body']);
-        $this->expect($other, 422, 'the same key with another body answers 422');
+        $this->expect($other, 422, 'the same key with another body returns 422');
         $this->detail(Json::text($other->json(), 'detail') ?? '');
 
         // 4. Ten issues of another draft at the same moment, with one key.
@@ -180,8 +180,8 @@ final class ApiCheckCommand extends Command
 
         $this->check(
             $ran === 1 && $other === 0,
-            "10 simultaneous issues with one key: it ran once ({$ran} executed, {$inProgress} answered 409 in progress, {$replayed} replayed)",
-            "{$ran} executed, {$inProgress} answered 409, {$replayed} replayed, {$other} other answers",
+            "10 simultaneous issues with one key: it ran once ({$ran} executed, {$inProgress} returned 409 in progress, {$replayed} replayed)",
+            "{$ran} executed, {$inProgress} returned 409, {$replayed} replayed, {$other} other responses",
         );
 
         $secondInvoice = Json::array($this->api($read)->get("/invoices/{$secondId}")->json(), 'data');
@@ -197,7 +197,7 @@ final class ApiCheckCommand extends Command
 
         // 5. A read-only key cannot write.
         $denied = $this->api($read)->post('/contacts', ['legal_name' => 'Should not exist']);
-        $this->expect($denied, 403, 'a POST with the read_only key answers 403');
+        $this->expect($denied, 403, 'a POST with the read_only key returns 403');
         $this->detail(Json::text($denied->json(), 'detail') ?? '');
 
         // 6. The webhooks of the first invoice, with a valid signature.
@@ -235,7 +235,7 @@ final class ApiCheckCommand extends Command
             ->doesntExist() ?: null, self::WEBHOOK_TIMEOUT);
 
         $receiver->setMode($companyId, ['mode' => 'error_500', 'count' => 2]);
-        $this->detail('local receiver set to answer HTTP 500 to the next 2 deliveries');
+        $this->detail('local receiver set to respond with HTTP 500 to the next 2 deliveries');
 
         $payment = $this->expect($this->api($write)->withHeaders([HandleIdempotency::HEADER => (string) Str::uuid()])->post('/payments', [
             'contact_id' => $contact['id'],
@@ -259,8 +259,8 @@ final class ApiCheckCommand extends Command
         $sameId = count(array_unique(array_filter(array_map(fn (array $hook): ?string => Json::text($hook, 'webhook_id'), $hooks), is_string(...)))) === 1;
         $this->check(
             $codes === ['500', '500', '200'] && ($last['verified'] ?? false) === true && $sameId,
-            'payment.recorded arrived after the retries, with a valid signature: the receiver answered '.implode(', ', $codes).' to the same webhook-id',
-            'the receiver answered '.($codes === [] ? 'nothing' : implode(', ', $codes)).($sameId ? '' : ' with different webhook-ids'),
+            'payment.recorded arrived after the retries, with a valid signature: the receiver responded '.implode(', ', $codes).' to the same webhook-id',
+            'the receiver responded '.($codes === [] ? 'nothing' : implode(', ', $codes)).($sameId ? '' : ' with different webhook-ids'),
         );
 
         $attempts = WebhookAttempt::query()->withoutGlobalScope(CompanyScope::class)
@@ -291,7 +291,7 @@ final class ApiCheckCommand extends Command
 
         $this->check(
             $limited !== null && (int) $limited->header('Retry-After') > 0 && $limited->header('X-RateLimit-Remaining') === '0',
-            sprintf('above the limit the API answers 429 with Retry-After: %s s (X-RateLimit-Limit %s, X-RateLimit-Remaining %s) after %d more requests', $limited?->header('Retry-After'), $limited?->header('X-RateLimit-Limit'), $limited?->header('X-RateLimit-Remaining'), $sent),
+            sprintf('above the limit the API returns 429 with Retry-After: %s s (X-RateLimit-Limit %s, X-RateLimit-Remaining %s) after %d more requests', $limited?->header('Retry-After'), $limited?->header('X-RateLimit-Limit'), $limited?->header('X-RateLimit-Remaining'), $sent),
             $limited === null ? "no 429 after {$sent} requests" : 'the 429 lacks Retry-After or the limit headers',
         );
 
@@ -319,7 +319,7 @@ final class ApiCheckCommand extends Command
      */
     private function id(array $resource): string
     {
-        return Json::text($resource, 'id') ?? throw new RuntimeException('The answer has no id.');
+        return Json::text($resource, 'id') ?? throw new RuntimeException('The response has no id.');
     }
 
     private function api(string $key): PendingRequest

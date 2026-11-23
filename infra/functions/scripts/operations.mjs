@@ -1,5 +1,5 @@
 // The operation commands of the runbooks (docs/runbooks/) that act on AWS rather than on the application, against the
-// stage of STAGE: the emulator for make (stage local); a real account takes the AWS CLI commands each runbook gives next
+// stage of STAGE: the emulator for make (the local stage); a real account takes the AWS CLI commands each runbook gives next
 // to them. Each one says what it did, never the body of a message or the value of a secret.
 //
 //   node scripts/operations.mjs dead-letters <chain|webhooks|notifier>
@@ -22,7 +22,7 @@
 //   node scripts/operations.mjs chat-webhook <url>
 //       a new address of the chat webhook of the notifier
 //   node scripts/operations.mjs rotate-migrations
-//       a new password in the secret of the migrations identity of the stage local, which make then sets on the user, as
+//       a new password in the secret of the migrations identity of the local stage, which make then sets on the user, as
 //       the single-user rotation of AWS does
 import { randomInt } from 'node:crypto'
 import { CloudWatchLogsClient, DescribeLogGroupsCommand, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs'
@@ -164,7 +164,7 @@ async function redrive(name) {
 async function purgeNotifier() {
   const dlq = await queue('notifier-dlq')
   await sqs.send(new PurgeQueueCommand({ QueueUrl: dlq.url }))
-  process.stdout.write(`Emptied ${PREFIX}-notifier-dlq (${dlq.visible + dlq.inFlight} notifications); the alarms of the stage say their current state (make cloud-alarms).\n`)
+  process.stdout.write(`Emptied ${PREFIX}-notifier-dlq (${dlq.visible + dlq.inFlight} notifications); the stage's alarms say their current state (make cloud-alarms).\n`)
 }
 
 async function errors(only, minutes) {
@@ -172,7 +172,7 @@ async function errors(only, minutes) {
   const since = Date.now() - minutes * 60_000
   const functions = only === undefined || only === 'all' ? FUNCTIONS : [only]
   const groups = new Set(((await logs.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: `/aws/lambda/${PREFIX}-` }))).logGroups ?? []).map((group) => group.logGroupName))
-  process.stdout.write(`Lines of error of the functions of ${STAGE} in the last ${minutes} minutes (level error or worse), worst first:\n`)
+  process.stdout.write(`The error lines of the ${STAGE} stage's functions in the last ${minutes} minutes (level error or worse), worst first:\n`)
   const rows = []
 
   for (const fn of functions) {
@@ -264,12 +264,12 @@ async function chatWebhook(url) {
   }
 
   await new SecretsManagerClient({}).send(new PutSecretValueCommand({ SecretId: `dian-einvoice/${STAGE}/alerts/chat-webhook`, SecretString: JSON.stringify({ url }) }))
-  process.stdout.write(`A new address of the chat webhook in dian-einvoice/${STAGE}/alerts/chat-webhook (to ${new URL(url).host}); the notifier reads it within 5 minutes.\n`)
+  process.stdout.write(`A new chat webhook address in dian-einvoice/${STAGE}/alerts/chat-webhook (to ${new URL(url).host}); the notifier reads it within 5 minutes.\n`)
 }
 
 async function rotateMigrations() {
   if (STAGE !== 'local') {
-    process.stderr.write('In AWS the rotation function of the secret does this: aws secretsmanager rotate-secret (docs/runbooks/rotate-secrets.md).\n')
+    process.stderr.write("In AWS the secret's rotation function does this: aws secretsmanager rotate-secret (docs/runbooks/rotate-secrets.md).\n")
     process.exit(2)
   }
 

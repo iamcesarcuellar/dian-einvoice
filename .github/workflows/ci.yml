@@ -4,16 +4,19 @@
 # env writes to backend/.env on each runner. Artifacts are uploaded only when a job fails, and kept for 3 days.
 name: CI
 
-# While the repository is private, CI runs only when dispatched by hand: its automatic triggers (push and
-# pull_request) are restored when the repository is public.
+# On every push to main, on every pull request, and by hand. A newer run of the same branch or pull request cancels
+# the one still running.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -26,7 +29,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: api web simulator-dev cdk functions
@@ -42,7 +45,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: api simulator
@@ -55,7 +58,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: web
@@ -68,7 +71,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: simulator-dev
@@ -80,7 +83,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: cdk functions cfn-lint
@@ -88,7 +91,7 @@ jobs:
         run: make cdk-check
       - name: Report of cdk-nag
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cdk-nag-report
           path: infra/cdk/cdk.out/validation-report.json
@@ -101,7 +104,7 @@ jobs:
     timeout-minutes: 15
     steps:
       # The whole history, for the secret scan.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/prepare
@@ -117,7 +120,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # worker and relay are built from the image of api, so its cache serves them too.
       - uses: ./.github/actions/prepare
         with:
@@ -143,25 +146,25 @@ jobs:
         run: docker compose --env-file backend/.env logs --no-color --tail=300
       - name: Traces of the end-to-end test
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-test-results
           path: e2e/test-results
           if-no-files-found: ignore
           retention-days: 3
 
-  # On main only: the emulated cloud end to end, where the application runs as Lambda functions behind the edge.
-  # The local AWS emulator with the Docker socket of the runner, the CDK stage local, the functions and the edge
-  # deployed to it, the web app built and uploaded to its bucket, the edge checked and the invoices through it,
-  # CloudFront, API Gateway, Lambda, SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager (make cloud-check), and
-  # the end-to-end test in a browser under the Content-Security-Policy of the web app (make cloud-e2e).
+  # On main and by hand, never on a pull request: the emulated cloud end to end, where the application runs as Lambda
+  # functions behind the edge. The local AWS emulator with the Docker socket of the runner, the CDK app's local stage,
+  # the functions and the edge deployed to it, the web app built and uploaded to its bucket, the edge checked and the
+  # invoices through it, CloudFront, API Gateway, Lambda, SNS, SQS, S3, SES, DynamoDB, KMS and Secrets Manager (make
+  # cloud-check), and the end-to-end test in a browser under the Content-Security-Policy of the web app (make cloud-e2e).
   cloud:
     name: Emulated cloud
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
         with:
           images: web simulator cdk functions lambda
@@ -174,7 +177,7 @@ jobs:
         run: make cloud-e2e
       - name: Traces of the end-to-end test against the edge
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cloud-e2e-test-results
           path: e2e/test-results

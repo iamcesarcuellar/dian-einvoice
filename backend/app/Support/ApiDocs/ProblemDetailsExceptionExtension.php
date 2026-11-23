@@ -56,7 +56,7 @@ final class ProblemDetailsExceptionExtension extends ExceptionToResponseExtensio
         409 => 'Conflict with the current state',
         422 => 'Validation failed',
         429 => 'Too many requests',
-        503 => 'A local service is not answering',
+        503 => 'A local service is not responding',
     ];
 
     public function shouldHandle(Type $type): bool

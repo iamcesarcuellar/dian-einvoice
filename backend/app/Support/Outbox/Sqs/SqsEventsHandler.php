@@ -20,7 +20,7 @@ use LogicException;
  * SQS messages and answers which of them failed (partial batch response, ReportBatchItemFailures), so a
  * message that fails never drags the others back to the queue.
  *
- * Each record becomes the job of task 1 (SqsEventsQueue::jobFor, the same mapping and handlers), run by
+ * Each record becomes the job of the queue driver sqs-events (SqsEventsQueue::jobFor, the same mapping and handlers), run by
  * Laravel's queue worker one after another:
  *  - a job that succeeds, or fails for good on its own, deletes its message: not reported;
  *  - a job that throws is released with the wait of its backoff (ChangeMessageVisibility) and reported, so
@@ -38,7 +38,7 @@ use LogicException;
  */
 final class SqsEventsHandler extends SqsHandler
 {
-    /** Seconds kept besides the timeout of a job: the end of the job and the answer of the invocation. */
+    /** Seconds kept besides the timeout of a job: the end of the job and the invocation's response. */
     public const int MARGIN_SECONDS = 3;
 
     /** Timeout of a job that declares none, as the queue workers of the local stack use. */

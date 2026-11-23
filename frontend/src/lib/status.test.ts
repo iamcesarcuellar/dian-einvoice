@@ -43,7 +43,7 @@ describe('status labels', () => {
     expect(label(domain, shown)).toMatch(/\S/)
   })
 
-  it('shows the four steps before the answer of the DIAN as processing', () => {
+  it("shows the four steps before the DIAN's response as processing", () => {
     expect(['pending', 'generated', 'signed', 'sending'].map((status) => electronicGroup(status as ElectronicStatus))).toEqual([
       'processing',
       'processing',

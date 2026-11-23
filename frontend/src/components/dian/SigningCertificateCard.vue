@@ -95,7 +95,7 @@ function askRemove(): void {
           </Badge>
         </div>
 
-        <dl class="grid gap-3 sm:grid-cols-2">
+        <dl class="grid items-start gap-3 sm:grid-cols-2">
           <div class="grid min-w-0 gap-0.5 sm:col-span-2">
             <dt class="text-xs text-muted-foreground">{{ t('settings.dian.certificate.subject') }}</dt>
             <dd class="break-words">{{ certificate.subject }}</dd>

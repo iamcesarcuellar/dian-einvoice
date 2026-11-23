@@ -1,9 +1,9 @@
 // The edge of the emulated cloud (make cloud-up, make cloud-check):
 //
-//   node scripts/edge.mjs origin-secret   prints the current value of the secret of the edge of the stage local, the
+//   node scripts/edge.mjs origin-secret   prints the current value of the secret of the edge of the local stage, the
 //                                         parameter of the deployment of the stack edge (the emulator expands no
 //                                         dynamic reference outside RDS); make cloud-up pipes it, never prints it
-//   node scripts/edge.mjs reconcile       gives the distribution of the stage local the settings of its behaviours as
+//   node scripts/edge.mjs reconcile       gives the distribution of the local stage the settings of its behaviours as
 //                                         the deployed template declares them, which the CloudFormation of the
 //                                         emulator drops (docs/limitations.md): the methods each behaviour allows and
 //                                         caches, its cache and origin request policies and its functions. A
@@ -101,7 +101,7 @@ async function reconcile() {
   const endpoint = process.env.AWS_ENDPOINT_URL ?? ''
 
   if (!/^http:\/\/floci:4566\/?$/.test(endpoint)) {
-    process.stderr.write('edge.mjs reconcile works around the CloudFormation of the local emulator only; AWS_ENDPOINT_URL is not the emulator.\n')
+    process.stderr.write("edge.mjs reconcile works around the local emulator's CloudFormation only; AWS_ENDPOINT_URL is not the emulator.\n")
     process.exit(2)
   }
 
@@ -138,7 +138,7 @@ async function reconcile() {
 
   if (applied.length > 0) {
     await cloudfront.send(new UpdateDistributionCommand({ Id: id, IfMatch: etag, DistributionConfig: config }))
-    process.stdout.write(`Gave the distribution ${id} what the CloudFormation of the emulator dropped from its template (docs/limitations.md):\n`)
+    process.stdout.write(`Gave the distribution ${id} what the emulator's CloudFormation dropped from its template (docs/limitations.md):\n`)
 
     for (const [path, missing] of applied) {
       process.stdout.write(`   ${path}: ${missing.join(', ')}\n`)
@@ -158,7 +158,7 @@ async function reconcile() {
   }
 
   process.stdout.write([
-    `Nothing to apply: the distribution ${id}, as CloudFormation deployed it, already holds every setting of the behaviours of its template.`,
+    `Nothing to apply: the distribution ${id}, as CloudFormation deployed it, already holds every behaviour setting of its template.`,
     'The emulator no longer drops them: this workaround (edge.mjs reconcile in make cloud-up) can be retired, with its note in docs/limitations.md.',
     '',
   ].join('\n'))

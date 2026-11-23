@@ -17,6 +17,9 @@ use Illuminate\Http\Response;
  */
 final class TaxController
 {
+    /**
+     * List taxes.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Tax::query()->orderBy('dian_code')->orderByDesc('rate')->orderBy('name');
@@ -24,6 +27,11 @@ final class TaxController
         return TaxResource::collection(Listing::paginate($query, $request, ['name']));
     }
 
+    /**
+     * Create a tax.
+     *
+     * Owners and admins, in the web app; API keys get 403.
+     */
     public function store(TaxRequest $request): JsonResponse
     {
         $tax = Tax::create($request->validated());
@@ -31,11 +39,19 @@ final class TaxController
         return TaxResource::make($tax)->response()->setStatusCode(201);
     }
 
+    /**
+     * Show a tax.
+     */
     public function show(Tax $tax): TaxResource
     {
         return TaxResource::make($tax);
     }
 
+    /**
+     * Update a tax.
+     *
+     * Owners and admins, in the web app; API keys get 403.
+     */
     public function update(TaxRequest $request, Tax $tax): TaxResource
     {
         $tax->update($request->validated());
@@ -44,7 +60,10 @@ final class TaxController
     }
 
     /**
-     * Delete a tax that no item uses. Defaults cannot be deleted.
+     * Delete a tax.
+     *
+     * Only a tax that no item uses; the defaults cannot be deleted. Owners and admins, in the web
+     * app; API keys get 403.
      */
     public function destroy(Tax $tax): Response
     {

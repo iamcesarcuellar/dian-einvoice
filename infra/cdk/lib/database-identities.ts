@@ -3,7 +3,7 @@
 //    one (php artisan db:application-identity). In prod it is the master user of the cluster.
 //  - application: reads and writes data and nothing of the schema. Every other function uses it.
 // In prod they live in the stack database, next to the cluster whose rotation functions change them; in the
-// stage local, which has no managed database, in the stack security, for the MySQL of compose, where make
+// local stage, which has no managed database, in the stack security, for the MySQL of compose, where make
 // cloud-up creates the migrations user and the console function the application user. The secrets use the
 // format of Amazon RDS (username, password, dbname, and in prod host, port and engine once attached to the
 // cluster); in prod the application one names the migrations one as its masterarn, the superuser the rotation

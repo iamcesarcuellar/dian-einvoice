@@ -12,7 +12,7 @@ import { DOCUMENT_RESOURCES } from '@/lib/documents'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 
-/** Shows the ApplicationResponse of the last answer of the local DIAN simulator. */
+/** Shows the ApplicationResponse of the local DIAN simulator's last response. */
 const props = defineProps<{
   invoice: Invoice
 }>()

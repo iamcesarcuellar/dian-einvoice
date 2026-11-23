@@ -65,7 +65,7 @@ final class OperationCommandsTest extends IntegrationTestCase
         $this->assertSame(0, Artisan::call('webhooks:status'));
         $output = Artisan::output();
         $this->assertStringContainsString("{$subscription->id} of the company {$company->company->id}, to hooks.synthetic-customer.example: active, 7 failures in a row", $output);
-        $this->assertStringContainsString('the last answer HTTP 503', $output);
+        $this->assertStringContainsString('the last response HTTP 503', $output);
         $this->assertStringNotContainsString('secret-path-token', $output);
     }
 
@@ -80,13 +80,13 @@ final class OperationCommandsTest extends IntegrationTestCase
     public function test_the_probe_of_the_dian_tells_whether_its_web_service_answers(): void
     {
         $this->assertSame(0, Artisan::call('dian:probe'));
-        $this->assertStringContainsString('answered GetStatus', Artisan::output());
+        $this->assertStringContainsString('responded to GetStatus', Artisan::output());
 
         $this->simulator()->setMode('*', ['mode' => 'error_500']);
 
         try {
             $this->assertSame(1, Artisan::call('dian:probe'));
-            $this->assertStringContainsString('did not answer GetStatus', Artisan::output());
+            $this->assertStringContainsString('did not respond to GetStatus', Artisan::output());
         } finally {
             $this->simulator()->setMode('*', ['mode' => 'normal']);
         }

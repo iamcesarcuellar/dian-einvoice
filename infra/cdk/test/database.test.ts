@@ -1,9 +1,9 @@
-// Assertions on the stack database of the stage prod as synthesized (never deployed, not even to the emulator):
+// Assertions on the stack database of the prod stage as synthesized (never deployed, not even to the emulator):
 // Aurora MySQL 8.4 Serverless v2 in the isolated subnets and never public; encrypted with a rotating key of its
 // own, protected against deletion, kept with the stack, backed up, with a maintenance window and its logs; TLS
 // required; more connections than the functions hold plus a margin, tied to the template of the functions as
 // osls packaged it; and the two identities of the application with their secrets and the rotation functions
-// of AWS. Then the identities of the stage local, which has no managed database.
+// of AWS. Then the identities of the local stage, which has no managed database.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { AURORA_MYSQL_MAX_CONNECTIONS, CONNECTION_MARGIN, DATABASE_LOGS, maxConnections, type DatabaseStack } from '../lib/database-stack.ts'
@@ -38,7 +38,7 @@ function inNetwork(reference: unknown): string {
   return value.Ref ?? value['Fn::GetAtt']?.[0] ?? ''
 }
 
-describe('database of the stage prod', () => {
+describe('database of the prod stage', () => {
   const [clusterId, cluster] = only('AWS::RDS::DBCluster')
 
   it('is Aurora MySQL 8.4 Serverless v2, with the capacity of the stage, in the isolated subnets and never public', () => {
@@ -200,7 +200,7 @@ describe('database of the stage prod', () => {
   })
 })
 
-describe('database identities of the stage local', () => {
+describe('database identities of the local stage', () => {
   const local = stageOf('local')
   const security = template(local.security)
 

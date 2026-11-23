@@ -1,4 +1,4 @@
-# The AWS CDK app and its command line, for the stages local (deployed to the local AWS emulator) and prod
+# The AWS CDK app and its command line, for the local stage (deployed to the local AWS emulator) and the prod stage
 # (synthesized and validated, never deployed). Node LTS runs the TypeScript sources directly (type stripping,
 # no build step). The dependencies are installed one level up, in /workspace/node_modules, where Node, the
 # CDK CLI and the npm scripts find them from the sources mounted at /workspace/cdk, so the mount neither hides

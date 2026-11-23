@@ -1,6 +1,6 @@
 // The checks of make cloud-check (scripts/cloud-check.sh) that read the local AWS emulator itself:
 //
-//   node scripts/cloud-check.mjs resources   every function, mapping, route and schedule of the stage local exists
+//   node scripts/cloud-check.mjs resources   every function, mapping, route and schedule of the local stage exists
 //                                            for real, as its template declares it (the emulator could have
 //                                            accepted a resource it does not create), and each function connects
 //                                            to the database as its identity, over TLS
@@ -128,7 +128,7 @@ async function resources() {
       && String(integration.IntegrationUri).includes(`function:dian-einvoice-${STAGE}-api`)
       && routes[0].AuthorizationType === 'CUSTOM' && authorizer?.AuthorizerType === 'REQUEST' && authorizer.EnableSimpleResponses === true && authorizer.AuthorizerResultTtlInSeconds === 300
       && String(authorizer.AuthorizerUri).includes(`function:dian-einvoice-${STAGE}-origin-verifier`) && (authorizer.IdentitySource ?? []).includes('$request.header.X-Origin-Verify'),
-    `API Gateway ${apiId}: route ${routes.map((route) => route.RouteKey).join(', ')} to the function api (${integration?.IntegrationType}, payload ${integration?.PayloadFormatVersion}), behind the ${authorizer?.AuthorizerType} authorizer ${authorizer?.Name} of the function origin-verifier on ${authorizer?.IdentitySource?.join(', ')}, its answer kept ${authorizer?.AuthorizerResultTtlInSeconds} s.`,
+    `API Gateway ${apiId}: route ${routes.map((route) => route.RouteKey).join(', ')} to the function api (${integration?.IntegrationType}, payload ${integration?.PayloadFormatVersion}), behind the origin-verifier function's ${authorizer?.AuthorizerType} authorizer ${authorizer?.Name} on ${authorizer?.IdentitySource?.join(', ')}, its response kept ${authorizer?.AuthorizerResultTtlInSeconds} s.`,
   )
 
   const scheduler = new SchedulerClient({})
@@ -177,7 +177,7 @@ async function edge() {
   const common = Object.fromEntries(Object.entries(headers.common).map(([name, header]) => [name.toLowerCase(), header]))
 
   // API Gateway, called directly as a client that skips the edge would: refused before the application, which sets
-  // an X-Request-Id on every answer of its own.
+  // an X-Request-Id on every response of its own.
   const direct = (extra) => call('http://floci:4566/api/v1/health', { host: `${apiId}.execute-api.localhost.floci.io:4566`, headers: { accept: 'application/json', ...extra } })
   const missing = await direct({})
   const wrong = await direct({ 'x-origin-verify': 'a-value-a-client-made-up-0000000000000000000000000000000000000000' })
@@ -188,7 +188,7 @@ async function edge() {
   const health = await call(API, { headers: { accept: 'application/json' } })
   const apiHeaders = expected(headers, 'api', { 'x-content-type-options': common['x-content-type-options'], 'x-frame-options': common['x-frame-options'] })
   verify(health.status === 200 && health.headers['x-request-id'] !== undefined && differs(health, apiHeaders).length === 0 && health.headers['permissions-policy'] === undefined,
-    `Through the edge the API answers (HTTP ${health.status}, X-Request-Id ${health.headers['x-request-id']}) with the headers of the application, none added by the edge${differs(health, apiHeaders).length === 0 ? '' : `; different: ${differs(health, apiHeaders).join(', ')}`}.`)
+    `Through the edge the API responds (HTTP ${health.status}, X-Request-Id ${health.headers['x-request-id']}) with the application's headers, none added by the edge${differs(health, apiHeaders).length === 0 ? '' : `; different: ${differs(health, apiHeaders).join(', ')}`}.`)
 
   // The web app from the bucket, with every header of the panel; index.html revalidated, its files cached a year.
   const index = await call(`${EDGE}/`)
@@ -196,7 +196,7 @@ async function edge() {
   const script = /<script type="module" crossorigin src="(\/assets\/[^"]+\.js)"/.exec(index.body)?.[1]
   const asset = script === undefined ? undefined : await call(`${EDGE}${script}`)
   verify(index.status === 200 && index.body.includes('<div id="app">') && differs(index, panelHeaders).length === 0 && index.headers['cache-control'] === 'no-cache' && index.headers['x-amz-request-id'] !== undefined,
-    `The web app comes from the bucket of the edge (HTTP ${index.status}, Cache-Control ${index.headers['cache-control']}) with the ${Object.keys(panelHeaders).length} headers of security-headers.json${differs(index, panelHeaders).length === 0 ? '' : `; different: ${differs(index, panelHeaders).join(', ')}`}.`)
+    `The web app comes from the edge's bucket (HTTP ${index.status}, Cache-Control ${index.headers['cache-control']}) with the ${Object.keys(panelHeaders).length} headers of security-headers.json${differs(index, panelHeaders).length === 0 ? '' : `; different: ${differs(index, panelHeaders).join(', ')}`}.`)
   verify(asset?.status === 200 && asset.headers['cache-control'] === 'public, max-age=31536000, immutable' && differs(asset, panelHeaders).length === 0,
     `Its fingerprinted files are cached a year with the same headers: ${script} (HTTP ${asset?.status}, Cache-Control ${asset?.headers['cache-control']}).`)
 
@@ -212,13 +212,13 @@ async function edge() {
     }
   }
 
-  verify(wrongCases.length === 0, `A deep link of the web app answers index.html and a file keeps its path: the ${cases.length} cases of the CloudFront Function${wrongCases.length === 0 ? '' : `; wrong: ${wrongCases.join(', ')}`}.`)
+  verify(wrongCases.length === 0, `A web app deep link returns index.html and a file keeps its path: the CloudFront Function's ${cases.length} cases${wrongCases.length === 0 ? '' : `; wrong: ${wrongCases.join(', ')}`}.`)
 
   // The errors of the API stay problems of the API, never the web app.
   const notFound = await call(`${EDGE}/api/v1/nothing-lives-here`, { headers: { accept: 'application/json' } })
   const unauthenticated = await call(`${EDGE}/api/v1/invoices`, { headers: { accept: 'application/json' } })
   verify([notFound, unauthenticated].every((answer) => String(answer.headers['content-type']).startsWith('application/problem+json') && !answer.body.includes('<div id="app">')) && notFound.status === 404 && unauthenticated.status === 401,
-    `Through the edge the errors of the API stay problems of the API: ${notFound.status} and ${unauthenticated.status} in ${notFound.headers['content-type']}.`)
+    `Through the edge, the API's errors stay API problems: ${notFound.status} and ${unauthenticated.status} in ${notFound.headers['content-type']}.`)
 }
 
 async function time() {
@@ -231,7 +231,7 @@ async function time() {
 
 async function cold() {
   const answer = await time()
-  verify(answer.status === 200 && answer.gateway, `Cold start of the API through the edge and API Gateway: ${(answer.ms / 1000).toFixed(2)} s for GET /api/v1/health on a new execution environment (HTTP ${answer.status}; a figure of the emulator, not of AWS).`)
+  verify(answer.status === 200 && answer.gateway, `The API's cold start through the edge and API Gateway: ${(answer.ms / 1000).toFixed(2)} s for GET /api/v1/health on a new execution environment (HTTP ${answer.status}; the emulator's figure, not AWS's).`)
 }
 
 async function warm() {
@@ -241,7 +241,7 @@ async function warm() {
     const answer = await time()
 
     if (answer.status !== 200 || !answer.gateway) {
-      verify(false, `A warm request answered HTTP ${answer.status}.`)
+      verify(false, `A warm request returned HTTP ${answer.status}.`)
 
       return
     }
@@ -250,7 +250,7 @@ async function warm() {
   }
 
   times.sort((a, b) => a - b)
-  verify(true, `Warm answers of the API through the edge and API Gateway: median ${times[4].toFixed(0)} ms, slowest ${times[9].toFixed(0)} ms over 10 requests of GET /api/v1/health (figures of the emulator, not of AWS).`)
+  verify(true, `The API's warm responses through the edge and API Gateway: median ${times[4].toFixed(0)} ms, slowest ${times[9].toFixed(0)} ms over 10 requests of GET /api/v1/health (the emulator's figures, not AWS's).`)
 }
 
 const actions = { resources, edge, cold, warm }

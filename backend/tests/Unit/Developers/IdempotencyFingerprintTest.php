@@ -7,7 +7,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * The fingerprint decides whether a repeated Idempotency-Key is the same request (its answer is
- * replayed) or another one (422). Too loose, and a different invoice gets the answer of the first;
+ * replayed) or another one (422). Too loose, and a different invoice gets the first one's response;
  * too strict, and a client that re-serializes its JSON gets a 422.
  */
 final class IdempotencyFingerprintTest extends TestCase
