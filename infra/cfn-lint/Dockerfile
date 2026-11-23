@@ -1,7 +1,7 @@
 # cfn-lint over the templates of the CDK app (infra/cdk/cdk.out) and of the serverless service of the functions
 # (infra/functions/.package), mounted read-only at /templates: the schemas of the resources ship with it, so
 # it runs without a network (make cdk-check).
-FROM python:3.13-alpine
+FROM python:3.15-alpine
 
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --disable-pip-version-check --requirement /tmp/requirements.txt && rm /tmp/requirements.txt
