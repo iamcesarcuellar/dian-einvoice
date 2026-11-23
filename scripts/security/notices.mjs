@@ -135,10 +135,10 @@ for (const path of files) {
 }
 
 if (problems.length > 0) {
-  console.error(`Files of third parties: ${problems.length} problems.\n${problems.map((problem) => `  ${problem}`).join('\n')}`)
+  console.error(`Third-party files: ${problems.length} problems.\n${problems.map((problem) => `  ${problem}`).join('\n')}`)
   process.exit(1)
 }
 
 console.log(
-  `Files of third parties: ${listed.size} files in ${inventory.groups.length} groups, as scripts/security/third-party-files.json lists them (${hashed} unchanged with their SHA-256, ${noticed} with their notice) and NOTICE names them; ${scanned} other files scanned, none of them the work of others.`,
+  `Third-party files: ${listed.size} files in ${inventory.groups.length} groups, as scripts/security/third-party-files.json lists them (${hashed} unchanged with their SHA-256, ${noticed} with their notice) and NOTICE names them; ${scanned} other files scanned, none of them the work of others.`,
 )

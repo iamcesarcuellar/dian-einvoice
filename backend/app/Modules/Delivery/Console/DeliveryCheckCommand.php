@@ -293,7 +293,7 @@ final class DeliveryCheckCommand extends Command
 
             $message = $mailbox->message(Json::text($summary, 'ID') ?? '');
         } catch (LocalMailboxUnavailable $exception) {
-            return [$this->verdict(false, '', 'the local mailbox is not answering: '.$exception->getMessage())];
+            return [$this->verdict(false, '', 'the local mailbox is not responding: '.$exception->getMessage())];
         }
 
         $to = array_map(fn (array $address): string => Json::text($address, 'Address') ?? '', Json::objects($message, 'To'));

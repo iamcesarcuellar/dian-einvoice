@@ -25,13 +25,13 @@ return [
         'viewer' => 'Viewer',
     ],
     'role_descriptions' => [
-        'owner' => 'Owners manage everything in the company, its team and its owners included.',
-        'admin' => 'Admins manage everything in the company, its team included, except its owners.',
+        'owner' => 'Owners manage everything in the company, including its team and its owners.',
+        'admin' => 'Admins manage everything in the company, including its team, except its owners.',
         'member' => 'Members manage contacts, items and documents, and record payments.',
         'viewer' => 'Viewers see everything and change nothing.',
     ],
     'test_title' => 'Test environment',
-    'test_notice' => 'This platform runs locally with synthetic data. This email was caught by a local development mailbox and did not leave the computer that sent it.',
+    'test_notice' => 'This platform runs locally with synthetic data. A local development mailbox caught this email, and it never left the computer that sent it.',
     'signature' => 'Sent by :app.',
 
 ];

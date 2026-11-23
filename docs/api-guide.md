@@ -1,12 +1,12 @@
 # API guide
 
-A practical guide to the public API under `/api/v1`: the first steps with curl against the demo, then idempotency, errors, pagination, rate limits, versions and webhooks. The [API reference](http://localhost:8600/docs/api) of the running stack lists every operation, field and response; Scramble generates it from the code, and `make openapi` exports it to [`openapi.json`](../openapi.json).
+A practical guide to the public API under `/api/v1`: the first steps with curl against the demo, then idempotency, errors, pagination, rate limits, versions and webhooks. The running stack's [API reference](http://localhost:8600/docs/api) lists every operation, field and response; Scramble generates it from the code, and `make openapi` exports it to [`openapi.json`](../openapi.json).
 
-Every command block on this page runs in `make docs-examples` against the demo, in order and in one shell, and prints what the block after it shows; the check fails when an example stops working. So do the two webhook signature examples, against the reference example of Standard Webhooks and a real webhook of the demo. Each run adds a synthetic contact, an item and an invoice to Demo Comercial SAS; `make seed` starts the demo over.
+Every command block on this page runs in `make docs-examples` against the demo, in order and in one shell, and prints what the block after it shows; the check fails when an example stops working. So do the two webhook signature examples, against the Standard Webhooks reference example and a real webhook from the demo. Each run adds a synthetic contact, an item and an invoice to Demo Comercial SAS; `make seed` starts the demo over.
 
 ## Before you start
 
-Run `make demo`: the API listens on `http://localhost:8600/api/v1`. The examples need a shell, curl, grep, sed and cut, and nothing else: no jq. Every id is a lowercase ULID of 26 characters, and the API's JSON has no spaces, so `grep` and `cut` are enough to read one field.
+Run `make demo`: the API listens on `http://localhost:8600/api/v1`. The examples need a shell, curl, grep, sed and cut, and nothing else: no jq. Every id is a 26-character lowercase ULID, and the API's JSON has no spaces, so `grep` and `cut` are enough to read one field.
 
 <!-- example -->
 ```sh
@@ -27,7 +27,7 @@ curl -s "$API/health"; echo
 
 ### 1. Create an API key
 
-API keys are created by an owner or an admin of a company, with a session of the web app: **Settings → Developers → Create key**, or the same request with curl. A session needs the CSRF cookie first, and its requests must come from the web app's origin, `http://localhost:8601`. The key comes back once, in `data.key`; the API keeps only its hash.
+A company's owner or admin creates API keys in a web app session: **Settings → Developers → Create key**, or the same request with curl. A session needs the CSRF cookie first, and its requests must come from the web app's origin, `http://localhost:8601`. The key comes back once, in `data.key`; the API keeps only its hash.
 
 <!-- example -->
 ```sh
@@ -53,7 +53,7 @@ printf '%.16s…\n' "$KEY"
 <visible-part-of-the-key>…
 ```
 
-A key has a level, `read_write` or `read_only`, which may only read. It may also carry an expiry date (`expires_at`) and a rate limit of its own (`rate_limit_per_minute`).
+A key has a level: `read_write`, or `read_only`, which may only read. It may also carry an expiry date (`expires_at`) and a rate limit of its own (`rate_limit_per_minute`).
 
 ### 2. Authenticate and choose the company
 
@@ -79,7 +79,7 @@ curl -s -o /dev/null -w '%{http_code}\n' "$API/contacts?per_page=1" -H "Authoriz
 
 ### 3. Create a contact and an item
 
-A contact needs its identification, its tax data and, in Colombia, the DANE code of its municipality: 05001 is Medellín (`GET /reference/municipalities?department=05` lists those of Antioquia). The API computes the check digit of a NIT. Every company starts with the taxes IVA 19 %, IVA 5 %, IVA 0 % (exempt) and INC 8 %; an item names one of them by its id.
+A contact needs its identification, its tax data and, in Colombia, its municipality's DANE code: 05001 is Medellín (`GET /reference/municipalities?department=05` lists Antioquia's). The API computes a NIT's check digit. Every company starts with the taxes IVA 19 %, IVA 5 %, IVA 0 % (exempt) and INC 8 %; an item names one of them by its id.
 
 <!-- example -->
 ```sh
@@ -172,11 +172,11 @@ head -c 5 invoice.pdf; echo
 %PDF-
 ```
 
-`GET /invoices/{id}/dian-response` gives the simulator's ApplicationResponse, and `/attached-document` the AttachedDocument. Credit and debit notes have the same operations under `/credit-notes` and `/debit-notes`, and payments are recorded with `POST /payments`.
+`GET /invoices/{id}/dian-response` returns the simulator's ApplicationResponse, and `/attached-document` the AttachedDocument. Credit and debit notes have the same operations under `/credit-notes` and `/debit-notes`, and payments are recorded with `POST /payments`.
 
 ## Idempotency
 
-Any `POST` may carry an `Idempotency-Key` header: 1 to 255 visible ASCII characters, kept 24 hours, and shared by every key and session of the company. The first request runs, and its response is stored with the key in the same database transaction as its effect. Sending it again replays that response, with `Idempotent-Replayed: true`, and runs nothing.
+Any `POST` may carry an `Idempotency-Key` header: 1 to 255 visible ASCII characters, kept 24 hours, and shared by all of the company's keys and sessions. The first request runs, and its response is stored with the key in the same database transaction as its effect. Sending it again replays that response, with `Idempotent-Replayed: true`, and runs nothing.
 
 - **The same key with another request** (another method, path or body) returns 422: use a new key for a new request. Two bodies with the same JSON written another way are the same request.
 - **The same key while the first request still runs** returns 409. Wait and send it again.
@@ -222,7 +222,7 @@ Every error is a problem, `application/problem+json` (RFC 9457): `type` (always 
 | --- | --- |
 | 400 | A session without a valid `X-Company-Id`, a malformed `Idempotency-Key`, or a sign-in from outside the web app's origin |
 | 401 | No credentials, or a key that is unknown, revoked or expired |
-| 403 | A `read_only` key that writes, the key of another company, a key on a route of the web app's session, or a role without the permission |
+| 403 | A `read_only` key that writes, another company's key, a key on a route reserved for the web app's session, or a role without the permission |
 | 404 | A record that does not exist, or belongs to another company |
 | 405 | A method the path does not take |
 | 409 | A state that does not allow it: an invoice already issued, a file not ready yet, a retry not possible now, a record in use, an idempotency key still running |
@@ -250,7 +250,7 @@ organization_type identification_type identification_number tax_scheme fiscal_re
 
 ### The correlation id
 
-Every response carries `X-Correlation-Id`, and the problem repeats it. The same id follows the request into the chain, the DIAN calls, the email and the webhooks, and every log line of that journey carries it ([observability.md](observability.md#the-correlation-id)); quoting it is how a support request is answered ([customer-report.md](runbooks/customer-report.md)). A client may send its own, a ULID, to tie the journey to its own logs; any other value is replaced by a new id.
+Every response carries `X-Correlation-Id`, and the problem repeats it. The same id follows the request into the chain, the DIAN calls, the email and the webhooks, and every log line of that journey carries it ([observability.md](observability.md#the-correlation-id)); a support request that quotes it can be traced from end to end ([customer-report.md](runbooks/customer-report.md)). A client may send its own, a ULID, to tie the journey to its own logs; any other value is replaced by a new id.
 
 <!-- example -->
 ```sh
@@ -266,7 +266,7 @@ X-Correlation-Id: 01kz9r2v0m4c7d8e5f6g9h3j1k
 
 ## Pagination, rate limits and versions
 
-**Pagination.** Lists are paged: `page` from 1, and `per_page` from 1 to 100, 25 by default. Each page carries `links` (`first`, `last`, `prev`, `next`) and `meta` (`current_page`, `last_page`, `per_page`, `total` and more). `search` filters by text, and each list has filters of its own, such as `status`, `electronic_status`, `contact_id`, `from` and `to` for documents. The order of each list is fixed: there is no sort parameter.
+**Pagination.** Lists are paged: `page` from 1, and `per_page` from 1 to 100, 25 by default. Each page carries `links` (`first`, `last`, `prev`, `next`) and `meta` (`current_page`, `last_page`, `per_page`, `total` and more). `search` filters by text, and each list has filters of its own, such as `status`, `electronic_status`, `contact_id`, `from` and `to` for documents. Each list's order is fixed: there is no sort parameter.
 
 <!-- example -->
 ```sh
@@ -279,7 +279,7 @@ curl -s "$API/invoices?status=issued&per_page=2&page=1" -H "Authorization: Beare
 "per_page":2
 ```
 
-**Rate limits.** Each API key may send 120 requests a minute by default, or the limit it was created with, counted in fixed windows of 60 seconds. Every response to a key reports the limit in `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` (a Unix time), and in `RateLimit-Policy` and `RateLimit`. Above the limit, the API answers 429 with `Retry-After` in seconds. A replayed idempotent request counts too. The previews, the search and the sign-in have limits of their own.
+**Rate limits.** Each API key may send 120 requests a minute by default, or the limit it was created with, counted in fixed 60-second windows. Every response to a request with a key reports the limit in `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` (a Unix time), and in `RateLimit-Policy` and `RateLimit`. Above the limit, the API returns 429 with `Retry-After` in seconds. A replayed idempotent request counts too. The previews, the search and the sign-in have limits of their own.
 
 <!-- example -->
 ```sh
@@ -296,15 +296,15 @@ X-Ratelimit-Limit: 120
 
 ## Webhooks
 
-A webhook subscription sends the events of a company to an HTTPS endpoint, signed. Owners and admins manage subscriptions with their session (**Settings → Developers**, or `/webhooks`): an API key cannot.
+A webhook subscription sends a company's events, signed, to an HTTPS endpoint. Owners and admins manage subscriptions with their session (**Settings → Developers**, or `/webhooks`): an API key cannot.
 
 **Events.** `invoice.issued`, `invoice.accepted`, `invoice.rejected`, `invoice.failed`, `invoice.delivered`, `invoice.paid` and `invoice.voided`; `credit_note.issued`, `credit_note.accepted`, `credit_note.rejected` and `credit_note.delivered`, and the same four for `debit_note`; `payment.recorded` and `payment.voided`. `GET /webhooks/event-types` lists them, and `POST /webhooks/{id}/test` sends a `webhook.test`.
 
 **The body** is JSON: `id` (`evt_` and a ULID), `type`, `created_at`, `company_id`, and `data.object`, the document or the payment as the API returns it. It is built once and sent byte for byte on every attempt.
 
-**The headers** follow [Standard Webhooks](https://www.standardwebhooks.com): `webhook-id` (the event's id, the same on every retry, so a receiver can drop duplicates), `webhook-timestamp` (Unix seconds of the attempt) and `webhook-signature`, plus `X-Correlation-Id`.
+**The headers** follow [Standard Webhooks](https://www.standardwebhooks.com): `webhook-id` (the event's id, the same on every retry, so a receiver can drop duplicates), `webhook-timestamp` (the attempt's time, in Unix seconds) and `webhook-signature`, plus `X-Correlation-Id`.
 
-**The signature** is `v1,` and the base64 of an HMAC-SHA256 of `{webhook-id}.{webhook-timestamp}.{body}`. Its key is the subscription's secret, `whsec_` and a base64 value, decoded. The header may hold several signatures separated by spaces. A receiver checks them in constant time and refuses a timestamp more than 5 minutes away from its clock; the sender itself applies no tolerance. The secret is shown once, when the subscription is created or its secret rotated, and a rotation replaces it at once.
+**The signature** is `v1,` followed by the base64-encoded HMAC-SHA256 of `{webhook-id}.{webhook-timestamp}.{body}`. Its key is the subscription's secret, `whsec_` and a base64 value, decoded. The header may hold several signatures separated by spaces. A receiver checks them in constant time and refuses a timestamp more than 5 minutes away from its clock; the sender itself applies no tolerance. The secret is shown once, when the subscription is created or its secret rotated, and a rotation replaces it at once.
 
 **Retries.** An attempt waits 5 seconds for the endpoint, follows no redirect, and succeeds on a 2xx only. A failed one is retried after 2, 5, 15, 45 and 120 seconds, each plus up to 20 % of jitter: six attempts in all. Then the delivery fails, and `POST /webhook-deliveries/{id}/redeliver` starts it again with the same `webhook-id`. Delivery is at least once, in no particular order.
 
@@ -342,7 +342,7 @@ session -X DELETE "$API/webhooks/$HOOK" -H "X-Company-Id: $COMPANY" -o /dev/null
 
 ### Verifying a signature
 
-Both functions take the secret, the three headers as received (with lowercase names) and the raw body, before any JSON parsing, and say whether the webhook is authentic and recent. `make docs-examples` runs both against the reference example of Standard Webhooks and against a real webhook of the demo.
+Both functions take the secret, the three headers as received (with lowercase names) and the raw body, before any JSON parsing, and say whether the webhook is authentic and recent. `make docs-examples` runs both against the Standard Webhooks reference example and against a real webhook from the demo.
 
 In Node.js, with `node:crypto` only:
 

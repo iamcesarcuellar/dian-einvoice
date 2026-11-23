@@ -24,7 +24,7 @@ final class PasswordResetController
     public const string LINK_SENT = 'If an account uses this address, a link to choose a new password is on its way. It works once, for 60 minutes.';
 
     /** The same answer for an unknown address, a wrong, used or expired token. */
-    public const string INVALID_LINK = 'This link to choose a new password is not valid any more: it was used, it expired or it belongs to another address. Ask for a new one.';
+    public const string INVALID_LINK = 'This password reset link is no longer valid: it was used, it expired or it belongs to another address. Ask for a new one.';
 
     /**
      * Ask for a link to choose a new password. Answers 202 with the same message whether or not

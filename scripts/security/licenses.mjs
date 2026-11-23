@@ -52,7 +52,7 @@ if (output === '--json') {
 }
 
 if (refused.length > 0) {
-  console.error(`${application}: licenses not compatible with the MIT License of this project, or missing:`)
+  console.error(`${application}: licenses missing or not compatible with this project's MIT License:`)
 
   for (const item of refused) {
     console.error(`  ${item.name} ${item.version}: ${item.license || 'no license'}`)

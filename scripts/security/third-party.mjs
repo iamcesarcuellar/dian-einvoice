@@ -22,7 +22,7 @@ const lists = APPLICATIONS.map(([key]) => JSON.parse(readFileSync(join(directory
 const refused = lists.flatMap((list) => list.packages.filter((item) => !compatible(item.license)).map((item) => `${list.application}: ${item.name} ${item.version}: ${item.license || 'no license'}`))
 
 if (refused.length > 0) {
-  console.error(`Licenses not compatible with the MIT License of this project, or missing:\n  ${refused.join('\n  ')}`)
+  console.error(`Licenses missing or not compatible with this project's MIT License:\n  ${refused.join('\n  ')}`)
   process.exit(1)
 }
 

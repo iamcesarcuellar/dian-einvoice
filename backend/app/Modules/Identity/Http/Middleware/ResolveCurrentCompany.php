@@ -38,11 +38,11 @@ final class ResolveCurrentCompany
 
         if ($apiKey !== null) {
             if (is_string($companyId) && $companyId !== '' && Str::lower($companyId) !== $apiKey->company_id) {
-                throw new AccessDeniedHttpException('This API key belongs to another company. Leave X-Company-Id out, or send the company of the key.');
+                throw new AccessDeniedHttpException("This API key belongs to another company. Leave out X-Company-Id, or send the key's company.");
             }
 
             if ($apiKey->level === ApiKeyLevel::ReadOnly && ! in_array($request->method(), self::READS, true)) {
-                throw new AccessDeniedHttpException(sprintf('The API key %s is read-only: it can only read.', $apiKey->visibleId()));
+                throw new AccessDeniedHttpException(sprintf('The API key %s is read-only: it cannot write.', $apiKey->visibleId()));
             }
 
             $this->currentCompany->setApiKey($apiKey);

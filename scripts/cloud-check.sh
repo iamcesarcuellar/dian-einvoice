@@ -68,7 +68,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-echo "1. No process of the application runs all the time"
+echo "1. No application process runs all the time"
 running=$($compose ps --status running --services | sort | tr '\n' ' ')
 permanent=""
 
@@ -79,9 +79,9 @@ for service in api worker relay web; do
 done
 
 if [ -z "$permanent" ] && [ -z "$(docker ps -q --filter ancestor=dian-einvoice-api:latest)" ]; then
-  echo "   PASS  The services up are $running: no container of the application runs all the time; the functions run in containers the emulator starts for each environment."
+  echo "   PASS  The services up are $running: no application container runs all the time; the functions run in containers the emulator starts for each environment."
 else
-  echo "   FAIL  Processes of the application run all the time:${permanent:- containers of the image of the local API}."
+  echo "   FAIL  Application processes run all the time:${permanent:- containers of the local API image}."
   status=1
 fi
 
@@ -91,9 +91,9 @@ fi
 # shellcheck disable=SC2016
 if docker run --rm --read-only --tmpfs /tmp:rw,exec,size=256m --user 993:990 --network none -e LAMBDA_TASK_ROOT=/var/task -e LOG_CHANNEL=stderr -e BREF_LARAVEL_CACHE_CONFIG=1 \
   --entrypoint sh dian-einvoice-lambda:latest -c 'php -r "require \"/var/task/vendor/autoload.php\"; Bref\Bref::events()->beforeStartup();" && test -f /tmp/storage/bootstrap/cache/config.php && APP_CONFIG_CACHE=/tmp/storage/bootstrap/cache/config.php php /var/task/artisan about --only=environment,cache' >/dev/null 2>&1; then
-  echo "   PASS  The image of the functions starts on a read-only file system but /tmp, as an unprivileged user: storage and the cached configuration in /tmp."
+  echo "   PASS  The functions image starts on a read-only file system except for /tmp, as an unprivileged user: storage and the cached configuration live in /tmp."
 else
-  echo "   FAIL  The image of the functions does not start on a read-only file system but /tmp."
+  echo "   FAIL  The functions image does not start on a read-only file system except for /tmp."
   status=1
 fi
 
@@ -103,10 +103,10 @@ fi
 bundle=$(docker run --rm --network none --entrypoint php dian-einvoice-lambda:latest -r '$pem = (string) file_get_contents("/opt/rds/global-bundle.pem"); preg_match_all("/-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----/s", $pem, $m); $names = array_map(fn ($c) => openssl_x509_parse($c)["subject"]["CN"] ?? "", $m[0]); echo count($names), " ", in_array("Amazon RDS us-east-1 Root CA RSA2048 G1", $names, true) ? "yes" : "no";' 2>/dev/null || true)
 case "$bundle" in
   *" yes")
-    echo "   PASS  The image of the functions carries the bundle of the RDS certificate authorities (${bundle% yes} of them, Amazon RDS us-east-1 Root CA RSA2048 G1 included), with which prod verifies the managed database."
+    echo "   PASS  The functions image carries the RDS certificate authority bundle (${bundle% yes} certificates, Amazon RDS us-east-1 Root CA RSA2048 G1 included), which prod uses to verify the managed database."
     ;;
   *)
-    echo "   FAIL  The image of the functions has no usable bundle of the RDS certificate authorities (${bundle:-none})."
+    echo "   FAIL  The functions image has no usable RDS certificate authority bundle (${bundle:-none})."
     status=1
     ;;
 esac
@@ -118,13 +118,13 @@ echo "3. The edge: the distribution, the origin verifier and the web app"
 step tools node scripts/edge.mjs check
 step tools node scripts/cloud-check.mjs edge
 
-echo "4. The two identities of the database"
+echo "4. The two database identities"
 step console migrate --force --no-interaction
 step console db:application-identity
 step console cloud:check identities
 elapsed
 
-echo "5. Cold start and warm answers of the API through the edge (figures of the emulator, not of AWS)"
+echo "5. The API's cold start and warm responses through the edge (the emulator's figures, not AWS's)"
 api=$(docker ps -q --filter label=dian-einvoice=floci --filter name=^dian-einvoice-dian-einvoice-dian-einvoice-local-api-)
 if [ -n "$api" ]; then
   # shellcheck disable=SC2086
@@ -157,7 +157,7 @@ elapsed
 echo "8. Chaos: $chaos_invoices more invoices, an outbox event left behind, the functions killed mid-process"
 step console cloud:check chaos "$company" --invoices="$chaos_invoices" --until-accepted=3
 killed=$(sh scripts/cloud/containers.sh kill-functions)
-echo "   Killed $killed containers of functions of this project; the messages they held come back after the visibility timeout of their queue."
+echo "   Killed $killed of this project's function containers; the messages they held come back after their queue's visibility timeout."
 elapsed
 
 echo "9. Everything ends once"
@@ -165,11 +165,11 @@ step console cloud:check finish "$company" --timeout=300
 finished=1
 elapsed
 
-echo "10. A rotation of the application identity, twice, with the functions warm"
+echo "10. The application identity rotated twice, with the functions warm"
 step console cloud:check rotation --timeout=300
 elapsed
 
-echo "11. The observability: the logs of the functions, a metric and the path of an alarm"
+echo "11. Observability: the functions' logs, a metric and an alarm's path"
 if [ -n "$correlation" ]; then
   step tools node scripts/observability.mjs check "$since_ms" "$correlation"
 else

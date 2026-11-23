@@ -21,8 +21,8 @@ enum DebitNoteConcept: string
     {
         return match ($this) {
             self::Interest => 'Interest',
-            self::Expenses => 'Expenses to collect',
-            self::ValueChange => 'Change of the value',
+            self::Expenses => 'Billable expenses',
+            self::ValueChange => 'Change in value',
             self::Other => 'Other',
         };
     }

@@ -69,7 +69,7 @@ final class DeliveryMailer
         } catch (UnexpectedResponseException $exception) {
             $permanent = $exception->getCode() >= 500 && $exception->getCode() < 600;
 
-            return new SendResult($permanent ? EmailOutcome::Rejected : EmailOutcome::Failed, $this->elapsed($started), error: $this->reason("The mail server answered {$exception->getCode()}", $exception));
+            return new SendResult($permanent ? EmailOutcome::Rejected : EmailOutcome::Failed, $this->elapsed($started), error: $this->reason("The mail server returned {$exception->getCode()}", $exception));
         } catch (TransportExceptionInterface $exception) {
             return new SendResult(EmailOutcome::Failed, $this->elapsed($started), error: $this->reason('The mail server could not be reached', $exception));
         } catch (Throwable $exception) {

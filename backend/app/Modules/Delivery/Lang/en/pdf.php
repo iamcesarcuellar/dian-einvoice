@@ -50,25 +50,25 @@ return [
 
     'reference' => [
         'title' => 'Corrected invoice',
-        'invoice' => 'Electronic sales invoice :number of :date',
-        'cufe' => 'CUFE of the invoice',
+        'invoice' => 'Electronic sales invoice :number, dated :date',
+        'cufe' => 'Invoice CUFE',
         'concept' => 'Concept :code · :name',
     ],
 
-    'validation' => 'Validated on :date at :time by the local DIAN simulator of this project, a development tool: the DIAN did not validate this document.',
-    'authorization' => 'Numbering authorized by DIAN resolution :number of :date: prefix :prefix, numbers :from to :to, valid from :valid_from to :valid_to.',
-    'authorization_no_prefix' => 'Numbering authorized by DIAN resolution :number of :date: numbers :from to :to, valid from :valid_from to :valid_to.',
-    'note_numbering' => 'Numbering of the issuer for this type of note, without a DIAN resolution: prefix :prefix, numbers :from to :to.',
+    'validation' => 'Validated on :date at :time by this project\'s local DIAN simulator, a development tool. The DIAN did not validate this document.',
+    'authorization' => 'Numbering authorized by DIAN resolution :number, dated :date: prefix :prefix, numbers :from to :to, valid from :valid_from to :valid_to.',
+    'authorization_no_prefix' => 'Numbering authorized by DIAN resolution :number, dated :date: numbers :from to :to, valid from :valid_from to :valid_to.',
+    'note_numbering' => 'The issuer\'s own numbering for this type of note, without a DIAN resolution: prefix :prefix, numbers :from to :to.',
     'representations' => [
         'invoice' => 'Graphic representation of the electronic sales invoice.',
-        'credit_note' => 'Graphic representation of the credit note of an electronic sales invoice.',
-        'debit_note' => 'Graphic representation of the debit note of an electronic sales invoice.',
+        'credit_note' => 'Graphic representation of a credit note to an electronic sales invoice.',
+        'debit_note' => 'Graphic representation of a debit note to an electronic sales invoice.',
     ],
-    'software' => 'Software: own software of the issuer, :name, NIT :nit.',
+    'software' => 'Software: the issuer\'s own software, :name, NIT :nit.',
     'page' => 'Page :page of :pages',
     'qr_label' => 'Verification QR code',
 
     'metadata_title' => ':title :number (test document)',
-    'metadata_subject' => 'Graphic representation of a :title. Test document validated by a local simulator, without tax validity.',
+    'metadata_subject' => 'Graphic representation of a :title. A test document validated by a local simulator, with no tax validity.',
 
 ];

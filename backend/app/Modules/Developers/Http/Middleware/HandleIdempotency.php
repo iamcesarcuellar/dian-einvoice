@@ -118,7 +118,7 @@ final class HandleIdempotency
 
     private function inProgress(): Response
     {
-        return ProblemDetails::response(409, 'A request with this Idempotency-Key is still in progress. Wait for it to finish, then repeat it to get its answer.');
+        return ProblemDetails::response(409, 'A request with this Idempotency-Key is still in progress. Wait for it to finish, then repeat it to get its response.');
     }
 
     /** The id of the row a reservation stored; the columns of a row read as text. */

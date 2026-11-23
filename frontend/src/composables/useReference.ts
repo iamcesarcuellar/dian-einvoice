@@ -43,7 +43,7 @@ export function useReference() {
     units: computed(() => options(data.value?.units, 'units')),
     paymentForms: computed(() => options(data.value?.payment_forms, 'paymentForms')),
     paymentMeans: computed(() => options(data.value?.payment_means, 'paymentMeans')),
-    // Concepts of the notes, with their code: "2 · Void of the electronic invoice".
+    // Concepts of the notes, with their code: "2 · Voiding of the electronic invoice".
     creditNoteConcepts: computed(() => options(data.value?.credit_note_concepts, 'creditNoteConcepts', true)),
     debitNoteConcepts: computed(() => options(data.value?.debit_note_concepts, 'debitNoteConcepts', true)),
     departments: computed<Option[]>(() =>

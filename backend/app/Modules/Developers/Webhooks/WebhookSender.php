@@ -85,7 +85,7 @@ final class WebhookSender
             return new SendResult(
                 $timedOut ? WebhookAttemptOutcome::Timeout : WebhookAttemptOutcome::ConnectionError,
                 self::elapsed($started),
-                error: Str::limit($timedOut ? sprintf('No answer within %s seconds.', rtrim(rtrim(number_format($timeout, 1), '0'), '.')) : $message, 497),
+                error: Str::limit($timedOut ? sprintf('No response within %s seconds.', rtrim(rtrim(number_format($timeout, 1), '0'), '.')) : $message, 497),
             );
         } catch (Throwable $exception) {
             return new SendResult(WebhookAttemptOutcome::ConnectionError, self::elapsed($started), error: Str::limit($exception->getMessage(), 497));
@@ -98,7 +98,7 @@ final class WebhookSender
             $succeeded ? WebhookAttemptOutcome::Succeeded : WebhookAttemptOutcome::HttpError,
             self::elapsed($started),
             statusCode: $status,
-            error: $succeeded ? null : sprintf('The endpoint answered HTTP %d.', $status),
+            error: $succeeded ? null : sprintf('The endpoint returned HTTP %d.', $status),
             snippet: Str::limit($response->body(), self::SNIPPET, '…'),
         );
     }

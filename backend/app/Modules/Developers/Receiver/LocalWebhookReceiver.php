@@ -100,7 +100,7 @@ final class LocalWebhookReceiver
             /** @var Response $response */
             $response = $this->client()->{$method}($path, $data);
         } catch (Throwable $exception) {
-            throw new ReceiverUnavailable('The local webhook receiver is not answering.', previous: $exception);
+            throw new ReceiverUnavailable('The local webhook receiver is not responding.', previous: $exception);
         }
 
         if (! $response->successful()) {

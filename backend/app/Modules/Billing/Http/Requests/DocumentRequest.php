@@ -121,7 +121,7 @@ final class DocumentRequest extends FormRequest
             $invoice = Document::query()->find($this->string('related_document_id')->toString());
 
             if ($invoice?->balance_status === BalanceStatus::Voided) {
-                $validator->errors()->add('related_document_id', "Invoice {$invoice->full_number} is voided and takes no more notes.");
+                $validator->errors()->add('related_document_id', "Invoice {$invoice->full_number} is voided, so no more notes can correct it.");
             }
         }];
     }

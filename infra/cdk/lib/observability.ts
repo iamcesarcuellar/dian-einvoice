@@ -109,9 +109,9 @@ export function alarmDescription(meaning: string, runbook: string): string {
 
 /** The objectives of service (docs/observability.md), and the alarms that defend each one, by their short name. */
 export const SERVICE_OBJECTIVES = [
-  { name: 'API availability', objective: '99.9% of the requests to the API over 30 days are answered without a 5xx (an error budget of 43 minutes a month).', alarms: ['api-server-errors', 'function-errors', 'function-throttles', 'origin-verifier-errors', 'database-connections', 'service-degraded'] },
-  { name: 'API latency', objective: '99% of the requests to the API over 30 days are answered within 1 second at API Gateway.', alarms: ['api-latency', 'database-capacity', 'function-throttles', 'service-degraded'] },
-  { name: 'Time to the answer of the DIAN', objective: '99% of the documents issued over 30 days are accepted or rejected by the DIAN within 5 minutes of their issue, the minutes the DIAN itself is down aside.', alarms: ['chain-queue-age', 'chain-dead-letters', 'dian-error-rate', 'relay-not-running', 'outbox-lag', 'service-degraded'] },
+  { name: 'API availability', objective: '99.9% of API requests over 30 days return no 5xx (an error budget of 43 minutes a month).', alarms: ['api-server-errors', 'function-errors', 'function-throttles', 'origin-verifier-errors', 'database-connections', 'service-degraded'] },
+  { name: 'API latency', objective: '99% of API requests over 30 days get a response within 1 second at API Gateway.', alarms: ['api-latency', 'database-capacity', 'function-throttles', 'service-degraded'] },
+  { name: 'Time to the DIAN response', objective: '99% of the documents issued over 30 days are accepted or rejected by the DIAN within 5 minutes of their issue, not counting the minutes the DIAN itself is down.', alarms: ['chain-queue-age', 'chain-dead-letters', 'dian-error-rate', 'relay-not-running', 'outbox-lag', 'service-degraded'] },
 ] as const
 
 /** The commands of Logs Insights the local emulator evaluates; a query with any other (stats, parse) fails there. */

@@ -216,7 +216,7 @@ final class DocumentController
     public function dianResponse(Document $document, DocumentStorage $storage): Response
     {
         if ($document->dian_response_path === null) {
-            throw new ConflictHttpException('The local DIAN simulator has not answered for this document yet.');
+            throw new ConflictHttpException('The local DIAN simulator has not responded for this document yet.');
         }
 
         return response($storage->get($document->dian_response_path), 200, [

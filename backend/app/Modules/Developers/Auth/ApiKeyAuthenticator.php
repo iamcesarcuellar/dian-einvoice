@@ -41,7 +41,7 @@ final class ApiKeyAuthenticator
         }
 
         if ($key === null) {
-            throw new AuthenticationException('The API key is not valid. Send an API key of this platform in the Authorization header: Bearer dei_...', [self::GUARD]);
+            throw new AuthenticationException("The API key is not valid. Send one of this platform's API keys in the Authorization header: Bearer dei_...", [self::GUARD]);
         }
 
         if ($key->status() === 'revoked') {

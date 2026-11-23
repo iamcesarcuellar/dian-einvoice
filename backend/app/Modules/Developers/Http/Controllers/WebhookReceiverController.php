@@ -50,7 +50,7 @@ final class WebhookReceiverController
         try {
             return response()->json(['data' => $callback()]);
         } catch (ReceiverUnavailable $exception) {
-            throw new ServiceUnavailableHttpException(null, 'The local webhook receiver is not answering. Start the stack with make up.', $exception);
+            throw new ServiceUnavailableHttpException(null, 'The local webhook receiver is not responding. Start the stack with make up.', $exception);
         }
     }
 }

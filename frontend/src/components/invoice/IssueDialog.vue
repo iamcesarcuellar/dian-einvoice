@@ -136,7 +136,15 @@ const hasFieldErrors = computed(() => Object.keys(fieldErrors.value).length > 0)
           {{ t('common.cancel') }}
         </Button>
         <Button type="button" :disabled="pending" @click="emit('confirm')">
-          {{ pending ? t('invoices.editor.issuing') : t('invoices.editor.issue') }}
+          {{
+            pending
+              ? t('invoices.editor.issuing')
+              : voids
+                ? t('notes.editor.issueVoid')
+                : kind === 'invoice'
+                  ? t('invoices.editor.issue')
+                  : t(`notes.editor.issue.${kind}`)
+          }}
         </Button>
       </DialogFooter>
     </DialogContent>

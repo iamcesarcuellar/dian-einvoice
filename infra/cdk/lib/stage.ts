@@ -291,7 +291,7 @@ export const STAGES: Readonly<Record<StageName, StageConfig>> = {
       firewall: null,
     },
     // The local webhook receiver of the DIAN simulator, on the network of compose, takes the messages as a chat would.
-    alerts: { chatWebhookUrl: `http://simulator:8602/webhook-receiver/${ALARM_RECEIVER}`, fallbackEmail: 'operators@dian-einvoice.example' },
+    alerts: { chatWebhookUrl: `http://simulator:8602/cloud/webhook-receiver/${ALARM_RECEIVER}`, fallbackEmail: 'operators@dian-einvoice.example' },
     observability: { savedQueries: 'template-metadata' },
     delivery: null,
   },

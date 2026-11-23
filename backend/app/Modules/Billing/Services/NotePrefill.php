@@ -41,11 +41,11 @@ final class NotePrefill
         }
 
         if ($invoice->electronic_status !== ElectronicStatus::Accepted) {
-            throw new ConflictHttpException("Invoice {$invoice->full_number} is not accepted by the local simulator, so it cannot take notes.");
+            throw new ConflictHttpException("Invoice {$invoice->full_number} has not been accepted by the local simulator, so no note can correct it yet.");
         }
 
         if ($invoice->balance_status === BalanceStatus::Voided) {
-            throw new ConflictHttpException("Invoice {$invoice->full_number} is voided and takes no more notes.");
+            throw new ConflictHttpException("Invoice {$invoice->full_number} is voided, so no more notes can correct it.");
         }
 
         $invoice->load(['lines.item', 'withholdings', 'contact.municipality.department']);

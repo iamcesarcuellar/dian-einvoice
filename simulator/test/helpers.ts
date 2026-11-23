@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -119,6 +119,10 @@ export interface Simulator {
   post: (path: string, body: string, headers?: Record<string, string>, timeoutMs?: number) => Promise<Answer>
   /** A call of the admin API, which must answer 200. */
   admin: (method: string, path: string, body?: unknown) => Promise<unknown>
+  /** A GET of a JSON endpoint without the admin token, such as /health. */
+  get: (path: string) => Promise<unknown>
+  /** The state file of a stack as the simulator last saved it: state.json, or cloud/state.json. */
+  saved: (file: string) => Promise<State>
   stop: () => Promise<void>
 }
 
@@ -133,10 +137,15 @@ function freePort(): Promise<number> {
   })
 }
 
-/** src/server.ts in a process of its own, starting from the given state. */
-export async function startSimulator(state: State): Promise<Simulator> {
+/** src/server.ts in a process of its own, starting from the given state of the local stack, and of the emulated cloud when given. */
+export async function startSimulator(state: State, cloud?: State): Promise<Simulator> {
   const data = await mkdtemp(join(tmpdir(), 'simulator-test-'))
   await writeFile(join(data, 'state.json'), JSON.stringify(state))
+
+  if (cloud !== undefined) {
+    await mkdir(join(data, 'cloud'))
+    await writeFile(join(data, 'cloud', 'state.json'), JSON.stringify(cloud))
+  }
   const port = await freePort()
   const env: NodeJS.ProcessEnv = { ...process.env, PORT: String(port), SIMULATOR_DATA: data, SIMULATOR_ADMIN_TOKEN: TOKEN }
   // The server is not a test file of the runner.
@@ -182,6 +191,16 @@ export async function startSimulator(state: State): Promise<Simulator> {
       assert.equal(response.status, 200, JSON.stringify(answer))
 
       return answer
+    },
+    async get(path) {
+      const response = await fetch(`${url}${path}`)
+      const answer: unknown = await response.json()
+      assert.equal(response.status, 200, JSON.stringify(answer))
+
+      return answer
+    },
+    async saved(file) {
+      return JSON.parse(await readFile(join(data, file), 'utf8')) as State
     },
     async stop() {
       if (server.exitCode === null && server.signalCode === null) {

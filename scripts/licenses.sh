@@ -35,7 +35,7 @@ $compose run --rm --no-deps -T -v "$security:/security:ro" -v "$lists:/licenses:
 
 if [ "${1:-}" = "--check" ]; then
   if ! cmp -s "$lists/third-party-licenses.md" docs/third-party-licenses.md; then
-    echo "docs/third-party-licenses.md is not what the lock files give: run make licenses." >&2
+    echo "docs/third-party-licenses.md does not match the lock files: run make licenses." >&2
     diff -u docs/third-party-licenses.md "$lists/third-party-licenses.md" | head -n 40 >&2 || true
     exit 1
   fi

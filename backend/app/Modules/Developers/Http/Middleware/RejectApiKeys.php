@@ -20,7 +20,7 @@ final class RejectApiKeys
     public function handle(Request $request, Closure $next): Response
     {
         if (Actor::apiKey($request) !== null) {
-            throw new AccessDeniedHttpException('API keys cannot use this endpoint: it belongs to the web app session of an owner or admin.');
+            throw new AccessDeniedHttpException('API keys cannot use this endpoint: it is only for an owner or admin signed in to the web app.');
         }
 
         return $next($request);

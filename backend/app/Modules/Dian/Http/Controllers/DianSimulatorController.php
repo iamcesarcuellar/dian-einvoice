@@ -79,7 +79,7 @@ final class DianSimulatorController
         try {
             return response()->json(['data' => $callback()]);
         } catch (SimulatorUnavailable $exception) {
-            throw new ServiceUnavailableHttpException(null, 'The local DIAN simulator is not answering. Start it with make up.', $exception);
+            throw new ServiceUnavailableHttpException(null, 'The local DIAN simulator is not responding. Start it with make up.', $exception);
         }
     }
 }

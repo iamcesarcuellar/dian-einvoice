@@ -134,7 +134,7 @@ case "$step" in
       identity="$($tools node scripts/database.mjs migrations-identity)"
       # shellcheck disable=SC2016
       printf '%s\n' "$identity" | $compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot'
-      echo "The migrations identity of the database, created from its secret."
+      echo "The database's migrations identity, created from its secret."
     fi
 
     # The new image reaches the console function first: the functions that run meanwhile keep the code of the release
@@ -158,7 +158,7 @@ case "$step" in
       # the behaviours the CloudFormation of the emulator drops (docs/limitations.md).
       # shellcheck disable=SC2016
       $tools node scripts/edge.mjs origin-secret | $cdk sh -c 'origin="$(cat)" && exec cdk deploy local/edge --require-approval never --parameters "OriginVerifyValue=$origin"'
-      echo "The stack edge, with the value of the secret of the edge as its parameter."
+      echo "The edge stack, with the edge secret as its parameter."
       $tools node scripts/edge.mjs reconcile
     else
       # shellcheck disable=SC2086

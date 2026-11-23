@@ -24,7 +24,7 @@ return [
     'attachment' => 'The attached zip file :file holds the AttachedDocument (the signed document with its validation) and its PDF.',
     'reply' => 'Reply to this email to reach :company.',
     'test_title' => 'Test document',
-    'test_notice' => 'This document was issued in the DIAN habilitación (test) environment and validated by a local simulator, not by the DIAN. It has no tax validity. The email was caught by a local development mailbox and did not leave the computer that sent it.',
+    'test_notice' => 'This document was issued in the DIAN habilitación (test) environment and validated by a local simulator, not by the DIAN. It has no tax validity. A local development mailbox caught this email, and it never left the computer that sent it.',
     'signature' => 'Sent by :company with dian-einvoice.',
 
 ];

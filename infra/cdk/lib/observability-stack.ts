@@ -322,7 +322,7 @@ export class ObservabilityStack extends Stack {
     const queue = (name: string, metricName: string) => this.queueMetric(name, metricName, 'Maximum', minutes).with({ label: name })
 
     const rows: IWidget[][] = [
-      [new TextWidget({ markdown: `# dian-einvoice (${stage.name}): operations\nTraffic, errors and latency of the API and the edge; documents through the chain; queues; the DIAN; the outbox; the functions against their limits${stage.database.managed === null ? '' : '; the database and the way out'}. The alarms and their runbooks are in docs/observability.md.`, width: 24, height: 2 })],
+      [new TextWidget({ markdown: `# dian-einvoice (${stage.name}): operations\nAPI and edge traffic, errors and latency; documents through the chain; queues; the DIAN; the outbox; functions against their limits${stage.database.managed === null ? '' : '; the database and outbound traffic'}. The alarms and their runbooks are in docs/observability.md.`, width: 24, height: 2 })],
       [new AlarmStatusWidget({ title: 'Alarms', alarms: [...alarms], width: 24, height: 4 })],
       [
         new GraphWidget({ title: 'API requests and errors (API Gateway)', left: [api('Count', 'Sum')], right: [api('4xx', 'Sum'), api('5xx', 'Sum')], width: 8 }),
@@ -336,22 +336,22 @@ export class ObservabilityStack extends Stack {
       ],
       [
         new GraphWidget({ title: 'Documents issued, accepted and rejected', left: ['DocumentsIssued', 'DocumentsAccepted', 'DocumentsRejected'].map((name) => this.applicationMetric(name, minutes)), width: 8 }),
-        new GraphWidget({ title: 'Time of the jobs of the chain, p95 (ms)', left: [new MathExpression({ expression: `SEARCH('{${metricNamespace(stage)},Job} MetricName="ChainStepDuration"', 'p95', 300)`, label: 'Job', period: minutes })], width: 8 }),
-        new GraphWidget({ title: 'The DIAN: calls, errors and latency', left: [this.applicationMetric('DianCalls', minutes), this.applicationMetric('DianErrors', minutes)], right: [this.applicationMetric('DianLatency', minutes)], width: 8 }),
+        new GraphWidget({ title: 'Chain job duration, p95 (ms)', left: [new MathExpression({ expression: `SEARCH('{${metricNamespace(stage)},Job} MetricName="ChainStepDuration"', 'p95', 300)`, label: 'Job', period: minutes })], width: 8 }),
+        new GraphWidget({ title: 'DIAN calls, errors and latency', left: [this.applicationMetric('DianCalls', minutes), this.applicationMetric('DianErrors', minutes)], right: [this.applicationMetric('DianLatency', minutes)], width: 8 }),
       ],
       [
-        new GraphWidget({ title: 'Queues: messages waiting, and the age of the oldest (s)', left: ['chain', 'webhooks'].map((name) => queue(name, 'ApproximateNumberOfMessagesVisible')), right: ['chain', 'webhooks'].map((name) => queue(name, 'ApproximateAgeOfOldestMessage')), width: 12 }),
+        new GraphWidget({ title: 'Queues: messages waiting and oldest message age (s)', left: ['chain', 'webhooks'].map((name) => queue(name, 'ApproximateNumberOfMessagesVisible')), right: ['chain', 'webhooks'].map((name) => queue(name, 'ApproximateAgeOfOldestMessage')), width: 12 }),
         new GraphWidget({ title: 'Dead-letter queues', left: ['chain-dlq', 'webhooks-dlq', 'notifier-dlq'].map((name) => queue(name, 'ApproximateNumberOfMessagesVisible')), leftAnnotations: [{ value: 0, label: 'anything above is an alarm' }], width: 12 }),
       ],
       [
-        new GraphWidget({ title: 'The outbox: relay runs, events it had to publish, lag (s)', left: [this.applicationMetric('RelayRuns', minutes), this.applicationMetric('RelayPublishedEvents', minutes)], right: [this.applicationMetric('OutboxLag', minutes)], width: 8 }),
-        new GraphWidget({ title: 'Webhooks failed, refused authentications, secrets read again', left: ['WebhookDeliveriesFailed', 'AuthenticationFailures', 'SecretRereads', 'OriginVerifierFailures'].map((name) => this.applicationMetric(name, minutes)), width: 8 }),
+        new GraphWidget({ title: 'Outbox: relay runs, events the relay published, lag (s)', left: [this.applicationMetric('RelayRuns', minutes), this.applicationMetric('RelayPublishedEvents', minutes)], right: [this.applicationMetric('OutboxLag', minutes)], width: 8 }),
+        new GraphWidget({ title: 'Failed webhooks, refused authentications, secret rereads', left: ['WebhookDeliveriesFailed', 'AuthenticationFailures', 'SecretRereads', 'OriginVerifierFailures'].map((name) => this.applicationMetric(name, minutes)), width: 8 }),
         new SingleValueWidget({ title: 'Last hour', metrics: ['DocumentsIssued', 'DocumentsAccepted', 'DocumentsRejected'].map((name) => this.applicationMetric(name, Duration.hours(1))), width: 8 }),
       ],
       [
-        new GraphWidget({ title: 'Invocations of the functions', left: lambda('Invocations', 'Sum'), width: 8 }),
-        new GraphWidget({ title: 'Errors and throttles of the functions', left: lambda('Errors', 'Sum'), right: lambda('Throttles', 'Sum'), width: 8 }),
-        new GraphWidget({ title: 'Duration of the functions, p95 (ms)', left: lambda('Duration', 'p95'), width: 8 }),
+        new GraphWidget({ title: 'Function invocations', left: lambda('Invocations', 'Sum'), width: 8 }),
+        new GraphWidget({ title: 'Function errors and throttles', left: lambda('Errors', 'Sum'), right: lambda('Throttles', 'Sum'), width: 8 }),
+        new GraphWidget({ title: 'Function duration, p95 (ms)', left: lambda('Duration', 'p95'), width: 8 }),
       ],
       ALL_FUNCTIONS.map((fn) => new GraphWidget({
         title: `Concurrency: ${fn}`,
@@ -371,7 +371,7 @@ export class ObservabilityStack extends Stack {
         new GraphWidget({ title: 'Database: connections', left: [this.databaseMetric(cluster, 'DatabaseConnections', 'Maximum', minutes).with({ label: 'connections' })], leftAnnotations: [{ value: DATABASE_CONNECTIONS_AT_MAX, label: 'max_connections at the maximum' }], width: 6 }),
         new GraphWidget({ title: 'Firewall: requests blocked and allowed (AWS WAF)', left: ['BlockedRequests', 'AllowedRequests'].map((metricName) => new Metric({ namespace: 'AWS/WAFV2', metricName, dimensionsMap: { WebACL: resourceName(stage, 'edge'), Rule: 'ALL' }, statistic: 'Sum', period: minutes, region: 'us-east-1' })), width: 6 }),
         new GraphWidget({
-          title: 'The way out: bytes to the internet and port errors (NAT gateway)',
+          title: 'Outbound traffic: bytes to the internet and port errors (NAT gateway)',
           left: [new MathExpression({ expression: 'SEARCH(\'{AWS/NATGateway,NatGatewayId} MetricName="BytesOutToDestination"\', \'Sum\', 300)', label: 'Bytes out', period: minutes })],
           right: [new MathExpression({ expression: 'SEARCH(\'{AWS/NATGateway,NatGatewayId} MetricName="ErrorPortAllocation"\', \'Sum\', 300)', label: 'Port allocation errors', period: minutes })],
           width: 6,

@@ -25,7 +25,7 @@ enum CreditNoteConcept: string
     {
         return match ($this) {
             self::PartialReturn => 'Partial return of goods or partial rejection of a service',
-            self::Void => 'Void of the electronic invoice',
+            self::Void => 'Voiding of the electronic invoice',
             self::Discount => 'Partial or total rebate or discount',
             self::PriceAdjustment => 'Price adjustment',
             self::PromptPaymentDiscount => 'Commercial discount for prompt payment',

@@ -6,7 +6,7 @@ return [
     // Concepts of the notes (tables 13.2.4 and 13.2.5), as the reference labels of the web app.
     'credit_note_concepts' => [
         '1' => 'Partial return of goods or partial rejection of a service',
-        '2' => 'Void of the electronic invoice',
+        '2' => 'Voiding of the electronic invoice',
         '3' => 'Partial or total rebate or discount',
         '4' => 'Price adjustment',
         '5' => 'Commercial discount for prompt payment',
@@ -15,8 +15,8 @@ return [
 
     'debit_note_concepts' => [
         '1' => 'Interest',
-        '2' => 'Expenses to collect',
-        '3' => 'Change of the value',
+        '2' => 'Billable expenses',
+        '3' => 'Change in value',
         '4' => 'Other',
     ],
 

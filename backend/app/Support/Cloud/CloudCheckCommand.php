@@ -92,10 +92,10 @@ use Throwable;
  *    an error anyone would see;
  *  - cleanup: deletes the company when the script stopped before finish;
  *  - demo: what make cloud-e2e needs before its browser opens (it changes nothing): the demo data of make
- *    cloud-demo, and a local DIAN simulator that holds no document of the demo companies under a number this
- *    database has not issued yet. The simulator is shared with the local stack, and an invoice the local stack
- *    issued there since (make e2e, make docs-examples) can hold the number the next invoice of this database takes,
- *    which the simulator would reject with rule 90. The step fails at once and says what to run.
+ *    cloud-demo, and the emulated cloud's records in the DIAN simulator (its paths under /cloud, apart from the
+ *    local stack's) holding no document of the demo companies under a number this database has not issued yet.
+ *    Such a document would hold the number the next invoice of this database takes, which the simulator would
+ *    reject with rule 90. A guard: the step fails at once and says what to run.
  */
 final class CloudCheckCommand extends Command
 {
@@ -1041,15 +1041,15 @@ final class CloudCheckCommand extends Command
             if ($ahead !== []) {
                 $number = Json::text($ahead[0], 'number') ?? 'without a number';
                 $this->error(count($ahead) === 1
-                    ? sprintf('The local DIAN simulator holds a document of %s under a number this database has not issued yet, %s: the local stack issued it after make cloud-demo, and the next document here would take that number and be rejected with rule 90.', $company->name, $number)
-                    : sprintf('The local DIAN simulator holds %d documents of %s under numbers this database has not issued yet, %s among them: the local stack issued them after make cloud-demo, and the next documents here would take those numbers and be rejected with rule 90.', count($ahead), $company->name, $number));
-                $this->error('Run make cloud-demo, which loads the demo data again and clears the simulator, then make cloud-e2e again.');
+                    ? sprintf('The emulated cloud\'s records in the DIAN simulator hold a document of %s under a number this database has not issued yet, %s. The next document here would take that number and be rejected with rule 90.', $company->name, $number)
+                    : sprintf('The emulated cloud\'s records in the DIAN simulator hold %d documents of %s under numbers this database has not issued yet, %s among them. The next documents here would take those numbers and be rejected with rule 90.', count($ahead), $company->name, $number));
+                $this->error('Run make cloud-demo, which loads the demo data again and clears the emulated cloud\'s records in the simulator, then make cloud-e2e again.');
 
                 return self::FAILURE;
             }
         }
 
-        $this->info('The demo data is in the database, and the local DIAN simulator holds no document of the demo companies under a number this database has not issued yet.');
+        $this->info('The demo data is in the database, and the emulated cloud\'s records in the DIAN simulator hold no document of the demo companies under a number this database has not issued yet.');
 
         return self::SUCCESS;
     }

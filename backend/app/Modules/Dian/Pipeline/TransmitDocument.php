@@ -115,7 +115,7 @@ final class TransmitDocument extends ChainStep
                     'finished_at' => Carbon::now(),
                     'outcome' => TransmissionOutcome::Abandoned,
                     'may_have_arrived' => $running->operation === DianGateway::SEND_BILL_SYNC,
-                    'error' => 'No answer was recorded: the worker stopped during the call.',
+                    'error' => 'No response was recorded: the worker stopped during the call.',
                 ])->save();
 
                 $pipeline->timeline($document, DocumentEventType::TransmissionAttempt, $this->payload($running, $pipeline));
@@ -305,7 +305,7 @@ final class TransmitDocument extends ChainStep
      */
     private function failNow(Document $document, DianTransmission $row, array $payload, ElectronicDocumentPipeline $pipeline): array
     {
-        $reason = sprintf('Attempt %d of %d: %s', $row->attempt, $pipeline->maxAttempts(), $row->error ?? $row->outcome->value ?? 'no answer');
+        $reason = sprintf('Attempt %d of %d: %s', $row->attempt, $pipeline->maxAttempts(), $row->error ?? $row->outcome->value ?? 'no response');
 
         $pipeline->timeline($document, DocumentEventType::TransmissionAttempt, $payload);
         $pipeline->fail($document, 'transmit', $reason, $row->attempt);

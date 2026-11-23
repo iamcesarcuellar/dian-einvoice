@@ -104,7 +104,7 @@ final class ElectronicDocumentActions
                 $invoice = Document::query()->whereKey($document->related_document_id)->lockForUpdate()->firstOrFail();
 
                 if ($invoice->balance_status === BalanceStatus::Voided) {
-                    throw new ConflictHttpException("Invoice {$invoice->full_number} is voided and takes no more notes.");
+                    throw new ConflictHttpException("Invoice {$invoice->full_number} is voided, so no more notes can correct it.");
                 }
 
                 $this->balances->assertFits($document, $invoice, BigDecimal::of((string) $document->payable_amount));

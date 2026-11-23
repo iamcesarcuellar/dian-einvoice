@@ -1,12 +1,12 @@
 # DIAN conformance
 
-What this project implements of Colombia's electronic invoicing standard, and how to check each point: the command, the test or the file that shows it. Paths are relative to `backend/` unless they start at the repository's root.
+Which parts of Colombia's electronic invoicing standard this project implements, and how to check each one: the command, the test or the file that shows it. Paths are relative to `backend/` unless they start at the repository's root.
 
-> **Not affiliated with DIAN.** Every document here is validated by the local simulator in `simulator/`, never by the DIAN. The habilitación was never done, the certificates are synthetic, and no CUFE, CUDE or signature produced here was ever accepted by the DIAN ([limitations.md](limitations.md#relationship-with-the-dian)).
+> **Not affiliated with the DIAN.** Every document here is validated by the local simulator in `simulator/`, never by the DIAN. The habilitación was never done, the certificates are synthetic, and no CUFE, CUDE or signature produced here was ever accepted by the DIAN ([limitations.md](limitations.md#relationship-with-the-dian)).
 
 ## The standard
 
-The project follows the technical annex of the electronic sales invoice (*Anexo técnico de la Factura Electrónica de Venta*), version 1.9, which the DIAN adopted with Resolución 000165 of 1 November 2023. The annex, its tables, its schemas and its examples come in the DIAN's toolbox, *Caja de herramientas FE - V1.9 - (v2026-2)*. The code cites the annex by its sections and tables ("annex 1.9, table 13.2.4"), and the documents are UBL 2.1 (OASIS) with an XAdES-EPES signature.
+The project follows the technical annex for the electronic sales invoice (*Anexo técnico de la Factura Electrónica de Venta*), version 1.9, which the DIAN adopted with Resolución 000165 of 1 November 2023. The annex, its tables, its schemas and its examples come in the DIAN's toolbox, *Caja de herramientas FE - V1.9 - (v2026-2)*. The code cites the annex by its sections and tables ("annex 1.9, table 13.2.4"), and the documents are UBL 2.1 (OASIS) with an XAdES-EPES signature.
 
 The repository keeps only the schemas it validates with, unchanged, in `backend/resources/dian/xsd` ([NOTICE](../NOTICE)). `make dian-toolbox` downloads the toolbox from the DIAN, checks its SHA-256 and compares those 19 schemas with the toolbox's own, byte for byte. The [sources](#sources) are listed at the end.
 
@@ -18,7 +18,7 @@ The repository keeps only the schemas it validates with, unchanged, in `backend/
 | Credit note | CreditNoteTypeCode `91` | `20`, a note that references an invoice | `DIAN 2.1: Nota Crédito de Factura Electrónica de Venta` | CUDE-SHA384 |
 | Debit note | None in the DebitNote schema | `30`, a note that references an invoice | `DIAN 2.1: Nota Débito de Factura Electrónica de Venta` | CUDE-SHA384 |
 
-`ProfileExecutionID` and the `schemeID` of the UUID are always `2`, the habilitación environment: production (`1`) has no case in the code (`app/Modules/Dian/Enums/DianEnvironment.php`). A note always references an accepted invoice, with one of the official concepts of tables 13.2.4 (credit notes, 1 to 6) and 13.2.5 (debit notes, 1 to 4), whose names are kept as the annex writes them (`app/Modules/Reference/Enums/CreditNoteConcept.php`, `DebitNoteConcept.php`).
+`ProfileExecutionID` and the UUID's `schemeID` are always `2`, the habilitación environment: production (`1`) has no case in the code (`app/Modules/Dian/Enums/DianEnvironment.php`). A note always references an accepted invoice, with one of the official concepts in tables 13.2.4 (credit notes, 1 to 6) and 13.2.5 (debit notes, 1 to 4), whose names are kept as the annex writes them (`app/Modules/Reference/Enums/CreditNoteConcept.php`, `DebitNoteConcept.php`).
 
 **Shown by** `make dian-check` and `tests/Integration/Dian/ConformanceTest.php`, which build, sign and validate the three documents, and by the simulator's tests (`make test-simulator`).
 
@@ -39,7 +39,7 @@ The repository keeps only the schemas it validates with, unchanged, in `backend/
 
 ## CUFE and CUDE
 
-The CUFE is the SHA-384, in lowercase hexadecimal, of the concatenation, without separators, of: the number, the issue date and time, the value before taxes, `01` and the IVA, `04` and the INC, `03` and the ICA, the total, the issuer's NIT, the customer's identification, the technical key of the numbering range, and the environment (`app/Modules/Dian/Domain/Cufe.php`). Amounts are written with two decimals, truncated, not rounded. The CUDE of a note is the same with the software's PIN in place of the technical key (`Cude.php`). Only IVA and INC are modelled as taxes, so the value of ICA is always `0.00`.
+The CUFE is the SHA-384 hash, in lowercase hexadecimal, of these values concatenated without separators: the number, the issue date and time, the value before taxes, `01` and the IVA, `04` and the INC, `03` and the ICA, the total, the issuer's NIT, the customer's identification, the numbering range's technical key, and the environment (`app/Modules/Dian/Domain/Cufe.php`). Amounts are written with two decimals, truncated, not rounded. The CUDE of a note is the same with the software's PIN in place of the technical key (`Cude.php`). Only IVA and INC are modeled as taxes, so the ICA value is always `0.00`.
 
 **Shown by** the annex's examples, reproduced to the last character:
 
@@ -50,11 +50,11 @@ The CUFE is the SHA-384, in lowercase hexadecimal, of the concatenation, without
 
 The debit note's example, section 11.4.5, cannot be reproduced with its own data. Its printed composition, `ND10012019-01-1810:58:00-05:0030000.00010.00042400.00030.0032400.0090019726410254102102012`, gives `3fa73a86d57d9341c536afde1f85c4efd9d4591c2c22bce4dfb0e6b0d2e83b8f047a8bde7098292e9d2493e60d1c31da`, while the annex prints `b9483dc2a17167feedf37b6bd67c4204e7b601933e0e389cffbd545e4d0ec370b403cbb41ff656776cb6cb5d8348ecd4`. `app/Modules/Dian/Console/DianCheckCommand.php` says so, and no test uses it.
 
-The simulator recalculates every key with the range's technical key or the software's PIN it has registered (rules FAD06, CAD06 and DAD06). `DocumentKeyTest` also checks the format of the amounts and that any value of the composition changes the key.
+The simulator recalculates every key with the range's technical key or the software's PIN it has registered (rules FAD06, CAD06 and DAD06). `DocumentKeyTest` also checks the amounts' format, and that changing any value in the composition changes the key.
 
 ## Software security code
 
-`SoftwareSecurityCode` is the SHA-384 of the software's id, its PIN and the document's number, as section 11.8 writes it (`app/Modules/Dian/Domain/SoftwareSecurityCode.php`).
+`SoftwareSecurityCode` is the SHA-384 of the software's id, its PIN and the document's number, as section 11.8 defines it (`app/Modules/Dian/Domain/SoftwareSecurityCode.php`).
 
 **Shown by** `SoftwareSecurityCodeTest`, which checks it against values `sha384sum` computed outside the code, and by the simulator, which recalculates it (rules FAB27b, CAB27b and DAB27b) in `simulator/test/rules.test.ts`.
 
@@ -64,13 +64,13 @@ The simulator recalculates every key with the range's technical key or the softw
 
 - Canonicalization C14N 1.0 without comments, RSA with SHA-256, and SHA-256 digests.
 - Three references: the document, with the enveloped signature transform; the `KeyInfo`; and the `SignedProperties`. `KeyInfo` carries the signing certificate.
-- `SigningTime` in Colombia's time zone, and `SigningCertificate` with the SHA-256 digest, the issuer and the serial number of each certificate the uploaded file brings, the signing one first.
+- `SigningTime` in Colombia's time zone, and `SigningCertificate` with the SHA-256 digest, the issuer and the serial number of each certificate in the uploaded file, the signing one first.
 - `SignaturePolicyIdentifier`: `https://facturaelectronica.dian.gov.co/politicadefirma/v2/politicadefirmav2.pdf`, described as "Política de firma para facturas electrónicas de la República de Colombia", with the SHA-256 digest `dMoMvtcG5aIzgYo0tIsSQeVJBDnUnfSOfBpxXrmor0Y=`. Section 10.10 of the annex gives the URL but no digest; the digest is the one the toolbox's signed examples carry. The policy's PDF itself is neither downloaded nor kept here.
 - `SignerRole`: `supplier` (section 10.12).
 
-The certificates are synthetic: self-signed RSA keys of 2,048 bits, valid two years (`app/Modules/Dian/Services/SigningCertificates.php`). Only the simulator accepts them.
+The certificates are synthetic: self-signed 2,048-bit RSA keys, valid for two years (`app/Modules/Dian/Services/SigningCertificates.php`). Only the simulator accepts them.
 
-**Shown by** `make dian-check`: xmlsec1 verifies an invoice signed at that moment (step 3), refuses a copy with one digit of its total changed (step 4), and verifies the stored credit and debit notes (step 7) and the AttachedDocument of a delivered invoice (step 8). `ConformanceTest` does the same for the three documents, and the simulator verifies every signature with xmlsec1 (rules ZD01, ZE02 and ZD02). `ChainTest::test_a_certificate_that_expires_between_issue_and_signing_stops_the_chain_before_anything_is_sent` covers a certificate that expires on the way.
+**Shown by** `make dian-check`: xmlsec1 verifies an invoice signed on the spot (step 3), refuses a copy with one digit of its total changed (step 4), and verifies the stored credit and debit notes (step 7) and a delivered invoice's AttachedDocument (step 8). `ConformanceTest` does the same for the three documents, and the simulator verifies every signature with xmlsec1 (rules ZD01, ZE02 and ZD02). `ChainTest::test_a_certificate_that_expires_between_issue_and_signing_stops_the_chain_before_anything_is_sent` covers a certificate that expires on the way.
 
 ## Rounding
 
@@ -80,17 +80,17 @@ The certificates are synthetic: self-signed RSA keys of 2,048 bits, valid two ye
 - **The CUFE and CUDE** take their amounts truncated to two decimals ([above](#cufe-and-cude)).
 - **Per-thousand rates.** ICA and ReteICA are entered as percentages and written per thousand (9.66 per thousand is 0.966 %).
 
-**Shown by** `tests/Unit/Billing/DocumentCalculatorTest.php`: `test_the_line_base_rounds_half_to_even`, `test_taxes_and_discounts_round_half_to_even_too`, `test_reteica_per_thousand_rounds_half_to_even`, and `test_the_identities_of_the_totals_always_hold`, over 300 random documents. The simulator checks each total against its lines (rules FAU02, FAU04, FAU06 and FAU14, and those of the notes), rounding both sides to whole pesos.
+**Shown by** `tests/Unit/Billing/DocumentCalculatorTest.php`: `test_the_line_base_rounds_half_to_even`, `test_taxes_and_discounts_round_half_to_even_too`, `test_reteica_per_thousand_rounds_half_to_even`, and `test_the_identities_of_the_totals_always_hold`, over 300 random documents. The simulator checks each total against its lines (rules FAU02, FAU04, FAU06 and FAU14, and the notes' equivalents), rounding both sides to whole pesos.
 
 ## AttachedDocument
 
-After the DIAN accepts a document, `app/Modules/Dian/Ubl/AttachedDocumentXml.php` builds the container of section 6.4 (fields AE01 to AE55): `CustomizationID` "Documentos adjuntos", the sender and the receiver, the signed document in `Attachment`, and the DIAN's ApplicationResponse, with the UUID and the response code, in `ParentDocumentLineReference`. It is signed with the same signer and stored as `ad{NIT}{ppp}{aa}{dddddddd}.xml` (`app/Modules/Delivery/Services/AttachedDocuments.php`). The toolbox has no example of it, so it follows the annex's table. Its `ValidatorID` names the local simulator instead of the literal of AE52, and its other literals are an invoice's also for notes ([limitations.md](limitations.md#delivery-and-pdf)).
+After the DIAN accepts a document, `app/Modules/Dian/Ubl/AttachedDocumentXml.php` builds the section 6.4 container (fields AE01 to AE55): `CustomizationID` "Documentos adjuntos", the sender and the receiver, the signed document in `Attachment`, and the DIAN's ApplicationResponse, with the UUID and the response code, in `ParentDocumentLineReference`. It is signed with the same signer and stored as `ad{NIT}{ppp}{aa}{dddddddd}.xml` (`app/Modules/Delivery/Services/AttachedDocuments.php`). The toolbox has no example of it, so it follows the annex's table. Its `ValidatorID` names the local simulator instead of AE52's literal, and its other literals are an invoice's, for notes too ([limitations.md](limitations.md#delivery-and-pdf)).
 
-**Shown by** `make delivery-check`: it validates the AttachedDocument against `UBL-AttachedDocument-2.1.xsd`, checks that the document and the ApplicationResponse inside it are byte for byte the stored ones and that it has one signature, reads the PDF with poppler, and finds the email with its zip in the local mailbox. `make dian-check` (step 8) verifies that signature with xmlsec1, trusting only the company's certificate, and refuses a copy with one digit of the invoice inside it changed: the signature covers the documents it carries. `tests/Integration/Delivery/DeliveryTest.php::test_an_accepted_invoice_is_delivered_with_its_attached_document_pdf_and_email` covers the delivery.
+**Shown by** `make delivery-check`: it validates the AttachedDocument against `UBL-AttachedDocument-2.1.xsd`, and checks that it has one signature and that the document and the ApplicationResponse inside it match the stored ones byte for byte. It also reads the PDF with poppler, and finds the email with its zip in the local mailbox. `make dian-check` (step 8) verifies that signature with xmlsec1, trusting only the company's certificate, and refuses a copy with one digit of the invoice inside it changed: the signature covers the documents it carries. `tests/Integration/Delivery/DeliveryTest.php::test_an_accepted_invoice_is_delivered_with_its_attached_document_pdf_and_email` covers the delivery.
 
 ## QR code
 
-`sts:QRCode` holds the address the DIAN gives for a document: `https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=` and its CUFE or CUDE, the habilitación catalog (`app/Modules/Dian/Enums/DianEnvironment.php`). The PDF draws, at the foot of each page, a QR code with the number, the issue date and time, the issuer's NIT, the customer's identification, the value, the IVA, the other taxes, the total, the key and that address (`app/Modules/Delivery/Support/QrContent.php`), encoded by bacon/bacon-qr-code with error correction M (`app/Modules/Delivery/Pdf/QrSvg.php`). Notes use the same labels, an assumption the code states.
+`sts:QRCode` holds the address the DIAN gives for a document: `https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=` and its CUFE or CUDE, the habilitación catalog (`app/Modules/Dian/Enums/DianEnvironment.php`). At the foot of each page, the PDF draws a QR code with the number, the issue date and time, the issuer's NIT, the customer's identification, the value, the IVA, the other taxes, the total, the key and that address (`app/Modules/Delivery/Support/QrContent.php`). The library bacon/bacon-qr-code encodes it with error correction M (`app/Modules/Delivery/Pdf/QrSvg.php`). Notes use the same labels, an assumption the code states.
 
 **Shown by** `tests/Integration/Delivery/QrContentTest.php`, which issues an invoice with IVA and INC and checks each line of the text the QR code encodes, the verification address last, against the document and its `sts:QRCode`. It reads the text before QrSvg draws it: no test reads the image back, which would take a QR decoder, a dependency the project does not add.
 
@@ -101,20 +101,20 @@ The simulator (`simulator/`, Node.js and TypeScript, port 8602) stands in for th
 - **SendBillSync** takes the zip of a signed document, validates it and returns an ApplicationResponse: status `00` when it is accepted, and `99` with every rule it broke when it is rejected.
 - **GetStatus** returns the status of a track id, or `90`, "TrackId no encontrado", when it does not know it.
 
-The backend reaches it through `app/Modules/Dian/Transmission/SoapDianGateway.php`, behind the `DianGateway` interface, with WS-Addressing and without WS-Security. Its ApplicationResponse is unsigned, carries one `LineResponse` per finding, and has a UUID that is not the formula of section 11.5. A failure mode per company makes it reject, withhold its response, answer HTTP 500, answer slowly or fail at random ([README](../README.md#a-five-minute-tour)).
+The backend reaches it through `app/Modules/Dian/Transmission/SoapDianGateway.php`, behind the `DianGateway` interface, with WS-Addressing and without WS-Security. Its ApplicationResponse is unsigned, carries one `LineResponse` per finding, and has a UUID that does not follow section 11.5's formula. A failure mode per company makes it reject, withhold its response, respond with HTTP 500, respond slowly or fail at random ([README](../README.md#a-five-minute-tour)).
 
 The rules it applies, from sections 8 and 12 of the annex, with their codes and messages in Spanish as the annex writes them (`simulator/src/rules.ts`). FA is for invoices, CA and CB for credit notes, DA and DB for debit notes; every rule rejects the document, except the two marked as a notification.
 
 | Rules | What the simulator checks |
 | --- | --- |
-| ZB01 | The XML is well formed and valid against the schema of its type |
+| ZB01 | The XML is well formed and valid against its type's schema |
 | FAB24b, CAB24b, DAB24b | The issuer's NIT is registered and the software id is its software |
 | FAB27b, CAB27b, DAB27b | The software security code |
 | FAB05b, FAB07b, FAB08b, FAB10b, FAB11b, FAB12b | The numbering resolution is the issuer's, with its dates, prefix and range |
 | FAD05b, FAD05c | The number is inside the range |
 | FAD06, CAD06, DAD06 | The CUFE or CUDE, recalculated |
 | FAD09a, FAD09b | The issue date is inside the range's validity |
-| FAD09e, CAD09e, DAD09e | The issue date is the date of the signature in Colombia |
+| FAD09e, CAD09e, DAD09e | The issue date is the signature's date in Colombia |
 | FAU02, FAU04, FAU06, FAU14 and those of the notes | The totals add up |
 | CBG01, CBG03, CBG04, CBG05, DBG01, DBG03, DBG04 | A note references an invoice of the same issuer, accepted, by its number and CUFE |
 | CBG06 (notification), DBG06 | The referenced invoice is not dated after the note |
@@ -122,7 +122,7 @@ The rules it applies, from sections 8 and 12 of the annex, with their codes and 
 | ZD05 (notification) | The certificate is self-signed: a rejection at the DIAN, a notification here so that test certificates can work |
 | 90 | The number was already accepted for the issuer and type |
 
-It also checks the names of the zip and of the XML (sections 6.5.7 and 6.5.8), the zip's size and entries, and the UBL version. It does not check `CustomizationID`, `ProfileID`, the type codes, the QR code, the note's concept or a WS-Security header.
+It also checks the zip and XML file names (sections 6.5.7 and 6.5.8), the zip's size and entries, and the UBL version. It does not check `CustomizationID`, `ProfileID`, the type codes, the QR code, the note's concept or a WS-Security header.
 
 **Shown by** `make test-simulator`: `simulator/test/rules.test.ts` has a case for every rule except 90, and `simulator/test/server.test.ts` covers rule 90 and the failure modes over HTTP.
 
@@ -130,18 +130,18 @@ It also checks the names of the zip and of the XML (sections 6.5.7 and 6.5.8), t
 
 | Command | What it shows |
 | --- | --- |
-| `make dian-check` | The CUFE of 11.2.1 and the CUDE of 11.4.3; an issued invoice's XML against the XSD; its signature verified by xmlsec1 and a tampered copy refused; the stored credit and debit notes, valid and verified; a delivered invoice's AttachedDocument, its signature verified and a tampered copy refused |
+| `make dian-check` | The CUFE from 11.2.1 and the CUDE from 11.4.3; an issued invoice's XML against the XSD; its signature verified by xmlsec1 and a tampered copy refused; the stored credit and debit notes, valid and verified; a delivered invoice's AttachedDocument, its signature verified and a tampered copy refused |
 | `make delivery-check` | The AttachedDocument against its XSD, with the document and the response inside it; the PDF read with poppler; the email in the local mailbox |
 | `make test-backend` | `ConformanceTest`, `DocumentKeyTest`, `SoftwareSecurityCodeTest`, `DocumentCalculatorTest`, `ChainTest`, `DeliveryTest` and `QrContentTest`, among the rest |
-| `make test-simulator` | Every rule of the simulator, with a document that breaks it |
+| `make test-simulator` | Every simulator rule, each with a document that breaks it |
 | `make dian-toolbox` | The toolbox, downloaded with its SHA-256, and the repository's schemas compared with its own |
-| `make dian-schematron` | Optional: the toolbox's schematron of 2019 over the demo's invoice, credit note and debit note. Its 24 findings come from rules older than annex 1.9, each listed with its reason in the Makefile, and any other finding fails |
+| `make dian-schematron` | Optional: the toolbox's 2019 schematron over the demo's invoice, credit note and debit note. Its 24 findings come from rules older than annex 1.9, each listed with its reason in the Makefile, and any other finding fails |
 
 ## What is not implemented
 
-- **The habilitación.** The test set is never sent (no SendTestSetAsync), and the `test_set_id` of the settings is only stored. Nothing was ever validated by the DIAN.
-- **The WS-Security signature of the SOAP header** that the real web service requires (section 7.5).
-- **Real certificates.** No certificate of an authority accredited by ONAC, no check of its chain, and no revocation check (CRL or OCSP).
+- **The habilitación.** The test set is never sent (no SendTestSetAsync), and the `test_set_id` in the settings is only stored. Nothing was ever validated by the DIAN.
+- **The SOAP header's WS-Security signature**, which the real web service requires (section 7.5).
+- **Real certificates.** No certificate from an authority accredited by ONAC, no chain check, and no revocation check (CRL or OCSP).
 - **RADIAN events**: the receipt, acceptance and claim events of the ApplicationResponse (codes 030 to 034).
 - **The POS equivalent document**, the **documento soporte** and the **nómina electrónica**.
 - **Other invoices and notes**: export (`02`), contingency (`03` and `04`), and notes without a referenced invoice.
@@ -163,4 +163,4 @@ The official documents this project was built from. The repository redistributes
 | XML Advanced Electronic Signatures, XAdES (ETSI) | 1.3.2 and 1.4.1 | As OASIS copied them into UBL 2.1 | http://uri.etsi.org/01903/ |
 | DIVIPOLA, the municipality codes (DANE) | The dataset gdxc-w37w | Updated on 2025-01-24, downloaded on 2026-11-18 | https://www.datos.gov.co/resource/gdxc-w37w.json |
 
-*Not affiliated with DIAN.*
+*Not affiliated with the DIAN.*

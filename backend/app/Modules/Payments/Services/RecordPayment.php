@@ -58,7 +58,7 @@ final class RecordPayment
         $total = array_reduce($allocations, fn (BigDecimal $sum, array $allocation): BigDecimal => $sum->plus($allocation['amount']), BigDecimal::zero())->toScale(2);
 
         if (filled($input['amount'] ?? null) && ! BigDecimal::of((string) $input['amount'])->isEqualTo($total)) {
-            throw ValidationException::withMessages(['amount' => [sprintf('The amount of the payment must be the sum applied to its invoices, %s.', ColombianFormat::money((string) $total))]]);
+            throw ValidationException::withMessages(['amount' => [sprintf('The payment amount must equal the sum applied to its invoices, %s.', ColombianFormat::money((string) $total))]]);
         }
 
         $contact = Contact::query()->findOrFail($input['contact_id']);

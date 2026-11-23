@@ -40,12 +40,13 @@ params:
     dbName: dian_einvoice_cloud
     dbVerifyServerCertificate: 'false'
     # The DIAN is always the local simulator; its admin token is the random one of backend/.env, given by
-    # make cloud-up (--param dianSimulatorToken=...), as a development tool.
-    dianSoapUrl: http://simulator:8602/WcfDianCustomerServices.svc
-    dianSimulatorUrl: http://simulator:8602
+    # make cloud-up (--param dianSimulatorToken=...), as a development tool. Its paths under /cloud keep the emulated
+    # cloud's records (documents, failure modes, activity, webhook receiver) apart from the local stack's.
+    dianSoapUrl: http://simulator:8602/cloud/WcfDianCustomerServices.svc
+    dianSimulatorUrl: http://simulator:8602/cloud
     dianSimulatorToken: ${param:simulatorToken, ''}
     webhookPrivateTargets: 'true'
-    webhookReceiverUrl: http://simulator:8602/webhook-receiver
+    webhookReceiverUrl: http://simulator:8602/cloud/webhook-receiver
     # Two retries of a transmission (2 and 5 s) instead of the five of prod: Floci 2.5.0 gives a scheduled retry
     # back after the 60 s visibility timeout of its queue whatever its delay (docs/limitations.md), so five retries
     # would take six minutes in the emulator and make cloud-drill, which waits for a transmission to give up, would

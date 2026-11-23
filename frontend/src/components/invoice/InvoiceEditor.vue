@@ -402,7 +402,7 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
         {{ saving.isPending.value ? t('invoices.editor.savingDraft') : t('invoices.editor.saveDraft') }}
       </Button>
       <Button :disabled="saving.isPending.value || issuing.isPending.value || blocked" @click="openIssue">
-        {{ voiding ? t('notes.editor.issueVoid') : t('invoices.editor.issue') }}
+        {{ voiding ? t('notes.editor.issueVoid') : type === 'invoice' ? t('invoices.editor.issue') : t(`notes.editor.issue.${type}`) }}
       </Button>
     </PageHeader>
 

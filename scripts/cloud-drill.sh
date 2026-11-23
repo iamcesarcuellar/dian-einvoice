@@ -91,7 +91,7 @@ echo "3. Detection: the retries, the dead-letter queue, the alarm and its notifi
 detected=$(tools node scripts/drill.mjs detect "$since" "$incident") || status=1
 echo "$detected" | grep -v '=' || true
 progress=$(console cloud:drill progress "$company") || status=1
-echo "   Where the invoices of the incident are: $progress"
+echo "   Where the incident's invoices are: $progress"
 first_failure=$(echo "$progress" | sed -n 's/.*"first_failure_at":"\([^"]*\)".*/\1/p')
 elapsed
 
@@ -100,7 +100,7 @@ runbook cloud-alarms || status=1
 runbook cloud-dead-letters QUEUE=chain || status=1
 runbook cloud-follow ID="$correlation" HOURS=1 || status=1
 runbook cloud-artisan ARGS="chain:status" || status=1
-echo "   The probe of docs/runbooks/dian-errors.md says the DIAN is down (it exits 1):"
+echo "   The probe in docs/runbooks/dian-errors.md says the DIAN is down (it exits 1):"
 if runbook cloud-artisan ARGS="dian:probe"; then
   status=1
 fi
@@ -118,7 +118,7 @@ echo "$output"
 recovered_at=$(value "$output" recovered)
 back=$(tools node scripts/drill.mjs recovered "$redriven") || status=1
 echo "$back" | grep -v '=' || true
-echo "   The journey of one invoice of the incident after the recovery, by the correlation id of its answer:"
+echo "   After the recovery, the journey of one of the incident's invoices, by its response's correlation id:"
 runbook cloud-follow ID="$correlation" HOURS=1 || status=1
 tools node scripts/drill.mjs story "$correlation" "$since" || status=1
 elapsed

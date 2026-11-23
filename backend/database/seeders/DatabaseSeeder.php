@@ -60,8 +60,8 @@ class DatabaseSeeder extends Seeder
         if (DB::table('documents')->doesntExist()) {
             $storage->purge();
 
-            // A fresh world: the simulator forgets the taxpayers, documents and modes of the previous
-            // database, and jobs queued for it are dropped.
+            // A fresh world: the simulator forgets this stack's taxpayers, documents and modes, those of the
+            // previous database (the other stack's records stay), and jobs queued for it are dropped.
             $simulator->reset();
 
             // The local mailbox forgets the emails of the previous database too; in the emulated cloud,

@@ -91,7 +91,7 @@ final class DeliveryActions
         }
 
         if ($document->delivery_status === DeliveryStatus::Pending) {
-            throw new ConflictHttpException('The delivery of this invoice is running right now.');
+            throw new ConflictHttpException("This invoice's delivery is running right now.");
         }
 
         return $document;

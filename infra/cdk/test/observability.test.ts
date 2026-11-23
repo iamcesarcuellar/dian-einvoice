@@ -178,7 +178,7 @@ for (const stage of ['local', 'prod'] as const) {
       assert.equal(dashboards[0]?.Properties.DashboardName, `dian-einvoice-${stage}-operations`)
       const body = JSON.stringify(dashboards[0]?.Properties.DashboardBody)
 
-      for (const title of ['API requests and errors', 'API latency', 'Edge: requests', 'Documents issued, accepted and rejected', 'Queues: messages waiting', 'Dead-letter queues', 'The DIAN', 'The outbox', 'Concurrency: api', ...(stage === 'prod' ? ['Database: capacity', 'Database: connections', 'Firewall', 'The way out'] : [])]) {
+      for (const title of ['API requests and errors', 'API latency', 'Edge: requests', 'Documents issued, accepted and rejected', 'Queues: messages waiting', 'Dead-letter queues', 'DIAN calls', 'Outbox: relay runs', 'Function errors and throttles', 'Concurrency: api', ...(stage === 'prod' ? ['Database: capacity', 'Database: connections', 'Firewall', 'Outbound traffic'] : [])]) {
         assert.ok(body.includes(title), `the dashboard shows ${title}`)
       }
 

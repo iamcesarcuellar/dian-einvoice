@@ -11,7 +11,8 @@ use Throwable;
 /**
  * Client of the admin API of the local DIAN simulator (compose service simulator), a development
  * tool: it registers taxpayers (NIT, software, PIN and numbering ranges), sets failure modes and
- * reads the recent activity. Only the backend talks to it; the browser never does.
+ * reads the recent activity. Only the backend talks to it; the browser never does. Its URL picks the
+ * stack's records: the root paths for the local stack, /cloud for the emulated cloud.
  */
 final class DianSimulator
 {
@@ -87,7 +88,7 @@ final class DianSimulator
         $this->json('delete', "/admin/taxpayers/{$nit}");
     }
 
-    /** Clears every taxpayer, document, mode and request. */
+    /** Clears every taxpayer, document, mode and request of this stack. */
     public function reset(): void
     {
         $this->json('post', '/admin/reset');
@@ -103,11 +104,11 @@ final class DianSimulator
             /** @var Response $response */
             $response = $this->client()->{$method}($path, $data);
         } catch (Throwable $exception) {
-            throw new SimulatorUnavailable('The local DIAN simulator is not answering.', previous: $exception);
+            throw new SimulatorUnavailable('The local DIAN simulator is not responding.', previous: $exception);
         }
 
         if (! $response->successful()) {
-            throw new SimulatorUnavailable(sprintf('The local DIAN simulator answered HTTP %d: %s', $response->status(), Json::text($response->json(), 'error') ?? 'no details'));
+            throw new SimulatorUnavailable(sprintf('The local DIAN simulator returned HTTP %d: %s', $response->status(), Json::text($response->json(), 'error') ?? 'no details'));
         }
 
         $json = $response->json();

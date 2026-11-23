@@ -61,7 +61,7 @@ test('an invoice from draft to paid: issued, accepted by the DIAN simulator, del
 
   await test.step('the workers take it to the DIAN simulator, which accepts it, and deliver it by email', async () => {
     // Each step of the progress strip tells its state to screen readers, as in "Accepted (done)".
-    const steps = page.getByRole('region', { name: 'Progress of the electronic document' }).getByRole('listitem')
+    const steps = page.getByRole('region', { name: 'Electronic document progress' }).getByRole('listitem')
     await expect(steps.filter({ hasText: 'Accepted (done)' })).toBeVisible({ timeout: CHAIN_TIMEOUT })
     await expect(steps.filter({ hasText: 'Delivered (done)' })).toBeVisible({ timeout: CHAIN_TIMEOUT })
   })

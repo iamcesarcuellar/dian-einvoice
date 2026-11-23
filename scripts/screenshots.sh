@@ -26,7 +26,7 @@ export SCREENSHOTS_CLOCK_OFFSET="$offset" SCREENSHOTS_SESSION_LIFETIME="$lifetim
 restore() {
   status=$?
   rm -f "$log"
-  echo "Back to the clock of the machine: recreating the API, the workers, the relay and the simulator."
+  echo "Back to the machine's clock: recreating the API, the workers, the relay and the simulator."
   $compose up -d --force-recreate --wait api simulator >/dev/null 2>&1 || status=1
   $compose up -d --force-recreate worker relay >/dev/null 2>&1 || status=1
   exit "$status"
@@ -34,7 +34,7 @@ restore() {
 trap restore EXIT
 trap 'exit 130' INT TERM
 
-echo "Story clock: $story ($offset s from the clock of this machine)."
+echo "Story clock: $story ($offset s from this machine's clock)."
 $compose stop worker relay >/dev/null 2>&1
 $clock up -d --force-recreate --wait api simulator >/dev/null 2>&1
 

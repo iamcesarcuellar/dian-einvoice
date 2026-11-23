@@ -61,7 +61,7 @@ final class RecordPaymentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'payment_date.before_or_equal' => 'The date of the payment cannot be after today.',
+            'payment_date.before_or_equal' => 'The payment date cannot be later than today.',
         ];
     }
 }

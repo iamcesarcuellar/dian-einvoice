@@ -445,7 +445,7 @@ async function inCompany(context: BrowserContext, company: string): Promise<void
 
 /** The strip of the electronic document: each step tells its state, as in "Accepted (done)". */
 function step(page: Page, text: string): Locator {
-  return page.getByRole('region', { name: 'Progress of the electronic document' }).getByRole('listitem').filter({ hasText: text })
+  return page.getByRole('region', { name: 'Electronic document progress' }).getByRole('listitem').filter({ hasText: text })
 }
 
 /** The card of the page with this title. */
@@ -716,7 +716,7 @@ test('the screenshots and the GIFs of the README', async ({ browser }) => {
     await still(page, 'dian-settings')
 
     // Every attempt fails; a frame each time the strip tells something new, until the transmission gives up.
-    const strip = camera.getByRole('region', { name: 'Progress of the electronic document' })
+    const strip = camera.getByRole('region', { name: 'Electronic document progress' })
     const failed = camera.getByText('The transmission failed.', { exact: true })
     const deadline = Date.now() + OUTAGE_TIMEOUT
     let told = await strip.innerText()

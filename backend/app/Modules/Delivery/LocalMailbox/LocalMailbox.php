@@ -101,11 +101,11 @@ final class LocalMailbox
             /** @var Response $response */
             $response = $this->client()->{$method}($path, $data);
         } catch (Throwable $exception) {
-            throw new LocalMailboxUnavailable('The local mailbox is not answering.', previous: $exception);
+            throw new LocalMailboxUnavailable('The local mailbox is not responding.', previous: $exception);
         }
 
         if (! $response->successful()) {
-            throw new LocalMailboxUnavailable(sprintf('The local mailbox answered HTTP %d.', $response->status()));
+            throw new LocalMailboxUnavailable(sprintf('The local mailbox returned HTTP %d.', $response->status()));
         }
 
         return $response;

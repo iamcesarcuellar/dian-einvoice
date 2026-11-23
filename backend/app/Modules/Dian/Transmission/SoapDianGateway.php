@@ -299,10 +299,10 @@ final class SoapDianGateway implements DianGateway
         }
 
         if ($errno === 28) {
-            return new GatewayCall($operation, TransmissionOutcome::Timeout, $duration, error: sprintf('No answer within %s s. %s', rtrim(rtrim(number_format($this->timeout, 1, '.', ''), '0'), '.'), $detail), mayHaveArrived: $sent);
+            return new GatewayCall($operation, TransmissionOutcome::Timeout, $duration, error: sprintf('No response within %s s. %s', rtrim(rtrim(number_format($this->timeout, 1, '.', ''), '0'), '.'), $detail), mayHaveArrived: $sent);
         }
 
-        return new GatewayCall($operation, TransmissionOutcome::NoResponse, $duration, error: "The connection closed without an answer. {$detail}", mayHaveArrived: $sent);
+        return new GatewayCall($operation, TransmissionOutcome::NoResponse, $duration, error: "The connection closed without a response. {$detail}", mayHaveArrived: $sent);
     }
 
     private function elapsed(int $started): int

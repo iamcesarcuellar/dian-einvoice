@@ -38,7 +38,7 @@ const STAGE = 'local'
 const PREFIX = `dian-einvoice-${STAGE}`
 const SCHEMA = JSON.parse(readFileSync(process.env.LOG_SCHEMA ?? '/workspace/observability/log-schema.json', 'utf8'))
 const REQUIRED = SCHEMA.fields.filter((field) => field.optional !== true)
-const SIMULATOR = process.env.SIMULATOR_URL ?? 'http://simulator:8602'
+const SIMULATOR = process.env.SIMULATOR_URL ?? 'http://simulator:8602/cloud'
 const logs = new CloudWatchLogsClient({})
 const cloudwatch = new CloudWatchClient({})
 let failures = 0

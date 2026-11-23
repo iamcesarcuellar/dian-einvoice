@@ -288,9 +288,9 @@ final class IssueDocument
         $errors = [];
 
         if ($invoice->electronic_status !== ElectronicStatus::Accepted) {
-            $errors['related_document_id'][] = "Invoice {$invoice->full_number} is not accepted by the local simulator, so it cannot take notes.";
+            $errors['related_document_id'][] = "Invoice {$invoice->full_number} has not been accepted by the local simulator, so no note can correct it yet.";
         } elseif ($invoice->balance_status === BalanceStatus::Voided) {
-            $errors['related_document_id'][] = "Invoice {$invoice->full_number} is voided and takes no more notes.";
+            $errors['related_document_id'][] = "Invoice {$invoice->full_number} is voided, so no more notes can correct it.";
         }
 
         $concepts = $note->type === DocumentType::CreditNote ? CreditNoteConcept::class : DebitNoteConcept::class;

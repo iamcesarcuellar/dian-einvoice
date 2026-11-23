@@ -5,6 +5,9 @@
 //   POST /webhook-receiver/{company}    the local webhook receiver, another development tool
 //   GET  /health
 //   /admin/...                          taxpayers, failure modes, activity, the webhook receiver (X-Simulator-Token)
+//
+// Those paths serve the local stack. The emulated cloud uses the same paths under /cloud, with records of its own
+// (src/stacks.ts): /cloud/WcfDianCustomerServices.svc, /cloud/admin/..., /cloud/webhook-receiver/{company}.
 import { timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -19,7 +22,8 @@ import { RULES, finding, formatFinding, rule } from './rules.ts'
 import type { Finding } from './rules.ts'
 import { faultEnvelope, parseRequest, resultEnvelope } from './soap.ts'
 import type { DianResult, SoapRequest } from './soap.ts'
-import { Store } from './state.ts'
+import { PREFIXES, STACKS, openStacks, stackOf } from './stacks.ts'
+import type { Stack } from './stacks.ts'
 import type { DocumentRecord, Mode, ModeName, Range, RequestLog, Taxpayer } from './state.ts'
 import { validateDocument } from './validate.ts'
 import { ReceiverError, admin as receiverAdmin, receive } from './webhook-receiver.ts'
@@ -58,8 +62,7 @@ const REQUEST_LOG = 500
 /** How long a request in no_response mode is held open before the socket is dropped. */
 const HOLD_MS = 5 * 60 * 1000
 
-const store = new Store(process.env.SIMULATOR_DATA ?? '/data')
-const state = store.state
+const stacks = openStacks(process.env.SIMULATOR_DATA ?? '/data')
 const sockets = new Set<Socket>()
 
 interface Answer {
@@ -147,15 +150,16 @@ function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
-function log(entry: Omit<RequestLog, 'at'>): void {
-  state.requests.unshift({ at: new Date().toISOString(), ...entry })
+function log(stack: Stack, entry: Omit<RequestLog, 'at'>): void {
+  const { requests } = stack.state
+  requests.unshift({ at: new Date().toISOString(), ...entry })
 
-  if (state.requests.length > REQUEST_LOG) {
-    state.requests.length = REQUEST_LOG
+  if (requests.length > REQUEST_LOG) {
+    requests.length = REQUEST_LOG
   }
 
-  store.save()
-  console.log(`${entry.operation} nit=${entry.nit ?? '-'} document=${entry.document ?? '-'} result=${entry.result}${entry.mode ? ` mode=${entry.mode}` : ''} ${entry.duration_ms} ms`)
+  stack.store.save()
+  console.log(`${entry.operation} stack=${stack.name} nit=${entry.nit ?? '-'} document=${entry.document ?? '-'} result=${entry.result}${entry.mode ? ` mode=${entry.mode}` : ''} ${entry.duration_ms} ms`)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -227,7 +231,8 @@ function unreadable(messages: Finding[], documentKey: string | null = null): Dia
   }
 }
 
-async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<Answer> {
+async function sendBillSync(stack: Stack, request: SoapRequest, mode: Mode | null): Promise<Answer> {
+  const { state, store } = stack
   const zip = Buffer.from(request.contentFile ?? '', 'base64')
 
   const refuse = (message: string): Answer => ({ result: unreadable([{ code: null, kind: 'rejection', message }]), outcome: 'rejected', document: null, rules: [] })
@@ -363,9 +368,9 @@ async function sendBillSync(request: SoapRequest, mode: Mode | null): Promise<An
   return { result: resultOf(record), outcome: record.status, document: record.number, rules: findings.flatMap((item) => (item.code ? [item.code] : [])) }
 }
 
-function getStatus(request: SoapRequest): Answer {
+function getStatus(stack: Stack, request: SoapRequest): Answer {
   const trackId = (request.trackId ?? '').toLowerCase()
-  const record = state.documents[trackId]
+  const record = stack.state.documents[trackId]
 
   if (!record) {
     return {
@@ -388,24 +393,24 @@ function getStatus(request: SoapRequest): Answer {
   return { result: resultOf(record), outcome: `found ${record.status}`, document: record.number, rules: record.findings.flatMap((item) => (item.code ? [item.code] : [])) }
 }
 
-async function soap(request: IncomingMessage, response: ServerResponse): Promise<void> {
+async function soap(stack: Stack, request: IncomingMessage, response: ServerResponse): Promise<void> {
   const started = performance.now()
   const elapsed = () => Math.round(performance.now() - started)
   const envelope = parseRequest(await readBody(request))
 
   if (!envelope || (envelope.operation !== 'SendBillSync' && envelope.operation !== 'GetStatus')) {
     soapResponse(response, 400, faultEnvelope('Sender', envelope ? `The local DIAN simulator does not implement ${envelope.operation}; it offers SendBillSync and GetStatus.` : 'The request is not a SOAP 1.2 envelope.'))
-    log({ operation: envelope?.operation ?? 'unknown', nit: null, document: null, result: 'invalid_request', status_code: null, duration_ms: elapsed(), mode: null, rules: [] })
+    log(stack, { operation: envelope?.operation ?? 'unknown', nit: null, document: null, result: 'invalid_request', status_code: null, duration_ms: elapsed(), mode: null, rules: [] })
 
     return
   }
 
   const operation = envelope.operation
-  const nit = operation === 'SendBillSync' ? nitFromFileName(envelope.fileName) : (state.documents[(envelope.trackId ?? '').toLowerCase()]?.nit ?? null)
-  const mode = takeMode(state, nit, operation)
+  const nit = operation === 'SendBillSync' ? nitFromFileName(envelope.fileName) : (stack.state.documents[(envelope.trackId ?? '').toLowerCase()]?.nit ?? null)
+  const mode = takeMode(stack.state, nit, operation)
 
   if (mode !== null) {
-    store.save()
+    stack.store.save()
   }
 
   const fail = (how: 'error_500' | 'reset', label: string): void => {
@@ -415,7 +420,7 @@ async function soap(request: IncomingMessage, response: ServerResponse): Promise
       request.socket.destroy()
     }
 
-    log({ operation, nit, document: envelope.trackId ?? envelope.fileName ?? null, result: how, status_code: null, duration_ms: elapsed(), mode: label, rules: [] })
+    log(stack, { operation, nit, document: envelope.trackId ?? envelope.fileName ?? null, result: how, status_code: null, duration_ms: elapsed(), mode: label, rules: [] })
   }
 
   if (mode?.mode === 'error_500') {
@@ -430,7 +435,7 @@ async function soap(request: IncomingMessage, response: ServerResponse): Promise
     return
   }
 
-  const answer = operation === 'SendBillSync' ? await sendBillSync(envelope, mode) : getStatus(envelope)
+  const answer = operation === 'SendBillSync' ? await sendBillSync(stack, envelope, mode) : getStatus(stack, envelope)
 
   if (mode?.mode === 'slow') {
     await sleep(mode.delay_ms ?? 0)
@@ -442,13 +447,13 @@ async function soap(request: IncomingMessage, response: ServerResponse): Promise
     // Processed, but the answer never leaves: as if it were lost on the way back.
     const timer = setTimeout(() => request.socket.destroy(), HOLD_MS)
     request.socket.once('close', () => clearTimeout(timer))
-    log({ ...entry, result: `${answer.outcome} (answer withheld)`, duration_ms: elapsed() })
+    log(stack, { ...entry, result: `${answer.outcome} (response withheld)`, duration_ms: elapsed() })
 
     return
   }
 
   soapResponse(response, 200, resultEnvelope(operation, answer.result))
-  log({ ...entry, result: answer.outcome, duration_ms: elapsed() })
+  log(stack, { ...entry, result: answer.outcome, duration_ms: elapsed() })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -556,7 +561,7 @@ function publicTaxpayer(taxpayer: Taxpayer): unknown {
   }
 }
 
-async function admin(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+async function admin(stack: Stack, request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
   if (!validToken(request.headers['x-simulator-token'])) {
     throw new HttpError(401, 'Send the admin token in X-Simulator-Token.')
   }
@@ -565,6 +570,7 @@ async function admin(request: IncomingMessage, response: ServerResponse, url: UR
   const [, , resource, ...segments] = url.pathname.split('/')
   const id = segments[0]
   const body = method === 'PUT' || method === 'POST' ? jsonObject(await readBody(request)) : {}
+  const { state, store } = stack
 
   if (resource === 'webhook-receiver') {
     return json(response, 200, receiverAdmin(state, method, segments.filter((part) => part !== ''), url, body, () => store.save()))
@@ -655,35 +661,47 @@ async function admin(request: IncomingMessage, response: ServerResponse, url: UR
 // ---------------------------------------------------------------------------------------------
 // Server
 
+/** The records of one stack, at a glance; /health of each stack names where the others are. */
+function health(stack: Stack): unknown {
+  const { state } = stack
+
+  return {
+    status: 'ok',
+    service: 'Local DIAN simulator: a development tool, not the DIAN',
+    stack: stack.name,
+    taxpayers: Object.keys(state.taxpayers).length,
+    documents: Object.keys(state.documents).length,
+    modes: Object.keys(state.modes).length,
+    all: state.modes[ALL] ?? null,
+    webhook_receiver: { companies: Object.keys(state.receiver ?? {}).length },
+    stacks: Object.fromEntries(STACKS.map((name) => [name, `${PREFIXES[name]}/health`])),
+  }
+}
+
 async function route(request: IncomingMessage, response: ServerResponse): Promise<void> {
-  const url = new URL(request.url ?? '/', 'http://simulator')
+  const requested = new URL(request.url ?? '/', 'http://simulator')
+  const { name, path: inner } = stackOf(requested.pathname)
+  const stack = stacks[name]
+  const url = new URL(`${inner}${requested.search}`, 'http://simulator')
   const path = url.pathname.toLowerCase()
 
   if (request.method === 'GET' && path === '/health') {
-    return json(response, 200, {
-      status: 'ok',
-      service: 'Local DIAN simulator: a development tool, not the DIAN',
-      taxpayers: Object.keys(state.taxpayers).length,
-      documents: Object.keys(state.documents).length,
-      modes: Object.keys(state.modes).length,
-      all: state.modes[ALL] ?? null,
-      webhook_receiver: { companies: Object.keys(state.receiver ?? {}).length },
-    })
+    return json(response, 200, health(stack))
   }
 
   if (path.startsWith('/admin/')) {
-    return admin(request, response, url)
+    return admin(stack, request, response, url)
   }
 
   if (path.startsWith('/webhook-receiver/') && request.method === 'POST') {
     const [, , companyId] = url.pathname.split('/')
 
-    return receive(state, companyId, request.headers, await readBody(request), response, () => store.save())
+    return receive(stack.state, companyId, request.headers, await readBody(request), response, () => stack.store.save())
   }
 
   if (path.endsWith('.svc')) {
     if (request.method === 'POST') {
-      return soap(request, response)
+      return soap(stack, request, response)
     }
 
     response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
@@ -717,7 +735,11 @@ server.on('connection', (socket: Socket) => {
 
 function stop(signal: string): void {
   console.log(`${signal}: stopping the local DIAN simulator.`)
-  store.save()
+
+  for (const name of STACKS) {
+    stacks[name].store.save()
+  }
+
   server.close()
 
   for (const socket of sockets) {
@@ -731,5 +753,6 @@ process.on('SIGTERM', () => stop('SIGTERM'))
 process.on('SIGINT', () => stop('SIGINT'))
 
 server.listen(PORT, () => {
-  console.log(`Local DIAN simulator listening on port ${PORT} (${Object.keys(state.taxpayers).length} taxpayers, ${Object.keys(state.documents).length} documents).`)
+  const counts = STACKS.map((name) => `${name}: ${Object.keys(stacks[name].state.taxpayers).length} taxpayers, ${Object.keys(stacks[name].state.documents).length} documents`)
+  console.log(`Local DIAN simulator listening on port ${PORT} (${counts.join('; ')}).`)
 })
