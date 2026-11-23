@@ -442,7 +442,7 @@ export default {
       pinStored: 'A PIN is stored. Type a new one to replace it, or leave it empty to keep it.',
       pinPlaceholder: 'Leave empty to keep the stored PIN',
       testSetId: 'Test set ID',
-      testSetIdHint: 'Identifier of the habilitación test set, used when documents are sent.',
+      testSetIdHint: "Identifier of the DIAN's habilitación test set. It is only stored: the local simulator has no test set.",
       saved: 'DIAN settings saved.',
       certificate: {
         title: 'Signing certificate',

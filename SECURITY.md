@@ -1,6 +1,6 @@
 # Security policy
 
-DIAN e-Invoice is a reference implementation that runs on your machine: the DIAN is a local simulator, the AWS services are a local emulator, every person and company of the demo is synthetic, and nothing was ever deployed to a real AWS account. A report is still welcome when it shows a way to break what the code promises: the isolation of one company from another, the sessions and API keys, the signatures of documents and webhooks, the secrets, or the infrastructure as code that a real account would deploy.
+dian-einvoice is a reference implementation that runs on your machine: the DIAN is a local simulator, the AWS services are a local emulator, every person and company of the demo is synthetic, and nothing was ever deployed to a real AWS account. A report is still welcome when it shows a way to break what the code promises: one company's isolation from another, the sessions and API keys, the signatures of documents and webhooks, the secrets, or the infrastructure as code that a real account would deploy.
 
 ## How to report a vulnerability
 

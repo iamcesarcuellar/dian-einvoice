@@ -39,7 +39,7 @@ export CLOUD_CHAOS_INVOICES
 # cache and sets BUILD empty, so compose uses them as they are.
 BUILD ?= --build
 
-TARGETS := up down logs ps seed demo stress chaos dian-check dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security licenses docs-check cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check migrations-check cloud-deploy cloud-drill cloud-dead-letters cloud-dead-letters-purge cloud-redrive cloud-errors cloud-functions cloud-rotate
+TARGETS := up down logs ps seed demo stress chaos dian-check dian-toolbox dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check docs-examples openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra e2e checks security licenses docs-check cost cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check migrations-check cloud-deploy cloud-drill cloud-dead-letters cloud-dead-letters-purge cloud-redrive cloud-errors cloud-functions cloud-rotate
 
 .PHONY: env help $(TARGETS)
 
@@ -114,11 +114,18 @@ chaos: ## Checks of the running stack | Kill the workers and the relay mid-chain
 dian-check: ## Checks of the running stack | CUFE against the annex, the XML against the official XSD, the signature with xmlsec1
 	$(COMPOSE) exec api php artisan dian:check
 
+# The DIAN e-invoicing toolbox v1.9 (scripts/dian-toolbox.sh, compose service dian-toolbox, profile tools), which the
+# repository does not redistribute (NOTICE): downloaded once from the DIAN into backend/storage/app/dian-toolbox, which
+# git ignores, checked against its SHA-256 and extracted; then the schemas of backend/resources/dian/xsd are compared
+# with the toolbox's own, byte for byte. The stack need not be up.
+dian-toolbox: ## Quality | Download the DIAN toolbox once, check its SHA-256, and compare the schemas of the repository with its own
+	$(COMPOSE) --profile tools run --rm --no-deps -T dian-toolbox
+
 # Optional, outside every other check: the schematron of the DIAN toolbox (XSL/DIAN-UBL21-model-compiled.xsl and
 # Schemes/listacodigos v1.6, both of 2019) over the demo invoice with a discount and ReteIVA, credit note and debit
-# note of Demo Comercial SAS (run make demo first). SaxonJS and SchXslt are downloaded once into the
-# schematron-tools volume. The findings listed below come from rules older than annex 1.9 and pass, each with its
-# reason (document|rule|text of the message|reason); any other finding fails.
+# note of Demo Comercial SAS (run make demo first). make dian-toolbox runs first. SaxonJS and SchXslt are
+# downloaded once into the schematron-tools volume. The findings listed below come from rules older than annex 1.9
+# and pass, each with its reason (document|rule|text of the message|reason); any other finding fails.
 define DIAN_SCHEMATRON_OUTDATED
 invoice|FAD03||ProfileID: annex 1.9 (FAD03) asks "DIAN 2.1: Factura Electrónica de Venta", the 2019 rule the literal "DIAN 2.1".
 invoice|FAD09c||Issue date more than five days back: annex 1.9 removed FAD09c (section 2.1), and the demo dates its documents in the past.
@@ -147,7 +154,7 @@ debit-note|HD06|'O-15;O-23'|Several responsibilities joined with ";", as DAJ26 o
 endef
 export DIAN_SCHEMATRON_OUTDATED
 
-dian-schematron: ## Checks of the running stack | Optional: the 2019 schematron of the DIAN toolbox over the demo documents
+dian-schematron: dian-toolbox ## Checks of the running stack | Optional: the 2019 schematron of the DIAN toolbox over the demo documents
 	$(COMPOSE) --profile tools run --rm --no-deps -T schematron
 
 # On an accepted demo invoice: validate its AttachedDocument against the official XSD (signed invoice and
@@ -159,6 +166,15 @@ delivery-check: ## Checks of the running stack | The AttachedDocument against it
 # of a tenth of its balance. Exactly 10 must fit, the balance must end at zero, and the receipts have no gaps.
 payments-check: ## Checks of the running stack | Twenty simultaneous payments of a tenth of a balance: exactly ten fit
 	$(COMPOSE) exec api php artisan payments:check
+
+# The examples of README.md and docs/api-guide.md against the demo (make demo), as a reader runs them
+# (e2e/docs/examples.mjs, in the container of the browser tooling, the repository read-only): each curl block runs and
+# prints what the docs say it prints, and the webhook signature examples in Node.js and PHP verify the Standard
+# Webhooks reference example and a real webhook of the demo; the PHP one runs next, in the api image. Each run adds a
+# contact, an item and an invoice to Demo Comercial SAS; the keys and subscriptions it creates are revoked and deleted.
+docs-examples: ## Checks of the running stack | Run the examples of README.md and docs/api-guide.md against the demo, webhook signatures included
+	$(COMPOSE) --profile e2e run --rm --no-deps --use-aliases -T -v $(CURDIR):/repo:ro e2e node docs/examples.mjs /repo
+	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/e2e/test-results/docs-examples:/examples:ro api php /examples/verify.php
 
 # On a temporary company of its own, deleted at the end, and over HTTP with API keys only: idempotent issue
 # (repeat, other body, 10 at once), a read-only key refused, signed webhooks in the local receiver, a
@@ -186,8 +202,14 @@ lint: ## Quality | Formatters and linters, then docs-check; the stack need not b
 # every make target and file README.md and docs/README.md name exists, every relative link and anchor of every
 # Markdown file resolves, every image exists and keeps to its size (a screenshot 400 KB, a GIF 5 MB), and Mermaid
 # draws every diagram.
-docs-check: ## Quality | The make targets, files, links, anchors, images and Mermaid diagrams of the docs
-	$(COMPOSE) --profile e2e run --rm --no-deps -T -v $(CURDIR):/repo:ro e2e sh -c 'npm ci --no-audit --no-fund && node docs/check.mjs /repo'
+docs-check: ## Quality | The make targets, files, links, anchors, images and Mermaid diagrams of the docs, and the cost estimate
+	$(COMPOSE) --profile e2e run --rm --no-deps -T -v $(CURDIR):/repo:ro e2e sh -c 'npm ci --no-audit --no-fund && node docs/check.mjs /repo && node /repo/scripts/cost/estimate.mjs --check /repo'
+
+# docs/cost.md, the estimate of what the prod stage would cost a month in us-east-1, computed by scripts/cost/estimate.mjs
+# (no dependencies, no network) from scripts/cost/prices.json, the unit prices with their sources, and
+# scripts/cost/usage.json, the assumptions with theirs. make docs-check fails when the page is not what they give.
+cost: ## Quality | Write docs/cost.md again from the prices and the assumptions of scripts/cost
+	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR):/repo web node /repo/scripts/cost/estimate.mjs /repo
 
 # Static analysis: PHPStan with Larastan (level in backend/phpstan.neon, no baseline), vue-tsc and tsc (simulator, CDK
 # app and the origin verifier of the edge), all strict.
@@ -278,12 +300,13 @@ e2e: ## Checks of the running stack | End-to-end test in a browser: an invoice f
 	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 
 # The checks of the stack, in a row, against the demo data (make demo). make dian-schematron stays optional, apart.
-checks: ## Checks of the running stack | ui-check, dian-check, delivery-check, payments-check, api-check, stress and chaos in a row
+checks: ## Checks of the running stack | ui-check, dian-check, delivery-check, payments-check, api-check, docs-examples, stress and chaos in a row
 	@$(MAKE) --no-print-directory ui-check
 	@$(MAKE) --no-print-directory dian-check
 	@$(MAKE) --no-print-directory delivery-check
 	@$(MAKE) --no-print-directory payments-check
 	@$(MAKE) --no-print-directory api-check
+	@$(MAKE) --no-print-directory docs-examples
 	@$(MAKE) --no-print-directory stress
 	@$(MAKE) --no-print-directory chaos
 

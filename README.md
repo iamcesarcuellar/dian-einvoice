@@ -1,38 +1,49 @@
-# DIAN e-Invoice
+# dian-einvoice
 
-Electronic invoicing for Colombian small and medium businesses, API first: it issues invoices and credit and debit notes, builds their UBL 2.1 XML, computes the CUFE, signs it, sends it to a local simulator of the DIAN and emails the customer the PDF.
+Electronic invoicing for Colombian small and medium businesses, API first.
+
+It shows the full electronic invoicing chain and a serverless AWS architecture as code, running on a local emulator with no AWS account.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) ![PHP 8.5 and Laravel 13](https://img.shields.io/badge/PHP_8.5-Laravel_13-ff2d20.svg) ![Vue 3 and TypeScript](https://img.shields.io/badge/Vue_3-TypeScript-42b883.svg) ![MySQL 8.4](https://img.shields.io/badge/MySQL-8.4-4479a1.svg) ![AWS CDK](https://img.shields.io/badge/AWS_CDK-TypeScript-ff9900.svg) ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ed.svg)
 
 ![An invoice written in the editor, issued, accepted by the local DIAN simulator and delivered, then its PDF](docs/assets/issue-invoice.gif)
 
-> **Not affiliated with DIAN.** The DIAN, the tax authority of Colombia, is always a local simulator in this repository. Every person, company and document of the demo is synthetic, and nothing was ever deployed to AWS: the cloud runs in a local emulator. See [Limits](#limits).
+> **Not affiliated with DIAN.** The DIAN, Colombia's tax authority, is always a local simulator in this repository. Every person, company and document of the demo is synthetic, and nothing was ever deployed to AWS: the cloud runs on a local emulator. See [Limits](#limits).
 
 ## What it is and what it shows
 
-A multi-tenant platform for companies and for the software that serves them (accounting, point of sale, e-commerce), written as a reference implementation and run entirely on your machine.
+A multi-tenant platform for companies and for the software that serves them (accounting, point of sale, e-commerce). It is a reference implementation, and it runs entirely on your machine.
 
-- **The whole electronic chain of a document.** UBL 2.1 XML, CUFE and CUDE, XAdES-EPES signature, transmission to a SOAP simulator of the DIAN with retries and its ApplicationResponse, then the AttachedDocument, the PDF and the email. `make dian-check` checks the CUFE against the example of the technical annex, validates the XML against the official XSD and verifies the signature with xmlsec1; `make delivery-check` validates the AttachedDocument and reads the PDF and the email back.
-- **Multi-tenant and API first.** Every business table carries its company and every query is scoped to it ([TenantIsolationTest](backend/tests/Integration/Identity/TenantIsolationTest.php)). The web app uses the same public API integrations do, with API keys, idempotency keys, rate limits and signed webhooks: `make api-check` drives it over HTTP.
-- **Correct under concurrency and failure.** Numbers without gaps from parallel processes (`make stress`), the workers and the relay killed in the middle of the chain with every invoice accepted once (`make chaos`), twenty simultaneous payments of which exactly ten fit (`make payments-check`), and an outbox that publishes nothing before its commit.
-- **The AWS architecture as code, run on an emulator.** A CDK app and a serverless service put the API on Lambda behind API Gateway and CloudFront, with SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES and EventBridge Scheduler; production adds a VPC, Aurora MySQL Serverless v2 and AWS WAF, validated offline. `make cloud-check` proves the stage local end to end ([docs/infrastructure.md](docs/infrastructure.md)).
-- **Operated like a service.** JSON logs where one correlation id follows an invoice from its request to its webhooks, metrics from those logs, alarms that each name a runbook, a notifier to a chat, and an incident drill that takes the DIAN down and brings every invoice back once: `make cloud-drill` ([docs/runbooks](docs/runbooks/README.md), [docs/observability.md](docs/observability.md)).
-- **Checked from end to end.** 561 tests, PHPStan at level 10 without a baseline, audits of every dependency and of the git history, a browser test under the Content-Security-Policy of the edge, and cdk-nag with cfn-lint over both stages: see [Quality](#quality).
+- **The whole electronic chain of a document.** The UBL 2.1 XML, its CUFE or CUDE and its XAdES-EPES signature go to a SOAP simulator of the DIAN, and its response leads to the AttachedDocument, the PDF and the email. `make dian-check` and `make delivery-check` check each piece against the annex's examples, the official XSDs and xmlsec1 ([DIAN conformance](docs/dian-conformance.md)).
+- **Multi-tenant and API first.** Every business table carries its company, and every query is scoped to it ([TenantIsolationTest](backend/tests/Integration/Identity/TenantIsolationTest.php)). The web app uses the same public API as integrations do, and `make api-check` and `make docs-examples` drive it over HTTP ([API guide](docs/api-guide.md)).
+- **Correct under concurrency and failure.** Twenty parallel processes take numbers without a gap (`make stress`), and with the workers and the relay killed mid-chain every invoice is accepted once (`make chaos`). Of twenty simultaneous payments, exactly the ten that fit are recorded (`make payments-check`).
+- **The AWS architecture as code, run on an emulator.** A CDK app and a serverless service put the API on Lambda behind API Gateway and CloudFront, with SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES and EventBridge Scheduler. `make cloud-check` proves the local stage end to end, and the prod stage, with its VPC, Aurora MySQL and AWS WAF, is validated offline ([infrastructure](docs/infrastructure.md), [cost estimate](docs/cost.md)).
+- **Operated like a service.** One correlation id follows an invoice from its request to its webhooks, through JSON logs, metrics, alarms that each name a runbook, and a notifier to a chat. `make cloud-drill` takes the DIAN down and brings every invoice back once ([runbooks](docs/runbooks/README.md), [observability](docs/observability.md)).
+- **Checked from end to end.** 561 tests, PHPStan at level 10 without a baseline, audits of every dependency and of the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
 
 ## Gallery
 
 | | |
 | --- | --- |
-| ![The dashboard of Demo Comercial SAS: invoiced and collected by month, and receivables by age, over six months of synthetic data](docs/assets/dashboard.png) | ![An accepted invoice: the answer of the local simulator, its CUFE and QR code, and its delivery by email](docs/assets/invoice-accepted.png) |
-| The dashboard, over six months of synthetic sales. | An accepted invoice: the answer of the simulator, the CUFE, the QR code and the delivery. |
-| ![The PDF of an invoice in the viewer of the web app](docs/assets/invoice-pdf.png) | ![Settings, DIAN: the synthetic test certificate, and the local simulator answering HTTP 500 to the requests of an invoice](docs/assets/dian-settings.png) |
+| ![The dashboard of Demo Comercial SAS: invoiced and collected by month, and receivables by age, over six months of synthetic data](docs/assets/dashboard.png) | ![An accepted invoice: the local simulator's response, its CUFE and QR code, and its delivery by email](docs/assets/invoice-accepted.png) |
+| The dashboard, over six months of synthetic sales. | An accepted invoice: the simulator's response, the CUFE, the QR code and the delivery. |
+| ![An invoice's PDF in the web app's viewer](docs/assets/invoice-pdf.png) | ![Settings, DIAN: the synthetic test certificate, and the local simulator returning HTTP 500 to an invoice's requests](docs/assets/dian-settings.png) |
 | The PDF the customer receives. | Settings → DIAN: the test certificate, and the simulator with a failure injected. |
 | ![The timeline of an invoice that failed while the simulator was down and was accepted after Retry now](docs/assets/invoice-recovered.png) | ![API keys and the webhook subscription to the local receiver, with its last delivery](docs/assets/developers.png) |
-| The timeline of that invoice: six failed attempts, Retry now, accepted. | API keys and signed webhooks, delivered to a local receiver that verifies them. |
+| That invoice's timeline: six failed attempts, Retry now, accepted. | API keys and signed webhooks, delivered to a local receiver that verifies them. |
 
 Every screen in [docs/assets](docs/assets/), the dark theme included, comes from `make screenshots`.
 
 ## Quick start
 
-You need Docker with Docker Compose 2.24 or later, GNU make and git; nothing else is installed on the host. It was tested on Linux under WSL 2 with Docker 29.1, Compose 2.40 and GNU make 4.3. On a clean clone the local stack took 2.7 GB of disk (1.7 GB of images, 0.3 GB of volumes and 0.7 GB of dependencies in the folder) and used 1.6 GB of memory once up, within limits of 4.8 GB in all; the browser test and the screenshots add the image of Playwright (2.6 GB), and the emulated cloud about 2 GB more. Keep the ports 8600 to 8603 of 127.0.0.1 free (the emulated cloud also uses 8604, 8605 and 8610 to 8619).
+You need:
+
+- Docker with Docker Compose 2.24 or later, GNU make and git. Nothing else is installed on the host.
+- About 3 GB of disk and 2 GB of memory for the local stack. The browser test and the emulated cloud take more.
+- Ports 8600 to 8603 of 127.0.0.1, free. The emulated cloud also uses 8604, 8605 and 8610 to 8619.
+- Linux, or Windows with WSL 2: it was tested on Linux under WSL 2, with Docker 29.1, Compose 2.40 and GNU make 4.3.
+
+> On a clean clone, the local stack took 2.7 GB of disk: 1.7 GB of images, 0.3 GB of volumes and 0.7 GB of dependencies in the folder. Once up, it used 1.6 GB of memory, within limits of 4.8 GB in all. The browser test and the screenshots add Playwright's image (2.6 GB), and the emulated cloud about 2 GB more.
 
 ```sh
 git clone https://github.com/iamcesarcuellar/dian-einvoice.git
@@ -40,7 +51,7 @@ cd dian-einvoice
 make demo
 ```
 
-The first `make demo` builds the images, installs the dependencies, migrates and loads six months of synthetic demo data through the real chain: 56 seconds on a clean clone of this commit, on a machine whose Docker already held the base images and its build cache (without them, it first pulls about 1.5 GB of base images). It creates `backend/.env` with random local secrets and prints a synthetic API key once. Then open:
+The first `make demo` builds the images, installs the dependencies, migrates the database and loads six months of synthetic demo data through the real chain. On a clean clone it took 56 seconds, on a machine whose Docker already held the base images and their build cache; without them, it first pulls about 1.5 GB of base images. It creates `backend/.env` with random local secrets and prints a synthetic API key once. Then open:
 
 | What | Address |
 | --- | --- |
@@ -54,11 +65,11 @@ Sign in as `demo@example.com` with the password `password`: the owner of Demo Co
 
 `make down` stops everything and keeps the data, `make clean` also deletes it, and `make help` lists every target.
 
-If something does not start, `make ps` shows the health of each container and `make logs` follows their logs. A port already taken on 127.0.0.1 stops the service that publishes it: free it, or stop the other project that holds it. `make seed` reloads the demo data from scratch at any time.
+If something does not start, `make ps` shows each container's health and `make logs` follows their logs. A port already taken on 127.0.0.1 stops the service that publishes it: free the port, or stop the other project that holds it. `make seed` reloads the demo data from scratch at any time.
 
 ## Everyday commands
 
-`make help` lists every target with one line each; these are the ones used most:
+`make help` lists every target with one line each. These are the ones used most:
 
 | Command | What it does |
 | --- | --- |
@@ -66,67 +77,77 @@ If something does not start, `make ps` shows the health of each container and `m
 | `make up`, `make down` | Starts the stack with the current code; stops it and keeps the data |
 | `make seed` | Reloads the demo data from scratch |
 | `make test`, `make lint`, `make analyse` | Tests without a browser, formatters and linters, static analysis |
-| `make e2e`, `make checks` | The browser test and the checks of the running stack |
-| `make security` | Audits the dependencies and their licenses, and scans the history for secrets |
+| `make e2e`, `make checks` | The browser test, and the checks of the running stack |
+| `make security` | Audits the dependencies, their licenses and the files of third parties, and scans the history for secrets |
 | `make cloud-demo`, `make cloud-check` | Deploys the AWS architecture to the local emulator and checks it end to end |
-| `make screenshots` | Writes the screenshots and GIFs of this page again |
+| `make screenshots` | Writes this page's screenshots and GIFs again |
 | `make logs`, `make ps` | Follows the logs; shows the containers and their health |
 
 ## A five-minute tour
 
-**1. Issue an invoice and follow it.** In the web app, open **Invoices → New invoice**, choose the customer Distribuidora Cordillera Plata SAS and an item; the totals, taxes and withholdings update as you type. **Issue invoice** gives it its number and CUFE, and the strip at the top follows the chain: XML, signed, sent, accepted, delivered. The **Timeline** at the bottom lists every step with its time and who did it, and the email to the customer, with the PDF and the AttachedDocument in a zip, is in the local mailbox.
+**1. Issue an invoice and follow it.** In the web app, open **Invoices → New invoice**, choose the customer Distribuidora Cordillera Plata SAS and an item; the totals, taxes and withholdings update as you type. **Issue invoice** gives it its number and CUFE, and the strip at the top follows the chain: XML, signed, sent, accepted, delivered. The **Timeline** at the bottom lists every step with its time and who did it. The email to the customer, with the PDF and the AttachedDocument in a zip, is in the local mailbox.
 
-**2. Take the DIAN down.** In **Settings → DIAN**, the card of the local simulator sets a failure mode for the company. Choose **Error 500** and issue another invoice: each attempt fails and the next one waits 2, 5, 15, 45 and 120 seconds, until the transmission gives up. Set the mode back to **Normal** and press **Retry now** on the invoice: it is accepted and delivered once.
+**2. Take the DIAN down.** In **Settings → DIAN**, the local simulator's card sets a failure mode for the company. Choose **Error 500** and issue another invoice: each attempt fails, and the next one waits 2, 5, 15, 45 and 120 seconds, until the transmission gives up. Set the mode back to **Normal** and press **Retry now** on the invoice: it is accepted and delivered once.
 
-![The simulator answers HTTP 500, the transmission fails after its retries, the mode goes back to normal and Retry now takes the invoice to accepted](docs/assets/dian-outage.gif)
+![The simulator returns HTTP 500, the transmission fails after its retries, the mode goes back to normal and Retry now takes the invoice to accepted](docs/assets/dian-outage.gif)
 
-**3. Download the XML and the PDF.** On an accepted invoice, **Download XML** saves the signed UBL document and **View PDF** opens what the customer received; **View response** shows the ApplicationResponse of the simulator.
+**3. Download the XML and the PDF.** On an accepted invoice, **Download XML** saves the signed UBL document and **View PDF** opens what the customer received; **View response** shows the simulator's ApplicationResponse.
 
 **4. Use the API with curl.** `make demo` printed a synthetic API key of Demo Comercial SAS, shown once; **Settings → Developers → Create key** makes another. With it, find a customer and an item, write a draft and issue it with an idempotency key:
 
+<!-- example -->
 ```sh
 KEY=dei_...   # the synthetic key make demo printed
 API=http://localhost:8600/api/v1
-id() { grep -o '"id":"[0-9a-z]\{26\}"' | head -n 1 | cut -d '"' -f 4; }
+first_id() { grep -o '"id":"[0-9a-z]\{26\}"' | head -n 1 | cut -d '"' -f 4; }
 
-CONTACT=$(curl -s "$API/contacts?search=Cordillera" -H "Authorization: Bearer $KEY" | id)
-ITEM=$(curl -s "$API/items?search=chair" -H "Authorization: Bearer $KEY" | id)
+CONTACT=$(curl -s "$API/contacts?search=Cordillera" -H "Authorization: Bearer $KEY" | first_id)
+ITEM=$(curl -s "$API/items?search=chair" -H "Authorization: Bearer $KEY" | first_id)
 INVOICE=$(curl -s "$API/invoices" -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
-  -d "{\"contact_id\":\"$CONTACT\",\"payment_form\":\"1\",\"payment_means_code\":\"10\",\"lines\":[{\"item_id\":\"$ITEM\",\"quantity\":\"2\"}]}" | id)
+  -d "{\"contact_id\":\"$CONTACT\",\"payment_form\":\"1\",\"payment_means_code\":\"10\",\"lines\":[{\"item_id\":\"$ITEM\",\"quantity\":\"2\"}]}" | first_id)
 
-# The same Idempotency-Key twice: the second answer is the first one, replayed, and nothing runs twice.
+# The same Idempotency-Key twice: the second response replays the first one, and nothing runs twice.
 curl -s -o /dev/null -w '%{http_code}\n' -X POST "$API/invoices/$INVOICE/issue" -H "Authorization: Bearer $KEY" -H "Idempotency-Key: issue-$INVOICE"
 curl -s -D - -o /dev/null -X POST "$API/invoices/$INVOICE/issue" -H "Authorization: Bearer $KEY" -H "Idempotency-Key: issue-$INVOICE" | grep -i '^idempotent-replayed'
 
-# A few seconds later, once the chain has run: the signed XML and the PDF.
-curl -s "$API/invoices/$INVOICE/xml" -H "Authorization: Bearer $KEY" -o invoice.xml
-curl -s "$API/invoices/$INVOICE/pdf" -H "Authorization: Bearer $KEY" -o invoice.pdf
+# The chain runs in the background: once the invoice is delivered, download its signed XML and its PDF.
+until curl -s "$API/invoices/$INVOICE" -H "Authorization: Bearer $KEY" | grep -q '"delivery":{"status":"delivered"'; do sleep 1; done
+curl -sf "$API/invoices/$INVOICE/xml" -H "Authorization: Bearer $KEY" -o invoice.xml
+curl -sf "$API/invoices/$INVOICE/pdf" -H "Authorization: Bearer $KEY" -o invoice.pdf
 ```
 
-Every answer carries `X-RateLimit-Remaining` and an `X-Correlation-Id` that the logs of the whole journey share. The [API reference](http://localhost:8600/docs/api) documents every operation, the idempotency rules and the webhooks.
+It prints the first issue's status and the replay's header:
 
-**5. Receive a signed webhook.** The demo company is subscribed to the local webhook receiver, which runs inside the simulator. In **Settings → Developers**, the subscription shows its last delivery and its menu lists every one, those of the invoice you just issued included (`invoice.issued`, `invoice.accepted`, `invoice.delivered`); the card of the receiver, further down, shows each webhook with the check of its signature (Standard Webhooks, HMAC-SHA256), and **Send test event** sends one more.
+<!-- output -->
+```text
+200
+Idempotent-Replayed: true
+```
+
+Every response carries an `X-Correlation-Id`, which every log line of the journey shares, and every response to a key carries its rate limit, `X-RateLimit-Remaining` among them. The [API guide](docs/api-guide.md) goes further: keys, errors, pagination and signed webhooks, each example run by `make docs-examples`. The [API reference](http://localhost:8600/docs/api) documents every operation.
+
+**5. Receive a signed webhook.** The demo company is subscribed to the local webhook receiver, which runs inside the simulator. In **Settings → Developers**, the subscription shows its last delivery, and its menu lists every one, those of the invoice you just issued included (`invoice.issued`, `invoice.accepted`, `invoice.delivered`). Further down, the receiver's card shows each webhook with the check of its signature (Standard Webhooks, HMAC-SHA256), and **Send test event** sends one more.
 
 ## The AWS cloud on your machine
 
-`make cloud-demo` stops the application of the local stack and deploys the stage local of the AWS architecture to [Floci](https://github.com/floci-io/floci), an open-source AWS emulator that needs no account, with the same CDK app, serverless service and deployment script (`scripts/deploy.sh`) a real account would take, then loads the demo data through the functions. The web app and the API answer on the same addresses, now through the emulated CloudFront; `make up` goes back to the local stack.
+`make cloud-demo` stops the local stack's application and deploys the local stage of the AWS architecture to [Floci](https://github.com/floci-io/floci), an open-source AWS emulator that needs no account. It uses the same CDK app, serverless service and deployment script (`scripts/deploy.sh`) a real account would take, then loads the demo data through the functions. The web app and the API answer on the same addresses, now through the emulated CloudFront; `make up` goes back to the local stack.
 
 | AWS service | What runs on the emulator | What it does here |
 | --- | --- | --- |
-| CloudFront | The distribution of the stage local, without cache, CloudFront Functions or AWS WAF | One origin for the web app and the API, with the security headers |
+| CloudFront | The local stage's distribution, without cache, CloudFront Functions or AWS WAF | One origin for the web app and the API, with the security headers |
 | API Gateway and Lambda | An HTTP API with a Lambda authorizer; each function in its own container | The API (PHP 8.5 on Bref), the chain, the webhooks, the relay, the scheduler, the console, the origin verifier and the notifier |
-| SNS and SQS | A topic, the queues of the chain and the webhooks, and their dead-letter queues | The outbox events and the work of the consumers |
+| SNS and SQS | A topic, the chain and webhooks queues, and their dead-letter queues | The outbox events and the consumers' work |
 | S3, DynamoDB, KMS, Secrets Manager, SSM | Buckets, tables, a key, secrets and parameters | Documents and the web app; cache, sessions and rate limits; envelope encryption of the certificates; credentials |
 | SES | An identity; emails kept, none delivered | The emails to customers |
-| EventBridge Scheduler | Two schedules, every minute | The relay of the outbox and the Laravel scheduler |
+| EventBridge Scheduler | Two schedules, every minute | The outbox relay and the Laravel scheduler |
 | CloudWatch | Logs, metric filters and alarms on one metric | Observability; metric math and composite alarms are not evaluated |
-| Aurora MySQL, VPC, AWS WAF | Not emulated: the stage prod only, validated offline | The MySQL of compose stands in for the database |
+| Aurora MySQL, VPC, AWS WAF | Not emulated: the prod stage only, validated offline | Compose's MySQL stands in for the database |
 
-The results of the runs for this commit, with the figures of the emulator on this machine, not those of AWS:
+The results of the runs for this commit, with the emulator's figures on this machine, not AWS's:
 
-- `make cloud-check` passed in 3 min 19 s. Thirty invoices went from issue to delivery in a median of 23.4 s through the fast path of the outbox; ten more, with the containers of the functions killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the database identity of the application, with the functions warm, broke no request. Every log line was JSON in the schema and none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.96 s and a warm answer a median of 20 ms.
-- `make cloud-drill` passed in 249 s. With the DIAN down, five transmissions gave up into the dead-letter queue, the alarm reached the chat with its runbook 171 s after the outage began, and the commands of the runbook brought every invoice back, accepted and delivered once, at 183 s ([drill-report.md](docs/runbooks/drill-report.md) reviews an earlier run).
-- `make cloud-e2e` passed: the journey of an invoice through the functions, the API reference, and a tour of the 31 routes of the web app with 17 of its dialogs, through the edge and under its Content-Security-Policy, without a violation.
+- `make cloud-check` passed in 2 min 41 s. Thirty invoices went from issue to delivery in a median of 23.8 s through the outbox's fast path. Ten more, with the functions' containers killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the application's database identity, with the functions warm, broke no request. Every log line was JSON in the schema, none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.85 s, and a warm response a median of 17 ms.
+- `make cloud-drill` passed in 225 s. With the DIAN down, five transmissions gave up into the dead-letter queue, and the alarm reached the chat with its runbook 149 s after the outage began. The runbook's commands brought every invoice back, accepted and delivered once, at 160 s ([drill-report.md](docs/runbooks/drill-report.md) reviews an earlier run).
+- `make cloud-e2e` passed: an invoice's journey through the functions, the API reference, and a tour of the web app's 31 routes with 17 of its dialogs, through the edge and under its Content-Security-Policy, without a violation.
 
 ## Architecture
 
@@ -147,7 +168,7 @@ flowchart LR
   workers -->|"signed webhooks"| receiver["Webhook receiver"]
 ```
 
-The life of an invoice, simplified; credit and debit notes follow the same chain:
+An invoice's life, simplified; credit and debit notes follow the same chain:
 
 ```mermaid
 stateDiagram-v2
@@ -156,7 +177,7 @@ stateDiagram-v2
   Draft --> Issued: number and CUFE
   Issued --> Signed: UBL 2.1 XML, XAdES-EPES
   Signed --> Sent: SendBillSync
-  Sent --> Sent: HTTP 5xx or no answer, retried
+  Sent --> Sent: HTTP 5xx or no response, retried
   Sent --> Accepted: status 00
   Sent --> Rejected: a rule of the annex
   Sent --> Failed: attempts exhausted
@@ -173,7 +194,7 @@ The architecture on AWS, as the CDK app and the serverless service define it:
 flowchart LR
   client["Browser or integration"] --> edge["CloudFront<br/>AWS WAF in prod"]
   edge -->|"web app"| panel[("S3: web app")]
-  edge -->|"API, secret of the edge"| gateway["API Gateway<br/>origin verifier"]
+  edge -->|"API, the edge's secret"| gateway["API Gateway<br/>origin verifier"]
   gateway --> apiFn["Lambda: api"]
   apiFn --> topic["SNS"] --> queues["SQS: chain and webhooks<br/>dead-letter queues"]
   queues --> workersFn["Lambda: chain and webhooks"]
@@ -184,35 +205,35 @@ flowchart LR
   alarms["CloudWatch alarms"] --> notifier["Lambda: notifier"] --> chat["Chat webhook"]
 ```
 
-The details: [docs/infrastructure.md](docs/infrastructure.md) for the stacks, the functions, the network, the database and the edge; [docs/observability.md](docs/observability.md) for logs, metrics and alarms; [docs/deployment.md](docs/deployment.md) for the deployment; [docs/threat-model.md](docs/threat-model.md) for security.
+The details: [docs/architecture.md](docs/architecture.md) for the modules, the data model, a document's life cycle and the design decisions; [docs/infrastructure.md](docs/infrastructure.md) for the stacks, the functions, the network, the database and the edge; [docs/observability.md](docs/observability.md) for logs, metrics and alarms; [docs/deployment.md](docs/deployment.md) for the deployment; [docs/cost.md](docs/cost.md) for what it would cost on AWS; [docs/threat-model.md](docs/threat-model.md) for security.
 
 ## The repository
 
 | Folder | What it holds |
 | --- | --- |
-| [backend/](backend/) | The API in Laravel, by modules (`backend/app/Modules`): identity and tenancy, catalog, billing, the chain of the DIAN, delivery, payments, the public API and its webhooks, and the dashboard; its unit and integration tests |
+| [backend/](backend/) | The API in Laravel, by modules (`backend/app/Modules`): identity and tenancy, catalog, billing, the DIAN chain, delivery, payments, the public API and its webhooks, and the dashboard; its unit and integration tests |
 | [frontend/](frontend/) | The web app in Vue 3 and TypeScript, which talks to the backend only through `/api/v1` |
-| [simulator/](simulator/) | The local simulator of the web service of the DIAN (SOAP), with its failure modes and the webhook receiver |
-| [infra/cdk/](infra/cdk/) | The CDK app: the stacks of the stages local and prod, their tests and cdk-nag |
-| [infra/functions/](infra/functions/) | The serverless service: the functions and their triggers, the origin verifier, the notifier and the scripts of the emulated cloud |
-| [e2e/](e2e/) | The browser tooling: the end-to-end test, the screenshots of `make screenshots` and the check of the docs |
-| [scripts/](scripts/) | The deployment script, the cloud check and the drill, the security and license checks, and the helpers of the Makefile |
-| [docs/](docs/README.md) | The documentation, indexed in docs/README.md, and the images of this page |
+| [simulator/](simulator/) | A local simulator of the DIAN's SOAP web service, with its failure modes and the webhook receiver |
+| [infra/cdk/](infra/cdk/) | The CDK app: the stacks of the local and prod stages, their tests and cdk-nag |
+| [infra/functions/](infra/functions/) | The serverless service: the functions and their triggers, the origin verifier, the notifier and the emulated cloud's scripts |
+| [e2e/](e2e/) | The browser tooling: the end-to-end test, the screenshots of `make screenshots`, the docs check and the run of the docs' examples |
+| [scripts/](scripts/) | The deployment script, the cloud check and the drill, the security, license and notice checks, the cost estimate, and the Makefile's helpers |
+| [docs/](docs/README.md) | The documentation, indexed in docs/README.md, and this page's images |
 
 ## Quality
 
-The results of the runs for this commit, on the machine of the quick start. Continuous integration (`.github/workflows/ci.yml`) runs these targets too, but for the drill and part of `make checks`, and only when it is dispatched by hand while the repository is private:
+The results of the runs for this commit, on the quick start's machine. Continuous integration (`.github/workflows/ci.yml`) runs these targets too, except for the drill and part of `make checks`, and only when it is dispatched by hand while the repository is private:
 
 | What | Command | Result |
 | --- | --- | --- |
-| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 207 tests and 6,503 assertions, in 41 s |
+| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 207 tests and 6,503 assertions, in 43 s |
 | Web app, simulator and infrastructure tests | `make test-frontend`, `make test-simulator`, `make test-infra` | 54 web app tests, 107 simulator tests, and 193 tests of the CDK app and the functions, cdk-nag included |
-| Formatters, linters and the documentation | `make lint` | Laravel Pint over 534 files, ESLint and Prettier: clean; in the docs, 194 relative links and 10 anchors resolve, 8 images keep to their size and Mermaid draws 7 diagrams |
+| Formatters, linters and the documentation | `make lint` | Laravel Pint over 534 files, ESLint and Prettier: clean; in the docs, 255 relative links and 38 anchors resolve, 8 images keep to their size, Mermaid draws 10 diagrams, and the cost estimate is what its prices and assumptions give |
 | Static analysis | `make analyse` | PHPStan level 10 without a baseline, vue-tsc and tsc for the simulator, the CDK app and the functions: no errors |
-| Dependencies, licenses and secrets | `make security` | No high or critical advisory in the six audits; 480 production dependencies, every license compatible with MIT; gitleaks finds no secret in the history or the changes |
+| Dependencies, licenses and secrets | `make security` | No high or critical advisory in the six audits; 480 production dependencies, every license compatible with MIT; the 174 files of third parties in 8 groups, as NOTICE lists them; gitleaks finds no secret in the history or the changes |
 | Infrastructure as code, offline | `make cdk-check` | 21 stacks of both stages and 3 packages of the functions: cdk-nag (AWS Solutions) with no finding left without its reason, cfn-lint and actionlint clean |
-| An invoice from draft to paid, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 8.8 s |
-| The checks of the running stack | `make checks` | Every check passes: 60 invoices from 20 processes numbered without a gap and accepted in 4.6 s, and 40 accepted once each with the workers and the relay killed mid-chain |
+| An invoice from draft to paid, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 8.9 s |
+| The checks of the running stack | `make checks` | Every check passes: the 15 examples of this page and the API guide print what the docs say, and both webhook signature examples get 6 of 6 cases right; 60 invoices from 20 processes are numbered without a gap and accepted in 4.6 s; and 40 are accepted once each with the workers and the relay killed mid-chain |
 | The emulated cloud, end to end | `make cloud-check`, `make cloud-e2e`, `make cloud-drill` | Every check passes; their figures are [above](#the-aws-cloud-on-your-machine) |
 
 Known gaps are written down, not hidden: [docs/limitations.md](docs/limitations.md#tests-and-tooling) lists what the tests do not cover.
@@ -224,28 +245,36 @@ Known gaps are written down, not hidden: [docs/limitations.md](docs/limitations.
 | Backend | PHP 8.5, Laravel 13 (API only), FrankenPHP locally and Bref 3 on Lambda, dompdf, bacon-qr-code, AWS SDK for PHP |
 | Web app | Vue 3, TypeScript 6, Vite 8, Pinia, Vue Router, Tailwind CSS 4, shadcn-vue on Reka UI, Unovis |
 | Data and messaging | MySQL 8.4, Redis 7; in the cloud SNS, SQS and DynamoDB; Aurora MySQL Serverless v2 in prod |
-| DIAN simulator | Node.js and TypeScript, SOAP 1.2, the official XSDs of the DIAN toolbox |
+| DIAN simulator | Node.js and TypeScript, SOAP 1.2, the DIAN toolbox's official XSDs |
 | Infrastructure as code | AWS CDK in TypeScript with cdk-nag, osls 4.8.1, cfn-lint, actionlint, Floci as the emulator |
 | Tests and checks | PHPUnit, Vitest, node:test, Playwright, PHPStan with Larastan, Laravel Pint, ESLint, Prettier, vue-tsc, gitleaks |
 | Local runtime | Docker Compose and make; Mailpit as the local mailbox |
 
 ## Limits
 
-- **Not certified by the DIAN.** No CUFE, CUDE or signature produced here was ever validated by the DIAN. The simulator applies a subset of the rules of annex 1.9 (`simulator/src/rules.ts`), the SOAP header is not signed with WS-Security, and documents are signed with synthetic self-signed test certificates that only the simulator accepts.
-- **The DIAN is a simulator.** Every "accepted" comes from `simulator/`; its answers, delays and failures are the ones it is told to give.
-- **Never deployed to AWS.** The stage prod is synthesized, packaged and validated offline, and the deployment workflow has never run; [docs/deployment.md](docs/deployment.md) lists what was never verified in a real account.
-- **What the emulator does not reproduce:** it evaluates no IAM, resource or key policy; it has no AWS WAF, no cache and no CloudFront Functions; it publishes no native metrics of Lambda, API Gateway or CloudFront and evaluates no metric math; it cannot run the rotation functions of AWS; and its cold starts and queue timings are not those of AWS.
+- **Not certified by the DIAN.** The DIAN never validated a CUFE, CUDE or signature produced here. The simulator applies a subset of annex 1.9's rules (`simulator/src/rules.ts`), the SOAP header is not signed with WS-Security, and documents are signed with synthetic self-signed test certificates that only the simulator accepts.
+- **The DIAN is a simulator.** Every "accepted" comes from `simulator/`; its responses, delays and failures are the ones it is told to give.
+- **Never deployed to AWS.** The prod stage is synthesized, packaged and validated offline, and the deployment workflow has never run; [docs/deployment.md](docs/deployment.md) lists what was never verified in a real account, and [docs/cost.md](docs/cost.md) is an estimate, not a bill.
+- **What the emulator does not reproduce:** it evaluates no IAM, resource or key policy; it has no AWS WAF, no cache and no CloudFront Functions; it publishes no native Lambda, API Gateway or CloudFront metrics and evaluates no metric math; it cannot run AWS's rotation functions; and its cold starts and queue timings are not AWS's.
 - **Synthetic data only.** Every person, company, NIT, document and payment is made up; PDFs and emails have no tax validity.
 
 All of it, with the reasons, in [docs/limitations.md](docs/limitations.md).
 
-## Documentation and roadmap
+## Documentation
 
-[docs/README.md](docs/README.md) indexes every document: limitations, threat model, infrastructure, observability, deployment, runbooks and third-party licenses. Next, in order: reference documents (the architecture, a guide to the API, the conformance with the DIAN and an estimate of the cost on AWS); the web app, the PDF and the emails in Spanish, with a README in Spanish; and the release of v1.0.0 with continuous integration green and the repository public.
+[docs/README.md](docs/README.md) indexes every document. To go further than this page: the [architecture](docs/architecture.md) of the application, the [API guide](docs/api-guide.md), the [DIAN conformance](docs/dian-conformance.md) and the [cost estimate](docs/cost.md); then the limitations, the threat model, the infrastructure, observability, deployment, the runbooks and the third-party licenses.
+
+## Roadmap
+
+What the product leaves out on purpose, and what would come next, from [docs/limitations.md](docs/limitations.md):
+
+- **Out on purpose.** The real DIAN: no habilitación, no WS-Security header and no certificate of an accredited authority, so nothing here is valid before the DIAN. A payment gateway: payments are recorded by hand or through the API. Documents other than the sales invoice and its notes: RADIAN events, the POS equivalent document, the documento soporte and the nómina electrónica ([DIAN conformance](docs/dian-conformance.md#what-is-not-implemented)). A technology provider: the software is the issuer's own.
+- **Next, for a real deployment.** The habilitación with the DIAN's test set, the WS-Security signature of the SOAP header, certificates of an authority accredited by ONAC with their revocation checks, and the DIAN's contingency procedure for long outages. A first deployment to an AWS account, which would verify what [docs/deployment.md](docs/deployment.md#what-has-never-been-verified-in-a-real-account) lists, and a load test that measures the database capacity [the cost estimate](docs/cost.md#assumptions) assumes.
+- **Next, for the product.** Scopes per resource and allow lists of addresses for API keys, a second factor, the rotation of a webhook secret with a period in which both sign, the rotation of the encryption key, full-text search, and a status page for the companies.
 
 ## License
 
-[MIT](LICENSE). The dependencies and their licenses, all compatible with it, are in [docs/third-party-licenses.md](docs/third-party-licenses.md); vulnerabilities are reported privately as [SECURITY.md](SECURITY.md) explains, and [CONTRIBUTING.md](CONTRIBUTING.md) has the rules for changes.
+[MIT](LICENSE). The files of others kept in the repository, such as the official schemas, the fonts and the municipality codes, keep their own terms: [NOTICE](NOTICE) gives them, and the MIT License does not cover those files. The dependencies and their licenses, all compatible with MIT, are in [docs/third-party-licenses.md](docs/third-party-licenses.md). Vulnerabilities are reported privately, as [SECURITY.md](SECURITY.md) explains, and [CONTRIBUTING.md](CONTRIBUTING.md) has the rules for changes.
 
 ## Author
 

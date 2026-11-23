@@ -134,6 +134,8 @@ jobs:
         run: make payments-check
       - name: Public API over HTTP (make api-check)
         run: make api-check
+      - name: The examples of the README and the API guide, webhook signatures included (make docs-examples)
+        run: make docs-examples
       - name: Logs of the stack
         if: failure()
         run: docker compose --env-file backend/.env logs --no-color --tail=300

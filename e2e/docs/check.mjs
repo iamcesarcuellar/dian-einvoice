@@ -1,8 +1,8 @@
 // make docs-check (part of make lint): the README and the documentation hold true. Every make target and every file of
-// the repository that README.md and docs/README.md name exist; every relative link of every Markdown file of the
-// repository resolves, its anchor included; every image they show exists and keeps to its size (a screenshot of
-// docs/assets 400 KB, a GIF 5 MB); and every Mermaid diagram can be drawn, by Mermaid itself in the browser of the
-// container. It writes nothing.
+// the repository that README.md, docs/README.md and the reference documents name exist; every relative link of every
+// Markdown file of the repository resolves, its anchor included; every image they show exists and keeps to its size (a
+// screenshot of docs/assets 400 KB, a GIF 5 MB); and every Mermaid diagram can be drawn, by Mermaid itself in the
+// browser of the container. It writes nothing.
 //
 //   node docs/check.mjs <root of the repository>
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -19,6 +19,17 @@ const ROOTS = /^(backend|frontend|simulator|infra|scripts|docs|e2e|\.github)\//
 const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'openapi.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
 // Files the docs name that make creates, never in git: they exist once the target that writes them has run.
 const GENERATED = new Map([['backend/.env', 'make env']])
+// The documents whose make targets and files are checked, and the folder their short paths start from: the
+// architecture and the DIAN conformance write the backend's paths from backend/ (app/..., tests/..., config/...).
+const NAMED = new Map([
+  ['README.md', null],
+  ['docs/README.md', null],
+  ['docs/architecture.md', 'backend'],
+  ['docs/api-guide.md', null],
+  ['docs/dian-conformance.md', 'backend'],
+  ['docs/cost.md', null],
+])
+const BACKEND_PATHS = /^(app|bootstrap|config|database|resources|routes|tests)\//
 
 const problems = []
 const counts = { files: 0, links: 0, anchors: 0, images: 0, targets: 0, paths: 0, diagrams: 0 }
@@ -146,8 +157,9 @@ for (const file of markdownFiles(root).sort()) {
     diagrams.push({ file: relative(root, file), code })
   }
 
-  // The make targets and the files the README and the index of the documentation name, in code.
-  if (['README.md', 'docs/README.md'].includes(relative(root, file))) {
+  // The make targets and the files the README, the index of the documentation and the reference documents name, in code.
+  if (NAMED.has(relative(root, file))) {
+    const base = NAMED.get(relative(root, file))
     const code = [...text.matchAll(/^```[^\n]*\n([\s\S]*?)^```[ \t]*$/gm)].map(([, block]) => block).concat([...body.matchAll(/`([^`\n]+)`/g)].map(([, span]) => span))
 
     for (const snippet of code) {
@@ -160,16 +172,18 @@ for (const file of markdownFiles(root).sort()) {
       }
 
       for (const token of snippet.split(/[\s"'=(),;]+/)) {
-        const path = token.replace(/[.:]+$/, '')
+        // A test method after its file (DocumentKeyTest.php::test_...) names the file.
+        const path = token.replace(/::.*$/, '').replace(/[.:]+$/, '')
+        const full = ROOTS.test(path) || ROOT_FILES.has(path) ? path : base !== null && BACKEND_PATHS.test(path) ? `${base}/${path}` : null
 
-        if ((!ROOTS.test(path) && !ROOT_FILES.has(path)) || /[<>*{}$|]|:\/\//.test(path)) {
+        if (full === null || /[<>*{}$|]|:\/\//.test(path)) {
           continue
         }
 
         counts.paths += 1
 
-        if (!GENERATED.has(path) && !existsSync(join(root, path))) {
-          problems.push(`${relative(root, file)}: the file ${path} does not exist`)
+        if (!GENERATED.has(full) && !existsSync(join(root, full))) {
+          problems.push(`${relative(root, file)}: the file ${full} does not exist`)
         }
       }
     }
@@ -216,7 +230,7 @@ if (diagrams.length > 0) {
 }
 
 console.log(
-  `docs: ${counts.files} Markdown files, ${counts.links} relative links (${counts.anchors} with an anchor), ${counts.images} images, ${counts.targets} make targets and ${counts.paths} files named by README.md and docs/README.md, ${counts.diagrams} Mermaid diagrams drawn.`,
+  `docs: ${counts.files} Markdown files, ${counts.links} relative links (${counts.anchors} with an anchor), ${counts.images} images, ${counts.targets} make targets and ${counts.paths} files named by README.md, docs/README.md and the ${NAMED.size - 2} reference documents, ${counts.diagrams} Mermaid diagrams drawn.`,
 )
 
 if (problems.length > 0) {

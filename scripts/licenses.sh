@@ -24,6 +24,12 @@ $compose --profile cloud run --rm --no-deps -T -v "$security:/security:ro" cdk \
 $compose --profile cloud run --rm --no-deps -T -v "$security:/security:ro" functions \
   sh -c 'cd /workspace && npm ls --omit=dev --all --parseable | node /security/licenses.mjs npm functions --json' > "$lists/functions.json"
 
+# The files of others that live in the repository (scripts/security/notices.mjs, from third-party-files.json): each
+# listed file exists, an unchanged one keeps its SHA-256 and its notice, NOTICE names it, and no other file looks like
+# the work of a third party. git lists the files, those not committed yet included.
+git ls-files --cached --others --exclude-standard \
+  | $compose run --rm --no-deps -T -v "$security:/security:ro" -v "$(pwd):/repo:ro" web node /security/notices.mjs /repo
+
 $compose run --rm --no-deps -T -v "$security:/security:ro" -v "$lists:/licenses:ro" web \
   node /security/third-party.mjs /licenses > "$lists/third-party-licenses.md"
 

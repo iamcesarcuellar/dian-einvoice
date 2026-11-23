@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for taking the time. DIAN e-Invoice is a personal reference project maintained by one person, so the bar is a change that keeps every claim of the README true and every check green.
+Thank you for taking the time. dian-einvoice is a personal reference project maintained by one person, so the bar is a change that keeps every claim of the README true and every check green.
 
 ## Before you start
 
@@ -22,11 +22,11 @@ Thank you for taking the time. DIAN e-Invoice is a personal reference project ma
 Run the checks of the part you touched; continuous integration runs the same targets (`.github/workflows/ci.yml`):
 
 ```sh
-make lint            # formatters and linters, and the links, targets, files, images and diagrams of the docs
+make lint            # formatters and linters; the docs' links, targets, files, images and diagrams; the cost estimate
 make analyse         # PHPStan level 10, vue-tsc and tsc, strict
 make test            # backend, web app, simulator and infrastructure tests
-make demo && make e2e && make checks
-make security        # dependency audits, licenses and the secret scan
+make demo && make e2e && make checks   # the checks include the examples of the README and the API guide
+make security        # dependency audits, licenses, the files of third parties (NOTICE) and the secret scan
 make cdk-check       # synthesis of both stages, cdk-nag, cfn-lint and actionlint
 ```
 

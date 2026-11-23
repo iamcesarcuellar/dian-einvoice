@@ -183,6 +183,21 @@ services:
       timeout: 3s
       retries: 20
 
+  # Optional (profile tools), only through make dian-toolbox and make dian-schematron: the DIAN toolbox v1.9,
+  # downloaded once from the DIAN into backend/storage/app/dian-toolbox (git ignores it), checked against its
+  # SHA-256 and extracted, and the schemas of the repository compared with its own (scripts/dian-toolbox.sh).
+  dian-toolbox:
+    image: node:26-alpine
+    profiles: ["tools"]
+    restart: "no"
+    mem_limit: 256m
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    volumes:
+      - ./backend/storage/app:/storage
+      - ./backend/resources/dian/xsd:/xsd:ro
+      - ./scripts:/scripts:ro
+    command: ["sh", "/scripts/dian-toolbox.sh"]
+
   # Optional (profile tools), only through make dian-schematron: the schematron of the DIAN toolbox over
   # the demo documents. SaxonJS and SchXslt are downloaded once into the schematron-tools volume; nothing
   # goes into the repo or an image. Read-only: the toolbox, the stored documents and the scripts.
