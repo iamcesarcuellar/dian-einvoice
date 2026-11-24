@@ -2,6 +2,35 @@
 
 All notable changes to dian-einvoice are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-11-24
+
+Fixes found while using the interface, a check that nothing spills out of its box, and the upkeep after the first release. No new features: the API and its reference are the same.
+
+### Interface
+
+- The dashboard's "Electronic documents" card no longer cuts its status bar and its "Needs attention" list on the right when a row has a long detail, such as a rejection by the DIAN simulator. "Top customers" and both charts stay inside their cards too, also after the window shrinks.
+- "View XML" and "View response" keep the XML inside the dialog. It scrolls sideways there, and its lines stay whole.
+- Both had one cause. An item of a CSS grid without columns of its own takes the content it cannot wrap as its minimum width, and the grid grows past its box. A base style now lets such an item be narrower than its content, which then truncates, wraps or scrolls inside it.
+- A debit note's lines fit the page at 1440×900 in Spanish: a tax label such as "Excluido (sin impuesto)" wraps inside its cell.
+- "Needs attention" says which step a failed document stopped at ("The transmission failed."), in both languages, instead of the step's internal name.
+- In English, the simulator's activity writes "not found", "invalid request", "error 500" and "no response" as words.
+- The "Signing certificate" card starts with the holder's name, so a cut line still says something useful. The full subject stays in its tooltip.
+- The API reference no longer shows "Scramble: 5 warnings": Scramble now reads every validation rule.
+
+### Checks
+
+- A layout check in `make e2e` and `make cloud-e2e`, measured in the DOM. It covers every route and the main dialogs at 1280×720, 1440×900 and 1920×1080, in English and in Spanish. It fails when the page scrolls sideways, when an element sticks out of its card, dialog, table container or panel or is cut by it, and when a dialog does not fit the window. On 1.0.0 it found each of the overflows above.
+
+### Security and dependencies
+
+- The simulator takes ESLint 10.15.0 and typescript-eslint 8.74.0, and the CDK app takes aws-cdk-lib 2.278.0. npm audit no longer reports minimatch in either. The synthesized templates are the same.
+- cfn-lint 1.61.0, on Python 3.15.
+- Dependabot no longer proposes MySQL above 8.4, which keeps the local database on Aurora's version, or TypeScript's next major version. It proposes neither part of Playwright: its npm package and its image move together, by hand (CONTRIBUTING.md).
+
+### CI
+
+- The Emulated cloud job may run for 40 minutes instead of 30. With an empty cache it took almost 26.
+
 ## [1.0.0] - 2026-11-24
 
 The first release: electronic invoicing for Colombian small and medium businesses, API first. The DIAN is always a local simulator, and nothing was ever deployed to AWS: the cloud runs on a local emulator.
@@ -76,4 +105,5 @@ The first release: electronic invoicing for Colombian small and medium businesse
 - One command starts everything in Docker Compose (`make demo`), and `make help` lists every target.
 - A README in English and in Spanish, the architecture, an API guide whose examples run, the DIAN conformance, a cost estimate, and screenshots and GIFs made by script.
 
+[1.0.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/iamcesarcuellar/dian-einvoice/releases/tag/v1.0.0

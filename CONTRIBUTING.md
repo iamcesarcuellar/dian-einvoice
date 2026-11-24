@@ -16,6 +16,7 @@ Thank you for taking the time. dian-einvoice is a personal reference project mai
 - **The web app and the backend stay apart.** They talk only through the HTTP API under `/api/v1`.
 - **Cloud resources are code.** Shared and stateful resources and IAM roles live in the CDK app (`infra/cdk`). Functions and their triggers live in the serverless service (`infra/functions`). Application code reaches AWS only through the adapters behind its interfaces.
 - **English** in code, comments, docs and commit messages.
+- **Playwright moves as one.** `@playwright/test` in `e2e/package.json` and the Playwright image in `compose.yaml` must be the same version, so Dependabot proposes neither: raise both by hand, in one change.
 
 ## Checks
 

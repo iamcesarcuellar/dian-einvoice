@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './policy'
+import { routesOf } from './routes'
 
 // A tour of the whole web app under the Content-Security-Policy of the edge (make cloud-e2e only): every route its
 // router declares, read from the running app, each loaded as a deep link through the edge, with the synthetic demo
@@ -10,12 +11,6 @@ test.skip(process.env.EDGE !== '1', 'The policy of the web app is the edge’s: 
 // The synthetic demo account of make cloud-demo, owner of Demo Comercial SAS.
 const DEMO = { email: 'demo@example.com', password: 'password', company: 'Demo Comercial SAS' }
 const ORIGIN = 'http://localhost:8601'
-
-interface Route {
-  readonly path: string
-  readonly guest: boolean
-  readonly public: boolean
-}
 
 interface Listed {
   readonly id: string
@@ -44,31 +39,6 @@ const DIALOGS: Readonly<Record<string, readonly string[]>> = {
   '/settings/developers': ['Create key', 'Add subscription'],
   '/invoices/:id': ['View PDF', 'View XML', 'View response', 'Send again'],
   '/payments/:id': ['Void payment'],
-}
-
-/** The routes of the web app as its router declares them, read from the running app (Vue keeps it on its root element). */
-async function routesOf(page: Page): Promise<Route[]> {
-  const routes = await page.evaluate(() => {
-    interface RouteRecord {
-      readonly path: string
-      readonly redirect?: unknown
-      readonly components?: unknown
-      readonly meta: { readonly guest?: boolean; readonly public?: boolean }
-    }
-    const root = document.querySelector('#app') as (Element & { __vue_app__?: { config: { globalProperties: { $router?: { getRoutes(): RouteRecord[] } } } } }) | null
-    const router = root?.__vue_app__?.config.globalProperties.$router
-
-    if (router === undefined) {
-      throw new Error('The web app exposes no router.')
-    }
-
-    return router
-      .getRoutes()
-      .filter((route) => route.redirect === undefined && route.components !== undefined && !route.path.includes('pathMatch'))
-      .map((route) => ({ path: route.path, guest: route.meta.guest === true, public: route.meta.public === true }))
-  })
-
-  return [...new Map(routes.map((route) => [route.path, route])).values()]
 }
 
 /** Loads a path as a deep link through the edge and waits for the web app to draw it, without a redirect. */

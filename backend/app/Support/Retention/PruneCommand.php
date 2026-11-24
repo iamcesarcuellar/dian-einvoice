@@ -4,7 +4,7 @@ namespace App\Support\Retention;
 
 use Illuminate\Console\Command;
 
-/** Prunes now what the relay prunes every hour; Infrastructure may schedule it instead. */
+/** Prunes now what the outbox sweepers prune every hour (ScheduledPruning), in the relay or the scheduler. */
 final class PruneCommand extends Command
 {
     protected $signature = 'retention:prune';

@@ -113,7 +113,7 @@ This page lists what the project does not do, or does only in part, as it stands
 - The web app's policy allows a few fixed style elements from libraries (Reka UI, VueUse) and the inline script of index.html, by their hashes. An upgrade that changes one of them shows as a violation in make cloud-e2e, and its hash goes into security-headers.json.
 - FrankenPHP's Server header is left to the proxy in front.
 - Under /api/v1, CORS accepts any origin without credentials, for API keys. It is not offered for the CSRF cookie. A session works only from the configured stateful origins: the edge's origin.
-- Dependency audits fail on high and critical advisories. Moderate ones in development tools wait for their upstream fixes, which Dependabot proposes. At the time of writing, these were minimatch through ESLint and @vue/test-utils, and the copy of minimatch bundled in aws-cdk-lib, which runs at synthesis only.
+- Dependency audits fail on high and critical advisories. Moderate ones in development tools wait for their upstream fixes, which Dependabot proposes. At the time of writing, these were glob and minimatch, which reach the web app's test tools through @vue/test-utils (js-beautify).
 
 ## Operation and scale
 
@@ -363,7 +363,7 @@ The network and database stacks exist in the prod stage only, and are never depl
 - The end-to-end test opens the app at http://localhost:8601 inside its container, the origin the API accepts for sessions. Its files follow the web app's Prettier configuration, but no linter runs over them.
 - The simulator tests use synthetic demo documents as fixtures, with the clock fixed inside their test certificate's validity.
 - Not covered by a test: the 64 KB cap on webhook responses, and the limits on the preview and the search. The PDF's QR code is tested as the text it encodes (QrContentTest), not read back from the image, which would take a QR decoder.
-- make e2e and make cloud-e2e check that every list fits a 1440×900 screen without scrolling sideways (e2e/tests/layout.spec.ts), with the demo data only. A name longer than the demo's is cut with an ellipsis, but a longer amount or label could still push a table past its box.
+- make e2e and make cloud-e2e measure the layout in the DOM (e2e/tests/layout.spec.ts), with the demo data only. They cover every route, the dashboard included, and the main dialogs, at 1280×720, 1440×900 and 1920×1080, in English and in Spanish. Nothing may stick out of its card, dialog, table container or panel, or be cut where the reader cannot scroll to it; no dialog may be larger than the window; and every list fits 1440×900 or more without scrolling sideways. Two elements pass on purpose, each with its reason in the test: the decorative circles of the sign-in screens and the sidebar rail. Windows narrower than 1280 px are not measured. A name longer than the demo's is cut with an ellipsis, but a longer amount or label could still push a table past its box.
 - The DIAN simulator keeps the local stack's records apart from the emulated cloud's ([Emulated cloud](#emulated-cloud)). make cloud-e2e still runs a guard first (cloud:check demo, in the console function). The guard checks that the cloud's records hold no document of the demo companies under a number the cloud's database has not issued yet.
   - Such a document holds a number the cloud's next documents would take, and the simulator would reject them with rule 90.
   - The target stops at once and says to run make cloud-demo. It does not repair this by itself, since that means loading the demo data again.

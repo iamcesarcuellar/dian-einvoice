@@ -53,7 +53,6 @@ final class DocumentRequest extends FormRequest
      */
     public function rules(): array
     {
-        $companyId = app(CurrentCompany::class)->id();
         $type = $this->documentType();
 
         $common = [
@@ -61,13 +60,13 @@ final class DocumentRequest extends FormRequest
                 'nullable',
                 'string',
                 Rule::exists('number_templates', 'id')
-                    ->where('company_id', $companyId)
+                    ->where('company_id', app(CurrentCompany::class)->id())
                     ->where('document_type', $type->value),
             ],
             'notes' => ['nullable', 'string', 'max:2000'],
             'lines' => ['sometimes', 'array', 'max:'.self::MAX_LINES],
             'lines.*' => ['array'],
-            'lines.*.item_id' => ['nullable', 'string', Rule::exists('items', 'id')->where('company_id', $companyId)],
+            'lines.*.item_id' => ['nullable', 'string', Rule::exists('items', 'id')->where('company_id', app(CurrentCompany::class)->id())],
             'lines.*.code' => ['nullable', 'string', 'max:50'],
             'lines.*.description' => ['nullable', 'string', 'max:500'],
             'lines.*.unit_code' => ['nullable', Rule::enum(UnitOfMeasure::class)],
@@ -75,14 +74,14 @@ final class DocumentRequest extends FormRequest
             'lines.*.unit_price' => ['nullable', new DecimalString(12, 6)],
             'lines.*.discount_rate' => ['nullable', new DecimalString(3, 4, max: '100')],
             // Null means excluded: the line carries no tax.
-            'lines.*.tax_id' => ['nullable', 'string', Rule::exists('taxes', 'id')->where('company_id', $companyId)],
+            'lines.*.tax_id' => ['nullable', 'string', Rule::exists('taxes', 'id')->where('company_id', app(CurrentCompany::class)->id())],
             'withholding_ids' => ['sometimes', 'array'],
-            'withholding_ids.*' => ['string', 'distinct', Rule::exists('withholdings', 'id')->where('company_id', $companyId)],
+            'withholding_ids.*' => ['string', 'distinct', Rule::exists('withholdings', 'id')->where('company_id', app(CurrentCompany::class)->id())],
         ];
 
         if (! $type->isNote()) {
             return [
-                'contact_id' => ['nullable', 'string', Rule::exists('contacts', 'id')->where('company_id', $companyId)],
+                'contact_id' => ['nullable', 'string', Rule::exists('contacts', 'id')->where('company_id', app(CurrentCompany::class)->id())],
                 'payment_form' => ['nullable', Rule::enum(PaymentForm::class)],
                 'payment_means_code' => ['nullable', Rule::enum(PaymentMeans::class)],
                 'due_date' => ['nullable', 'date_format:Y-m-d'],
@@ -96,7 +95,7 @@ final class DocumentRequest extends FormRequest
                 $this->creating() ? 'required' : 'nullable',
                 'string',
                 Rule::exists('documents', 'id')
-                    ->where('company_id', $companyId)
+                    ->where('company_id', app(CurrentCompany::class)->id())
                     ->where('type', DocumentType::Invoice->value)
                     ->where('status', 'issued')
                     ->where('electronic_status', 'accepted'),

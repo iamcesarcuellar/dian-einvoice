@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * For business models that belong to a company, from stage 2 on. Queries are limited to the
+ * For business models that belong to a company. Queries are limited to the
  * current company and new records are assigned to it. Console code (seeders, jobs) must set a
  * current company first or opt out explicitly with withoutGlobalScope(CompanyScope::class).
  *

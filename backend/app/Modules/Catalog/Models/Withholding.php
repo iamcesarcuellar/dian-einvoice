@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * A withholding rate, such as ReteFuente 4 %. Its base follows from its type: ReteIVA applies to
- * the IVA, ReteFuente and ReteICA to the subtotal before taxes (used from stage 3 on).
+ * the IVA, ReteFuente and ReteICA to the subtotal before taxes, in the totals of each document.
  */
 class Withholding extends Model
 {

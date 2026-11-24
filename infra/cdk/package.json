@@ -15,7 +15,7 @@
     "test": "node --test --test-reporter=spec --test-timeout=120000 test/"
   },
   "dependencies": {
-    "aws-cdk-lib": "2.277.0",
+    "aws-cdk-lib": "2.278.0",
     "cdk-nag": "3.0.2",
     "constructs": "^10.8.1"
   },

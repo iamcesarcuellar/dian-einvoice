@@ -38,8 +38,6 @@ abstract class RateRequest extends FormRequest
     {
         $record = $this->record();
         $required = $record === null ? ['required'] : ['sometimes', 'required'];
-        $code = $this->input('dian_code', $record?->getAttribute('dian_code') instanceof BackedEnum ? $record->getAttribute('dian_code')->value : $record?->getAttribute('dian_code'));
-        $scale = $code === WithholdingType::ReteIca->value && $this->codes() === WithholdingType::class ? 3 : 4;
 
         return [
             'dian_code' => $record?->getAttribute('is_system') ? ['prohibited'] : [...$required, Rule::enum($this->codes())],
@@ -51,9 +49,18 @@ abstract class RateRequest extends FormRequest
                     ->where('company_id', app(CurrentCompany::class)->id())
                     ->ignore($record?->getKey()),
             ],
-            'rate' => [...$required, new DecimalString(3, $scale, max: '100')],
+            'rate' => [...$required, new DecimalString(3, $this->rateScale(), max: '100')],
             'is_active' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /** The decimals of the rate: 3 for a ReteICA rate, which the DIAN writes per thousand; 4 for any other. */
+    private function rateScale(): int
+    {
+        $record = $this->record();
+        $code = $this->input('dian_code', $record?->getAttribute('dian_code') instanceof BackedEnum ? $record->getAttribute('dian_code')->value : $record?->getAttribute('dian_code'));
+
+        return $code === WithholdingType::ReteIca->value && $this->codes() === WithholdingType::class ? 3 : 4;
     }
 
     /**

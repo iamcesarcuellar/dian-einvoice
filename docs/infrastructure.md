@@ -296,7 +296,7 @@ A dead letter keeps its document's journey: its correlation id is in the body an
    - the template holds no IAM.
 3. **The tests run cdk-nag on that template.** They include it in a stack of its own, to run the same cdk-nag rules as the CDK app. There is one exception per Node.js function. The origin verifier and the notifier run Node.js 24, the newest runtime the emulator runs, while the rule asks for the newest one in AWS.
 4. **The tests synthesize the CDK app.**
-5. **cfn-lint 1.60.1 checks every template**, with one exception, on the functions' template: a DependsOn that osls writes, which a reference already implies.
+5. **cfn-lint 1.61.0 checks every template**, with one exception, on the functions' template: a DependsOn that osls writes, which a reference already implies.
 6. **actionlint 1.7.7 checks the GitHub Actions workflows**, the deployment workflow included.
 
 The delivery tests (`infra/cdk/test/delivery.test.ts`) hold the image repository to immutable tags, scanning and encryption. They hold the deploy role's trust to exactly one environment of one repository. They hold its permissions to no administrator access, and to no wildcard without its reason.
@@ -719,7 +719,7 @@ In the console function, it also checks:
 - list links that name the public origin;
 - that the limits do not count an address the client writes.
 
-`make cloud-e2e` runs in Chromium against 8601, on the production build under its policy. It covers the journey of `make e2e`, the API reference, and a tour of the whole web app (`e2e/tests/tour.spec.ts`). The tour reads every route the router declares from the running app, and loads each one as a deep link with the demo data. It opens each route's main dialogs, menus and lists, the command palette, every theme and a chart's hover card. The test fails on the first policy violation the browser reports, in any frame.
+`make cloud-e2e` runs in Chromium against 8601, on the production build under its policy. It covers the journey of `make e2e`, its layout check (`e2e/tests/layout.spec.ts`), the API reference, and a tour of the whole web app (`e2e/tests/tour.spec.ts`). The tour reads every route the router declares from the running app, and loads each one as a deep link with the demo data. It opens each route's main dialogs, menus and lists, the command palette, every theme and a chart's hover card. The test fails on the first policy violation the browser reports, in any frame.
 
 ### Edge design decisions
 

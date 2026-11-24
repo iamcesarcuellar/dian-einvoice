@@ -4,9 +4,10 @@ name: dian-einvoice
 # api, worker, relay and web run with the host user (HOST_UID/HOST_GID, exported by the Makefile) so
 # files in the repo stay yours. The secrets of the stack (REDIS_PASSWORD, DIAN_SIMULATOR_TOKEN) come
 # from backend/.env, which make passes as --env-file and fills with random values (scripts/env.sh);
-# redis and the simulator refuse to start without them. Every service has a healthcheck, which
-# Infrastructure reuses: the API and the simulator answer /health, the workers and the relay check a
-# heartbeat they write while they loop, plus the database and Redis (php artisan health:check).
+# redis and the simulator refuse to start without them. Every service has a healthcheck: the API and the
+# simulator answer /health (the deployment's smoke test calls the same /api/v1/health through the edge), the
+# workers and the relay check a heartbeat they write while they loop, plus the database and Redis (php artisan
+# health:check).
 
 # The backend image and its settings, shared by api, worker and relay: one Dockerfile, one image.
 x-backend: &backend

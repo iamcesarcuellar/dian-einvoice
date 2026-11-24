@@ -1,2 +1,2 @@
 # cfn-lint (MIT-0), the linter of AWS CloudFormation templates, for make cdk-check.
-cfn-lint==1.60.1
+cfn-lint==1.61.0

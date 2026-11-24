@@ -3,10 +3,10 @@
 namespace App\Support\Storage;
 
 /**
- * Private storage for the files of electronic documents: the signed XML and the ApplicationResponse
- * of the DIAN simulator now; PDF and AttachedDocument in later stages. Paths are relative and start
- * with the company id. The local adapter writes to a private disk; Infrastructure wires a real
- * object store in its place.
+ * Private storage for the files of electronic documents: the signed XML, the DIAN simulator's
+ * ApplicationResponse, the AttachedDocument and the PDF. Paths are relative and start with the
+ * company id. The local adapter writes to a private disk; in the emulated cloud and in prod,
+ * S3DocumentStorage writes to the documents bucket in its place.
  */
 interface DocumentStorage
 {

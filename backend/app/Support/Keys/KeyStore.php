@@ -6,8 +6,8 @@ use SensitiveParameter;
 
 /**
  * Where signing keys live: a PKCS#12 bundle (private key and certificate chain) with its
- * password, under an opaque reference. The local adapter keeps them encrypted with the app key;
- * Infrastructure swaps in a key management service without touching the callers.
+ * password, under an opaque reference. The local adapter keeps them encrypted with the app key; in
+ * the emulated cloud and in prod, KmsKeyStore keeps them with KMS instead, and the callers stay the same.
  */
 interface KeyStore
 {

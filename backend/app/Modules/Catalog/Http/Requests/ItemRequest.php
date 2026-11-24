@@ -23,7 +23,6 @@ final class ItemRequest extends FormRequest
     {
         $item = $this->item();
         $required = $item === null ? ['required'] : ['sometimes', 'required'];
-        $companyId = app(CurrentCompany::class)->id();
 
         return [
             'code' => [
@@ -31,7 +30,7 @@ final class ItemRequest extends FormRequest
                 'string',
                 'max:50',
                 'regex:/^[A-Za-z0-9._\/-]+$/',
-                Rule::unique('items', 'code')->where('company_id', $companyId)->ignore($item?->getKey()),
+                Rule::unique('items', 'code')->where('company_id', app(CurrentCompany::class)->id())->ignore($item?->getKey()),
             ],
             'name' => [...$required, 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -39,7 +38,7 @@ final class ItemRequest extends FormRequest
             'unit_code' => [...$required, Rule::enum(UnitOfMeasure::class)],
             'unit_price' => [...$required, new DecimalString(12, 6)],
             // Empty means excluded: the item carries no tax.
-            'tax_id' => ['nullable', 'string', Rule::exists('taxes', 'id')->where('company_id', $companyId)],
+            'tax_id' => ['nullable', 'string', Rule::exists('taxes', 'id')->where('company_id', app(CurrentCompany::class)->id())],
             'standard_scheme' => ['nullable', 'string', 'max:20', 'required_with:standard_code'],
             'standard_code' => ['nullable', 'string', 'max:50', 'required_with:standard_scheme'],
             'is_active' => ['sometimes', 'boolean'],

@@ -29,7 +29,7 @@ final class ChainEvents
     /** Payload transmission_id: the call whose answer is recorded. */
     public const string RESPONSE_RECEIVED = 'electronic_document.response_received';
 
-    /** Final results, for integrations (webhooks arrive in stage 10). */
+    /** Final results, for integrations: the webhooks deliver them. */
     public const string ACCEPTED = 'electronic_document.accepted';
 
     public const string REJECTED = 'electronic_document.rejected';

@@ -16,7 +16,7 @@ use LibXMLError;
  * against UBL-AttachedDocument-2.1.xsd, all kept in resources/dian/xsd. Two
  * adjustments, both on a copy of the document:
  *  - the empty UBLExtension reserved for the signature is left out, because the schema requires
- *    one element in every ExtensionContent; stage 5 fills it with the signature;
+ *    one element in every ExtensionContent; the signing step fills it with the signature;
  *  - xsi:schemaLocation is ignored, so libxml never reaches the network: the schema is the local copy.
  * The content of sts:DianExtensions is processed "lax" by UBL, which does not import the DIAN
  * structures schema, so the XSD does not cover it.

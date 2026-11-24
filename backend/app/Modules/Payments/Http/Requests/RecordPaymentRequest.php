@@ -25,10 +25,9 @@ final class RecordPaymentRequest extends FormRequest
      */
     public function rules(): array
     {
-        $companyId = app(CurrentCompany::class)->id();
 
         return [
-            'contact_id' => ['required', 'string', Rule::exists('contacts', 'id')->where('company_id', $companyId)],
+            'contact_id' => ['required', 'string', Rule::exists('contacts', 'id')->where('company_id', app(CurrentCompany::class)->id())],
             'payment_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.Carbon::now(NumberTemplate::TIMEZONE)->toDateString()],
             'payment_means_code' => ['required', Rule::enum(PaymentMeans::class)],
             'reference' => ['nullable', 'string', 'max:100'],

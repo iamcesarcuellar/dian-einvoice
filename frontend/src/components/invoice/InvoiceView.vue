@@ -332,6 +332,14 @@ const toneClass = {
 
 const crumbs = computed(() => documentCrumbs(props.invoice.type, props.invoice.full_number ?? t('invoices.draft'), t))
 
+/**
+ * The tax of a line, as its name or as excluded. The name may wrap when the lines do not fit, as "Excluido (sin
+ * impuesto)" does in Spanish; a rate stays whole with its sign ("19 %").
+ */
+function taxLabel(name: string | null | undefined): string {
+  return (name ?? t('items.excluded')).replace(/ %/g, ' %')
+}
+
 const lineColumns = computed<DataTableColumn[]>(() => [
   { key: 'description', label: t('invoices.editor.lineDescription'), truncate: true },
   { key: 'quantity', label: t('invoices.editor.quantity'), align: 'right' },
@@ -471,7 +479,7 @@ const lineColumns = computed<DataTableColumn[]>(() => [
               <span class="tabular-nums">{{ formatDecimal(row.discount_rate) === '0' ? '—' : formatPercent(row.discount_rate) }}</span>
             </template>
             <template #cell-tax="{ row }">
-              <span class="whitespace-nowrap">{{ row.tax_name ?? t('items.excluded') }}</span>
+              <span class="whitespace-normal">{{ taxLabel(row.tax_name) }}</span>
             </template>
             <template #cell-total="{ row }">
               <span class="whitespace-nowrap tabular-nums">{{ formatMoney(row.line_extension_amount) }}</span>

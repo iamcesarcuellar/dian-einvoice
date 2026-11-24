@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSession } from '@/composables/useSession'
+import { holderFirst } from '@/lib/certificate'
 import { formatDate, formatDateTime, formatInteger, formatPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -91,7 +92,7 @@ function highlighted(warning: boolean): string {
             <ShieldCheckIcon class="size-4 text-muted-foreground" aria-hidden="true" />
             {{ t('dashboard.notices.certificate.title') }}
           </CardTitle>
-          <CardDescription v-if="certificate" class="line-clamp-1" :title="certificate.subject">{{ certificate.subject }}</CardDescription>
+          <CardDescription v-if="certificate" class="line-clamp-1" :title="certificate.subject">{{ holderFirst(certificate.subject) }}</CardDescription>
         </div>
         <StatusBadge v-if="certificate" domain="certificate" :status="certificate.status" />
       </CardHeader>

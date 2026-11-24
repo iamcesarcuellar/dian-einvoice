@@ -160,6 +160,17 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;
   }
+
+  /*
+   * A grid item may be narrower than its content. By default an item of a grid with no columns of its own takes the
+   * content it cannot wrap as its minimum width: a long name in a truncated line, a line of XML, a chart drawn for a
+   * wider window. The grid then grows past its card or dialog, which cuts it. With this rule the item keeps the width of
+   * its box, and its content truncates, wraps or scrolls inside it, as each component asks. Grids with a column template
+   * of their own (grid-cols-[...]) keep the minimums it sets; those of grid-cols-N are 0 already.
+   */
+  :where(.grid:not([class*='grid-cols-['])) > * {
+    min-width: 0;
+  }
 }
 
 /* The charts (Unovis) take their axes, grid and crosshair from the theme. */

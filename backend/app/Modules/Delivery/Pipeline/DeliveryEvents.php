@@ -17,7 +17,7 @@ final class DeliveryEvents
     /** Payload attempt: the email attempt to start; retries carry available_at. */
     public const string EMAIL_DUE = 'delivery.email_due';
 
-    /** Final results, for integrations (webhooks arrive in stage 10). */
+    /** Final results, for integrations: the webhooks deliver them. */
     public const string DELIVERED = 'delivery.delivered';
 
     public const string NOT_APPLICABLE = 'delivery.not_applicable';

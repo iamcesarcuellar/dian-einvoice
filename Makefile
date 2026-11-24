@@ -312,9 +312,10 @@ migrations-check: ## Quality | Refuse a migration that drops or renames without 
 	$(COMPOSE) run --rm --no-deps -T api php artisan migrations:check
 
 # The end-to-end test in a browser (Playwright, profile e2e) against the full stack with the demo data (make demo):
-# sign in, issue an invoice, see it accepted and delivered, open its PDF, record its payment and see it paid; then
-# every list of the web app at 1440×900, none wider than its box.
-e2e: ## Checks on the running stack | Run the browser tests: an invoice from draft to paid, one in Spanish, and every list at 1440×900
+# sign in, issue an invoice, see it accepted and delivered, open its PDF, record its payment and see it paid; one more
+# in Spanish; then the layout check: every route of the web app and its main dialogs at 1280×720, 1440×900 and
+# 1920×1080, in English and in Spanish, with nothing out of its box and every list at 1440×900 or more in its box.
+e2e: ## Checks on the running stack | Run the browser tests: an invoice from draft to paid, one in Spanish, and nothing out of its box at three window sizes
 	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 
 # The checks of the stack, in a row, against the demo data (make demo). make dian-schematron stays optional, apart.
@@ -429,7 +430,7 @@ cloud-alarms: ## Emulated cloud operations | Show every alarm's state and the ch
 # The end-to-end test in a browser against the emulated cloud with the demo data (make cloud-demo first): the web app
 # as the edge serves it on http://localhost:8601, built for production and under its Content-Security-Policy, the
 # same journey as make e2e (sign in, issue an invoice through the functions, see it accepted and delivered, open its
-# PDF, record its payment), the lists at 1440×900, the API reference, and a tour of every route the router of the web
+# PDF, record its payment), the layout check of make e2e, the API reference, and a tour of every route the router of the web
 # app declares, each a deep link with the demo data, with its main dialogs, menus and lists, the command palette, the
 # themes and the hover card of a chart; it fails on the first violation of a policy the browser reports. First, in the
 # console function, cloud:check demo makes sure the demo data is there and that the emulated cloud's records in the DIAN

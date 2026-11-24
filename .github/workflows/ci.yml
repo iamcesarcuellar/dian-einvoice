@@ -129,7 +129,7 @@ jobs:
           frontend: "true"
       - name: The stack with the synthetic demo data (make demo)
         run: make demo
-      - name: End-to-end test in the browser, and every list at 1440×900 (make e2e)
+      - name: End-to-end test in the browser, and nothing out of its box at three window sizes (make e2e)
         run: make e2e
       - name: The image encoder of the screenshots, in the image of the browser tooling (make test-tools)
         run: make test-tools
@@ -162,7 +162,9 @@ jobs:
     name: Emulated cloud
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # With an empty layer cache this job took almost 26 of its first 30 minutes, 17 of them building the images, and the
+    # layout check of make cloud-e2e adds a few more. 40 leaves room for a cold cache; a warm one takes about 10.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/prepare
@@ -173,7 +175,7 @@ jobs:
         run: make cloud-demo
       - name: No permanent process, the functions and their triggers, the edge, the fast path, a partial batch, the functions killed mid-process, the relay function and the scheduler (make cloud-check)
         run: make cloud-check
-      - name: End-to-end test and a tour of every route in the browser against the edge, under its Content-Security-Policy (make cloud-e2e)
+      - name: End-to-end test, the layout check and a tour of every route in the browser against the edge, under its Content-Security-Policy (make cloud-e2e)
         run: make cloud-e2e
       - name: Traces of the end-to-end test against the edge
         if: failure()

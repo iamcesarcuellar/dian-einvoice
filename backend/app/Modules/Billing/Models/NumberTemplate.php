@@ -10,8 +10,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
- * A numbering range for one document type, such as a DIAN invoicing resolution. Consecutive
- * numbers are assigned from stage 3 on. The technical key is stored encrypted and never returned.
+ * A numbering range for one document type, such as a DIAN invoicing resolution. A document takes
+ * the next consecutive number of its range when it is issued. The technical key is stored encrypted
+ * and never returned.
  */
 class NumberTemplate extends Model
 {

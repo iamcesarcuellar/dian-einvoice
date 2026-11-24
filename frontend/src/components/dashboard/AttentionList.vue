@@ -12,7 +12,19 @@ defineProps<{
   total: number
 }>()
 
-const { t } = useI18n()
+const i18n = useI18n()
+const { t } = i18n
+
+/**
+ * The customer and what went wrong: the DIAN's first rejection, the step of the chain that failed ("The transmission
+ * failed."), or why the delivery failed.
+ */
+function summary(item: AttentionItem): string {
+  const step = `invoices.view.events.steps.${item.detail ?? ''}`
+  const detail = item.problem === 'failed' && item.detail !== null && i18n.te(step) ? t('invoices.dian.failedAt', { step: t(step) }) : item.detail
+
+  return [item.customer_name, detail].filter(Boolean).join(' · ')
+}
 </script>
 
 <template>
@@ -27,8 +39,8 @@ const { t } = useI18n()
       </RouterLink>
       <StatusBadge v-if="item.problem === 'delivery_failed'" domain="delivery" status="failed" />
       <StatusBadge v-else domain="electronic" :status="item.problem" />
-      <span class="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-        {{ [item.customer_name, item.detail].filter(Boolean).join(' · ') }}
+      <span class="min-w-0 flex-1 truncate text-sm text-muted-foreground" :title="summary(item)">
+        {{ summary(item) }}
       </span>
       <span v-if="item.since" class="text-xs text-muted-foreground tabular-nums">{{ formatDateTime(item.since) }}</span>
     </li>
