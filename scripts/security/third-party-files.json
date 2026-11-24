@@ -25,7 +25,13 @@
         { "path": "backend/resources/dian/xsd/maindoc/UBL-CreditNote-2.1.xsd", "sha256": "21eee9df7418a4ec2a26d92ad80c9b41d5e884959a698793311d2c5c6754c4b0" },
         { "path": "backend/resources/dian/xsd/maindoc/UBL-DebitNote-2.1.xsd", "sha256": "ea5303c2191dfb579d6d53a66e41094020f33dca0531086da1bd62f722202da0" },
         { "path": "backend/resources/dian/xsd/maindoc/UBL-AttachedDocument-2.1.xsd", "sha256": "58c44a11e5ec58f287128d9e10e1314a04c3fc643fc6d6f3bd5c32503437ad1f" }
-      ]
+      ],
+      "es": {
+        "name": "Esquemas de OASIS Universal Business Language (UBL) 2.1",
+        "owner": "OASIS Open",
+        "origin": "UBL 2.1 OS (4 de noviembre de 2013), tal como viene en la caja de herramientas de la DIAN v1.9 (Caja de herramientas FE - V1.9 - (v2026-2)). 11 de estos archivos son idénticos, byte por byte, a los de la distribución de OASIS (docs.oasis-open.org/ubl/os-UBL-2.1/UBL-2.1.zip). Los esquemas de la nota crédito, la nota débito y el AttachedDocument son de la edición CS1 (16 de junio de 2013): sus definiciones son iguales a las de la edición OS, y solo cambian los comentarios que nombran la edición.",
+        "terms": "El aviso de copyright de OASIS: se pueden hacer y distribuir copias siempre que conserven el aviso y que los esquemas no se modifiquen. NOTICE reproduce el aviso."
+      }
     },
     {
       "id": "w3c-xmldsig",
@@ -38,7 +44,13 @@
       "unchanged": true,
       "files": [
         { "path": "backend/resources/dian/xsd/common/UBL-xmldsig-core-schema-2.1.xsd", "sha256": "101909c9f06456d61ddcc4fb982f1d40dc357b439f393b1a2eb46e42acd60809" }
-      ]
+      ],
+      "es": {
+        "name": "Esquema de XML Signature, en su copia de UBL 2.1",
+        "owner": "The Internet Society y el W3C",
+        "origin": "El esquema xmldsig-core-schema.xsd del W3C, que OASIS copió en UBL 2.1 OS quitándole los identificadores PUBLIC y SYSTEM de su DOCTYPE, como dice el archivo; la caja de herramientas de la DIAN v1.9 trae esa copia, idéntica byte por byte a la de la distribución de OASIS.",
+        "terms": "La W3C Software License que nombra el archivo (http://www.w3.org/Consortium/Legal/copyright-software-19980720): permite redistribuirlo con el aviso que conserva el archivo."
+      }
     },
     {
       "id": "etsi-xades",
@@ -52,7 +64,13 @@
       "files": [
         { "path": "backend/resources/dian/xsd/common/UBL-XAdESv132-2.1.xsd", "sha256": "a4f726bcf8cc3f7d9ffa4dab99e005535a8e8b60dced1e5d94578d2e05afa96e" },
         { "path": "backend/resources/dian/xsd/common/UBL-XAdESv141-2.1.xsd", "sha256": "1fa4625e9cefcb7a9abb5ac1b64315547450031eece8a55bd584e4ba4b79dbc1" }
-      ]
+      ],
+      "es": {
+        "name": "Esquemas de XAdES, en sus copias de UBL 2.1",
+        "owner": "ETSI",
+        "origin": "Los esquemas de XAdES 1.3.2 y 1.4.1 del ETSI (uri.etsi.org/01903), que OASIS copió en UBL 2.1 OS cambiando solo la URI desde la que importan XML Signature, como dice cada archivo; la caja de herramientas de la DIAN v1.9 trae esas copias, idénticas byte por byte a las de la distribución de OASIS.",
+        "terms": "Se redistribuyen tal como OASIS los distribuye en UBL 2.1, con el comentario que nombra su origen en el ETSI."
+      }
     },
     {
       "id": "uncefact-ccts",
@@ -65,7 +83,13 @@
       "unchanged": true,
       "files": [
         { "path": "backend/resources/dian/xsd/common/CCTS_CCT_SchemaModule-2.1.xsd", "sha256": "dd546e4809df86b6445589f69f0d6c9df162840ae386574ddfc1da7638103e15" }
-      ]
+      ],
+      "es": {
+        "name": "Módulo de esquema Core Component Type de UN/CEFACT",
+        "owner": "UN/CEFACT",
+        "origin": "El módulo de esquema CCTS de UBL 2.1 OS, tal como viene en la caja de herramientas de la DIAN v1.9, idéntico byte por byte al de la distribución de OASIS.",
+        "terms": "El aviso de UN/CEFACT en el archivo: se puede copiar y distribuir con el aviso, y no se puede modificar."
+      }
     },
     {
       "id": "dian-structures",
@@ -78,7 +102,13 @@
       "unchanged": true,
       "files": [
         { "path": "backend/resources/dian/xsd/maindoc/DIAN_UBL_Structures.xsd", "sha256": "41ead5af3ea44f1014be098061c62f8d1bfd7f7b8726997836b66e8955036a2c" }
-      ]
+      ],
+      "es": {
+        "name": "Esquema de las extensiones de la DIAN a UBL 2.1",
+        "owner": "DIAN (Dirección de Impuestos y Aduanas Nacionales de Colombia)",
+        "origin": "XSD/maindoc/DIAN_UBL_Structures.xsd de la caja de herramientas de la DIAN v1.9 (Caja de herramientas FE - V1.9 - (v2026-2)), publicada con el anexo técnico de la factura electrónica de venta, versión 1.9, que adopta la Resolución 000165 del 1 de noviembre de 2023.",
+        "terms": "Hace parte del anexo de un acto administrativo: el artículo 41 de la Ley 23 de 1982 permite a cualquiera reproducir los actos administrativos siempre que la copia se ajuste a la edición oficial. Se conserva byte por byte como lo trae la caja de herramientas."
+      }
     },
     {
       "id": "inter",
@@ -94,7 +124,13 @@
         { "path": "backend/resources/fonts/inter/Inter-Medium.ttf", "sha256": "97ad806f526e41546d46365bb3a393145f75b7b1568913db74549ad8b8dba872" },
         { "path": "backend/resources/fonts/inter/Inter-SemiBold.ttf", "sha256": "78a843fade9d4612a5567302fb595b56976eb5fcebf4fea5a5912d638bafcde3" },
         { "path": "backend/resources/fonts/inter/LICENSE.txt", "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a" }
-      ]
+      ],
+      "es": {
+        "name": "Fuentes Inter 4.1",
+        "owner": "The Inter Project Authors",
+        "origin": "extras/ttf/Inter-Regular.ttf, Inter-Medium.ttf e Inter-SemiBold.ttf y LICENSE.txt de la versión 4.1 de Inter (zip con SHA-256 9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e), idénticos byte por byte. El renderizador de PDF incrusta copias cuyos dígitos apuntan a las cifras tabulares de la misma fuente (backend/app/Modules/Delivery/Pdf/TabularFigures.php); esas copias solo existen en memoria y en los PDF.",
+        "terms": "SIL Open Font License 1.1 (LICENSE.txt junto a las fuentes): las fuentes se pueden empaquetar y redistribuir con software; la licencia cubre las fuentes, no los documentos hechos con ellas."
+      }
     },
     {
       "id": "divipola",
@@ -107,7 +143,13 @@
       "unchanged": false,
       "files": [
         { "path": "backend/app/Modules/Reference/Data/divipola.json" }
-      ]
+      ],
+      "es": {
+        "name": "Códigos de municipios DIVIPOLA del DANE",
+        "owner": "Departamento Administrativo Nacional de Estadística (DANE)",
+        "origin": "Los 1.122 registros del conjunto de datos \"DIVIPOLA- Códigos municipios\" (gdxc-w37w) de datos.gov.co, actualizado por el DANE el 24 de enero de 2025 y descargado el 18 de noviembre de 2026. Los registros están tal como los entrega el portal (idénticos a sus datos del 22 de noviembre de 2026); el archivo los envuelve con la fuente, las fechas y el conteo.",
+        "terms": "Creative Commons Attribution-ShareAlike 4.0 International, la licencia que el portal le da al conjunto de datos: con atribución al DANE, y el archivo y sus adaptaciones quedan bajo la misma licencia."
+      }
     },
     {
       "id": "shadcn-vue",
@@ -120,7 +162,13 @@
       "unchanged": false,
       "files": [
         { "glob": "frontend/src/components/ui/**" }
-      ]
+      ],
+      "es": {
+        "name": "Componentes de shadcn-vue",
+        "owner": "unovue",
+        "origin": "Los componentes de interfaz de shadcn-vue (estilo reka-vega, frontend/components.json): su CLI los copió en la aplicación web, y luego se formatearon con la configuración de Prettier del proyecto y se adaptaron en algunos puntos.",
+        "terms": "Licencia MIT, Copyright (c) 2023 unovue; NOTICE la reproduce."
+      }
     }
   ],
   "excerpts": [
@@ -128,22 +176,31 @@
       "name": "Code lists, rules, messages and examples of the DIAN technical annex 1.9",
       "where": ["backend/app/Modules/Reference/Enums/*.php", "simulator/src/rules.ts", "backend/app/Modules/Dian/Console/DianCheckCommand.php", "backend/tests/Unit/Dian/DocumentKeyTest.php"],
       "what": "The codes and official names of section 13's tables, the codes and messages of the validation rules in sections 8 and 12 (in Spanish, as the annex writes them), and the values of the CUFE and CUDE examples in section 11, inside this project's files.",
-      "terms": "Part of the annex that Resolución 000165 of 2023 adopts, reproduced as published (article 41 of Ley 23 de 1982)."
+      "terms": "Part of the annex that Resolución 000165 of 2023 adopts, reproduced as published (article 41 of Ley 23 de 1982).",
+      "es": {
+        "name": "Listas de códigos, reglas, mensajes y ejemplos del anexo técnico 1.9 de la DIAN",
+        "what": "Los códigos y los nombres oficiales de las tablas de la sección 13, los códigos y los mensajes de las reglas de validación de las secciones 8 y 12 (en español, como los escribe el anexo) y los valores de los ejemplos de CUFE y CUDE de la sección 11, dentro de los archivos de este proyecto.",
+        "terms": "Hacen parte del anexo que adopta la Resolución 000165 de 2023, y se reproducen como se publicaron (artículo 41 de la Ley 23 de 1982)."
+      }
     }
   ],
   "removed": [
     {
       "path": "backend/resources/dian/examples/invoice-example.xml",
       "what": "\"Ejemplificación Impuesto especial para la estabilidad fiscal.xml\", an example invoice of the DIAN toolbox v1.9.",
-      "why": "Support material that nothing in the repository reads; make dian-toolbox downloads the whole toolbox, with its SHA-256, when a check needs it."
+      "why": "Support material that nothing in the repository reads; make dian-toolbox downloads the whole toolbox, with its SHA-256, when a check needs it.",
+      "es": {
+        "what": "\"Ejemplificación Impuesto especial para la estabilidad fiscal.xml\", una factura de ejemplo de la caja de herramientas de la DIAN v1.9.",
+        "why": "Material de apoyo que nada en el repositorio lee; make dian-toolbox descarga toda la caja de herramientas, con su SHA-256, cuando una revisión la necesita."
+      }
     }
   ],
   "outside": [
-    { "name": "The DIAN toolbox v1.9 (schematron, code lists, examples, the annex)", "how": "make dian-toolbox downloads it from the DIAN into backend/storage/app/dian-toolbox, never committed, and checks its SHA-256; only make dian-schematron needs it." },
-    { "name": "The DIAN signature policy (politicadefirmav2.pdf)", "how": "Never downloaded: each signature names its URL and the SHA-256 digest of the official examples (backend/app/Modules/Dian/Signing/XadesSigner.php)." },
-    { "name": "The certificate authorities of Amazon RDS (global-bundle.pem)", "how": "Downloaded into the image of the functions when it is built, pinned by its SHA-256 (backend/Dockerfile)." },
-    { "name": "Stoplight Elements 8.4.2", "how": "Loaded by the browser from unpkg.com for the API reference, pinned by Subresource Integrity (backend/resources/http/security-headers.json)." },
-    { "name": "SaxonJS 2.7.0 and SchXslt 1.10.1", "how": "Downloaded by make dian-schematron into a Docker volume (scripts/dian-schematron/run.sh)." }
+    { "name": "The DIAN toolbox v1.9 (schematron, code lists, examples, the annex)", "how": "make dian-toolbox downloads it from the DIAN into backend/storage/app/dian-toolbox, never committed, and checks its SHA-256; only make dian-schematron needs it.", "es": { "name": "La caja de herramientas de la DIAN v1.9 (schematron, listas de códigos, ejemplos, el anexo)", "how": "make dian-toolbox la descarga de la DIAN en backend/storage/app/dian-toolbox, que nunca entra en un commit, y revisa su SHA-256; solo make dian-schematron la necesita." } },
+    { "name": "The DIAN signature policy (politicadefirmav2.pdf)", "how": "Never downloaded: each signature names its URL and its SHA-256 digest, the one the official examples carry (backend/app/Modules/Dian/Signing/XadesSigner.php).", "es": { "name": "La política de firma de la DIAN (politicadefirmav2.pdf)", "how": "Nunca se descarga: cada firma nombra su URL y su resumen SHA-256, la misma que traen los ejemplos oficiales (backend/app/Modules/Dian/Signing/XadesSigner.php)." } },
+    { "name": "The certificate authorities of Amazon RDS (global-bundle.pem)", "how": "Downloaded into the image of the functions when it is built, pinned by its SHA-256 (backend/Dockerfile).", "es": { "name": "Las autoridades de certificación de Amazon RDS (global-bundle.pem)", "how": "Se descargan en la imagen de las funciones cuando se construye, fijadas con su SHA-256 (backend/Dockerfile)." } },
+    { "name": "Stoplight Elements 8.4.2", "how": "Loaded by the browser from unpkg.com for the API reference, pinned by Subresource Integrity (backend/resources/http/security-headers.json).", "es": { "name": "Stoplight Elements 8.4.2", "how": "El navegador lo carga desde unpkg.com para la referencia de la API, fijado con Subresource Integrity (backend/resources/http/security-headers.json)." } },
+    { "name": "SaxonJS 2.7.0 and SchXslt 1.10.1", "how": "Downloaded by make dian-schematron into a Docker volume (scripts/dian-schematron/run.sh).", "es": { "name": "SaxonJS 2.7.0 y SchXslt 1.10.1", "how": "make dian-schematron los descarga en un volumen de Docker (scripts/dian-schematron/run.sh)." } }
   ],
   "own": [
     { "paths": ["docs/assets/*.png", "docs/assets/*.gif", "docs/assets/es/*.png", "docs/assets/es/*.gif"], "why": "Screenshots and GIFs of this project's web app, in English and in Spanish, written by make screenshots." },
@@ -151,6 +208,6 @@
     { "paths": ["scripts/dian-schematron/codelists.sch"], "why": "A wrapper written for make dian-schematron; it includes the toolbox's code lists at run time and copies nothing of them." },
     { "paths": ["simulator/test/fixtures/*.xml"], "why": "Synthetic documents of the demo company, produced by this project (simulator/test/fixtures/README.md)." },
     { "paths": ["backend/phpunit.xml"], "why": "The configuration of the backend tests." },
-    { "paths": ["LICENSE", "NOTICE", "CONTRIBUTING.md", "docs/third-party-licenses.md", "scripts/security/*.mjs", "scripts/security/third-party-files.json", "backend/app/Modules/Delivery/Pdf/TabularFigures.php"], "why": "Files of this project that name the licenses or the notices of others." }
+    { "paths": ["LICENSE", "NOTICE", "NOTICE.es.txt", "CONTRIBUTING.md", "docs/third-party-licenses.md", "docs/es/third-party-licenses.md", "scripts/security/*.mjs", "scripts/security/third-party-files.json", "backend/app/Modules/Delivery/Pdf/TabularFigures.php"], "why": "Files of this project that name the licenses or the notices of others." }
   ]
 }

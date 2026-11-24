@@ -1,5 +1,7 @@
 # A customer reports an error
 
+**English** · [Español](../es/runbooks/customer-report.md)
+
 A procedure with no alarm. A company writes in to say that something failed: an invoice that did not go out, or an API response that was an error.
 
 Every API response carries `X-Correlation-Id`. Every `application/problem+json` error also carries it as `correlation_id`, next to `request_id`. With that id, one query shows every line of the journey, from the request to its webhooks, in every function (see the correlation id section of docs/observability.md).

@@ -48,7 +48,7 @@ export CLOUD_CHAOS_INVOICES
 # cache and sets BUILD empty, so compose uses them as they are.
 BUILD ?= --build
 
-TARGETS := up down logs ps seed demo stress chaos dian-check dian-toolbox dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check docs-examples openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra test-tools e2e checks security licenses docs-check cost cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check migrations-check cloud-deploy cloud-drill cloud-dead-letters cloud-dead-letters-purge cloud-redrive cloud-errors cloud-functions cloud-rotate
+TARGETS := up down logs ps seed demo stress chaos dian-check dian-toolbox dian-schematron delivery-check clean nuke sh-api sh-web screenshots payments-check api-check docs-examples openapi ui-check lint analyse fix test test-backend test-frontend test-simulator test-infra test-tools e2e checks security licenses docs-check docs-stamp cost cloud-up cloud-demo cloud-down cloud-clean cloud-check cloud-alarm-check cloud-follow cloud-alarms cloud-e2e cloud-artisan cdk-check migrations-check cloud-deploy cloud-drill cloud-dead-letters cloud-dead-letters-purge cloud-redrive cloud-errors cloud-functions cloud-rotate
 
 .PHONY: env help $(TARGETS)
 
@@ -177,15 +177,15 @@ delivery-check: ## Checks on the running stack | Validate the AttachedDocument a
 payments-check: ## Checks on the running stack | Record twenty simultaneous payments of a tenth of a balance: exactly ten fit
 	$(COMPOSE) exec api php artisan payments:check
 
-# The examples of README.md, README.es.md and docs/api-guide.md against the demo (make demo, in either language), as a
-# reader runs them (e2e/docs/examples.mjs, in the container of the browser tooling, the repository read-only): each curl
-# block runs and prints what the docs say it prints, and the webhook signature examples in Node.js and PHP verify the
-# Standard Webhooks reference example and a real webhook of the demo; the PHP one runs next, in the api image. Each run
-# adds a contact, an item and an invoice to Demo Comercial SAS; the keys and subscriptions it creates are revoked and
-# deleted.
-docs-examples: ## Checks on the running stack | Run the examples of both READMEs and docs/api-guide.md against the demo, webhook signatures included
+# The examples of both READMEs and of both API guides, docs/api-guide.md and docs/es/api-guide.md, against the demo
+# (make demo, in either language), as a reader runs them (e2e/docs/examples.mjs, in the container of the browser
+# tooling, the repository read-only): each curl block runs and prints what the docs say it prints, and each guide's
+# webhook signature examples in Node.js and PHP verify the Standard Webhooks reference example and a real webhook of the
+# demo; the PHP ones run next, in the api image. Each run adds invoices, contacts and items to Demo Comercial SAS
+# (docs/limitations.md says how many); the keys and subscriptions it creates are revoked and deleted.
+docs-examples: ## Checks on the running stack | Run the examples of both READMEs and both API guides against the demo, webhook signatures included
 	$(COMPOSE) --profile e2e run --rm --no-deps --use-aliases -T -v $(CURDIR):/repo:ro e2e node docs/examples.mjs /repo
-	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/e2e/test-results/docs-examples:/examples:ro api php /examples/verify.php
+	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR)/e2e/test-results/docs-examples:/examples:ro api sh -c 'php /examples/verify.php && php /examples/verify-es.php'
 
 # On a temporary company of its own, deleted at the end, and over HTTP with API keys only: idempotent issue
 # (repeat, other body, 10 at once), a read-only key refused, signed webhooks in the local receiver, a
@@ -209,17 +209,25 @@ lint: ## Quality | Run the formatters and linters, then docs-check; the stack ne
 	$(CLOUD) run --rm --no-deps $(BUILD) -T functions sh -c 'for script in scripts/*.mjs; do node --check "$$script" || exit 1; done'
 	@$(MAKE) --no-print-directory docs-check
 
-# The documentation holds true (e2e/docs/check.mjs, in the browser tooling of profile e2e, the repository read-only):
-# every make target and file README.md, README.es.md and docs/README.md name exists, every relative link and anchor of every
-# Markdown file resolves, every image exists and keeps to its size (a screenshot 400 KB, a GIF 5 MB), and Mermaid
-# draws every diagram.
-docs-check: ## Quality | Check the docs' make targets, files, links, anchors, images and Mermaid diagrams, and the cost estimate
+# The documentation holds true, in English and in Spanish (e2e/docs/check.mjs, in the browser tooling of profile e2e,
+# the repository read-only): every make target and file both READMEs, both indexes and the reference documents name
+# exists, every relative link and anchor of every Markdown file resolves, every image exists and keeps to its size (a
+# screenshot 400 KB, a GIF 5 MB), and Mermaid draws every diagram. Every document has its Spanish translation, which
+# carries the SHA-256 of the original it follows and keeps its code, links, figures and structure, with no paragraph
+# left in English (e2e/docs/translations.mjs; the declared differences in e2e/docs/translations.json).
+docs-check: ## Quality | Check the docs' make targets, files, links, anchors, images, diagrams and translations, and the cost estimate
 	$(COMPOSE) --profile e2e run --rm --no-deps -T -v $(CURDIR):/repo:ro e2e sh -c 'npm ci --no-audit --no-fund && node docs/check.mjs /repo && node /repo/scripts/cost/estimate.mjs --check /repo'
 
-# docs/cost.md, the estimate of what the prod stage would cost a month in us-east-1, computed by scripts/cost/estimate.mjs
-# (no dependencies, no network) from scripts/cost/prices.json, the unit prices with their sources, and
-# scripts/cost/usage.json, the assumptions with theirs. make docs-check fails when the page is not what they give.
-cost: ## Quality | Write docs/cost.md again from the prices and assumptions in scripts/cost
+# Seal the Spanish translations that follow their original again (e2e/docs/stamp.mjs): the original's SHA-256 goes
+# into the stamp line of each translation that passes every check of docs-check against it, and into no other.
+docs-stamp: ## Quality | Seal again each Spanish translation that follows its original: code, links, figures and structure
+	$(COMPOSE) --profile e2e run --rm --no-deps -T -v $(CURDIR):/repo e2e node docs/stamp.mjs /repo
+
+# docs/cost.md and its Spanish version, the estimate of what the prod stage would cost a month in us-east-1, computed by
+# scripts/cost/estimate.mjs (no dependencies, no network) from scripts/cost/prices.json, the unit prices with their
+# sources, and scripts/cost/usage.json, the assumptions with theirs. make docs-check fails when either page is not
+# what they give.
+cost: ## Quality | Write docs/cost.md and its Spanish version again from the prices and assumptions in scripts/cost
 	$(COMPOSE) run --rm --no-deps -T -v $(CURDIR):/repo web node /repo/scripts/cost/estimate.mjs /repo
 
 # Static analysis: PHPStan with Larastan (level in backend/phpstan.neon, no baseline), vue-tsc and tsc (simulator, CDK
@@ -241,11 +249,11 @@ fix: ## Quality | Apply the formatters and the linters' automatic fixes
 # Security of the dependencies and the repository, also a job of CI. Known vulnerabilities of the backend, the
 # web app, the simulator, the CDK app, the serverless service of the functions and the browser tooling (e2e): high and
 # critical ones fail. A production dependency whose license is not compatible with the MIT License of the project
-# fails, and so does docs/third-party-licenses.md when it is not what the lock files give (scripts/licenses.sh
-# --check; make licenses writes it). Secrets in the git history and in the changes not committed yet fail (gitleaks,
-# profile security: the rules and the public values of .gitleaks.toml, and the findings that are not secrets, by
-# fingerprint, in .gitleaksignore). Each step runs in a container; the audits ask the public advisory databases of
-# Packagist and npm.
+# fails, and so does docs/third-party-licenses.md or its Spanish version when it is not what the lock files give
+# (scripts/licenses.sh --check; make licenses writes both). Secrets in the git history and in the changes not
+# committed yet fail (gitleaks, profile security: the rules and the public values of .gitleaks.toml, and the findings
+# that are not secrets, by fingerprint, in .gitleaksignore). Each step runs in a container; the audits ask the public
+# advisory databases of Packagist and npm.
 security: ## Quality | Audit the dependencies, check their licenses against MIT and scan the history for secrets
 	$(COMPOSE) run --rm --no-deps -T api composer audit --locked --no-interaction --abandoned=report --ignore-severity=low --ignore-severity=medium
 	$(COMPOSE) run --rm --no-deps -T web pnpm audit --audit-level high
@@ -258,9 +266,10 @@ security: ## Quality | Audit the dependencies, check their licenses against MIT 
 	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore --redact --no-banner --pre-commit
 	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore --redact --no-banner --pre-commit --staged
 
-# docs/third-party-licenses.md: every production dependency of the five applications with its license, from their lock
-# files (scripts/licenses.sh); it fails when a license is not compatible with the MIT License of the project.
-licenses: ## Quality | Write docs/third-party-licenses.md from the lock files
+# docs/third-party-licenses.md and its Spanish version: every production dependency of the five applications with its
+# license, from their lock files (scripts/licenses.sh); it fails when a license is not compatible with the MIT License
+# of the project.
+licenses: ## Quality | Write docs/third-party-licenses.md and its Spanish version from the lock files
 	@sh scripts/licenses.sh
 
 # Every test that needs no browser: backend, web app, simulator, CDK app and the repository's tooling.
@@ -283,9 +292,10 @@ test-simulator: ## Quality | Run the DIAN simulator's tests (node:test)
 
 # Tests of the repository's tooling (node:test), which need nothing but Node.js; they run in the container of the
 # browser tooling. The image encoder of make screenshots (e2e/screenshots/encode.mjs): its PNG, LZW, palette and GIF,
-# read back by decoders written apart from it.
-test-tools: ## Quality | Run the repository tooling's tests (node:test): the image encoder of make screenshots
-	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e node --test screenshots/encode.test.mjs
+# read back by decoders written apart from it. The check of the translations (e2e/docs/translations.mjs): what it
+# compares, and the cases it must fail on.
+test-tools: ## Quality | Run the repository tooling's tests (node:test): the screenshots' image encoder and the translations check
+	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e node --test screenshots/encode.test.mjs docs/translations.test.mjs
 
 # Tests of the infrastructure as code (node:test), without a network: the origin verifier of the edge, then the CDK
 # app: assertions on the synthesized templates of both stages, on the templates osls packages for the functions

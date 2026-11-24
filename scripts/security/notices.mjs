@@ -1,6 +1,7 @@
 // make security (scripts/licenses.sh): the files of third parties in the repository are exactly the ones
 // third-party-files.json lists. Each listed file exists; an unchanged one still has its SHA-256 and keeps the notice of
-// its group; NOTICE names every listed path; a file the inventory marks as removed stays out. Then every other file of
+// its group; NOTICE and its Spanish translation, NOTICE.es.txt, name every listed path; a file the inventory marks as
+// removed stays out. Then every other file of
 // the repository is scanned for the work of others, by its type (schemas, style sheets, fonts, images, documents,
 // archives, XML) or by a copyright or license notice in its text: one that is neither listed nor declared the
 // project's own fails the check. It writes nothing.
@@ -32,10 +33,21 @@ const files = readFileSync(0, 'utf8')
   .filter((path) => path !== '' && existsSync(join(root, path)) && statSync(join(root, path)).isFile())
 const problems = []
 const notice = existsSync(join(root, 'NOTICE')) ? readFileSync(join(root, 'NOTICE'), 'utf8') : null
+const translation = existsSync(join(root, 'NOTICE.es.txt')) ? readFileSync(join(root, 'NOTICE.es.txt'), 'utf8') : null
 
 if (notice === null) {
   problems.push('NOTICE is missing at the root of the repository.')
 }
+
+if (translation === null) {
+  problems.push('NOTICE.es.txt, the Spanish translation of NOTICE, is missing at the root of the repository.')
+}
+
+/** The problems of a path or a glob that NOTICE or its translation does not name. */
+const unnamed = (group, path) => [
+  ...(notice !== null && !notice.includes(path) ? [`${group.id}: NOTICE does not name ${path}`] : []),
+  ...(translation !== null && !translation.includes(path) ? [`${group.id}: NOTICE.es.txt does not name ${path}`] : []),
+]
 
 const listed = new Set()
 const globs = []
@@ -54,9 +66,7 @@ for (const group of inventory.groups) {
         problems.push(`${group.id}: no file matches ${entry.glob}`)
       }
 
-      if (notice !== null && !notice.includes(entry.glob)) {
-        problems.push(`${group.id}: NOTICE does not name ${entry.glob}`)
-      }
+      problems.push(...unnamed(group, entry.glob))
 
       continue
     }
@@ -86,9 +96,7 @@ for (const group of inventory.groups) {
       }
     }
 
-    if (notice !== null && !notice.includes(entry.path)) {
-      problems.push(`${group.id}: NOTICE does not name ${entry.path}`)
-    }
+    problems.push(...unnamed(group, entry.path))
   }
 }
 
@@ -140,5 +148,5 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `Third-party files: ${listed.size} files in ${inventory.groups.length} groups, as scripts/security/third-party-files.json lists them (${hashed} unchanged with their SHA-256, ${noticed} with their notice) and NOTICE names them; ${scanned} other files scanned, none of them the work of others.`,
+  `Third-party files: ${listed.size} files in ${inventory.groups.length} groups, as scripts/security/third-party-files.json lists them (${hashed} unchanged with their SHA-256, ${noticed} with their notice) and NOTICE and NOTICE.es.txt name them; ${scanned} other files scanned, none of them the work of others.`,
 )

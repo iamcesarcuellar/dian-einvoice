@@ -1,5 +1,7 @@
 # Rotate a secret off schedule
 
+**English** · [Español](../es/runbooks/rotate-secrets.md)
+
 A procedure without an alarm. Use it when a secret may have leaked: in a log, a screenshot, a lost laptop, a person who left. Also use it to rotate a secret before its schedule for any other reason.
 
 Each secret has its own procedure, because each one reaches its users in its own way. Rotate one secret at a time, and say in the chat which one and when.
@@ -8,9 +10,9 @@ Each secret has its own procedure, because each one reaches its users in its own
 | --- | --- | --- | --- |
 | `dian-einvoice/prod/edge/origin-verify` | The distribution sends it to API Gateway, and the origin verifier checks it | No: by this procedure, whenever needed | [below](#the-edge-secret) |
 | `dian-einvoice/prod/alerts/chat-webhook` | The notifier posts the alarms to its address | No: the chat issues it | [below](#the-chat-webhook-address) |
-| `dian-einvoice/prod/database/application` | Every function except for the console function | Every 30 days, alternating users | [below](#the-database-credentials) |
+| `dian-einvoice/prod/database/application` | Every PHP function except for the console function | Every 30 days, alternating users | [below](#the-database-credentials) |
 | `dian-einvoice/prod/database/migrations` | The console function and the rotation functions | Every 30 days, single user | [below](#the-database-credentials) |
-| `dian-einvoice/prod/app` (`APP_KEY`) | Every function: it encrypts stored values | No | Not supported: every encrypted value would need re-encrypting first (docs/limitations.md) |
+| `dian-einvoice/prod/app` (`APP_KEY`) | Every PHP function: it encrypts stored values | No | Not supported: every encrypted value would need re-encrypting first (docs/limitations.md) |
 
 ## The edge secret
 

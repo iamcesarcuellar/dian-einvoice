@@ -1,5 +1,7 @@
 # API guide
 
+**English** · [Español](es/api-guide.md)
+
 A practical guide to the public API under `/api/v1`: the first steps with curl against the demo, then idempotency, errors, pagination, rate limits, versions and webhooks. The running stack's [API reference](http://localhost:8600/docs/api) lists every operation, field and response; Scramble generates it from the code, and `make openapi` exports it to [`openapi.json`](../openapi.json).
 
 Every command block on this page runs in `make docs-examples` against the demo, in order and in one shell, and prints what the block after it shows; the check fails when an example stops working. So do the two webhook signature examples, against the Standard Webhooks reference example and a real webhook from the demo. Each run adds a synthetic contact, an item and an invoice to Demo Comercial SAS; `make seed` starts the demo over.
@@ -108,7 +110,7 @@ Amounts and quantities travel as decimal strings, never as floating-point number
 
 ### 4. Create and issue an invoice
 
-A draft takes the customer, the payment form (`1` cash, `2` credit, which needs a `due_date`), the payment means (`10` cash, `42` bank transfer, among others) and its lines; a line with an item takes its code, price and tax from it. Issuing gives the invoice its number and its CUFE in one transaction, and starts the chain. The `Idempotency-Key` makes the issue safe to send again.
+A draft takes the customer, the payment form (`1` cash, `2` credit, which needs a `due_date`), the payment means (`10` cash, `42` bank deposit, among others) and its lines; a line with an item takes its code, price and tax from it. Issuing gives the invoice its number and its CUFE in one transaction, and starts the chain. The `Idempotency-Key` makes the issue safe to send again.
 
 <!-- example -->
 ```sh

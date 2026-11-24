@@ -1,5 +1,7 @@
 # The origin verifier cannot read its secret: `origin-verifier-errors`
 
+**English** · [Español](../es/runbooks/origin-verifier.md)
+
 | | |
 | --- | --- |
 | Alarm | `origin-verifier-errors`: the origin verifier could not read the edge secret (the metric filter `OriginVerifierFailures`, 1 minute) |
@@ -8,7 +10,7 @@
 
 ## What it means and who it affects
 
-The origin verifier is the authorizer on every API Gateway route. It compares the `X-Origin-Verify` header the edge sends with the current and previous values of the secret `dian-einvoice/prod/edge/origin-verify`. It reads the secret at most every 30 s.
+The origin verifier is the authorizer on every API Gateway route. It compares the `X-Origin-Verify` header the edge sends with the current and previous values of the secret `dian-einvoice/prod/edge/origin-verify`. It keeps the values it reads for 30 s, and reads them again sooner, at most every 5 s, when a request carries a value it does not hold.
 
 This time it could not read the secret. It keeps the values it already holds, so a warm verifier still lets the edge in. A new verifier execution environment, though, has nothing to compare with. API Gateway keeps each authorizer response for 5 minutes. Once that time is over, requests through the edge may be refused (403) or fail (500).
 

@@ -238,7 +238,7 @@ export class ObservabilityStack extends Stack {
     })
 
     alarm('origin-verifier-errors', {
-      meaning: 'The origin verifier could not read the edge secret: once the values it holds expire, every request through the edge is refused.',
+      meaning: 'The origin verifier could not read the edge secret: a warm verifier still uses the values it holds, but a new one has none, and the requests it gets through the edge fail.',
       runbook: RUNBOOKS.originVerifier,
       metric: this.applicationMetric('OriginVerifierFailures', Duration.minutes(1)),
       threshold: 1,

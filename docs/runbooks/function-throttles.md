@@ -1,5 +1,7 @@
 # Throttled functions: `function-throttles`
 
+**English** · [Español](../es/runbooks/function-throttles.md)
+
 | | |
 | --- | --- |
 | Alarm | `function-throttles`: one or more throttled invocations of any function in 5 minutes (metric math over every function's `Throttles`) |

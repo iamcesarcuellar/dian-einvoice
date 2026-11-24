@@ -1,5 +1,7 @@
 # The database near its limits: `database-capacity`, `database-connections` (prod)
 
+**English** · [Español](../es/runbooks/database-capacity.md)
+
 | | |
 | --- | --- |
 | Alarms | `database-capacity`: more than 3.5 of the 4 ACU for 15 minutes; `database-connections`: more than 108 connections (80% of the 135 at maximum capacity) for 5 minutes |

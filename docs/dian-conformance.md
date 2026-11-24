@@ -1,5 +1,7 @@
 # DIAN conformance
 
+**English** · [Español](es/dian-conformance.md)
+
 Which parts of Colombia's electronic invoicing standard this project implements, and how to check each one: the command, the test or the file that shows it. Paths are relative to `backend/` unless they start at the repository's root.
 
 > **Not affiliated with the DIAN.** Every document here is validated by the local simulator in `simulator/`, never by the DIAN. The habilitación was never done, the certificates are synthetic, and no CUFE, CUDE or signature produced here was ever accepted by the DIAN ([limitations.md](limitations.md#relationship-with-the-dian)).
@@ -68,7 +70,7 @@ The simulator recalculates every key with the range's technical key or the softw
 - `SignaturePolicyIdentifier`: `https://facturaelectronica.dian.gov.co/politicadefirma/v2/politicadefirmav2.pdf`, described as "Política de firma para facturas electrónicas de la República de Colombia", with the SHA-256 digest `dMoMvtcG5aIzgYo0tIsSQeVJBDnUnfSOfBpxXrmor0Y=`. Section 10.10 of the annex gives the URL but no digest; the digest is the one the toolbox's signed examples carry. The policy's PDF itself is neither downloaded nor kept here.
 - `SignerRole`: `supplier` (section 10.12).
 
-The certificates are synthetic: self-signed 2,048-bit RSA keys, valid for two years (`app/Modules/Dian/Services/SigningCertificates.php`). Only the simulator accepts them.
+The certificates are synthetic and self-signed, with 2,048-bit RSA keys, and valid for two years (`app/Modules/Dian/Services/SigningCertificates.php`). Only the simulator accepts them.
 
 **Shown by** `make dian-check`: xmlsec1 verifies an invoice signed on the spot (step 3), refuses a copy with one digit of its total changed (step 4), and verifies the stored credit and debit notes (step 7) and a delivered invoice's AttachedDocument (step 8). `ConformanceTest` does the same for the three documents, and the simulator verifies every signature with xmlsec1 (rules ZD01, ZE02 and ZD02). `ChainTest::test_a_certificate_that_expires_between_issue_and_signing_stops_the_chain_before_anything_is_sent` covers a certificate that expires on the way.
 

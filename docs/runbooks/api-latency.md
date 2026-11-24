@@ -1,5 +1,7 @@
 # The API is slow: `api-latency`
 
+**English** · [Español](../es/runbooks/api-latency.md)
+
 | | |
 | --- | --- |
 | Alarm | `api-latency`: the 99th percentile of API Gateway latency is above 2 s for 15 minutes |

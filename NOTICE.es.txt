@@ -1,0 +1,228 @@
+dian-einvoice
+Copyright (c) 2026 Cesar Cuellar
+
+Traducción al español de NOTICE, solo como referencia: el que vale es NOTICE, en inglés.
+
+Los avisos de terceros no se traducen: se citan tal cual, en su idioma, en las líneas que empiezan
+por ">".
+
+Este repositorio está bajo la licencia MIT (LICENSE), salvo los archivos que se listan abajo. Son
+obra de otros. Se guardan aquí bajo sus propios términos, y la licencia MIT de este proyecto no los
+cubre. docs/es/third-party-licenses.md lista cada archivo con su origen, sus términos y su SHA-256.
+make security falla cuando a esa lista le falta un archivo que parece obra de un tercero.
+
+Los paquetes que instalan los archivos de bloqueo no se listan aquí. Cada uno trae su propia
+licencia, y docs/es/third-party-licenses.md también los lista.
+
+Este proyecto no tiene relación con la DIAN, OASIS, el W3C, ETSI, UN/CEFACT, el DANE ni ningún otro
+titular que se nombre abajo.
+
+
+1. Esquemas OASIS Universal Business Language (UBL) 2.1
+
+   backend/resources/dian/xsd/common/UBL-CommonAggregateComponents-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-CommonBasicComponents-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-CommonExtensionComponents-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-CommonSignatureComponents-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-CoreComponentParameters-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-ExtensionContentDataType-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-QualifiedDataTypes-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-SignatureAggregateComponents-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-SignatureBasicComponents-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-UnqualifiedDataTypes-2.1.xsd
+   backend/resources/dian/xsd/maindoc/UBL-Invoice-2.1.xsd
+   backend/resources/dian/xsd/maindoc/UBL-CreditNote-2.1.xsd
+   backend/resources/dian/xsd/maindoc/UBL-DebitNote-2.1.xsd
+   backend/resources/dian/xsd/maindoc/UBL-AttachedDocument-2.1.xsd
+
+   Sin cambios, tal como los trae la caja de herramientas v1.9 de la DIAN. Cada archivo conserva su
+   aviso:
+
+   > Copyright (c) OASIS Open 2013. All Rights Reserved.
+
+   Los avisos de la especificación UBL 2.1 (https://docs.oasis-open.org/ubl/os-UBL-2.1/UBL-2.1.html):
+
+   > Copyright © OASIS Open 2001-2013. All Rights Reserved.
+
+   > All capitalized terms in the following text have the meanings assigned to them in the OASIS
+   > Intellectual Property Rights Policy (the "OASIS IPR Policy"). The full Policy may be found at
+   > the OASIS website.
+
+   > This document and translations of it may be copied and furnished to others, and derivative works
+   > that comment on or otherwise explain it or assist in its implementation may be prepared, copied,
+   > published, and distributed, in whole or in part, without restriction of any kind, provided that
+   > the above copyright notice and this section are included on all such copies and derivative works.
+   > However, this document itself may not be modified in any way, including by removing the copyright
+   > notice or references to OASIS, except as needed for the purpose of developing any document or
+   > deliverable produced by an OASIS Technical Committee (in which case the rules applicable to
+   > copyrights, as set forth in the OASIS IPR Policy, must be followed) or as required to translate it
+   > into languages other than English.
+
+   > The limited permissions granted above are perpetual and will not be revoked by OASIS or its
+   > successors or assigns.
+
+   > This document and the information contained herein is provided on an "AS IS" basis and OASIS
+   > DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE
+   > USE OF THE INFORMATION HEREIN WILL NOT INFRINGE ANY OWNERSHIP RIGHTS AND ANY IMPLIED WARRANTIES OF
+   > MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+   Los avisos de la especificación siguen con sus declaraciones sobre patentes y sobre la marca
+   OASIS, en la dirección de arriba.
+
+
+2. Esquema de XML Signature, en su copia de UBL 2.1
+
+   backend/resources/dian/xsd/common/UBL-xmldsig-core-schema-2.1.xsd
+
+   Sin cambios, tal como lo trae la caja de herramientas v1.9 de la DIAN. OASIS copió el esquema del
+   W3C http://www.w3.org/TR/xmldsig-core/xmldsig-core-schema.xsd en UBL 2.1 y le quitó a su DOCTYPE
+   los identificadores PUBLIC y SYSTEM, como dice el archivo. El archivo conserva su aviso:
+
+   > Copyright 2001 The Internet Society and W3C (Massachusetts Institute of Technology, Institut
+   > National de Recherche en Informatique et en Automatique, Keio University). All Rights Reserved.
+   > http://www.w3.org/Consortium/Legal/
+
+   Se rige por la licencia de software del W3C
+   (http://www.w3.org/Consortium/Legal/copyright-software-19980720):
+
+   > W3C® SOFTWARE NOTICE AND LICENSE
+
+   > Copyright © 1994-2002 World Wide Web Consortium, (Massachusetts Institute of Technology, Institut
+   > National de Recherche en Informatique et en Automatique, Keio University). All Rights Reserved.
+   > http://www.w3.org/Consortium/Legal/
+
+   > This W3C work (including software, documents, or other related items) is being provided by the
+   > copyright holders under the following license. By obtaining, using and/or copying this work, you
+   > (the licensee) agree that you have read, understood, and will comply with the following terms and
+   > conditions:
+
+   > Permission to use, copy, modify, and distribute this software and its documentation, with or
+   > without modification, for any purpose and without fee or royalty is hereby granted, provided that
+   > you include the following on ALL copies of the software and documentation or portions thereof,
+   > including modifications, that you make:
+
+   > 1. The full text of this NOTICE in a location viewable to users of the redistributed or
+   >    derivative work.
+   > 2. Any pre-existing intellectual property disclaimers, notices, or terms and conditions. If none
+   >    exist, a short notice of the following form (hypertext is preferred, text is permitted) should
+   >    be used within the body of any redistributed or derivative code: "Copyright ©
+   >    [$date-of-software] World Wide Web Consortium, (Massachusetts Institute of Technology, Institut
+   >    National de Recherche en Informatique et en Automatique, Keio University). All Rights Reserved.
+   >    http://www.w3.org/Consortium/Legal/"
+   > 3. Notice of any changes or modifications to the W3C files, including the date changes were
+   >    made. (We recommend you provide URIs to the location from which the code is derived.)
+
+   > THIS SOFTWARE AND DOCUMENTATION IS PROVIDED "AS IS," AND COPYRIGHT HOLDERS MAKE NO REPRESENTATIONS
+   > OR WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO, WARRANTIES OF MERCHANTABILITY OR
+   > FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE OF THE SOFTWARE OR DOCUMENTATION WILL NOT
+   > INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.
+
+   > COPYRIGHT HOLDERS WILL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL OR CONSEQUENTIAL DAMAGES
+   > ARISING OUT OF ANY USE OF THE SOFTWARE OR DOCUMENTATION.
+
+   > The name and trademarks of copyright holders may NOT be used in advertising or publicity
+   > pertaining to the software without specific, written prior permission. Title to copyright in this
+   > software and any associated documentation will at all times remain with copyright holders.
+
+
+3. Esquemas XAdES, en sus copias de UBL 2.1
+
+   backend/resources/dian/xsd/common/UBL-XAdESv132-2.1.xsd
+   backend/resources/dian/xsd/common/UBL-XAdESv141-2.1.xsd
+
+   Sin cambios, tal como los trae la caja de herramientas v1.9 de la DIAN. Son copias de los esquemas
+   de ETSI http://uri.etsi.org/01903/v1.3.2/XAdES.xsd y http://uri.etsi.org/01903/v1.4.1/XAdESv141.xsd
+   que OASIS hizo para UBL 2.1, en las que solo cambió el URI desde el que importan XML Signature,
+   como dice cada archivo. Se guardan tal como los distribuye OASIS.
+
+
+4. Módulo de esquema Core Component Type de UN/CEFACT
+
+   backend/resources/dian/xsd/common/CCTS_CCT_SchemaModule-2.1.xsd
+
+   Sin cambios, tal como lo trae la caja de herramientas v1.9 de la DIAN. El archivo conserva su
+   aviso completo, que empieza así:
+
+   > Copyright (C) UN/CEFACT (2006). All Rights Reserved.
+
+   Se puede copiar y distribuir con ese aviso, y el archivo en sí no se puede modificar.
+
+
+5. Esquema de las extensiones de la DIAN para UBL 2.1
+
+   backend/resources/dian/xsd/maindoc/DIAN_UBL_Structures.xsd
+
+   Lo publica la DIAN (Dirección de Impuestos y Aduanas Nacionales de Colombia) con el anexo técnico
+   de la factura electrónica de venta, versión 1.9, que adopta la Resolución 000165 del
+   1 de noviembre de 2023. El artículo 41 de la Ley 23 de 1982 permite a cualquiera reproducir los
+   actos administrativos, siempre que la copia se ajuste a la edición oficial. El archivo se guarda
+   byte por byte tal como lo trae la caja de herramientas v1.9 de la DIAN
+   (Caja de herramientas FE - V1.9 - (v2026-2)):
+   https://www.dian.gov.co/impuestos/factura-electronica/Documents/Caja-de-herramientas-FE_V19_v2026.zip
+
+   Este proyecto también reproduce, dentro de sus propios archivos, los códigos y los nombres
+   oficiales de las tablas del anexo, los códigos y los mensajes de sus reglas de validación, y los
+   valores de sus ejemplos de CUFE y CUDE: backend/app/Modules/Reference/Enums, simulator/src/rules.ts,
+   backend/app/Modules/Dian/Console/DianCheckCommand.php y backend/tests/Unit/Dian/DocumentKeyTest.php.
+   Se reproducen tal como los publica el anexo.
+
+   El resto de la caja de herramientas (sus ejemplos, el schematron y las listas de códigos) no se
+   redistribuye aquí. make dian-toolbox la descarga desde la DIAN, con su SHA-256, en
+   backend/storage/app/dian-toolbox, que git ignora.
+
+
+6. Fuentes Inter 4.1
+
+   backend/resources/fonts/inter/Inter-Regular.ttf
+   backend/resources/fonts/inter/Inter-Medium.ttf
+   backend/resources/fonts/inter/Inter-SemiBold.ttf
+   backend/resources/fonts/inter/LICENSE.txt
+
+   Sin cambios, de la versión 4.1 de Inter (https://github.com/rsms/inter/releases/tag/v4.1).
+
+   > Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
+
+   Se distribuyen bajo la SIL Open Font License, versión 1.1, cuyo texto completo está en
+   LICENSE.txt, junto a las fuentes. Los PDF incrustan las fuentes; la licencia cubre las fuentes, no
+   los documentos hechos con ellas.
+
+
+7. Códigos de municipios DIVIPOLA del DANE
+
+   backend/app/Modules/Reference/Data/divipola.json
+
+   "DIVIPOLA- Códigos municipios", del Departamento Administrativo Nacional de Estadística - DANE,
+   publicado en datos.gov.co (https://www.datos.gov.co/resource/gdxc-w37w.json) bajo la licencia
+   Creative Commons Attribution-ShareAlike 4.0 International
+   (https://creativecommons.org/licenses/by-sa/4.0/). Los registros están tal como los sirve el
+   portal; el archivo los envuelve con su fuente, sus fechas y su conteo. El archivo sigue bajo esa
+   licencia.
+
+
+8. Componentes de shadcn-vue
+
+   frontend/src/components/ui/**
+
+   Copiados a la aplicación web con la CLI de shadcn-vue (https://github.com/unovue/shadcn-vue), y
+   luego formateados y adaptados.
+
+   > MIT License
+
+   > Copyright (c) 2023 unovue
+
+   > Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+   > associated documentation files (the "Software"), to deal in the Software without restriction,
+   > including without limitation the rights to use, copy, modify, merge, publish, distribute,
+   > sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+   > furnished to do so, subject to the following conditions:
+
+   > The above copyright notice and this permission notice shall be included in all copies or
+   > substantial portions of the Software.
+
+   > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+   > NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   > NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+   > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+   > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Traducción de NOTICE con SHA-256 f0ba8c57e177e3f1ed29c9f70414bc219a3688623ecc2f25528616600be2061e. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original.

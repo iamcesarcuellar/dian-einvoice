@@ -1,5 +1,7 @@
 # Threat model
 
+**English** · [Español](es/threat-model.md)
+
 This page models the platform as it runs here:
 
 - **The local stack**: a Laravel API, a Vue web app, MySQL, Redis, queue workers and an outbox relay, the DIAN simulator and a local mailbox.
@@ -15,7 +17,7 @@ The prod stage adds, as code, a private network and a managed database. Both sta
 | Software PIN and technical keys | dian_settings, number_templates | Encrypted with APP_KEY. Only the last four characters of a technical key are shown. |
 | API keys | api_keys | The SHA-256 of a 40-character random secret, compared in constant time. Shown once. |
 | Webhook secrets | webhook_subscriptions | Encrypted with APP_KEY. Shown once, on creation and on rotation. |
-| Passwords and sessions | users, Redis | Passwords hashed with bcrypt. Sessions in Redis, behind an HttpOnly, SameSite=Lax cookie, Secure in production. |
+| Passwords and sessions | users, Redis, DynamoDB | Passwords hashed with bcrypt. Sessions in Redis, or in DynamoDB in the emulated cloud, behind an HttpOnly, SameSite=Lax cookie, Secure in production. |
 | Invitation and password reset links | team_invitations, password_reset_tokens | Only a hash of the token is stored. The token travels in the email. |
 | Invoices, notes, payments and customer data (names, identification numbers, emails, addresses) | MySQL, document storage (local disk, or the S3 bucket), events in the topic and the queues | Every query is scoped to a company. Only the API serves the files, after authorization. The bucket is private, encrypted and versioned. The topic and the queues are encrypted at rest. |
 | Integrity of numbering, documents and balances | MySQL | Row locks, gap-free numbering, signed XML with its SHA-256, and immutable accepted documents |
@@ -75,8 +77,8 @@ The prod stage adds, as code, a private network and a managed database. Both sta
 | An API route served as the web app, or the API's errors hidden | Every application path has a behavior of its own toward API Gateway (a test checks every route against paths.json). A CloudFront Function rewrites the web app's routes, on the default behavior only, never through custom error responses. So a 403 or 404 from the API stays the API's own problem response. | EdgeTest, edge.test.ts, make cloud-check |
 | Clickjacking, sniffing, downgrade to HTTP | frame-ancestors 'none' and X-Frame-Options DENY, nosniff, HSTS for a year with subdomains on the web app and the API, and HTTPS only at the edge | ErrorsAndHeadersTest, edge.test.ts, make cloud-check |
 | Development tools reaching real data | Stress, chaos, the checks and the demo seeder refuse to run outside the local and testing environments. The simulator refuses to start without its token. | ErrorsAndHeadersTest, hostile-input.test.ts |
-| A forged or broken message in a queue | Queue policies let only the topic send (and the application, its own jobs). The consumer reads only events of the types its queue routes, with every field checked. It sends anything else to the dead-letter queue after the receives the redrive policy allows. The consumers stay idempotent. | CloudAdaptersTest, make cloud-check |
-| A flaw in a function used to change the database schema or privileges | Two identities. Only the console function holds the migrations identity. Every other function connects as the application identity, which may only read and write data, with TLS required. Each role reads only its own identity's secret. | DatabaseIdentitiesTest, CDK tests, make cloud-check |
+| A forged or broken message in a queue | Queue policies let only the topic send (and the application, its own jobs). The consumer reads only events of the types its queue routes, with every field checked. Anything else fails on every receive, a second apart, until the redrive policy moves it to the dead-letter queue. The consumers stay idempotent. | CloudAdaptersTest, make cloud-check |
+| A flaw in a function, exploited to change the database schema or privileges | Two identities. Only the console function holds the migrations identity. Every other function connects as the application identity, which may only read and write data, with TLS required. Each role reads only its own identity's secret. | DatabaseIdentitiesTest, CDK tests, make cloud-check |
 | A database password that leaks | In prod, the identities rotate every 30 days (the application identity with alternating users). The database sits in isolated subnets without a route out, and only the functions' and the rotation functions' security groups reach it. It refuses connections without TLS. | CDK tests, DatabaseIdentitiesTest, make cloud-check |
 | Cloud secrets in files or templates | Secrets Manager generates APP_KEY, which is never in a template. It is read at boot into the process environment, and kept up to 5 minutes in a file only the container's user can read. backend/.env.cloud holds names, not secrets. | CloudAdaptersTest, CDK tests, make cloud-check |
 | A deployment by someone who should not deploy, or from a fork, a branch or a stolen key | No long-lived key: OpenID Connect, with credentials for an hour. The trust policy names exactly one environment of one repository, with required reviewers. One deployment at a time. The role holds only what the steps of scripts/deploy.sh need, on the project's resources. It changes no function, role or secret outside CloudFormation, and the pipeline never deploys its own stack. | delivery.test.ts, actionlint |
@@ -95,8 +97,7 @@ The prod stage adds, as code, a private network and a managed database. Both sta
 - The functions' alarms reach the operators through the notifier and a chat whose address is a credential. The alarm on the notifier's failures also emails them.
 - The prod stage's private network and managed database exist as code, validated but never deployed.
 - In the emulated cloud, the functions encrypt their connections to MySQL without verifying its certificate: the Compose MySQL signs its own certificate, for another name. The local stack keeps fixed database credentials and one user.
-- Each function has a role of its own, which attaches the managed policies the stacks create (one per consumer and capability).
-- The emulated cloud proves the wiring, not the permissions: the emulator evaluates no IAM, resource or key policy, and applies no AWS WAF.
+- Each function has a role of its own, which attaches the managed policies the stacks create (one per consumer and capability). The emulated cloud proves the wiring, not those permissions: the emulator evaluates no IAM, resource or key policy, and applies no AWS WAF.
 - The edge secret is visible to anyone who may read the distribution's configuration.
 - A client's address rests on two behaviors. CloudFront appends its viewer's address to X-Forwarded-For, and API Gateway appends, if anything, the address of the peer it reports. A proxy added between the edge and API Gateway would make every client of an edge location share one address: stricter limits, not a forged address.
 - The DIAN side is simulated: the real service's responses, failures and rules may differ.

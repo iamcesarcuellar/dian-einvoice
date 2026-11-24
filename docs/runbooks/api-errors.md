@@ -1,5 +1,7 @@
 # The API returns errors: `api-server-errors`
 
+**English** · [Español](../es/runbooks/api-errors.md)
+
 | | |
 | --- | --- |
 | Alarm | `api-server-errors`: 5 or more 5xx at API Gateway in 5 minutes |

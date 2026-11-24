@@ -1,5 +1,7 @@
 # Events wait in the outbox, or the relay stops: `relay-not-running`, `outbox-lag`
 
+**English** · [Español](../es/runbooks/outbox-relay.md)
+
 | | |
 | --- | --- |
 | Alarms | `relay-not-running`: no relay run for 3 minutes (missing data breaches); `outbox-lag`: an event unpublished for more than 2 minutes, over 2 relay runs |
@@ -8,7 +10,7 @@
 
 ## What it means and who it affects
 
-Every change records its events in the outbox table, in its own transaction. The writer publishes them to the topic right after its commit (the fast path). Once a minute, the relay function publishes whatever was left behind. See docs/infrastructure.md for how the outbox works without a relay that runs all the time.
+Every change records its events in the outbox table, in the same transaction as the change. The writer publishes them to the topic right after its commit (the fast path). Once a minute, the relay function publishes whatever was left behind. See docs/infrastructure.md for how the outbox works without a relay that runs all the time.
 
 When the relay does not run, or events wait even though it runs, the steps those events start do not happen:
 

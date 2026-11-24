@@ -1,4 +1,5 @@
-// The commands the runbooks (docs/runbooks) and the deployment guide (docs/deployment.md) cite exist, without a network:
+// The commands the runbooks (docs/runbooks) and the deployment guide (docs/deployment.md) cite exist, in English and in
+// their Spanish translations (docs/es/runbooks, docs/es/deployment.md), without a network:
 // every make target is a target of the Makefile, every step of scripts/deploy.sh one it runs, and every command of the
 // AWS CLI an operation (or a waiter) of the AWS SDK of that service, which is generated from the same models as the CLI.
 // Every step of a runbook that runs in the emulator has its command for a real account. And make cloud-drill responds
@@ -14,7 +15,10 @@ import { describe, it } from 'node:test'
 const root = process.env.REPOSITORY ?? (existsSync('/workspace/docs') ? '/workspace' : join(import.meta.dirname, '../../..'))
 const docs = join(root, 'docs')
 const read = (path) => readFileSync(path, 'utf8')
-const guides = [...readdirSync(join(docs, 'runbooks')).filter((file) => file.endsWith('.md')).map((file) => join(docs, 'runbooks', file)), join(docs, 'deployment.md')]
+const pagesOf = (folder) => (existsSync(folder) ? readdirSync(folder).filter((file) => file.endsWith('.md')).map((file) => join(folder, file)) : [])
+const english = [...pagesOf(join(docs, 'runbooks')), join(docs, 'deployment.md')]
+const spanish = [...pagesOf(join(docs, 'es', 'runbooks')), ...(existsSync(join(docs, 'es', 'deployment.md')) ? [join(docs, 'es', 'deployment.md')] : [])]
+const guides = [...english, ...spanish]
 const makefile = read(join(root, 'Makefile'))
 const deployScript = read(join(root, 'scripts/deploy.sh'))
 const drillScript = read(join(root, 'scripts/cloud-drill.sh'))
@@ -90,12 +94,19 @@ describe('the commands the runbooks and the deployment guide cite', () => {
     assert.deepEqual([...new Set(missing)], [])
   })
 
+  it('have their Spanish translation, page for page', () => {
+    assert.deepEqual(
+      spanish.map((path) => path.replace(`${docs}/es/`, '')).sort(),
+      english.map((path) => path.replace(`${docs}/`, '')).sort(),
+    )
+  })
+
   it('give each step of a runbook that runs in the emulator its command for a real account', () => {
     for (const guide of guides.filter((path) => path.includes('/runbooks/'))) {
       const lines = read(guide).split('\n')
 
       lines.forEach((line, index) => {
-        if (/^\s+- Emulator:/.test(line)) {
+        if (/^\s+- (Emulator|Emulador):/.test(line)) {
           assert.match(lines[index + 1] ?? '', /^\s+- AWS:/, `${guide.replace(`${docs}/`, 'docs/')}:${index + 1} has its command for a real account`)
         }
       })

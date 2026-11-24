@@ -1,8 +1,10 @@
 // The runbooks of the alarms (docs/runbooks) against the alarms of both stages: every alarm
 // names a runbook that exists, the index lists every alarm with its runbook and the service objectives it defends,
 // every page of the folder is listed (no orphan), every runbook of an alarm has its six parts, and every saved query a
-// runbook names is one the stack observability saves. The commands they cite are checked where they live: the make
-// targets and the AWS CLI in infra/functions/test/runbooks.test.mjs, the commands of the application in the backend.
+// runbook names is one the stack observability saves. Their Spanish translations (docs/es/runbooks) hold the same:
+// every runbook has its translation, the Spanish index lists every alarm with it, and each has its six parts with
+// their Spanish headings. The commands they cite are checked where they live: the make targets and the AWS CLI in
+// infra/functions/test/runbooks.test.mjs, the commands of the application in the backend.
 import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -82,6 +84,48 @@ describe('the runbooks of the alarms', () => {
     for (const page of pages) {
       for (const [, name] of readFileSync(join(folder, page), 'utf8').matchAll(/saved query `dian-einvoice\/(?:prod|local)\/([a-z-]+)`/g)) {
         assert.ok(saved.has(name ?? ''), `${page} names the saved query ${name}`)
+      }
+    }
+  })
+})
+
+describe('the Spanish translations of the runbooks', () => {
+  const spanish = join(docs, 'es', 'runbooks')
+  const translated = existsSync(spanish) ? readdirSync(spanish).filter((file) => file.endsWith('.md') && file !== 'README.md').sort() : []
+
+  it('exist for every page of the folder, its index included', () => {
+    assert.deepEqual(translated, pages)
+    assert.ok(existsSync(join(spanish, 'README.md')), 'docs/es/runbooks/README.md exists')
+  })
+
+  it('list every alarm in the Spanish index, with its runbook, and leave no page out', () => {
+    const indexEs = readFileSync(join(spanish, 'README.md'), 'utf8')
+    const section = indexEs.slice(indexEs.indexOf('## Alarmas'), indexEs.indexOf('## Procedimientos'))
+    const rows = new Map([...section.matchAll(/^\| `([a-z-]+)`(?: \(producción\))? \| \[([a-z-]+\.md)\]\([a-z-]+\.md\) \| ([^|]+) \|$/gm)].map((row) => [row[1] ?? '', `docs/runbooks/${row[2] ?? ''}`]))
+    assert.deepEqual([...rows.keys()].sort(), [...alarms.keys()].sort())
+
+    for (const [alarm, runbook] of alarms) {
+      assert.equal(rows.get(alarm), runbook, `the Spanish index gives ${alarm} its runbook`)
+    }
+
+    const linked = new Set([...indexEs.matchAll(/\]\(([a-z-]+\.md)(?:#[\p{L}\p{N}-]+)?\)/gu)].map((link) => link[1]))
+    assert.deepEqual(translated.filter((page) => !linked.has(page)), [], 'every runbook is reachable from docs/es/runbooks/README.md')
+  })
+
+  it('give each runbook of an alarm its six parts, with their Spanish headings', () => {
+    for (const runbook of new Set(Object.values(RUNBOOKS))) {
+      const text = readFileSync(join(docs, 'es', runbook.replace(/^docs\//, '')), 'utf8')
+      const headings = [...text.matchAll(/^## (.+)$/gm)].map((heading) => heading[1])
+      assert.deepEqual(headings, ['Qué significa y a quién afecta', 'Confírmalo', 'Causas probables', 'Responde', 'Verifica la recuperación', 'Después'], runbook)
+    }
+  })
+
+  it('name only saved queries the stack observability saves', () => {
+    const saved = new Set(SAVED_QUERIES.map((query) => query.name))
+
+    for (const page of translated) {
+      for (const [, name] of readFileSync(join(spanish, page), 'utf8').matchAll(/consulta guardada `dian-einvoice\/(?:prod|local)\/([a-z-]+)`/g)) {
+        assert.ok(saved.has(name ?? ''), `docs/es/runbooks/${page} names the saved query ${name}`)
       }
     }
   })

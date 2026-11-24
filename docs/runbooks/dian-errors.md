@@ -1,5 +1,7 @@
 # The DIAN fails: `dian-error-rate`
 
+**English** · [Español](../es/runbooks/dian-errors.md)
+
 | | |
 | --- | --- |
 | Alarm | `dian-error-rate`: more than 20% of the calls to the DIAN in 5 minutes get no validation result, with 5 calls or more, for 10 minutes. It uses metric math over `DianCalls` and `DianErrors` |
@@ -44,7 +46,7 @@ The DIAN has not validated the invoice, so it is not delivered to its customer: 
 5. **When the probe passes again**, move the transmissions that gave up back to the chain. Each one starts a new run of its transmission ([dead-letters.md](dead-letters.md), step 5).
    - Emulator: `make cloud-artisan ARGS="dian:probe"`, then `make cloud-redrive QUEUE=chain`
    - AWS: `aws lambda invoke --function-name dian-einvoice-prod-console --cli-binary-format raw-in-base64-out --payload '"dian:probe"' /dev/stdout`, then `aws sqs start-message-move-task --source-arn arn:aws:sqs:us-east-1:<account>:dian-einvoice-prod-chain-dlq --destination-arn arn:aws:sqs:us-east-1:<account>:dian-einvoice-prod-chain`
-6. **The outbound path** (prod): check the NAT gateway and its zone in the VPC console, and the dashboard's "Outbound traffic" widget (port allocation errors, bytes out).
+6. **The outbound path** (prod): check the NAT gateway and its zone in the VPC console, and the dashboard's "Outbound traffic: bytes to the internet and port errors (NAT gateway)" widget.
 
 ## Verify the recovery
 

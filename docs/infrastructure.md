@@ -1,5 +1,7 @@
 # Infrastructure
 
+**English** · [Español](es/infrastructure.md)
+
 This page describes the platform's production cloud architecture, written as code and proven locally. Nothing is deployed to a real AWS account. The AWS services run in a local emulator, [Floci](https://github.com/floci-io/floci) (open source, MIT, no account or token).
 
 The architecture covers:
@@ -57,7 +59,7 @@ One DIAN simulator serves both environments, and keeps each one's records apart:
 - The local stack uses the simulator's root paths (`http://simulator:8602/...`). The emulated cloud uses the same paths under `/cloud` (`http://simulator:8602/cloud/...`).
 - So switching between `make up` and `make cloud-up` never makes the simulator reject a new document with rule 90, and needs no reload of the demo data.
 - `make seed` clears only the local stack's records in the simulator, and `make cloud-demo` only the cloud's. `make clean` removes the simulator's volume, and so clears both.
-- Even so, `make cloud-e2e` first checks (`cloud:check demo`) that the cloud's records hold no document of the demo companies under a number the cloud's database has not issued yet. This guard stops at once and says to run `make cloud-demo`.
+- Even so, `make cloud-e2e` first checks (`cloud:check demo`) that the cloud's records hold no document of the demo companies under a number the cloud's database has not issued yet. When it finds one, the guard stops at once and says to run `make cloud-demo`.
 
 In the emulated cloud, both ports belong to `cloud-gateway`, a minimal reverse proxy (nginx) in front of the CloudFront distribution. The emulator serves the distribution by host name only (`<id>.cloudfront.localhost.floci.io`). Port 8601 serves the web app and the API on one origin, as in production. Port 8600 serves the same edge, so the API's address keeps responding. In AWS, the platform's domain points at the distribution (see [The edge](#the-edge)).
 
@@ -65,7 +67,7 @@ In the emulated cloud, both ports belong to `cloud-gateway`, a minimal reverse p
 
 The CDK app lives in `infra/cdk`. It is AWS CDK in TypeScript, run by Node's type stripping in its own container. It has two stages:
 
-- `local` is deployed to the emulator with the usual CDK commands (`cdk bootstrap`, `cdk deploy`). Every stack except for the edge goes first. The edge follows, after the functions it fronts.
+- `local` is deployed to the emulator with the usual CDK commands (`cdk bootstrap`, `cdk deploy`). Every stack except for the edge and observability goes first. The edge follows, after the functions it fronts, and observability comes last, on its own.
 - `prod` is synthesized and validated, but never deployed. Its account is a placeholder, so the CLI refuses real credentials. The exception is a deployment that passes the account as a parameter (`-c account=<12 digits>`), as `scripts/deploy.sh prod` does ([deployment.md](deployment.md)).
 
 Synthesis needs no network: `make cdk-check` runs it in a container without one.
@@ -148,7 +150,7 @@ A function chooses its Bref runtime (`BREF_RUNTIME`) and its handler (the image'
 | `relay` | EventBridge Scheduler, `rate(1 minute)`, input `"outbox:publish-pending"` | `function`, `App\Support\Lambda\ArtisanHandler` | 512 MB | 60 s | 1 reserved | The outbox's safety net. It publishes for up to 40 s and leaves the rest to the next run. One run at a time. A failed run is not retried (no asynchronous retries, events older than 60 s dropped, no schedule retries): the next minute is its retry. |
 | `scheduler` | EventBridge Scheduler, `rate(1 minute)`, input `"schedule:run"` | `function`, the same handler | 512 MB | 120 s | 2 reserved | The Laravel scheduler: the sweepers (stalled chains, deliveries and webhooks, expired idempotency keys, the hourly retention pruning) and a heartbeat. Two at once let a long pruning overlap the next minute. Each task runs in one process per minute, and never alongside itself (cache locks). No retries, like the relay. |
 | `console` | none: invoked on demand | `function`, the same handler | 1024 MB | 900 s | 2 reserved | Migrations and operation commands: `make cloud-up` migrates with it, `make cloud-demo` seeds, `make cloud-check` runs its steps, and `make cloud-artisan ARGS="..."` runs any other command. The event is the `php artisan` command line. The timeout is the longest a Lambda function may run. |
-| `origin-verifier` | the authorizer of every API Gateway route: a payload 2.0 request authorizer with simple responses, its response cached 5 minutes per `X-Origin-Verify` value | not Bref: Node.js 24, a zip of `origin-verifier/` built from TypeScript | 128 MB | 5 s | 10 reserved | The edge's origin verifier (below): one comparison and, at most every 30 s, one Secrets Manager read. Outside the VPC, with a role that may only read the edge secret; no database. Its cap bounds what a flood of made-up values, sent straight to API Gateway, can run. |
+| `origin-verifier` | the authorizer of every API Gateway route: a payload 2.0 request authorizer with simple responses, its response cached 5 minutes per `X-Origin-Verify` value | not Bref: Node.js 24, a zip of `origin-verifier/` built from TypeScript | 128 MB | 5 s | 10 reserved | The edge's origin verifier (below): one comparison and, at most every 30 s, or every 5 s while requests carry a value it does not hold, one Secrets Manager read. Outside the VPC, with a role that may only read the edge secret; no database. Its cap bounds what a flood of made-up values, sent straight to API Gateway, can run. |
 | `notifier` | the alarm topic (alerts stack): an SNS subscription, whose failures go to the notifier's dead-letter queue | not Bref: Node.js 24, a zip of `notifier/` built from TypeScript | 128 MB | 20 s | 2 reserved | Turns each alarm state change into a short message to the chat webhook, whose address is in Secrets Manager ([observability.md](observability.md)). Three attempts of 5 s at most, then two Lambda asynchronous retries, then its dead-letter queue. Outside the VPC; alarms are few. |
 
 Reserved concurrency is a stage parameter (the serverless service's `reservedConcurrency`):
@@ -450,8 +452,8 @@ The application identity's first rotation waits for its schedule, since the user
 
 **Rotation without stopping warm functions.** The rotation functions are AWS's own: the Serverless Application Repository applications `SecretsManagerRDSMySQLRotationSingleUser` and `SecretsManagerRDSMySQLRotationMultiUser`. They run in the private subnets, with their own security group. A function reads its secret once per cold start, so a warm function may hold a password that a rotation has since replaced. Two things keep that from showing:
 
-- **Alternating users** for the application identity. Each rotation sets a new password on the user that is not current, and makes that user current. The credentials a warm function holds keep working until the rotation after next, 30 days later: far longer than an execution environment lives.
-- **One more read, once.** Error 1045 means the database refused a connection's credentials. When those credentials come from a secret, the application's MySQL connector (`App\Support\Database\RefreshingMySqlConnector`) reads that secret again, through the Secrets Manager adapter. It keeps the new credentials in `/tmp` for the rest of the execution environment, and retries once. A refusal within 30 s of a read does not read again. Laravel reconnects once by itself on this error, and a password that keeps failing would otherwise read the secret on every connection. This covers two cases:
+- **Alternating users** for the application identity. Each rotation sets a new password on the user that is not current, and makes that user current. The credentials a warm function holds keep working until the rotation after next, at least 30 days away: far longer than an execution environment lives.
+- **One more read, once.** Error 1045 means the database refused a connection's credentials. When those credentials come from a secret, the application's MySQL connector (`App\Support\Database\RefreshingMySqlConnector`) reads that secret again, through the Secrets Manager adapter. It keeps the new credentials in `/tmp` for the rest of the execution environment, and retries once. A refusal within 30 s of a read does not read again. Laravel reconnects once by itself on this error, and without that limit a password that keeps failing would read the secret on every connection. This covers two cases:
   - the migrations identity's single-user rotation, whose window between the password change and the secret change lasts seconds;
   - the application identity behind RDS Proxy, which does not support alternating users.
 
@@ -534,7 +536,7 @@ sequenceDiagram
 
     Browser->>WAF: GET /invoices/01J... over HTTPS (HTTP/2 or HTTP/3)
     WAF->>CF: managed rules and limits per address passed
-    CF->>Fn: viewer request of the default behaviour
+    CF->>Fn: viewer request of the default behavior
     Fn-->>CF: /index.html: a path without an extension is a web app route
     CF->>S3: GET /index.html, signed with origin access control
     S3-->>CF: index.html, Cache-Control no-cache
@@ -671,7 +673,7 @@ A value that a rotation dropped may still pass for up to 5 minutes afterward, th
 - the API's own domain (API Gateway checks client certificates on custom domains only, with a trust store in S3);
 - a certificate authority and its life cycle: AWS Private CA, which costs a monthly fee per authority, or our own CA, whose certificates are imported into ACM and renewed before they expire.
 
-The emulator cannot exercise any of it. The secret header gives the same guarantee against a client that skips the edge. It rotates without downtime, and runs here end to end. mTLS replaces it when the API has its own domain and the operators have a CA to run.
+The emulator cannot exercise any of it. The secret header gives the same guarantee against a client that skips the edge. It rotates without downtime, and runs here end to end. mTLS would replace it once the API has its own domain and the operators have a CA to run.
 
 ### The application behind the edge
 

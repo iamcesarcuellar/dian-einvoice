@@ -1,5 +1,7 @@
 # Known limitations
 
+**English** · [Español](es/limitations.md)
+
 This page lists what the project does not do, or does only in part, as it stands. The project is a reference implementation that runs against a local DIAN simulator, with synthetic data. It is not in production use.
 
 ## Relationship with the DIAN
@@ -103,7 +105,7 @@ This page lists what the project does not do, or does only in part, as it stands
   - the local mailbox, which holds every reset and invitation link
   - the webhook receiver
   - in the emulated cloud, the AWS emulator, which takes any credentials and keeps every email SES took
-- The simulator keeps the PINs and technical keys registered with it in plain text, in its state file. The DIAN knows them as well, since it issues them.
+- The simulator keeps the PINs and technical keys registered with it in plain text, in its state file. The DIAN knows them as well: it issues the technical keys, and the software's PIN is registered with it.
 - Local development uses fixed database credentials (dian/dian and root/root, in compose.yaml and backend/.env.example), and the application user owns the schema it migrates. The Redis password and the simulator token are random per checkout.
 - The emulated cloud has its own two database identities, with generated passwords (docs/infrastructure.md). Its migrations identity holds:
   - CREATE USER, to create the application identity. MySQL grants it on the whole server, so on the shared compose MySQL server it could also alter the users of the local stack and of the tests. It cannot alter root, which holds SYSTEM_USER.
@@ -306,7 +308,7 @@ Limits of the runbooks, the incident drill and the deployment pipeline (docs/run
 - The DIAN's contingency procedure for long outages (invoices issued without its validation and sent later) is not built.
 - A step that gave up starts again when its message comes back, for a document still failed at that step in its run. SQS delivers at least once, so a rare duplicate of such a message, delivered right after the step gave up, starts the step once more. The transmission asks GetStatus first, and a repeated number gets a rule 90 response, so nothing is validated twice.
 - The web app does not show an error's correlation id to its user. An integration reads it from X-Correlation-Id or the problem body; a web app user reads it from the browser's developer tools.
-- make migrations-check reads the column and table drops and renames in up(). A column type change (change()) and a data migration are left to review. A release is a vMAJOR.MINOR.PATCH tag, and there is none yet.
+- make migrations-check reads the column and table drops and renames in up(). A column type change (change()) and a data migration are left to review. A release is a vMAJOR.MINOR.PATCH tag: v1.0.0 and v1.0.1 so far.
 - There is no status page for the companies, and no on-call rotation. The alarms arrive in the chat and the fallback email.
 
 ## Prod network and database
@@ -314,7 +316,7 @@ Limits of the runbooks, the incident drill and the deployment pipeline (docs/run
 The network and database stacks exist in the prod stage only, and are never deployed, not even to the emulator. They are proven on what synthesis produces (docs/infrastructure.md). What only a real account could show:
 
 - That AWS takes the templates as written:
-  - Aurora MySQL 8.4.8 Serverless v2, with a reader in promotion tier 1. CDK's schema validation and cfn-lint know Aurora MySQL 8.4 up to 8.4.8; 8.4.10 (2026-10-26) is newer than they are.
+  - Aurora MySQL 8.4.8 Serverless v2, with a reader in promotion tier 1. CDK's schema validation and cfn-lint know Aurora MySQL 8.4 up to 8.4.8; 8.4.10 (2026-10-26) is newer than what they know.
   - The cluster parameters (require_secure_transport, tls_version, slow_query_log, server_audit_*).
   - The exports to log groups created beforehand.
   - The instances' CA.
@@ -358,7 +360,7 @@ The network and database stacks exist in the prod stage only, and are never depl
 ## Tests and tooling
 
 - The integration tests run the chain inline (InlineChain) and send email to Laravel's array mailer. The relay, the queue workers and the SMTP leg to the local mailbox are exercised by make checks, make e2e and CI's stack job.
-- Each make e2e and make cloud-e2e run adds an invoice and its payment to Demo Comercial SAS. Each make docs-examples run adds a contact, an item and an invoice.
+- Each make e2e and make cloud-e2e run adds two invoices to Demo Comercial SAS, one of them with its payment. Each make docs-examples run adds four invoices, two contacts and two items: an invoice for each README, and a contact, an item and an invoice for each API guide.
 - The make cloud-e2e tour visits every route and opens the main dialogs without sending them. Only the invoice journey covers the actions the tour does not take (sending a form, issuing from the editor).
 - The end-to-end test opens the app at http://localhost:8601 inside its container, the origin the API accepts for sessions. Its files follow the web app's Prettier configuration, but no linter runs over them.
 - The simulator tests use synthetic demo documents as fixtures, with the clock fixed inside their test certificate's validity.
@@ -367,12 +369,30 @@ The network and database stacks exist in the prod stage only, and are never depl
 - The DIAN simulator keeps the local stack's records apart from the emulated cloud's ([Emulated cloud](#emulated-cloud)). make cloud-e2e still runs a guard first (cloud:check demo, in the console function). The guard checks that the cloud's records hold no document of the demo companies under a number the cloud's database has not issued yet.
   - Such a document holds a number the cloud's next documents would take, and the simulator would reject them with rule 90.
   - The target stops at once and says to run make cloud-demo. It does not repair this by itself, since that means loading the demo data again.
-- make test-tools tests the make screenshots image encoder (e2e/screenshots/encode.mjs). The tests read its output back with PNG, LZW and GIF decoders written apart from the encoder, in the test file itself. No image library checks them.
+- make test-tools tests the make screenshots image encoder (e2e/screenshots/encode.mjs). The tests read its output back with PNG, LZW and GIF decoders written apart from the encoder, in the test file itself. No image library checks the images.
 - PHPStan runs with one worker in the api-analyse container (2 GB), because the AWS SDK's type shapes take about 1.4 GB.
 - vue-tsc's checkUnknownProps and checkUnknownEvents stay off: 390 attributes and listeners pass through to the shadcn-vue and reka-ui wrappers.
 - The ESLint rules turned off carry their reason in eslint.config.ts.
 - Scramble shows the create rules for the PATCH bodies of taxes and withholdings.
 - TypeScript is pinned to 6.x, and pnpm runs with a build-script allow list.
+
+## Documentation in two languages
+
+- The Spanish documents are translations, and English is the source. Where the two disagree, the English one holds.
+- make docs-check keeps each translation in step with its original and checks what is not prose. Each translation carries its original's SHA-256 and keeps its code, inline code, links, figures and structure. A paragraph left in English and a term the glossary replaces fail too.
+- It does not judge the prose. Whether a sentence reads naturally, or says just what its original says, rests on the review of whoever writes it.
+- make docs-stamp seals a translation whose code, links, figures and structure match its original. A sentence of the original that changed in words only passes, even when its translation did not follow.
+- The check for English left behind counts common English and Spanish words in each paragraph. A short sentence, or one made mostly of names, can pass it in English.
+- Some things stay in English only:
+  - the code and its comments, and the commit messages;
+  - the names of fields, events, alarms and functions;
+  - the logs and the output of the commands, make help included;
+  - the alarms' descriptions, the operations dashboard and the notifier's messages;
+  - the names of the CI jobs;
+  - the legal text of LICENSE.
+- The API reference (http://localhost:8600/docs/api and openapi.json) is in English.
+- Each alarm names its runbook in English (docs/runbooks/<name>.md). The runbook's language line leads to its Spanish translation.
+- NOTICE.es.txt translates NOTICE for reference only. NOTICE is the file that counts, and the Spanish one quotes the notices of others in their own words.
 
 ## Data and demo
 

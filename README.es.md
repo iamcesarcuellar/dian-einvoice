@@ -2,6 +2,8 @@
 
 [English](README.md) · **Español**
 
+<!-- Traducción de README.md con SHA-256 bbaa0892898b4982c48f464c8b22622128b929f6cfb54879a5d78a749f79b872. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+
 Facturación electrónica para pequeñas y medianas empresas colombianas, con la API primero.
 
 Muestra la cadena completa de la facturación electrónica y una arquitectura serverless de AWS como código, que corre en un emulador local sin cuenta de AWS.
@@ -12,19 +14,17 @@ Muestra la cadena completa de la facturación electrónica y una arquitectura se
 
 > **Sin relación con la DIAN.** En este repositorio, la DIAN, la autoridad tributaria de Colombia, siempre es un simulador local. Todas las personas, empresas y documentos de la demo son sintéticos, y nunca se desplegó nada en AWS: la nube corre en un emulador local. Mira los [límites](#límites).
 
-> Este README es la traducción del [README en inglés](README.md). La documentación de referencia (arquitectura, guía de la API, conformidad con la DIAN, costos y demás) está en inglés.
-
 ## Qué es y qué muestra
 
 Una plataforma multiempresa para compañías y para el software que las atiende (contabilidad, punto de venta, comercio electrónico). Es una implementación de referencia y corre completa en tu máquina.
 
-- **La cadena electrónica completa de un documento.** El XML UBL 2.1, su CUFE o CUDE y su firma XAdES-EPES van por SOAP al simulador de la DIAN, y su respuesta da paso al AttachedDocument, al PDF y al correo. `make dian-check` y `make delivery-check` revisan cada pieza contra los ejemplos del anexo, los XSD oficiales y xmlsec1 ([conformidad con la DIAN](docs/dian-conformance.md), en inglés).
-- **Multiempresa y con la API primero.** Cada tabla del negocio lleva su empresa, y cada consulta se limita a ella ([TenantIsolationTest](backend/tests/Integration/Identity/TenantIsolationTest.php)). La aplicación web usa la misma API pública que las integraciones, y `make api-check` y `make docs-examples` la recorren por HTTP ([guía de la API](docs/api-guide.md), en inglés).
+- **La cadena electrónica completa de un documento.** El XML UBL 2.1, su CUFE o CUDE y su firma XAdES-EPES van por SOAP al simulador de la DIAN, y su respuesta da paso al AttachedDocument, al PDF y al correo. `make dian-check` y `make delivery-check` revisan cada pieza contra los ejemplos del anexo, los XSD oficiales y xmlsec1 ([conformidad con la DIAN](docs/es/dian-conformance.md)).
+- **Multiempresa y con la API primero.** Cada tabla del negocio lleva su empresa, y cada consulta se limita a ella ([TenantIsolationTest](backend/tests/Integration/Identity/TenantIsolationTest.php)). La aplicación web usa la misma API pública que las integraciones, y `make api-check` y `make docs-examples` la recorren por HTTP ([guía de la API](docs/es/api-guide.md)).
 - **Correcta con concurrencia y con fallas.** Veinte procesos en paralelo toman números sin saltos (`make stress`), y si se matan los workers y el relay a mitad de la cadena, cada factura se acepta una sola vez (`make chaos`). De veinte pagos simultáneos, se registran exactamente los diez que caben (`make payments-check`).
-- **La arquitectura de AWS como código, corriendo en un emulador.** Una app de CDK y un servicio serverless ponen la API en Lambda detrás de API Gateway y CloudFront, con SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES y EventBridge Scheduler. `make cloud-check` prueba la etapa local de punta a punta, y la etapa de producción, con su VPC, Aurora MySQL y AWS WAF, se valida sin conexión ([infraestructura](docs/infrastructure.md), [estimación de costos](docs/cost.md)).
-- **Operada como un servicio.** Un id de correlación sigue a una factura desde su petición hasta sus webhooks, a través de registros en JSON, métricas, alarmas que nombran cada una su runbook y un notificador que publica en un chat. `make cloud-drill` tumba la DIAN y trae de vuelta cada factura una sola vez ([runbooks](docs/runbooks/README.md), [observabilidad](docs/observability.md)).
+- **La arquitectura de AWS como código, corriendo en un emulador.** Una app de CDK y un servicio serverless ponen la API en Lambda detrás de API Gateway y CloudFront, con SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES y EventBridge Scheduler. `make cloud-check` prueba la etapa local de punta a punta, y la etapa de producción, con su VPC, Aurora MySQL y AWS WAF, se valida sin conexión ([infraestructura](docs/es/infrastructure.md), [estimación de costos](docs/es/cost.md)).
+- **Operada como un servicio.** Un id de correlación sigue a una factura desde su petición hasta sus webhooks, a través de registros en JSON, métricas, alarmas que nombran cada una su runbook y un notificador que publica en un chat. `make cloud-drill` tumba la DIAN y trae de vuelta cada factura una sola vez ([runbooks](docs/es/runbooks/README.md), [observabilidad](docs/es/observability.md)).
 - **En inglés y en español.** La aplicación web, los mensajes de la API, el PDF y los correos salen en inglés o en español de Colombia: la interfaz sigue al navegador o a lo que elija cada usuario, cada petición su `Accept-Language`, y cada empresa elige el idioma de sus documentos. `make demo LOCALE=es` carga los datos de ejemplo en español ([LanguageTest](backend/tests/Integration/Security/LanguageTest.php), [la prueba en el navegador en español](e2e/tests/spanish.spec.ts)).
-- **Revisada de punta a punta.** 674 pruebas, PHPStan en el nivel 10 sin línea base, auditorías de cada dependencia y del historial de git, y una prueba en el navegador bajo la Content-Security-Policy del borde. cdk-nag y cfn-lint revisan las dos etapas ([calidad](#calidad)).
+- **Revisada de punta a punta.** 707 pruebas, PHPStan en el nivel 10 sin línea base, auditorías de cada dependencia y del historial de git, y una prueba en el navegador bajo la Content-Security-Policy del borde. cdk-nag y cfn-lint revisan las dos etapas ([calidad](#calidad)).
 
 ## Galería
 
@@ -72,7 +72,7 @@ La aplicación web abre en el idioma del navegador, inglés o español, y el men
 
 `make down` detiene todo y conserva los datos, `make clean` también los borra, y `make help` lista todos los comandos.
 
-Si algo no arranca, `make ps` muestra la salud de cada contenedor y `make logs` sigue sus registros. Un puerto ya ocupado en 127.0.0.1 detiene el servicio que lo publica: libera el puerto o detén el otro proyecto que lo tiene. `make seed LOCALE=es` vuelve a cargar los datos de ejemplo desde cero en cualquier momento.
+Si algo no arranca, `make ps` muestra la salud de cada contenedor y `make logs` sigue sus registros. Un puerto ya ocupado en 127.0.0.1 detiene el servicio que lo publica: libera el puerto o detén el otro proyecto que lo tiene. `make seed` vuelve a cargar los datos de ejemplo desde cero en cualquier momento, y `make seed LOCALE=es` los vuelve a cargar en español.
 
 ## Comandos de todos los días
 
@@ -131,7 +131,7 @@ Imprime el estado de la primera emisión y la cabecera de la repetición:
 Idempotent-Replayed: true
 ```
 
-Para recibir los mensajes de la API en español, agrega `-H 'Accept-Language: es-CO'` a cualquier petición. Cada respuesta lleva un `X-Correlation-Id`, que comparte cada línea de registro del recorrido, y cada respuesta a una petición con llave lleva el límite de peticiones de la llave, entre ellas `X-RateLimit-Remaining`. La [guía de la API](docs/api-guide.md), en inglés, va más allá: llaves, errores, paginación y webhooks firmados, con cada ejemplo ejecutado por `make docs-examples`. La [referencia de la API](http://localhost:8600/docs/api) documenta cada operación.
+Para recibir los mensajes de la API en español, agrega `-H 'Accept-Language: es-CO'` a cualquier petición. Cada respuesta lleva un `X-Correlation-Id`, que comparte cada línea de registro del recorrido, y cada respuesta a una petición con llave lleva el límite de peticiones de la llave, entre ellas `X-RateLimit-Remaining`. La [guía de la API](docs/es/api-guide.md) va más allá: llaves, errores, paginación y webhooks firmados, con cada ejemplo ejecutado por `make docs-examples`. La [referencia de la API](http://localhost:8600/docs/api) documenta cada operación.
 
 **5. Recibe un webhook firmado.** La empresa de la demo está suscrita al receptor local de webhooks, que corre dentro del simulador. En **Configuración → Desarrolladores**, la suscripción muestra su última entrega, y su menú las lista todas, incluidas las de la factura que acabas de emitir (`invoice.issued`, `invoice.accepted`, `invoice.delivered`). Más abajo, la tarjeta del receptor muestra cada webhook con la revisión de su firma (Standard Webhooks, HMAC-SHA256), y **Enviar evento de prueba** envía uno más.
 
@@ -152,9 +152,9 @@ Para recibir los mensajes de la API en español, agrega `-H 'Accept-Language: es
 
 Los resultados de las ejecuciones de este commit, con las cifras del emulador en esta máquina, no las de AWS:
 
-- `make cloud-check` pasó en 3 min 5 s. Treinta facturas fueron de la emisión a la entrega en una mediana de 25,5 s por el camino rápido del outbox, y una más, emitida a través del borde, se siguió por su id de correlación. Otras diez, con los contenedores de las funciones matados a mitad del proceso y un evento del outbox dejado para el relay, terminaron como las demás: 41 de 41 aceptadas y entregadas una sola vez, numeradas sin saltos. Dos rotaciones de la identidad de la aplicación en la base de datos, con las funciones calientes, no rompieron ninguna petición. Cada línea de registro fue un JSON que cumplía el esquema, ninguna tenía un secreto, y una alarma forzada a ALARM llegó al chat. Un arranque en frío de la API tardó 0,89 s, y una respuesta en caliente una mediana de 16 ms.
-- `make cloud-drill`, ejecutado por última vez para la 1.0.0, pasó en 271 s. Con la DIAN caída, cinco transmisiones se rindieron y fueron a la cola de mensajes fallidos, y la alarma llegó al chat con su runbook 192 s después de empezar la caída. Los comandos del runbook trajeron de vuelta cada factura, aceptada y entregada una sola vez, a los 204 s ([drill-report.md](docs/runbooks/drill-report.md), en inglés, revisa una ejecución anterior).
-- `make cloud-e2e` pasó en 190 s. Primero, la función de consola encontró los datos de ejemplo. También comprobó que los registros propios de la nube en el simulador no tienen ningún documento de las empresas de la demo con un número que la base de datos de la nube aún no haya emitido. Luego vino el recorrido de una factura a través de las funciones, otra en español con su PDF y el correo que recibió SES, la revisión de la disposición en los dos idiomas (50 páginas y diálogos en tres tamaños de ventana), la referencia de la API y una visita a sus 31 rutas con 17 de sus diálogos. Todo pasó por el borde, bajo su Content-Security-Policy, sin una sola violación.
+- `make cloud-check` pasó en 3 min 1 s. Treinta facturas fueron de la emisión a la entrega en una mediana de 24,9 s por el camino rápido del outbox, y una más, emitida a través del borde, se siguió por su id de correlación. Otras diez, con los contenedores de las funciones matados a mitad del proceso y un evento del outbox dejado para el relay, terminaron como las demás: 41 de 41 aceptadas y entregadas una sola vez, numeradas sin saltos. Dos rotaciones de la identidad de la aplicación en la base de datos, con las funciones calientes, no rompieron ninguna petición. Cada línea de registro fue un JSON que cumplía el esquema, ninguna tenía un secreto, y una alarma forzada a ALARM llegó al chat. Un arranque en frío de la API tardó 0,98 s, y una respuesta en caliente una mediana de 19 ms.
+- `make cloud-drill`, ejecutado por última vez para la 1.0.0, pasó en 271 s. Con la DIAN caída, cinco transmisiones se rindieron y fueron a la cola de mensajes fallidos, y la alarma llegó al chat con su runbook 192 s después de empezar la caída. Los comandos del runbook trajeron de vuelta cada factura, aceptada y entregada una sola vez, a los 204 s ([drill-report.md](docs/es/runbooks/drill-report.md) revisa una ejecución anterior).
+- `make cloud-e2e` pasó en 181 s. Primero, la función de consola encontró los datos de ejemplo. También comprobó que los registros propios de la nube en el simulador no tienen ningún documento de las empresas de la demo con un número que la base de datos de la nube aún no haya emitido. Luego vino el recorrido de una factura a través de las funciones, otra en español con su PDF y el correo que recibió SES, la revisión de la disposición en los dos idiomas (50 páginas y diálogos en tres tamaños de ventana), la referencia de la API y una visita a sus 31 rutas con 17 de sus diálogos. Todo pasó por el borde, bajo su Content-Security-Policy, sin una sola violación.
 
 ## Arquitectura
 
@@ -212,7 +212,7 @@ flowchart LR
   alarms["Alarmas de CloudWatch"] --> notifier["Lambda: notificador"] --> chat["Webhook del chat"]
 ```
 
-Los detalles, en inglés: [docs/architecture.md](docs/architecture.md) para los módulos, el modelo de datos, el ciclo de vida de un documento y las decisiones de diseño; [docs/infrastructure.md](docs/infrastructure.md) para los stacks, las funciones, la red, la base de datos y el borde; [docs/observability.md](docs/observability.md) para los registros, las métricas y las alarmas; [docs/deployment.md](docs/deployment.md) para el despliegue; [docs/cost.md](docs/cost.md) para lo que costaría en AWS; [docs/threat-model.md](docs/threat-model.md) para la seguridad.
+Más detalles: [docs/es/architecture.md](docs/es/architecture.md) para los módulos, el modelo de datos, el ciclo de vida de un documento y las decisiones de diseño; [docs/es/infrastructure.md](docs/es/infrastructure.md) para los stacks, las funciones, la red, la base de datos y el borde; [docs/es/observability.md](docs/es/observability.md) para los registros, las métricas y las alarmas; [docs/es/deployment.md](docs/es/deployment.md) para el despliegue; [docs/es/cost.md](docs/es/cost.md) para lo que costaría en AWS; [docs/es/threat-model.md](docs/es/threat-model.md) para la seguridad.
 
 ## El repositorio
 
@@ -225,7 +225,7 @@ Los detalles, en inglés: [docs/architecture.md](docs/architecture.md) para los 
 | [infra/functions/](infra/functions/) | El servicio serverless: las funciones y sus disparadores, el verificador de origen, el notificador y los guiones de la nube emulada |
 | [e2e/](e2e/) | Las herramientas del navegador: la prueba de punta a punta, las capturas que toma `make screenshots`, la revisión de la documentación y el ejecutor de sus ejemplos |
 | [scripts/](scripts/) | El guion de despliegue, la revisión de la nube y el simulacro, las revisiones de seguridad, de licencias y de avisos, la estimación de costos y los ayudantes del Makefile |
-| [docs/](docs/README.md) | La documentación, en inglés, con su índice en docs/README.md, y las imágenes de esta página |
+| [docs/](docs/es/README.md) | La documentación, en inglés en docs/ y en español en docs/es, con su índice en docs/es/README.md, y las imágenes de esta página |
 
 ## Calidad
 
@@ -233,17 +233,17 @@ Los resultados de las ejecuciones de este commit, en la máquina de la sección 
 
 | Qué | Comando | Resultado |
 | --- | --- | --- |
-| Backend: pruebas unitarias, y de integración contra MySQL, Redis y el simulador | `make test-backend` | 253 pruebas y 6.760 aserciones, en 45 s |
-| Pruebas de la aplicación web, del simulador, de la infraestructura y de las herramientas | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 91 pruebas de la aplicación web, 121 del simulador, 193 de la app de CDK y de las funciones, cdk-nag incluido, y 16 del codificador de imágenes de las capturas |
-| Formateadores, linters y la documentación | `make lint` | Laravel Pint sobre 606 archivos, ESLint y Prettier: limpios; en la documentación, 342 enlaces relativos y 54 anclas resuelven, 16 imágenes respetan su límite de tamaño, Mermaid dibuja 13 diagramas, y la estimación de costos coincide con sus precios y supuestos |
+| Backend: pruebas unitarias, y de integración contra MySQL, Redis y el simulador | `make test-backend` | 253 pruebas y 6.761 aserciones, en 45 s |
+| Pruebas de la aplicación web, del simulador, de la infraestructura y de las herramientas | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 91 pruebas de la aplicación web, 121 del simulador, 198 de la app de CDK y de las funciones, cdk-nag incluido, y 44 de las herramientas: 16 del codificador de imágenes de las capturas y 28 de la revisión de las traducciones |
+| Formateadores, linters y la documentación | `make lint` | Laravel Pint sobre 606 archivos, ESLint y Prettier: limpios; en la documentación, en los dos idiomas, 634 enlaces relativos y 96 anclas resuelven, 16 imágenes respetan su límite de tamaño y Mermaid dibuja 20 diagramas; las 31 traducciones al español siguen a sus originales, con el mismo código, los mismos enlaces, las mismas cifras y la misma estructura; y las dos estimaciones de costos coinciden con sus precios y supuestos |
 | Análisis estático | `make analyse` | PHPStan nivel 10 sin línea base, vue-tsc y tsc para el simulador, la app de CDK y las funciones: sin errores |
 | Dependencias, licencias y secretos | `make security` | Ningún aviso alto o crítico en las seis auditorías; 472 dependencias de producción, todas con licencia compatible con MIT; los 174 archivos de terceros en 8 grupos, como los lista NOTICE; gitleaks no encuentra secretos en el historial ni en los cambios |
 | Infraestructura como código, sin conexión | `make cdk-check` | 21 stacks entre las dos etapas y 3 paquetes de funciones: cdk-nag (AWS Solutions) sin hallazgos sin justificar, cfn-lint y actionlint limpios |
-| Una factura de borrador a pagada, una en español, y la disposición, en un navegador | `make e2e` | El recorrido en Chromium, del editor a aceptada, entregada, su PDF y pagada, en 8,7 s; una factura emitida en español, con su PDF y su correo al cliente en español, en 8,4 s; y la revisión de la disposición, 50 páginas y diálogos a 1280×720, 1440×900 y 1920×1080 sin nada fuera de su caja y cada lista dentro de la suya desde 1440×900, en 53,8 s en inglés y 52,5 s en español |
-| Revisiones contra el stack en marcha | `make checks` | Todas pasan: los 16 ejemplos de esta página, del README en inglés y de la guía de la API imprimen lo que dicen los documentos, y los dos ejemplos de verificación de firmas de webhooks aciertan 6 de 6 casos; 60 facturas de 20 procesos quedan numeradas sin saltos y aceptadas en 4,84 s; y 40 se aceptan una sola vez cada una con los workers y el relay matados a mitad de la cadena |
+| Una factura de borrador a pagada, una en español, y la disposición, en un navegador | `make e2e` | El recorrido en Chromium, del editor a aceptada, entregada, su PDF y pagada, en 9,5 s; una factura emitida en español, con su PDF y su correo al cliente en español, en 8,5 s; y la revisión de la disposición, 50 páginas y diálogos a 1280×720, 1440×900 y 1920×1080 sin nada fuera de su caja y cada lista dentro de la suya desde 1440×900, en 54,9 s en inglés y 52,8 s en español |
+| Revisiones contra el stack en marcha | `make checks` | Todas pasan: los 30 ejemplos de esta página, del README en inglés y de las dos guías de la API imprimen lo que dicen los documentos, y los cuatro ejemplos de verificación de firmas de webhooks aciertan 6 de 6 casos; 60 facturas de 20 procesos quedan numeradas sin saltos y aceptadas en 4,60 s; y 40 se aceptan una sola vez cada una con los workers y el relay matados a mitad de la cadena |
 | La nube emulada, de punta a punta | `make cloud-check`, `make cloud-e2e`, `make cloud-drill` | Todas pasan; sus cifras están [más arriba](#la-nube-de-aws-en-tu-máquina) |
 
-Los vacíos conocidos están escritos, no escondidos: [docs/limitations.md](docs/limitations.md#tests-and-tooling), en inglés, lista lo que las pruebas no cubren.
+Los vacíos conocidos están por escrito, no escondidos: [docs/es/limitations.md](docs/es/limitations.md#pruebas-y-herramientas) lista lo que las pruebas no cubren.
 
 ## Tecnologías
 
@@ -261,27 +261,27 @@ Los vacíos conocidos están escritos, no escondidos: [docs/limitations.md](docs
 
 - **Sin certificación de la DIAN.** La DIAN nunca validó un CUFE, un CUDE ni una firma producidos aquí. El simulador aplica una parte de las reglas del anexo 1.9 (`simulator/src/rules.ts`), la cabecera SOAP no se firma con WS-Security, y los documentos se firman con certificados de prueba sintéticos autofirmados que solo acepta el simulador.
 - **La DIAN es un simulador.** Cada "aceptada" viene de `simulator/`; sus respuestas, demoras y fallas son las que se le ordena dar.
-- **Nunca se desplegó en AWS.** La etapa de producción se sintetiza, se empaqueta y se valida sin conexión, y el flujo de despliegue nunca ha corrido; [docs/deployment.md](docs/deployment.md) lista lo que nunca se verificó en una cuenta real, y [docs/cost.md](docs/cost.md) es una estimación, no una factura.
+- **Nunca se desplegó en AWS.** La etapa de producción se sintetiza, se empaqueta y se valida sin conexión, y el flujo de despliegue nunca ha corrido; [docs/es/deployment.md](docs/es/deployment.md) lista lo que nunca se verificó en una cuenta real, y [docs/es/cost.md](docs/es/cost.md) es una estimación, no una factura.
 - **Lo que el emulador no reproduce:** no evalúa políticas de IAM, de recursos ni de llaves; no tiene AWS WAF, ni caché, ni CloudFront Functions; no publica métricas nativas de Lambda, API Gateway ni CloudFront, ni evalúa métricas calculadas; no puede correr las funciones de rotación de AWS; y sus arranques en frío y los tiempos de sus colas no son los de AWS.
 - **Solo datos sintéticos.** Cada persona, empresa, NIT, documento y pago es inventado; los PDF y los correos no tienen validez tributaria.
 
-Todo eso, con sus razones, en [docs/limitations.md](docs/limitations.md), en inglés.
+Todo eso, con sus razones, en [docs/es/limitations.md](docs/es/limitations.md).
 
 ## Documentación
 
-[docs/README.md](docs/README.md) indexa todos los documentos, en inglés, y su glosario da la traducción al español de cada término de la interfaz. Para ir más allá de esta página: la [arquitectura](docs/architecture.md) de la aplicación, la [guía de la API](docs/api-guide.md), la [conformidad con la DIAN](docs/dian-conformance.md) y la [estimación de costos](docs/cost.md); luego las limitaciones, el modelo de amenazas, la infraestructura, la observabilidad, el despliegue, los runbooks y las licencias de terceros. [CHANGELOG.md](CHANGELOG.md), en inglés, recoge lo que trae cada versión.
+[docs/es/README.md](docs/es/README.md) indexa todos los documentos, y su glosario traduce al español cada término de la interfaz y de los documentos. Cada documento tiene su original en inglés, en docs/. Para ir más allá de esta página: la [arquitectura](docs/es/architecture.md) de la aplicación, la [guía de la API](docs/es/api-guide.md), la [conformidad con la DIAN](docs/es/dian-conformance.md) y la [estimación de costos](docs/es/cost.md); luego las limitaciones, el modelo de amenazas, la infraestructura, la observabilidad, el despliegue, los runbooks y las licencias de terceros. [CHANGELOG.es.md](CHANGELOG.es.md) recoge lo que trae cada versión.
 
 ## Hoja de ruta
 
-Lo que el producto deja por fuera a propósito, y lo que vendría después, según [docs/limitations.md](docs/limitations.md):
+Lo que el producto deja por fuera a propósito, y lo que vendría después, según [docs/es/limitations.md](docs/es/limitations.md):
 
-- **Por fuera a propósito.** La DIAN real: sin habilitación, sin cabecera WS-Security y sin un certificado de una entidad acreditada, así que nada de aquí vale ante la DIAN. Una pasarela de pagos: los pagos se registran a mano o por la API. Documentos distintos de la factura de venta y sus notas: los eventos de RADIAN, el documento equivalente POS, el documento soporte y la nómina electrónica ([conformidad con la DIAN](docs/dian-conformance.md#what-is-not-implemented)). Un proveedor tecnológico: el software es propio del emisor.
-- **Lo siguiente, para un despliegue real.** La habilitación con el set de pruebas de la DIAN, la firma WS-Security de la cabecera SOAP, certificados de una entidad acreditada por la ONAC con su revisión de revocación, y el procedimiento de contingencia de la DIAN para caídas largas. Un primer despliegue en una cuenta de AWS, que verificaría lo que lista [docs/deployment.md](docs/deployment.md#what-has-never-been-verified-in-a-real-account), y una prueba de carga que mida la capacidad de la base de datos que supone [la estimación de costos](docs/cost.md#assumptions).
+- **Por fuera a propósito.** La DIAN real: sin habilitación, sin cabecera WS-Security y sin un certificado de una entidad acreditada, así que nada de aquí vale ante la DIAN. Una pasarela de pagos: los pagos se registran a mano o por la API. Documentos distintos de la factura de venta y sus notas: los eventos de RADIAN, el documento equivalente POS, el documento soporte y la nómina electrónica ([conformidad con la DIAN](docs/es/dian-conformance.md#lo-que-no-está-implementado)). Un proveedor tecnológico: el software es propio del emisor.
+- **Lo siguiente, para un despliegue real.** La habilitación con el set de pruebas de la DIAN, la firma WS-Security de la cabecera SOAP, certificados de una entidad acreditada por la ONAC con su revisión de revocación, y el procedimiento de contingencia de la DIAN para caídas largas. Un primer despliegue en una cuenta de AWS, que verificaría lo que lista [docs/es/deployment.md](docs/es/deployment.md#lo-que-nunca-se-verificó-en-una-cuenta-real), y una prueba de carga que mida la capacidad de la base de datos que supone [la estimación de costos](docs/es/cost.md#supuestos).
 - **Lo siguiente, para el producto.** Alcances por recurso y listas de direcciones permitidas para las llaves de API, un segundo factor, la rotación del secreto de los webhooks con un periodo en el que ambos secretos firman, la rotación de las llaves de cifrado, búsqueda de texto completo y una página de estado para las empresas.
 
 ## Licencia
 
-[MIT](LICENSE). Los archivos de terceros que guarda el repositorio, como los esquemas oficiales, las fuentes tipográficas y los códigos de los municipios, conservan sus propios términos: [NOTICE](NOTICE) los da, y la licencia MIT no cubre esos archivos. Las dependencias y sus licencias, todas compatibles con MIT, están en [docs/third-party-licenses.md](docs/third-party-licenses.md). Las vulnerabilidades se reportan en privado, como explica [SECURITY.md](SECURITY.md), y [CONTRIBUTING.md](CONTRIBUTING.md) tiene las reglas para los cambios.
+[MIT](LICENSE). Los archivos de terceros que guarda el repositorio, como los esquemas oficiales, las fuentes tipográficas y los códigos de los municipios, conservan sus propios términos: [NOTICE.es.txt](NOTICE.es.txt) los recoge, y la licencia MIT no cubre esos archivos. Las dependencias y sus licencias, todas compatibles con MIT, están en [docs/es/third-party-licenses.md](docs/es/third-party-licenses.md). Las vulnerabilidades se reportan en privado, como explica [SECURITY.es.md](SECURITY.es.md), y [CONTRIBUTING.es.md](CONTRIBUTING.es.md) tiene las reglas para los cambios.
 
 ## Autor
 

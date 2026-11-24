@@ -1,5 +1,7 @@
 # A queue that stops moving: `chain-queue-age`, `webhooks-queue-age`
 
+**English** · [Español](../es/runbooks/queue-backlog.md)
+
 | | |
 | --- | --- |
 | Alarms | `chain-queue-age`, `webhooks-queue-age`: the queue's oldest message is more than 10 minutes old, for 5 minutes |
@@ -7,7 +9,7 @@
 
 ## What it means and who it affects
 
-A message has waited in `dian-einvoice-prod-chain` or `dian-einvoice-prod-webhooks` for longer than any retry of its jobs: its consumer function does not take it. The longest wait between retries is about 144 s in the chain and 120 s for a webhook.
+A message has waited in `dian-einvoice-prod-chain` or `dian-einvoice-prod-webhooks` for longer than any retry of its jobs: its consumer function does not take it. The longest wait between retries is about 144 s, in the chain and for a webhook alike.
 
 - In the chain, documents stop between two steps: issued but not transmitted, or accepted but not delivered.
 - In the webhooks queue, the companies stop getting their events.

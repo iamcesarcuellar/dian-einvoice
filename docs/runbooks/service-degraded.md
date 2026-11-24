@@ -1,5 +1,7 @@
 # The service is degraded: `service-degraded` (prod)
 
+**English** · [Español](../es/runbooks/service-degraded.md)
+
 | | |
 | --- | --- |
 | Alarm | `service-degraded`, a composite alarm: any of `api-server-errors`, `api-latency`, `chain-dead-letters`, `chain-queue-age`, `dian-error-rate`, `relay-not-running`, `origin-verifier-errors`, `function-errors` in `ALARM` |

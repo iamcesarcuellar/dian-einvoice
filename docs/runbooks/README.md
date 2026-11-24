@@ -1,5 +1,7 @@
 # Runbooks
 
+**English** · [Español](../es/runbooks/README.md)
+
 This folder holds what to do when an alarm goes off, and the procedures an operator runs without one. Each alarm names its runbook in its description, so the alarm's chat notification carries it (docs/observability.md). Each runbook covers:
 
 - what the alarm means and who it affects;

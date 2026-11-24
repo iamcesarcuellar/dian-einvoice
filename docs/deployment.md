@@ -1,5 +1,7 @@
 # Deployment
 
+**English** · [Español](es/deployment.md)
+
 This guide covers deploying the platform to a real AWS account. The deployment is written as code and validated offline, but it has never run: nothing in this repository has been deployed to an account (docs/limitations.md).
 
 The emulated cloud runs the same script, with the same steps, against the local emulator (`make cloud-up`). `make cdk-check` synthesizes, packages and checks the prod stage.
@@ -44,7 +46,7 @@ Lambda lets an account reserve at most its unreserved concurrency minus 100, and
 2. If the quota is below 172, ask for more: `aws service-quotas request-service-quota-increase --service-code lambda --quota-code L-B99A9384 --desired-value 1000`.
 3. Until AWS raises it, deploy without reserved concurrency: set the workflow's `reserved-concurrency` input to `unreserved`. It becomes the serverless service's `--param=reservedConcurrency=unreserved`, which leaves `ReservedConcurrentExecutions` out of every function.
 
-   The queue mappings still cap the chain at 10 and the webhooks at 5, and the account's quota caps all the functions together. With reserved concurrency, the functions hold at most 72 connections, one per execution environment, well within the database's 135 and its margin of 20 for the operators and the rotation functions. Without it, a quota below about 115 (135 less that margin) keeps the functions within those connections.
+   The queue mappings still cap the chain at 10 and the webhooks at 5, and the account's quota caps all the functions together. With reserved concurrency, the application's functions hold at most 60 connections, one per execution environment, well within the database's 135 and its margin of 20 for the operators and the rotation functions. Without it, a quota below about 115 (135 less that margin) keeps the functions within those connections.
 
    Deploy with `reserved` again once the quota allows it. Reserved concurrency is what keeps a burst on the API from taking the chain's connections.
 
@@ -81,7 +83,7 @@ The deploy role assumes the roles the bootstrap creates (qualifier `hnb659fds`).
 In the repository settings, create an environment named `production`:
 
 - **Required reviewers**: the operators who approve each deployment. The job waits for one of them before it assumes the role.
-- **Deployment branches**: `main` only (protected).
+- **Deployment branches and tags**: `main`, which is protected, and the release tags (`v*.*.*`).
 - **Variables** (not secrets: OpenID Connect needs no key):
 
 | Variable | Value |
@@ -157,12 +159,12 @@ The pipeline never deploys the delivery stack: only an administrator changes its
 
 - **The image**: put every function back on an earlier image, by digest, with `sh scripts/deploy.sh prod rollback-image <registry>/dian-einvoice-prod-functions@sha256:<digest>`. A run's summary or `sh scripts/deploy.sh prod versions` gives the earlier images. The database stays as it is.
 - **The web app**: `sh scripts/deploy.sh prod rollback-panel` restores the build before the current one, `index.html` included, with its invalidation. That build's fingerprinted files stay in the bucket for a week.
-- **The infrastructure**: CloudFormation rolls back a failed update by itself. To go back to an earlier version of a stack, dispatch the workflow from the earlier commit or tag. It shows the differences and deploys those templates, with that commit's image. For a stack left in `UPDATE_ROLLBACK_FAILED`, fix what blocked it, then run `aws cloudformation continue-update-rollback --stack-name <stack>`.
+- **The infrastructure**: CloudFormation rolls back a failed update by itself. To go back to an earlier version of a stack, dispatch the workflow from that version's release tag. It shows the differences and deploys those templates, with that version's image. For a stack left in `UPDATE_ROLLBACK_FAILED`, fix what blocked it, then run `aws cloudformation continue-update-rollback --stack-name <stack>`.
 - **The database goes forward only.** No migration is rolled back in prod. The previous release's code runs on the migrated schema (the check above), and a new migration fixes a wrong one. If a bug or a mistake damages data, restore the database to a point in time into a new cluster. Then copy the rows back from it (see the database section of docs/infrastructure.md).
 
 ## Tearing it down
 
-The prod stacks have termination protection. First turn it off for each one: `aws cloudformation update-termination-protection --no-enable-termination-protection --stack-name <stack>`. Then delete the stacks in the reverse order of the deployment: observability, edge, the functions (`aws cloudformation delete-stack --stack-name dian-einvoice-prod-functions`), compute, alerts, mail, security, data, storage, messaging, database, network, and delivery last.
+The prod stacks have termination protection. First turn it off for each one: `aws cloudformation update-termination-protection --no-enable-termination-protection --stack-name <stack>`. Then delete the stacks in the reverse order of the deployment: observability, edge, the functions (`aws cloudformation delete-stack --stack-name dian-einvoice-prod-functions`), compute, database, network, alerts, mail, security, data, storage, messaging, and delivery last.
 
 Some resources outlive their stack on purpose (`RemovalPolicy.RETAIN` in prod, docs/infrastructure.md), so a mistaken delete loses nothing:
 
@@ -187,5 +189,5 @@ Nothing in this repository has run against AWS. The emulator runs the script, th
 - The edge with a domain and its certificate, the firewall, the web app's invalidation, and the smoke test through a real domain and API Gateway's public address.
 - SES out of its sandbox, the DKIM, MAIL FROM, SPF and DMARC records, and email delivery.
 - A new account's concurrency quota, the deployment without reserved concurrency, and the database connections under load.
-- Going back: an image by digest, the web app by its versions, a stack by an earlier commit, and a stack in `UPDATE_ROLLBACK_FAILED`. Tearing it down, with what it keeps.
+- Going back: an image by digest, the web app by its versions, a stack by an earlier release tag, and a stack in `UPDATE_ROLLBACK_FAILED`. Tearing it down, with what it keeps.
 - The cost, which [cost.md](cost.md) only estimates.

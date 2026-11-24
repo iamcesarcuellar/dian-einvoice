@@ -22,7 +22,7 @@ A multi-tenant platform for companies and for the software that serves them (acc
 - **The AWS architecture as code, run on an emulator.** A CDK app and a serverless service put the API on Lambda behind API Gateway and CloudFront, with SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES and EventBridge Scheduler. `make cloud-check` proves the local stage end to end, and the prod stage, with its VPC, Aurora MySQL and AWS WAF, is validated offline ([infrastructure](docs/infrastructure.md), [cost estimate](docs/cost.md)).
 - **Operated like a service.** One correlation id follows an invoice from its request to its webhooks, through JSON logs, metrics, alarms that each name a runbook, and a notifier that posts to a chat. `make cloud-drill` takes the DIAN down and brings every invoice back once ([runbooks](docs/runbooks/README.md), [observability](docs/observability.md)).
 - **In English and in Spanish.** The web app, the API's messages, the PDF and the emails come in English or in Colombian Spanish: the interface follows the browser or the user's choice, each request its `Accept-Language`, and each company chooses the language of its documents. `make demo LOCALE=es` loads the demo data in Spanish ([LanguageTest](backend/tests/Integration/Security/LanguageTest.php), [the browser test in Spanish](e2e/tests/spanish.spec.ts)).
-- **Checked from end to end.** 674 tests, PHPStan at level 10 without a baseline, audits of every dependency and the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
+- **Checked from end to end.** 707 tests, PHPStan at level 10 without a baseline, audits of every dependency and the git history, and a browser test under the edge's Content-Security-Policy. cdk-nag and cfn-lint check both stages ([Quality](#quality)).
 
 ## Gallery
 
@@ -54,7 +54,7 @@ cd dian-einvoice
 make demo
 ```
 
-The first `make demo` builds the images, installs the dependencies, migrates the database and loads six months of synthetic demo data through the real chain. On a clean clone it took 58 seconds, and `make demo LOCALE=es` took 57 on another clean clone. Both ran on a machine whose Docker already held the base images and their build cache. Without them, it first pulls about 1.5 GB of base images. It creates `backend/.env` with random local secrets and prints a synthetic API key once. Then open:
+The first `make demo` builds the images, installs the dependencies, migrates the database and loads six months of synthetic demo data through the real chain; `make demo LOCALE=es` does the same with the Spanish demo data. On a clean clone, `make demo` took 58 seconds, and `make demo LOCALE=es` took 57 on another clean clone. Both ran on a machine whose Docker already held the base images and their build cache. Without them, it first pulls about 1.5 GB of base images. It creates `backend/.env` with random local secrets and prints a synthetic API key once. Then open:
 
 | What | Address |
 | --- | --- |
@@ -66,11 +66,11 @@ The first `make demo` builds the images, installs the dependencies, migrates the
 
 Sign in as `demo@example.com` with the password `password`: the owner of Demo Comercial SAS and Demo Servicios SAS, both synthetic and set in Medellín. `admin@example.com`, `member@example.com` and `viewer@example.com`, with the same password, show the other roles.
 
-The web app opens in the browser's language, English or Spanish, and the account menu switches it. `make demo LOCALE=es` loads the same demo data with every text in Spanish, and both demo companies issue their documents in Spanish.
+The web app opens in the browser's language, English or Spanish, and the account menu switches it. `make demo LOCALE=es` loads the same demo data with every text in Spanish, and both demo companies issue their documents in Spanish; without `LOCALE`, the demo stays in English.
 
 `make down` stops everything and keeps the data, `make clean` also deletes it, and `make help` lists every target.
 
-If something does not start, `make ps` shows each container's health and `make logs` follows their logs. A port already taken on 127.0.0.1 stops the service that publishes it: free the port, or stop the other project that holds it. `make seed` reloads the demo data from scratch at any time.
+If something does not start, `make ps` shows each container's health and `make logs` follows their logs. A port already taken on 127.0.0.1 stops the service that publishes it: free the port, or stop the other project that holds it. `make seed` reloads the demo data from scratch at any time, and `make seed LOCALE=es` reloads it in Spanish.
 
 ## Everyday commands
 
@@ -78,7 +78,7 @@ If something does not start, `make ps` shows each container's health and `make l
 
 | Command | What it does |
 | --- | --- |
-| `make demo` | Starts the local stack and loads the synthetic demo data |
+| `make demo` | Starts the local stack and loads the synthetic demo data; `LOCALE=es` loads it in Spanish |
 | `make up`, `make down` | Starts the stack with the current code; stops it and keeps the data |
 | `make seed` | Reloads the demo data from scratch; `LOCALE=es` loads it in Spanish |
 | `make test`, `make lint`, `make analyse` | Tests without a browser, formatters and linters, static analysis |
@@ -129,13 +129,13 @@ It prints the first issue's status and the replay's header:
 Idempotent-Replayed: true
 ```
 
-Every response carries an `X-Correlation-Id`, which every log line of the journey shares, and every response to a request with a key carries the key's rate limit, `X-RateLimit-Remaining` among them. The [API guide](docs/api-guide.md) goes further: keys, errors, pagination and signed webhooks, each example run by `make docs-examples`. The [API reference](http://localhost:8600/docs/api) documents every operation.
+To get the API's messages in Spanish, add `-H 'Accept-Language: es-CO'` to any request. Every response carries an `X-Correlation-Id`, which every log line of the journey shares, and every response to a request with a key carries the key's rate limit, `X-RateLimit-Remaining` among them. The [API guide](docs/api-guide.md) goes further: keys, errors, pagination and signed webhooks, each example run by `make docs-examples`. The [API reference](http://localhost:8600/docs/api) documents every operation.
 
 **5. Receive a signed webhook.** The demo company is subscribed to the local webhook receiver, which runs inside the simulator. In **Settings → Developers**, the subscription shows its last delivery, and its menu lists them all, including those for the invoice you just issued (`invoice.issued`, `invoice.accepted`, `invoice.delivered`). Further down, the receiver's card shows each webhook with its signature check (Standard Webhooks, HMAC-SHA256), and **Send test event** sends one more.
 
 ## The AWS cloud on your machine
 
-`make cloud-demo` stops the local stack's application and deploys the local stage of the AWS architecture to [Floci](https://github.com/floci-io/floci), an open-source AWS emulator that needs no account. It uses the same CDK app, serverless service and deployment script (`scripts/deploy.sh`) a real account would use, then loads the demo data through the functions. The web app and the API respond on the same addresses, now through the emulated CloudFront; `make up` goes back to the local stack. The DIAN simulator keeps each one's documents apart, so switching back and forth needs no reload of the demo data.
+`make cloud-demo` stops the local stack's application and deploys the local stage of the AWS architecture to [Floci](https://github.com/floci-io/floci), an open-source AWS emulator that needs no account. It uses the same CDK app, serverless service and deployment script (`scripts/deploy.sh`) a real account would use, then loads the demo data through the functions; `make cloud-demo LOCALE=es` loads it in Spanish. The web app and the API respond on the same addresses, now through the emulated CloudFront; `make up` goes back to the local stack. The DIAN simulator keeps each one's documents apart, so switching back and forth needs no reload of the demo data.
 
 | AWS service | What runs on the emulator | What it does here |
 | --- | --- | --- |
@@ -150,9 +150,9 @@ Every response carries an `X-Correlation-Id`, which every log line of the journe
 
 The results of the runs for this commit, with the emulator's figures on this machine, not AWS's:
 
-- `make cloud-check` passed in 3 min 5 s. Thirty invoices went from issue to delivery in a median of 25.5 s through the outbox's fast path, and one more, issued through the edge, was followed by its correlation id. Ten more, with the functions' containers killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the application's database identity, with the functions warm, broke no request. Every log line was JSON that matched the schema, none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.89 s, and a warm response a median of 16 ms.
+- `make cloud-check` passed in 3 min 1 s. Thirty invoices went from issue to delivery in a median of 24.9 s through the outbox's fast path, and one more, issued through the edge, was followed by its correlation id. Ten more, with the functions' containers killed mid-process and an outbox event left for the relay, ended like the rest: 41 of 41 accepted and delivered once, numbered without a gap. Two rotations of the application's database identity, with the functions warm, broke no request. Every log line was JSON that matched the schema, none held a secret, and an alarm forced to ALARM reached the chat. A cold start of the API took 0.98 s, and a warm response a median of 19 ms.
 - `make cloud-drill`, last run for 1.0.0, passed in 271 s. With the DIAN down, five transmissions gave up into the dead-letter queue, and the alarm reached the chat with its runbook 192 s after the outage began. The runbook's commands brought every invoice back, accepted and delivered once, at 204 s ([drill-report.md](docs/runbooks/drill-report.md) reviews an earlier run).
-- `make cloud-e2e` passed in 190 s. First, the console function found the demo data. It also found that the cloud's own records in the simulator hold no document of the demo companies under a number the cloud's database has yet to issue. Then came an invoice's journey through the functions, one more in Spanish with its PDF and the email SES took, the layout check in both languages (50 pages and dialogs at three window sizes), the API reference, and a tour of its 31 routes with 17 of its dialogs. All of it went through the edge, under its Content-Security-Policy, without a violation.
+- `make cloud-e2e` passed in 181 s. First, the console function found the demo data. It also found that the cloud's own records in the simulator hold no document of the demo companies under a number the cloud's database has yet to issue. Then came an invoice's journey through the functions, one more in Spanish with its PDF and the email SES took, the layout check in both languages (50 pages and dialogs at three window sizes), the API reference, and a tour of its 31 routes with 17 of its dialogs. All of it went through the edge, under its Content-Security-Policy, without a violation.
 
 ## Architecture
 
@@ -217,13 +217,13 @@ The details: [docs/architecture.md](docs/architecture.md) for the modules, the d
 | Folder | What it holds |
 | --- | --- |
 | [backend/](backend/) | The API in Laravel, by modules (`backend/app/Modules`): identity and tenancy, catalog, billing, the DIAN chain, delivery, payments, the public API and its webhooks, and the dashboard; its unit and integration tests |
-| [frontend/](frontend/) | The web app in Vue 3 and TypeScript, which talks to the backend only through `/api/v1` |
+| [frontend/](frontend/) | The web app in Vue 3 and TypeScript, which talks to the backend only through `/api/v1`; its messages in English and in Spanish are in `frontend/src/i18n` |
 | [simulator/](simulator/) | A local simulator of the DIAN's SOAP web service, with its failure modes and the webhook receiver |
 | [infra/cdk/](infra/cdk/) | The CDK app: the stacks of the local and prod stages, their tests and cdk-nag |
 | [infra/functions/](infra/functions/) | The serverless service: the functions and their triggers, the origin verifier, the notifier and the emulated cloud's scripts |
 | [e2e/](e2e/) | The browser tooling: the end-to-end test, the screenshots `make screenshots` takes, the docs check and the docs examples runner |
 | [scripts/](scripts/) | The deployment script, the cloud check and the drill, the security, license and notice checks, the cost estimate, and the Makefile's helpers |
-| [docs/](docs/README.md) | The documentation, indexed in docs/README.md, and this page's images |
+| [docs/](docs/README.md) | The documentation, in English in docs/ and in Spanish in docs/es, indexed in docs/README.md, and this page's images |
 
 ## Quality
 
@@ -231,14 +231,14 @@ The results of the runs for this commit, on the quick start's machine. Continuou
 
 | What | Command | Result |
 | --- | --- | --- |
-| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 253 tests and 6,760 assertions, in 45 s |
-| Web app, simulator, infrastructure and tooling tests | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 91 web app tests, 121 simulator tests, 193 tests for the CDK app and the functions, cdk-nag included, and 16 for the screenshots' image encoder |
-| Formatters, linters and the documentation | `make lint` | Laravel Pint over 606 files, ESLint and Prettier: clean; in the docs, 342 relative links and 54 anchors resolve, 16 images stay within their size limits, Mermaid draws 13 diagrams, and the cost estimate matches its prices and assumptions |
+| Backend: unit tests, and integration tests against MySQL, Redis and the simulator | `make test-backend` | 253 tests and 6,761 assertions, in 45 s |
+| Web app, simulator, infrastructure and tooling tests | `make test-frontend`, `make test-simulator`, `make test-infra`, `make test-tools` | 91 web app tests, 121 simulator tests, 198 tests for the CDK app and the functions, cdk-nag included, and 44 for the tooling: 16 for the screenshots' image encoder and 28 for the translations check |
+| Formatters, linters and the documentation | `make lint` | Laravel Pint over 606 files, ESLint and Prettier: clean; in the docs, in both languages, 634 relative links and 96 anchors resolve, 16 images stay within their size limits, and Mermaid draws 20 diagrams; the 31 Spanish translations follow their originals, with the same code, links, figures and structure; and both cost estimates match their prices and assumptions |
 | Static analysis | `make analyse` | PHPStan level 10 without a baseline, vue-tsc and tsc for the simulator, the CDK app and the functions: no errors |
 | Dependencies, licenses and secrets | `make security` | No high or critical advisory in the six audits; 472 production dependencies, every license compatible with MIT; the 174 third-party files in 8 groups, as NOTICE lists them; gitleaks finds no secret in the history or the changes |
 | Infrastructure as code, offline | `make cdk-check` | 21 stacks across both stages and 3 function packages: cdk-nag (AWS Solutions) with no finding left without a reason, cfn-lint and actionlint clean |
-| An invoice from draft to paid, one in Spanish, and the layout, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 8.7 s; an invoice issued in Spanish, with its PDF and its email to the customer in Spanish, in 8.4 s; and the layout check, 50 pages and dialogs at 1280×720, 1440×900 and 1920×1080 with nothing out of its box and every list within its box from 1440×900 up, in 53.8 s in English and 52.5 s in Spanish |
-| Checks against the running stack | `make checks` | Every check passes: the 16 examples on this page, in README.es.md and in the API guide print what the docs say, and both webhook signature examples get 6 of 6 cases right; 60 invoices from 20 processes are numbered without a gap and accepted in 4.84 s; and 40 are accepted once each with the workers and the relay killed mid-chain |
+| An invoice from draft to paid, one in Spanish, and the layout, in a browser | `make e2e` | The journey in Chromium, from the editor to accepted, delivered, its PDF and paid, in 9.5 s; an invoice issued in Spanish, with its PDF and its email to the customer in Spanish, in 8.5 s; and the layout check, 50 pages and dialogs at 1280×720, 1440×900 and 1920×1080 with nothing out of its box and every list within its box from 1440×900 up, in 54.9 s in English and 52.8 s in Spanish |
+| Checks against the running stack | `make checks` | Every check passes: the 30 examples on this page, in README.es.md and in both API guides print what the docs say, and the four webhook signature examples get 6 of 6 cases right; 60 invoices from 20 processes are numbered without a gap and accepted in 4.60 s; and 40 are accepted once each with the workers and the relay killed mid-chain |
 | The emulated cloud, end to end | `make cloud-check`, `make cloud-e2e`, `make cloud-drill` | Every check passes; their figures are [above](#the-aws-cloud-on-your-machine) |
 
 Known gaps are written down, not hidden: [docs/limitations.md](docs/limitations.md#tests-and-tooling) lists what the tests do not cover.
@@ -267,7 +267,7 @@ All of it, with the reasons, in [docs/limitations.md](docs/limitations.md).
 
 ## Documentation
 
-[docs/README.md](docs/README.md) indexes every document. To go further than this page: the application's [architecture](docs/architecture.md), the [API guide](docs/api-guide.md), the [DIAN conformance](docs/dian-conformance.md) and the [cost estimate](docs/cost.md); then the limitations, the threat model, the infrastructure, observability, deployment, the runbooks and the third-party licenses. [CHANGELOG.md](CHANGELOG.md) lists what each release brings.
+[docs/README.md](docs/README.md) indexes every document, and its glossary gives the Spanish of each term the interface and the documents use. Each document also comes in Spanish, in docs/es. To go further than this page: the application's [architecture](docs/architecture.md), the [API guide](docs/api-guide.md), the [DIAN conformance](docs/dian-conformance.md) and the [cost estimate](docs/cost.md); then the limitations, the threat model, the infrastructure, observability, deployment, the runbooks and the third-party licenses. [CHANGELOG.md](CHANGELOG.md) lists what each release brings.
 
 ## Roadmap
 

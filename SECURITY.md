@@ -1,5 +1,7 @@
 # Security policy
 
+**English** · [Español](SECURITY.es.md)
+
 dian-einvoice is a reference implementation that runs on your machine. A local simulator stands in for the DIAN, a local emulator stands in for the AWS services, and every person and company in the demo data is synthetic. Nothing was ever deployed to a real AWS account.
 
 A report is still welcome when it shows a way to break what the code promises:
@@ -8,7 +10,7 @@ A report is still welcome when it shows a way to break what the code promises:
 - the sessions and API keys;
 - the document and webhook signatures;
 - the secrets;
-- the infrastructure as code that a real account would deploy.
+- the infrastructure as code that a deployment to a real account would use.
 
 ## How to report a vulnerability
 

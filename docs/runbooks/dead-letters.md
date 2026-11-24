@@ -1,5 +1,7 @@
 # Dead letters: `chain-dead-letters`, `webhooks-dead-letters`
 
+**English** · [Español](../es/runbooks/dead-letters.md)
+
 | | |
 | --- | --- |
 | Alarms | `chain-dead-letters`, `webhooks-dead-letters`: a message in the queue's dead-letter queue for 1 minute |
@@ -41,7 +43,7 @@ Nothing is lost. The dead-letter queue keeps every message for 14 days, and movi
 | An email `Failed` at its last attempt | The mail service (SES), or the outbound path to it | [function-errors.md](function-errors.md), then step 5 |
 | `Unexpected error` and an exception, received 10 or more times | The database, the storage, KMS, or a bug in a release | [function-errors.md](function-errors.md), [database-capacity.md](database-capacity.md); a release: [api-errors.md](api-errors.md), step 4 |
 | A message without `dead_letter_reason`, received once or never | SNS could not deliver an event to the queue (the queue policy, KMS) | the queue policy, in the messaging stack; then step 5 |
-| `jobs of the chain queue take events of type ...` | An event type no job subscribes to: a release routes an event the consumer does not know | the routes in `backend/resources/outbox/routes.json`, and the subscribers; then step 5 |
+| `jobs of the chain queue take events of type ...` | An event type that no job, or more than one, subscribes to: a release routes an event the consumer does not know | the routes in `backend/resources/outbox/routes.json`, and the subscribers; then step 5 |
 
 ## Respond
 

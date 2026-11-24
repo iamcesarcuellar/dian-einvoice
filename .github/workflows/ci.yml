@@ -131,7 +131,7 @@ jobs:
         run: make demo
       - name: End-to-end test in the browser, and nothing out of its box at three window sizes (make e2e)
         run: make e2e
-      - name: The image encoder of the screenshots, in the image of the browser tooling (make test-tools)
+      - name: The image encoder of the screenshots and the check of the translations, in the image of the browser tooling (make test-tools)
         run: make test-tools
       - name: CUFE, CUDE, XSD and signatures, the AttachedDocument's included (make dian-check)
         run: make dian-check
@@ -139,7 +139,7 @@ jobs:
         run: make payments-check
       - name: Public API over HTTP (make api-check)
         run: make api-check
-      - name: The examples of the README and the API guide, webhook signatures included (make docs-examples)
+      - name: The examples of both READMEs and both API guides, webhook signatures included (make docs-examples)
         run: make docs-examples
       - name: Logs of the stack
         if: failure()

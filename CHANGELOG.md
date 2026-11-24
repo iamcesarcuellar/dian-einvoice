@@ -1,5 +1,7 @@
 # Changelog
 
+**English** · [Español](CHANGELOG.es.md)
+
 All notable changes to dian-einvoice are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
@@ -16,7 +18,31 @@ All notable changes to dian-einvoice are recorded here. The format follows [Keep
 
 ### Documentation
 
+- Every document also comes in Spanish. The documents of docs/ and docs/runbooks have their translation under docs/es, with the same names, and SECURITY, CONTRIBUTING, CHANGELOG and NOTICE have theirs at the root. NOTICE.es.txt is for reference only: NOTICE is the file that counts. A line under each title leads to the other language, and README.es.md links the Spanish documents.
+- The glossary in docs/README.md gives one Spanish term for each term of the interface and the documents, with the variants the Spanish texts do not use.
+- `make cost` and `make licenses` write their pages in both languages from the same data. The Spanish pages write their figures in Colombian notation (US$ 1.234,56).
+- docs/limitations.md says what the translation is and what it is not. English is the source, and the checks keep each translation in step and check what is not prose, not the prose itself. The API reference stays in English.
+- README.md now says what only README.es.md said: `make seed LOCALE=es` and `make cloud-demo LOCALE=es` load the demo data in Spanish, an `Accept-Language` header gets the API's messages in Spanish, and the web app keeps its messages in `frontend/src/i18n`.
 - docs/infrastructure.md names actionlint 1.7.12, the version compose.yaml runs.
+
+### Fixes
+
+- The translation brought up errors in the English documents, now fixed in both languages:
+  - docs/api-guide.md: the payment means code `42` is a bank deposit, not a transfer.
+  - docs/architecture.md: four counts of the module table, the tables the data model leaves out, what Payments imports from Billing, what a new company gets, and the attempts after a deadlock.
+  - docs/deployment.md: the application's functions hold 60 database connections at most, not 72; the environment admits the release tags the workflow runs from; the stacks come down in the reverse order of the deployment.
+  - docs/observability.md and docs/infrastructure.md: which functions write the DIAN events, a webhook's longest wait between retries (144 s), and the order in which the local stage deploys.
+  - docs/threat-model.md: the sessions kept in DynamoDB, how an unreadable message reaches the dead-letter queue, and a risk listed as a mitigation.
+  - The runbooks: how often the origin verifier reads its secret, the notifier's fallback topic, a widget's full title, the event types that fail a message, and the secrets the PHP functions read.
+- The description of the `origin-verifier-errors` alarm (infra/cdk/lib/observability-stack.ts) says what happens: a warm verifier keeps using the values it holds, and a new one has none.
+
+### Checks
+
+- `make docs-check` checks the translations (e2e/docs/translations.mjs). Every document has its pair. Each translation written by hand carries the SHA-256 of its original and fails once the original changes, until `make docs-stamp` seals it again. A translation keeps its original's code blocks, inline code, links, figures and structure, section by section. In Spanish, a paragraph left in English and a term the glossary replaces fail too. The legitimate differences are declared in e2e/docs/translations.json, each with its reason. `make test-tools` tests the check, the cases it must fail on included.
+- `make docs-check` also checks the make targets and files that the Spanish versions of the README, the index, the architecture, the API guide, the DIAN conformance and the cost estimate name, as it does for the English ones, and the links of the files not committed yet.
+- `make docs-examples` also runs the examples of the Spanish API guide, its webhook signature examples in Node.js and PHP included.
+- The runbook tests read the Spanish runbooks and deployment guide too. Their commands exist, every page has its translation, the Spanish index lists every alarm with its runbook, and each runbook of an alarm has its six parts.
+- `make security` checks that NOTICE.es.txt names every third-party file that NOTICE names.
 
 ## [1.0.1] - 2026-11-24
 
@@ -62,7 +88,7 @@ The first release: electronic invoicing for Colombian small and medium businesse
 
 - The UBL 2.1 XML of each document, as annex 1.9 asks, valid against the DIAN toolbox's official XSDs.
 - The CUFE and the CUDE, checked against the annex's examples (`make dian-check`).
-- A XAdES-EPES signature with the company's certificate, verified by xmlsec1. The certificates are synthetic test certificates that only the simulator accepts.
+- An XAdES-EPES signature with the company's certificate, verified by xmlsec1. The certificates are synthetic test certificates that only the simulator accepts.
 - Transmission over SOAP (SendBillSync and GetStatus), retried after 2, 5, 15, 45 and 120 seconds, with Retry now after a failure and Resend after a rejection.
 - When the chain signs a document on a later day, its issue date moves to that day and its CUFE or CUDE is calculated again.
 - A local DIAN simulator in Node.js: a subset of annex 1.9's rules, failure modes per company and a webhook receiver.

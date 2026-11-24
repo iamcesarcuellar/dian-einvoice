@@ -1,5 +1,5 @@
-// make docs-examples: the examples of README.md, README.es.md and docs/api-guide.md run against the demo (make demo, in
-// English or with LOCALE=es in Spanish: the examples hold for both), as a reader
+// make docs-examples: the examples of README.md, README.es.md, docs/api-guide.md and docs/es/api-guide.md run against the
+// demo (make demo, in English or with LOCALE=es in Spanish: the examples hold for both), as a reader
 // would run them, and the check fails when one stops working. Inside the e2e container (compose profile e2e), with the
 // repository read-only at /repo:
 //
@@ -9,10 +9,10 @@
 //     it stands for any text without spaces (an id, a number, a date);
 //   - in README.md and README.es.md, dei_... (the key make demo printed) becomes a key this check creates through a session and
 //     revokes at the end;
-//   - the blocks after <!-- example: node --> and <!-- example: php --> verify a webhook signature: this check runs
-//     the Node.js one here, and writes the PHP one with its cases for the api container (make docs-examples runs it
-//     next), against the Standard Webhooks reference vector and a real webhook the demo sends to a receiver this
-//     check runs, through a subscription it creates and deletes.
+//   - the blocks after <!-- example: node --> and <!-- example: php --> of each API guide verify a webhook signature:
+//     this check runs the Node.js ones here, and writes the PHP ones with their cases for the api container (make
+//     docs-examples runs them next), against the Standard Webhooks reference vector and a real webhook the demo sends
+//     to a receiver this check runs, through a subscription it creates and deletes.
 //
 //   node docs/examples.mjs /repo
 import { spawn } from 'node:child_process'
@@ -32,7 +32,12 @@ const RECEIVER_URL = `http://${process.env.RECEIVER_HOST ?? 'e2e'}:${RECEIVER_PO
 const OUT = '/e2e/test-results/docs-examples'
 const MARK = '@@docs-example-done@@'
 const TIMEOUT_MS = 240_000
-const DOCUMENTS = ['README.md', 'README.es.md', 'docs/api-guide.md']
+const DOCUMENTS = ['README.md', 'README.es.md', 'docs/api-guide.md', 'docs/es/api-guide.md']
+// The guides with the webhook signature examples, and the name of the files each one's examples are written to.
+const GUIDES = [
+  ['docs/api-guide.md', 'verify'],
+  ['docs/es/api-guide.md', 'verify-es'],
+]
 // The documents whose examples use the key make demo printed.
 const WITH_DEMO_KEY = new Set(['README.md', 'README.es.md'])
 
@@ -252,26 +257,30 @@ try {
     await session(`/api-keys/${key.id}/revoke`, { method: 'POST' })
   }
 
-  const blocks = blocksOf('docs/api-guide.md')
-  const node = blocks.find((block) => block.kind === 'example: node')
-  const php = blocks.find((block) => block.kind === 'example: php')
   const webhook = await realWebhook(session)
   const cases = signatureCases(webhook)
   mkdirSync(OUT, { recursive: true })
+  writeFileSync(join(OUT, 'cases.json'), JSON.stringify(cases.map((item) => ({ ...item, headers: Object.fromEntries(Object.entries(item.headers).filter(([, value]) => value !== undefined)) }))))
 
-  if (node === undefined || php === undefined) {
-    problems.push('docs/api-guide.md: the signature examples (<!-- example: node --> and <!-- example: php -->) are missing')
-  } else {
-    writeFileSync(join(OUT, 'verify.mjs'), node.code)
-    const { verifyWebhook } = await import(pathToFileURL(join(OUT, 'verify.mjs')).href)
+  for (const [guide, name] of GUIDES) {
+    const blocks = blocksOf(guide)
+    const node = blocks.find((block) => block.kind === 'example: node')
+    const php = blocks.find((block) => block.kind === 'example: php')
+
+    if (node === undefined || php === undefined) {
+      problems.push(`${guide}: the signature examples (<!-- example: node --> and <!-- example: php -->) are missing`)
+      continue
+    }
+
+    writeFileSync(join(OUT, `${name}.mjs`), node.code)
+    const { verifyWebhook } = await import(pathToFileURL(join(OUT, `${name}.mjs`)).href)
     const wrong = cases.filter((item) => verifyWebhook(item.secret, item.headers, item.body, item.tolerance) !== item.valid)
-    wrong.forEach((item) => problems.push(`docs/api-guide.md: the Node.js example gets ${item.name} wrong`))
-    console.log(`docs/api-guide.md: the Node.js signature example got ${cases.length - wrong.length} of ${cases.length} cases right, a real webhook of the demo among them.`)
+    wrong.forEach((item) => problems.push(`${guide}: the Node.js example gets ${item.name} wrong`))
+    console.log(`${guide}: the Node.js signature example got ${cases.length - wrong.length} of ${cases.length} cases right, a real webhook of the demo among them.`)
 
-    writeFileSync(join(OUT, 'cases.json'), JSON.stringify(cases.map((item) => ({ ...item, headers: Object.fromEntries(Object.entries(item.headers).filter(([, value]) => value !== undefined)) }))))
     writeFileSync(
-      join(OUT, 'verify.php'),
-      `${php.code.trimEnd()}\n\n// The cases of e2e/docs/examples.mjs, written next to this file.\n$cases = json_decode((string) file_get_contents(__DIR__.'/cases.json'), true, 512, JSON_THROW_ON_ERROR);\n$wrong = array_filter($cases, fn (array $case): bool => verify_webhook($case['secret'], $case['headers'], $case['body'], $case['tolerance']) !== $case['valid']);\nforeach ($wrong as $case) {\n    fwrite(STDERR, "docs/api-guide.md: the PHP example gets {$case['name']} wrong\\n");\n}\necho 'docs/api-guide.md: the PHP signature example got '.(count($cases) - count($wrong)).' of '.count($cases)." cases right, a real webhook of the demo among them.\\n";\nexit($wrong === [] ? 0 : 1);\n`,
+      join(OUT, `${name}.php`),
+      `${php.code.trimEnd()}\n\n// The cases of e2e/docs/examples.mjs, written next to this file.\n$cases = json_decode((string) file_get_contents(__DIR__.'/cases.json'), true, 512, JSON_THROW_ON_ERROR);\n$wrong = array_filter($cases, fn (array $case): bool => verify_webhook($case['secret'], $case['headers'], $case['body'], $case['tolerance']) !== $case['valid']);\nforeach ($wrong as $case) {\n    fwrite(STDERR, "${guide}: the PHP example gets {$case['name']} wrong\\n");\n}\necho '${guide}: the PHP signature example got '.(count($cases) - count($wrong)).' of '.count($cases)." cases right, a real webhook of the demo among them.\\n";\nexit($wrong === [] ? 0 : 1);\n`,
     )
   }
 } catch (error) {

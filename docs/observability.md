@@ -1,5 +1,7 @@
 # Observability
 
+**English** · [Español](es/observability.md)
+
 This page describes how the platform reports what happens to it:
 
 - structured logs, in which one id follows every invoice from its request to its webhooks
@@ -57,10 +59,10 @@ The events:
 | `chain.resumed` | chain | A chain or delivery step that gave up came back from the dead-letter queue, moved back by an operator, and started again, as Retry now does |
 | `queue.job` | chain, webhooks | A job ran: its class, queue, attempt, time and outcome |
 | `queue.dead_letter` | chain, webhooks | A job gave up for good: a copy of its message, with the reason, is in its queue's dead-letter queue ([runbooks/dead-letters.md](runbooks/dead-letters.md)) |
-| `dian.call` | chain | A call to the DIAN web service: operation, HTTP status, time and result |
-| `dian.response` | chain | The DIAN accepted or rejected a document |
-| `dian.rule` | chain | One DIAN rule, by its id, that rejected a document or raised a notification about it |
-| `delivery.email` | chain | A document's email, sent or failed. Never its address, subject or attachment. |
+| `dian.call` | chain, console | A call to the DIAN web service: operation, HTTP status, time and result |
+| `dian.response` | chain, console | The DIAN accepted or rejected a document |
+| `dian.rule` | chain, console | One DIAN rule, by its id, that rejected a document or raised a notification about it |
+| `delivery.email` | chain, console | A document's email, sent or failed. Never its address, subject or attachment. |
 | `webhook.delivery` | webhooks | One webhook delivery attempt. Never its URL, body or response. |
 | `secret.reread` | every PHP function | The database refused a warm function's credentials, and the function read its secret again |
 | `console.command` | relay, scheduler, console | An artisan command: its name (never its arguments), its exit code and its time |
@@ -181,7 +183,7 @@ Missing data counts as not breaching, except for `relay-not-running`: the relay'
 | `chain-dead-letters` | A message in the `chain` dead-letter queue (1 minute) | A chain job failed every attempt, or SNS could not deliver an event. Nothing will retry it. | `docs/runbooks/dead-letters.md` |
 | `webhooks-dead-letters` | A message in the `webhooks` dead-letter queue (1 minute) | The same, for the webhooks | `docs/runbooks/dead-letters.md` |
 | `chain-queue-age` | The oldest message in `chain` is more than 10 minutes old, for 5 minutes | Longer than any chain retry (144 s at most): the queue's consumer is not taking it | `docs/runbooks/queue-backlog.md` |
-| `webhooks-queue-age` | The same, for `webhooks` | Longer than any webhook retry (120 s at most) | `docs/runbooks/queue-backlog.md` |
+| `webhooks-queue-age` | The same, for `webhooks` | Longer than any webhook retry (144 s at most) | `docs/runbooks/queue-backlog.md` |
 | `function-errors` | One or more failed invocations of any function in 5 minutes (metric math over every function) | A crash, a timeout, or a scheduled command that exited with an error. Partial batch failures and HTTP errors do not count here. | `docs/runbooks/function-errors.md` |
 | `function-throttles` | One or more throttled invocations of any function in 5 minutes | At the reserved concurrency, requests get 429 or 503, or messages wait | `docs/runbooks/function-throttles.md` |
 | `api-server-errors` | 5 or more 5xx at API Gateway in 5 minutes | Requests from the web app and the integrations are failing | `docs/runbooks/api-errors.md` |
@@ -190,7 +192,7 @@ Missing data counts as not breaching, except for `relay-not-running`: the relay'
 | `outbox-lag` | An event unpublished for more than 2 minutes, for 2 relay runs | The topic refuses the events, or the relay cannot keep up | `docs/runbooks/outbox-relay.md` |
 | `dian-error-rate` | More than 20% of 5 or more DIAN calls in 5 minutes without a result, for 10 minutes (metric math) | The DIAN, or the outbound path to it, is failing, and the chain waits on its retries | `docs/runbooks/dian-errors.md` |
 | `webhook-failures` | 20 or more failed webhook deliveries in 15 minutes | The companies' endpoints, or the platform's outbound path, are failing | `docs/runbooks/webhook-failures.md` |
-| `origin-verifier-errors` | The origin verifier could not read the edge secret (1 minute) | Once the values it holds expire, every request through the edge is refused | `docs/runbooks/origin-verifier.md` |
+| `origin-verifier-errors` | The origin verifier could not read the edge secret (1 minute) | A warm verifier still uses the values it holds, but a new one has none, and the requests it gets through the edge fail | `docs/runbooks/origin-verifier.md` |
 | `notifier-failures` | A notification in the notifier's dead-letter queue (1 minute). This alarm also publishes to the fallback topic, with an email. | The chat is missing alarms. This alarm reaches the operators without the notifier. | `docs/runbooks/notifier.md` |
 | `database-capacity` (prod) | More than 3.5 of the 4 ACU for 15 minutes | The database is about to stop growing, and `max_connections` is tied to its maximum | `docs/runbooks/database-capacity.md` |
 | `database-connections` (prod) | More than 108 connections (80% of the 135 allowed at maximum capacity) for 5 minutes | New connections from the functions, the rotation functions and the operators are about to be refused | `docs/runbooks/database-capacity.md` |
@@ -261,7 +263,7 @@ The CloudWatch Logs Insights saved queries, under `dian-einvoice/<stage>/`:
    - the email (`delivery.email`)
    - the webhooks (`webhook.delivery`)
    - `outbox.relayed`, if the relay had to publish one of the journey's events
-3. In the emulated cloud, `make cloud-follow ID=<correlation-id>` runs the same saved query and prints the lines. By default, it looks back 24 hours (`HOURS=24`). `make cloud-check` follows the invoice it issues through the edge, and checks that its id appears in api, chain and webhooks.
+3. In the emulated cloud, `make cloud-follow ID=<correlation-id>` runs the same saved query and prints the lines. By default, it looks back 24 hours (`HOURS=24`). `make cloud-check` follows the invoice it issues through the edge, and checks that its id appears in api, chain and webhooks. Seven of the 33 lines of one journey:
 
 ```text
 33 lines of the journey 01m7xg8djzcvdhw6v07ashwf9e in the last 24 hours (saved query dian-einvoice/local/follow-a-journey):
@@ -289,12 +291,12 @@ Every piece runs there: the log groups and their lines, the metric filters and t
 - No log holds a value of the stage's secrets, an email, a key or a token.
 - `DocumentsIssued` counts the documents issued.
 
-The whole check takes about three and a quarter minutes.
+The whole check takes about three minutes.
 
 More commands:
 
 - `make cloud-alarms` prints every alarm's state with its runbook, and the last messages the chat received. `make cloud-follow ID=<correlation-id>` prints a journey's lines. The emulator's web console (`http://localhost:8604/_floci/ui`) shows the functions' log groups and runs Logs Insights queries.
-- `make cloud-drill` runs on its own, in about four minutes. The DIAN simulator responds with HTTP 500 to every call. The transmissions of the invoices issued meanwhile give up into the chain's dead-letter queue. The emulator turns `chain-dead-letters` to `ALARM` for real, and the chat receives it with its runbook. That runbook's commands move the dead letters back. Every invoice ends accepted and delivered once, and the alarm returns to `OK`. The drill prints the time to detect, to notify and to recover, as measured on the emulator ([runbooks/drill-report.md](runbooks/drill-report.md)).
+- `make cloud-drill` runs on its own, in about four and a half minutes. The DIAN simulator responds with HTTP 500 to every call. The transmissions of the invoices issued meanwhile give up into the chain's dead-letter queue. The emulator turns `chain-dead-letters` to `ALARM` for real, and the chat receives it with its runbook. That runbook's commands move the dead letters back. Every invoice ends accepted and delivered once, and the alarm returns to `OK`. The drill prints the time to detect, to notify and to recover, as measured on the emulator ([runbooks/drill-report.md](runbooks/drill-report.md)).
 - `make cloud-alarm-check` also runs on its own, since it takes three to four minutes. The emulator evaluates `chain-dead-letters` for real. A message in its dead-letter queue turns it to `ALARM` within a minute, and taking the message out turns it back to `OK`; each change reaches the chat. A notification the chat refuses (the receiver's error mode) goes to the notifier's dead-letter queue. That queue's alarm, `notifier-failures`, reaches the chat once the chat accepts messages again.
 
 What stays code only, or runs without data, is in [limitations.md](limitations.md#observability):

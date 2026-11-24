@@ -1,0 +1,34 @@
+{
+  "$comment": "The differences between a document and its Spanish translation that are legitimate, each with its reason (e2e/docs/translations.mjs, make docs-check). kind is one of code-block, inline-code, link, figure, structure, english or term, with the value the check reports; link-map gives the link a translation takes instead of the one of its original, in every section or only under the original's heading named in under. make docs-check fails on an exception that no longer matches anything.",
+  "exceptions": [
+    {
+      "translation": "docs/es/README.md",
+      "kind": "link-map",
+      "original": "es/README.md",
+      "value": "../README.md",
+      "reason": "Each index names its counterpart in the other language: the English index points to the Spanish one, and the Spanish index to the English one."
+    },
+    {
+      "translation": "docs/es/README.md",
+      "kind": "link-map",
+      "original": "../README.es.md",
+      "value": "../../README.md",
+      "under": "The project",
+      "reason": "The English index lists the Spanish README as the README in the other language; the Spanish index lists the English README in that place."
+    },
+    {
+      "translation": "CHANGELOG.es.md",
+      "kind": "link-map",
+      "original": "https://keepachangelog.com/en/1.1.0/",
+      "value": "https://keepachangelog.com/es-ES/1.1.0/",
+      "reason": "Keep a Changelog publishes the same version of its format in Spanish, and the Spanish changelog links that page."
+    },
+    {
+      "translation": "CHANGELOG.es.md",
+      "kind": "link-map",
+      "original": "https://semver.org/spec/v2.0.0.html",
+      "value": "https://semver.org/lang/es/spec/v2.0.0.html",
+      "reason": "Semantic Versioning publishes the same version of its specification in Spanish, and the Spanish changelog links that page."
+    }
+  ]
+}

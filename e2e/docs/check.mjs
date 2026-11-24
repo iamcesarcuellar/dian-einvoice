@@ -1,8 +1,10 @@
-// make docs-check (part of make lint): the README and the documentation hold true. Every make target and every file of
-// the repository that README.md, README.es.md, docs/README.md and the reference documents name exist; every relative link of every
-// Markdown file git tracks resolves, its anchor included; every image they show exists and keeps to its size (a
-// screenshot of docs/assets 400 KB, a GIF 5 MB); and every Mermaid diagram can be drawn, by Mermaid itself in the
-// browser of the container. It writes nothing.
+// make docs-check (part of make lint): the README and the documentation hold true, in English and in Spanish. Every make
+// target and every file of the repository that both READMEs, both indexes of the documentation and the reference
+// documents in both languages name exist; every relative link of every Markdown file of the repository (git's list,
+// the files not committed yet included) resolves, its anchor included; every image they show exists and keeps to its
+// size (a screenshot of docs/assets 400 KB, a GIF 5 MB); every Mermaid diagram can be drawn, by Mermaid itself in the
+// browser of the container; and every document has its Spanish translation, which follows it and keeps its code,
+// links, figures and structure (translations.mjs). It writes nothing.
 //
 //   node docs/check.mjs <root of the repository>
 import { execFileSync } from 'node:child_process'
@@ -10,12 +12,13 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { chromium } from 'playwright'
+import { checkTranslations } from './translations.mjs'
 
 const root = resolve(process.argv[2] ?? '/repo')
 const LIMITS = { '.png': 400 * 1024, '.gif': 5 * 1024 * 1024 }
 // The directories and files at the root a path of the docs may start with.
 const ROOTS = /^(backend|frontend|simulator|infra|scripts|docs|e2e|\.github)\//
-const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'NOTICE', 'README.md', 'README.es.md', 'CHANGELOG.md', 'SECURITY.md', 'CONTRIBUTING.md', 'openapi.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
+const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'NOTICE', 'NOTICE.es.txt', 'README.md', 'README.es.md', 'CHANGELOG.md', 'CHANGELOG.es.md', 'SECURITY.md', 'SECURITY.es.md', 'CONTRIBUTING.md', 'CONTRIBUTING.es.md', 'openapi.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
 // Files the docs name that make creates, never in git: they exist once the target that writes them has run.
 const GENERATED = new Map([['backend/.env', 'make env']])
 // The documents whose make targets and files are checked, and the folder their short paths start from: the
@@ -24,22 +27,32 @@ const NAMED = new Map([
   ['README.md', null],
   ['README.es.md', null],
   ['docs/README.md', null],
+  ['docs/es/README.md', null],
   ['docs/architecture.md', 'backend'],
+  ['docs/es/architecture.md', 'backend'],
   ['docs/api-guide.md', null],
+  ['docs/es/api-guide.md', null],
   ['docs/dian-conformance.md', 'backend'],
+  ['docs/es/dian-conformance.md', 'backend'],
   ['docs/cost.md', null],
+  ['docs/es/cost.md', null],
 ])
 const BACKEND_PATHS = /^(app|bootstrap|config|database|resources|routes|tests)\//
 
 const problems = []
 const counts = { files: 0, links: 0, anchors: 0, images: 0, targets: 0, paths: 0, diagrams: 0 }
 
-/** The Markdown files git tracks: what is generated, installed or ignored is never documentation of the repository. */
+/**
+ * The files of the repository, as git lists them, those not committed yet included: what is installed or ignored is
+ * never documentation of the repository.
+ */
+const files = execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' })
+  .split('\0')
+  .filter((path) => path !== '' && existsSync(join(root, path)))
+
+/** The Markdown files of the repository. */
 function markdownFiles() {
-  return execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--', '*.md'], { encoding: 'utf8' })
-    .split('\0')
-    .filter((path) => path !== '' && existsSync(join(root, path)))
-    .map((path) => join(root, path))
+  return [...new Set(files)].filter((path) => path.endsWith('.md')).map((path) => join(root, path))
 }
 
 /** The text without its fenced code blocks, which hold no links. */
@@ -226,7 +239,15 @@ if (diagrams.length > 0) {
 }
 
 console.log(
-  `docs: ${counts.files} Markdown files, ${counts.links} relative links (${counts.anchors} with an anchor), ${counts.images} images, ${counts.targets} make targets and ${counts.paths} files named by README.md, README.es.md, docs/README.md and the ${NAMED.size - 3} reference documents, ${counts.diagrams} Mermaid diagrams drawn.`,
+  `docs: ${counts.files} Markdown files, ${counts.links} relative links (${counts.anchors} with an anchor), ${counts.images} images, ${counts.targets} make targets and ${counts.paths} files named by both READMEs, both indexes and the ${(NAMED.size - 4) / 2} reference documents in both languages, ${counts.diagrams} Mermaid diagrams drawn.`,
+)
+
+// The translations: every pair, its stamp, and what it keeps of its original.
+const translations = checkTranslations(root, files)
+const t = translations.counts
+problems.push(...translations.problems)
+console.log(
+  `translations: ${t.pairs} pairs, ${t.generated} of them generated; ${t.stamped} of the ${t.pairs - t.generated} translated by hand follow their original. ${t.code} code blocks, ${t.inline} inline code spans, ${t.links} links and ${t.figures} figures compared; ${t.english} paragraphs left in English and ${t.terms} replaced terms found.`,
 )
 
 if (problems.length > 0) {

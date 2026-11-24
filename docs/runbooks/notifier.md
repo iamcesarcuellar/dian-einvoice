@@ -1,5 +1,7 @@
 # The notifier fails: `notifier-failures`
 
+**English** · [Español](../es/runbooks/notifier.md)
+
 | | |
 | --- | --- |
 | Alarm | `notifier-failures`: a notification in the notifier's dead-letter queue (1 minute). This alarm also goes to the fallback topic, whose email does not depend on the notifier. |
@@ -10,7 +12,7 @@
 
 The notifier could not post an alarm's state change to the chat webhook after three attempts, or Lambda could not run it after two retries. So the chat missed that change, and the operators may not know that something else is in `ALARM`.
 
-This is the one alarm that also emails the fallback address (`dian-einvoice-prod-alarms-fallback`), so it reaches the operators without the chat. It affects no customer directly, but the alarms it hid may affect every customer.
+This is the one alarm that also publishes to the fallback topic (`dian-einvoice-prod-alarms-fallback`), whose subscription emails the operators, so it reaches them without the chat. It affects no customer directly, but the alarms it hid may affect every customer.
 
 ## Confirm it
 

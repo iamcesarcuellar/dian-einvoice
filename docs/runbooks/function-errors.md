@@ -1,5 +1,7 @@
 # Functions that fail: `function-errors`
 
+**English** · [Español](../es/runbooks/function-errors.md)
+
 | | |
 | --- | --- |
 | Alarm | `function-errors`: one or more failed invocations of any function in 5 minutes (metric math over every function's `Errors`) |

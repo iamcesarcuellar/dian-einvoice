@@ -1,5 +1,7 @@
 # Drill report: the DIAN goes down
 
+**English** · [Español](../es/runbooks/drill-report.md)
+
 A blameless review of one run of `make cloud-drill`, the emulated cloud's incident drill (scripts/cloud-drill.sh). It ran on the night of 2026-11-20, from 04:22 to 04:26 UTC on 2026-11-21.
 
 It was a drill:
@@ -65,7 +67,7 @@ Of the 168 s, 124 went to the three attempts of each transmission, which the emu
 - Detection needs nothing but the queues. A transmission that gives up puts its message in the dead-letter queue at once, and the emulator evaluates the alarm on that queue's depth for real. So the outage was detected and notified in the emulator, with the runbook in the message.
 - The dead letters tell the story without anyone opening a message body: type, company, document, journey, attempt and reason.
 - One correlation id, from the API's response, followed the invoice through every function, from its request to its last webhook. The dead letter kept the id, and the step that resumed from it went on under it.
-- The native redrive needs no code of our own, and each step that gave up starts again exactly once. A message from a run already retried does nothing, and a Retry now after the redrive is refused.
+- The native redrive needs no code of our own, and each step that gave up starts again exactly once. A message from a run already retried does nothing, and a Retry now after the redrive is refused once the invoice is accepted.
 - Exactly once: one acceptance, one email and one delivery attempt per invoice, and one webhook per event, 29 in all, each delivered once.
 
 ## What to improve

@@ -1,5 +1,7 @@
 # Contributing
 
+**English** · [Español](CONTRIBUTING.es.md)
+
 Thank you for taking the time. dian-einvoice is a personal reference project maintained by one person. So the bar for a change is that it keeps every claim in the README true and every check green.
 
 ## Before you start
@@ -15,7 +17,9 @@ Thank you for taking the time. dian-einvoice is a personal reference project mai
 - **Multi-tenancy.** Every business table carries `company_id`, and every query is scoped to the current company. A change to a query keeps it scoped and comes with an isolation test.
 - **The web app and the backend stay apart.** They talk only through the HTTP API under `/api/v1`.
 - **Cloud resources are code.** Shared and stateful resources and IAM roles live in the CDK app (`infra/cdk`). Functions and their triggers live in the serverless service (`infra/functions`). Application code reaches AWS only through the adapters behind its interfaces.
-- **English** in code, comments, docs and commit messages.
+- **English in code, comments and commit messages.**
+- **The documentation in English and in Spanish.** English is written first, and it is the source. Each document has its Spanish translation under the same name: in docs/es, in docs/es/runbooks, and as the .es files at the root. The translations use the terms of the glossary in [docs/README.md](docs/README.md#the-documentation-in-spanish). A change to a document carries its translation in the same commit: `make docs-check` fails when a translation falls behind its original, leaves out its code, links, figures or structure, or keeps a paragraph in English.
+- **Sealing a translation.** Each translation written by hand carries the SHA-256 of its original, in a comment under its language line (NOTICE.es.txt, in its last line). Once the translation says what the original says, `make docs-stamp` writes the new SHA-256 into each translation whose code, links, figures and structure match its original, and into no other.
 - **Playwright moves as one.** `@playwright/test` in `e2e/package.json` and the Playwright image in `compose.yaml` must be the same version, so Dependabot proposes neither: raise both by hand, in one change.
 
 ## Checks
@@ -23,10 +27,10 @@ Thank you for taking the time. dian-einvoice is a personal reference project mai
 Run the checks for the parts you touched. Continuous integration runs the same targets (`.github/workflows/ci.yml`):
 
 ```sh
-make lint            # formatters and linters; the docs' links, targets, files, images and diagrams; the cost estimate
+make lint            # formatters and linters; the docs' links, targets, files, images, diagrams and translations; the cost estimate
 make analyse         # PHPStan level 10, vue-tsc and tsc, strict
 make test            # backend, web app, simulator, infrastructure and tooling tests
-make demo && make e2e && make checks   # the checks include the examples of the README and the API guide
+make demo && make e2e && make checks   # the checks include the examples of both READMEs and both API guides
 make security        # dependency audits, licenses, the files of third parties (NOTICE) and the secret scan
 make cdk-check       # synthesis of both stages, cdk-nag, cfn-lint and actionlint
 ```
