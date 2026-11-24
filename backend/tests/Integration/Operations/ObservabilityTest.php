@@ -117,8 +117,13 @@ final class ObservabilityTest extends IntegrationTestCase
 
     public function test_the_redactor_masks_secrets_and_personal_data_and_keeps_internal_ids(): void
     {
-        $ulid = Str::lower((string) Str::ulid());
-        $uuid = (string) Str::uuid();
+        $ulid = '01kq3v7m9t2x4c6b8n0p5r7s9w';
+        $uuid = '550e8400-e29b-41d4-a716-446655440000';
+        // UUIDs whose blocks a rule for numbers could take for an identification number: the first block all digits,
+        // the last block all digits, every block all digits.
+        $firstBlock = '20261119-4c1e-4b6a-9f3d-2e7a8c5b1d0f';
+        $lastBlock = '9f3d2e7a-8c5b-4d0f-a1b2-202611191500';
+        $allDigits = '12345678-1234-4123-8123-123456789012';
         // The values with the form of a secret are built at run time, never written here (SecretShapes).
         $cases = [
             'Sent to ana.gomez@example.com.' => 'Sent to [email].',
@@ -135,6 +140,10 @@ final class ObservabilityTest extends IntegrationTestCase
             'Answer <?xml version="1.0"?><Invoice><cbc:ID>SETP1</cbc:ID></Invoice>' => 'Answer [document]',
             'From 172.24.0.9 to the database.' => 'From [ip] to the database.',
             "Document {$ulid} of request {$uuid}, 3 lines, 45000 pesos, version 8.4.8." => "Document {$ulid} of request {$uuid}, 3 lines, 45000 pesos, version 8.4.8.",
+            "Jobs {$firstBlock}, {$lastBlock} and {$allDigits}." => "Jobs {$firstBlock}, {$lastBlock} and {$allDigits}.",
+            "Stored {$allDigits}.xml for request_{$lastBlock}" => "Stored {$allDigits}.xml for request_{$lastBlock}",
+            "Idempotency-Key: {$firstBlock}; NIT 900123456-7" => "Idempotency-Key: {$firstBlock}; NIT [number]",
+            "Retry token={$uuid} refused, sent to {$allDigits}@example.com" => 'Retry token=[redacted] refused, sent to [email]',
             'App\\Modules\\Dian\\Pipeline\\TransmitDocument at api/v1/invoices/{document}/issue' => 'App\\Modules\\Dian\\Pipeline\\TransmitDocument at api/v1/invoices/{document}/issue',
             'dian-einvoice-local-webhooks-dlq and dian-einvoice/local/database/application' => 'dian-einvoice-local-webhooks-dlq and dian-einvoice/local/database/application',
         ];

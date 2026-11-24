@@ -1,7 +1,7 @@
 #!/bin/sh
 # make licenses: docs/third-party-licenses.md, the production dependencies of the five applications with their
-# versions and licenses, as their lock files install them (scripts/security/licenses.mjs and third-party.mjs, each
-# list taken in the container of its application). It fails when a license is not compatible with the MIT License of
+# licenses, as their lock files install them (scripts/security/licenses.mjs and third-party.mjs, each list taken in
+# the container of its application; the versions stay in the lock files). It fails when a license is not compatible with the MIT License of
 # this project (scripts/security/compatibility.mjs). With --check (make security) it writes nothing and also fails
 # when the file is not what the lock files give.
 #

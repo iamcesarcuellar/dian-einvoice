@@ -297,7 +297,7 @@ A dead letter keeps its document's journey: its correlation id is in the body an
 3. **The tests run cdk-nag on that template.** They include it in a stack of its own, to run the same cdk-nag rules as the CDK app. There is one exception per Node.js function. The origin verifier and the notifier run Node.js 24, the newest runtime the emulator runs, while the rule asks for the newest one in AWS.
 4. **The tests synthesize the CDK app.**
 5. **cfn-lint 1.61.0 checks every template**, with one exception, on the functions' template: a DependsOn that osls writes, which a reference already implies.
-6. **actionlint 1.7.7 checks the GitHub Actions workflows**, the deployment workflow included.
+6. **actionlint 1.7.12 checks the GitHub Actions workflows**, the deployment workflow included.
 
 The delivery tests (`infra/cdk/test/delivery.test.ts`) hold the image repository to immutable tags, scanning and encryption. They hold the deploy role's trust to exactly one environment of one repository. They hold its permissions to no administrator access, and to no wildcard without its reason.
 

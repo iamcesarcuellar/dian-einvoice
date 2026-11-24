@@ -258,8 +258,8 @@ security: ## Quality | Audit the dependencies, check their licenses against MIT 
 	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore --redact --no-banner --pre-commit
 	$(COMPOSE) --profile security run --rm -T gitleaks git /repo --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore --redact --no-banner --pre-commit --staged
 
-# docs/third-party-licenses.md: every production dependency of the five applications with its version and license, from
-# their lock files (scripts/licenses.sh); it fails when a license is not compatible with the MIT License of the project.
+# docs/third-party-licenses.md: every production dependency of the five applications with its license, from their lock
+# files (scripts/licenses.sh); it fails when a license is not compatible with the MIT License of the project.
 licenses: ## Quality | Write docs/third-party-licenses.md from the lock files
 	@sh scripts/licenses.sh
 

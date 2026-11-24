@@ -12,7 +12,7 @@ Every document in the repository, one line each, and a glossary of the terms the
 - [cost.md](cost.md): what the prod stage would cost a month in us-east-1. `make cost` generates this estimate from the prices and assumptions in `scripts/cost`.
 - [limitations.md](limitations.md): what the project does not do, or does only in part: the DIAN, the signature, the XML, the delivery, the API, the emulated cloud, the edge, observability and the tests.
 - [threat-model.md](threat-model.md): the assets, the actors, the trust boundaries, the threats with their mitigations, and the risks that remain.
-- [third-party-licenses.md](third-party-licenses.md): every production dependency with its version and license, and the third-party files in the repository. `make licenses` generates it and `make security` checks it.
+- [third-party-licenses.md](third-party-licenses.md): every production dependency with its license, and the third-party files in the repository. `make licenses` generates it and `make security` checks it.
 - [NOTICE](../NOTICE): the third-party files in the repository, such as the official schemas and the fonts, with their notices and terms. The MIT License does not cover them.
 - [SECURITY.md](../SECURITY.md): how to report a vulnerability privately, and what is in scope.
 - [CONTRIBUTING.md](../CONTRIBUTING.md): the repository's rules and the checks a change runs.

@@ -2,6 +2,22 @@
 
 All notable changes to dian-einvoice are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Observability
+
+- The log redactor keeps every UUID whole. A UUID whose first or last block was all digits lost that block to the rule for identification numbers ("[number]-…"), and a UUID joined to a prefix, such as `request_<uuid>`, was masked whole as a token. A random UUID has a first block of digits 2.3% of the time and a last block of digits 0.4% of the time, so the redactor's test, which drew a random one, failed now and then. The test now uses fixed UUIDs: one with its first block in digits, one with its last block in digits, one all in digits and an ordinary one. Emails, NITs, phone numbers and the values of keys that name a secret are still masked.
+
+### Security and dependencies
+
+- docs/third-party-licenses.md lists each production dependency with its license, without its version: the versions are in the lock files. A version bump no longer makes `make security` fail, as it did on every Dependabot pull request. A package that comes or goes, or a license that changes, still does. A package whose installed versions declare different licenses is listed with each of them. The inventory counts 472 packages.
+- The backend takes aws/aws-sdk-php 3.407.1, with guzzlehttp/guzzle 8.6.0, guzzlehttp/promises 3.2.0 and guzzlehttp/psr7 3.6.0.
+- The web app takes @lucide/vue 1.77.0, @tanstack/vue-query 5.108.2, vue 3.5.46 and vue-i18n 11.4.23, and its tests @vue/test-utils 2.6.0 and vitest 5.1.1. The simulator takes @types/node 26.6.6.
+
+### Documentation
+
+- docs/infrastructure.md names actionlint 1.7.12, the version compose.yaml runs.
+
 ## [1.0.1] - 2026-11-24
 
 Fixes found while using the interface, a check that nothing spills out of its box, and the upkeep after the first release. No new features: the API and its reference are the same.
@@ -105,5 +121,6 @@ The first release: electronic invoicing for Colombian small and medium businesse
 - One command starts everything in Docker Compose (`make demo`), and `make help` lists every target.
 - A README in English and in Spanish, the architecture, an API guide whose examples run, the DIAN conformance, a cost estimate, and screenshots and GIFs made by script.
 
+[Unreleased]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.1...HEAD
 [1.0.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/iamcesarcuellar/dian-einvoice/releases/tag/v1.0.0
