@@ -12,6 +12,8 @@ Every document also comes in Spanish, under the same name: those of docs/ in doc
 - [README.es.md](../README.es.md): the same README in Spanish, with the screenshots and GIFs in Spanish.
 - [architecture.md](architecture.md): the application's architecture: its context, its modules and how they talk, the data model, a document's life cycle, the design decisions and the guarantees the tests hold.
 - [api-guide.md](api-guide.md): a practical guide to the public API: first steps with curl, idempotency, errors, pagination, rate limits, versions and signed webhooks. `make docs-examples` runs every example.
+- [openapi.json](../openapi.json): the public API reference in OpenAPI 3.1, which `make openapi` exports from the code. The running stack serves it at http://localhost:8600/docs/api.
+- [openapi.es.json](../openapi.es.json): the same reference in Spanish, served at http://localhost:8600/docs/api/es. Its paths, names, values and examples are those of the English one.
 - [dian-conformance.md](dian-conformance.md): which parts of the DIAN's technical annex 1.9 the project implements, how to check each one, what is not implemented, and the official sources.
 - [cost.md](cost.md): what the prod stage would cost a month in us-east-1. `make cost` generates this estimate from the prices and assumptions in `scripts/cost`.
 - [limitations.md](limitations.md): what the project does not do, or does only in part: the DIAN, the signature, the XML, the delivery, the API, the emulated cloud, the edge, observability and the tests.

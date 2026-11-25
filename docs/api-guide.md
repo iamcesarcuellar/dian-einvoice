@@ -2,7 +2,7 @@
 
 **English** · [Español](es/api-guide.md)
 
-A practical guide to the public API under `/api/v1`: the first steps with curl against the demo, then idempotency, errors, pagination, rate limits, versions and webhooks. The running stack's [API reference](http://localhost:8600/docs/api) lists every operation, field and response; Scramble generates it from the code, and `make openapi` exports it to [`openapi.json`](../openapi.json).
+A practical guide to the public API under `/api/v1`: the first steps with curl against the demo, then idempotency, errors, pagination, rate limits, versions and webhooks. The running stack's [API reference](http://localhost:8600/docs/api) lists every operation, field and response; Scramble generates it from the code, and `make openapi` exports it to [`openapi.json`](../openapi.json). Its [Spanish version](http://localhost:8600/docs/api/es), exported to [`openapi.es.json`](../openapi.es.json), describes the same contract.
 
 Every command block on this page runs in `make docs-examples` against the demo, in order and in one shell, and prints what the block after it shows; the check fails when an example stops working. So do the two webhook signature examples, against the Standard Webhooks reference example and a real webhook from the demo. Each run adds a synthetic contact, an item and an invoice to Demo Comercial SAS; `make seed` starts the demo over.
 

@@ -2,7 +2,7 @@
 
 [English](../limitations.md) · **Español**
 
-<!-- Traducción de docs/limitations.md con SHA-256 901496dbc709579195529c93ed556eae7a0b36708597dc4bf075c24e72e28572. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de docs/limitations.md con SHA-256 04074541b2c204c161a7d7c459687f3ac81db75b4ec9937cebc1467445dc068a. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estado actual. El proyecto es una implementación de referencia que corre contra un simulador local de la DIAN, con datos sintéticos. No se usa en producción.
 
@@ -72,9 +72,9 @@ Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estad
 - Rotar el secreto de un webhook lo reemplaza de inmediato. No hay un periodo en el que firmen ambos secretos.
 - Los webhooks se entregan al menos una vez, sin un orden particular. Su cuerpo se arma cuando se publica el evento. La respuesta de un endpoint se lee hasta 64 KB, y el resto se descarta.
 - Una Idempotency-Key se guarda durante 24 horas. Una petición con llave de idempotencia corre en una sola transacción de base de datos junto con su llave, así que un deadlock dentro de ella no se reintenta ahí mismo. La petición devuelve 5xx, y la misma llave se puede volver a usar.
-- La referencia de la API (Scramble) es pública, y carga Stoplight Elements 8.4.2 (dos archivos) desde unpkg.com.
+- La referencia de la API (Scramble), en inglés y en español, es pública, y carga Stoplight Elements 8.4.2 (dos archivos) desde unpkg.com.
   - Detrás del borde, comparte el origen de la sesión de la aplicación web. El navegador solo corre esos dos archivos con los bytes que fija su Subresource Integrity.
-  - La página tiene su propia Content-Security-Policy, que permite sus scripts en línea por su hash (docs/es/infrastructure.md). Sus estilos pueden ir en línea.
+  - Cada página tiene su propia Content-Security-Policy, que permite sus scripts en línea por su hash (docs/es/infrastructure.md). Sus estilos pueden ir en línea.
   - Un middleware agrega la integridad a la página de Scramble buscando sus dos etiquetas. Una versión de Scramble que cambie esas etiquetas hace fallar la referencia (500), y también su prueba, hasta que se actualice security-headers.json.
 - Las acciones hechas con una llave de API no tienen usuario en created_by. Sus líneas de tiempo nombran la llave.
 
@@ -373,10 +373,12 @@ Los stacks network y database solo existen en la etapa de producción, y nunca s
   - El objetivo de make se detiene de inmediato y dice que hay que correr make cloud-demo. No lo repara por su cuenta, porque eso implica volver a cargar los datos de ejemplo.
 - make test-tools prueba el codificador de imágenes de make screenshots (e2e/screenshots/encode.mjs). Las pruebas leen de vuelta su salida con decodificadores de PNG, LZW y GIF escritos aparte del codificador, en el mismo archivo de prueba. Ninguna librería de imágenes la revisa.
 - PHPStan corre con un solo worker en el contenedor api-analyse (2 GB), porque las formas de tipos del AWS SDK ocupan alrededor de 1,4 GB.
-- PHPUnit corre en un contenedor propio, api-test (1,5 GB). Las pruebas de concurrencia lo bifurcan en hasta 8 procesos, y cada proceso copia cada página que escribe. El pico del contenedor ronda los 470 MiB, y make test-backend imprime el pico y el límite al final de cada ejecución.
+- PHPUnit corre en un contenedor propio, api-test (1,5 GB). Las pruebas de concurrencia lo bifurcan en hasta 8 procesos, y cada proceso copia cada página que escribe. El pico del contenedor ronda los 380 MiB, y make test-backend imprime el pico y el límite al final de cada ejecución.
 - checkUnknownProps y checkUnknownEvents de vue-tsc siguen apagados: 390 atributos y listeners pasan directo a los wrappers de shadcn-vue y reka-ui.
 - Las reglas de ESLint que están apagadas llevan su razón en eslint.config.ts.
 - Scramble muestra las reglas de creación para los cuerpos PATCH de los impuestos y las retenciones.
+- Scramble da processing como el único valor del filtro electronic_status de las listas de documentos. Su descripción nombra los demás valores.
+- Scramble guarda estado entre dos documentos que arma en un mismo proceso, y el segundo pierde parámetros. Cada petición arma uno, y también cada exportación de make openapi. ApiReferenceTest exporta las referencias en un proceso aparte.
 - TypeScript está fijado en 6.x, y pnpm corre con una lista de permitidos para los scripts de construcción.
 
 ## La documentación en dos idiomas
@@ -393,7 +395,9 @@ Los stacks network y database solo existen en la etapa de producción, y nunca s
   - las descripciones de las alarmas, el tablero de operación y los mensajes del notificador;
   - los nombres de los trabajos de la integración continua;
   - el texto legal de LICENSE.
-- La referencia de la API (http://localhost:8600/docs/api y openapi.json) está en inglés.
+- La referencia de la API está en los dos idiomas: http://localhost:8600/docs/api/es y openapi.es.json en español, http://localhost:8600/docs/api y openapi.json en inglés. make docs-check mantiene la española a la par de la inglesa (e2e/docs/reference.mjs).
+  - Sus claves, nombres y valores siguen en inglés, por estándar técnico: las rutas, el operationId, los nombres de parámetros, campos y esquemas, los valores de los enums, los ejemplos, los códigos de estado, los nombres de las cabeceras y los tipos de medio.
+  - Los rótulos de su visor también siguen en inglés: Stoplight Elements, de un tercero, no trae español.
 - Cada alarma nombra su runbook en inglés (docs/runbooks/<name>.md). La línea de cambio de idioma del runbook lleva a su traducción al español.
 - NOTICE.es.txt traduce NOTICE solo como referencia. NOTICE es el archivo que vale, y el archivo en español cita los avisos de terceros con sus palabras originales.
 

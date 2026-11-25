@@ -383,8 +383,10 @@ final class CloudCheckCommand extends Command
             $this->verify(! in_array(false, $downloads, true) && str_starts_with($browser()->withHeaders(['X-Company-Id' => $temporary->company->id, 'Accept' => '*/*'])->get("{$api}/invoices/{$document->id}/pdf")->body(), '%PDF-'), "The XML, the PDF and the zip of invoice {$document->full_number}, downloaded through the edge with the session, have the SHA-256 the database keeps.");
         }
 
-        $reference = Http::connectTimeout(5)->timeout(30)->get($origin.'/docs/api');
-        $this->verify($reference->successful() && str_contains($reference->body(), '"openapi"') && str_contains($reference->body(), 'integrity="sha384-') && str_contains((string) $reference->header('Content-Security-Policy'), "'sha256-") && $this->throughApiGateway($reference), sprintf('The API reference is served at /docs/api through the edge, its renderer pinned by Subresource Integrity and its inline scripts by hash (HTTP %d, %d bytes).', $reference->status(), strlen($reference->body())));
+        foreach (['/docs/api' => 'en', '/docs/api/es' => 'es'] as $path => $language) {
+            $reference = Http::connectTimeout(5)->timeout(30)->get($origin.$path);
+            $this->verify($reference->successful() && str_contains($reference->body(), '<html lang="'.$language.'"') && str_contains($reference->body(), '"openapi"') && str_contains($reference->body(), 'integrity="sha384-') && str_contains((string) $reference->header('Content-Security-Policy'), "'sha256-") && $this->throughApiGateway($reference), sprintf('The API reference is served at %s (lang="%s") through the edge, its renderer pinned by Subresource Integrity and its inline scripts by hash (HTTP %d, %d bytes).', $path, $language, $reference->status(), strlen($reference->body())));
+        }
 
         [, $key] = app(ApiKeys::class)->create('Cloud check (read only)', ApiKeyLevel::ReadOnly, creator: $temporary->user);
         $listing = Http::withToken($key)->acceptJson()->connectTimeout(5)->timeout(30)->get($api.'/invoices', ['per_page' => 1]);

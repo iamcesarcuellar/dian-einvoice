@@ -1,3 +1,4 @@
+import type { Language } from '@/i18n'
 import config from './product.json'
 
 function apiOrigin(): string {
@@ -17,7 +18,8 @@ export const product = {
    * build is served by the edge, which serves the API and its reference on the origin of the web app.
    */
   apiUrl: apiOrigin(),
-  apiReferenceUrl: `${apiOrigin()}/docs/api`,
+  /** The API reference in a language of the interface: /docs/api in English, /docs/api/es in Spanish. */
+  apiReferenceUrl: (language: Language): string => `${apiOrigin()}/docs/api${language === 'es' ? '/es' : ''}`,
   /**
    * The synthetic demo account of make demo, and the local mailbox where every email lands. The
    * sign-in pages offer them only on the local development server (import.meta.env.DEV), never in

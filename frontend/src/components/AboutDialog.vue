@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { product } from '@/config/product'
+import { currentLanguage } from '@/i18n'
 
 /** What this product is, what is simulated, and where the local tools are. */
 const open = defineModel<boolean>('open', { required: true })
@@ -37,9 +38,13 @@ const { t } = useI18n()
             <BookOpenIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>
               {{ t('about.reference') }}
-              <a :href="product.apiReferenceUrl" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:underline">{{
-                t('about.referenceLink')
-              }}</a>
+              <a
+                :href="product.apiReferenceUrl(currentLanguage())"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-primary hover:underline"
+                >{{ t('about.referenceLink') }}</a
+              >
             </span>
           </li>
         </ul>

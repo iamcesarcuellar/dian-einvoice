@@ -199,6 +199,17 @@ describe('a translation against its original', () => {
     assert.ok(english.some((problem) => problem.includes('no link to docs/es/api-guide.md#primeros-pasos')), english.join('\n'))
   })
 
+  it('links the API reference in the other language, as served and as exported, and fails on the one of the original', () => {
+    const original = `${ORIGINAL}\nThe [reference](http://localhost:8600/docs/api), its [document](http://localhost:8600/docs/api.json) and [openapi.json](../openapi.json); [in Spanish](http://localhost:8600/docs/api/es).\n`
+    const translation = `${TRANSLATION}\nLa [referencia](http://localhost:8600/docs/api/es), su [documento](http://localhost:8600/docs/api/es.json) y [openapi.es.json](../../openapi.es.json); [en inglés](http://localhost:8600/docs/api).\n`
+    assert.deepEqual(compare(original, translation), [])
+
+    const english = compare(original, translation.replace('(http://localhost:8600/docs/api/es)', '(http://localhost:8600/docs/api)'))
+    assert.ok(english.some((problem) => problem.includes('no link to http://localhost:8600/docs/api/es')), english.join('\n'))
+    const file = compare(original, translation.replace('(../../openapi.es.json)', '(../../openapi.json)'))
+    assert.ok(file.some((problem) => problem.includes('no link to openapi.es.json')), file.join('\n'))
+  })
+
   it('fails when a table loses a row, a list an item or a heading its place', () => {
     assert.ok(compare(ORIGINAL, TRANSLATION.replace('| Revisar | `make checks` |\n', '')).some((problem) => problem.includes('the tables')))
     assert.ok(compare(ORIGINAL, TRANSLATION.replace('- otro elemento.\n', '')).some((problem) => problem.includes('the lists')))

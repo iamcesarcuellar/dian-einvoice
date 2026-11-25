@@ -2,7 +2,7 @@
 
 [English](README.md) · **Español**
 
-<!-- Traducción de README.md con SHA-256 bbaa0892898b4982c48f464c8b22622128b929f6cfb54879a5d78a749f79b872. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de README.md con SHA-256 d604099ff8350b2910cf318a988b62bb9e277957793569909ed6d65b3398f45d. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Facturación electrónica para pequeñas y medianas empresas colombianas, con la API primero.
 
@@ -23,7 +23,7 @@ Una plataforma multiempresa para compañías y para el software que las atiende 
 - **Correcta con concurrencia y con fallas.** Veinte procesos en paralelo toman números sin saltos (`make stress`), y si se matan los workers y el relay a mitad de la cadena, cada factura se acepta una sola vez (`make chaos`). De veinte pagos simultáneos, se registran exactamente los diez que caben (`make payments-check`).
 - **La arquitectura de AWS como código, corriendo en un emulador.** Una app de CDK y un servicio serverless ponen la API en Lambda detrás de API Gateway y CloudFront, con SNS, SQS, S3, DynamoDB, KMS, Secrets Manager, SES y EventBridge Scheduler. `make cloud-check` prueba la etapa local de punta a punta, y la etapa de producción, con su VPC, Aurora MySQL y AWS WAF, se valida sin conexión ([infraestructura](docs/es/infrastructure.md), [estimación de costos](docs/es/cost.md)).
 - **Operada como un servicio.** Un id de correlación sigue a una factura desde su petición hasta sus webhooks, a través de registros en JSON, métricas, alarmas que nombran cada una su runbook y un notificador que publica en un chat. `make cloud-drill` tumba la DIAN y trae de vuelta cada factura una sola vez ([runbooks](docs/es/runbooks/README.md), [observabilidad](docs/es/observability.md)).
-- **En inglés y en español.** La aplicación web, los mensajes de la API, el PDF y los correos salen en inglés o en español de Colombia: la interfaz sigue al navegador o a lo que elija cada usuario, cada petición su `Accept-Language`, y cada empresa elige el idioma de sus documentos. `make demo LOCALE=es` carga los datos de ejemplo en español ([LanguageTest](backend/tests/Integration/Security/LanguageTest.php), [la prueba en el navegador en español](e2e/tests/spanish.spec.ts)).
+- **En inglés y en español.** La aplicación web, los mensajes de la API y su referencia, el PDF y los correos salen en inglés o en español de Colombia: la interfaz sigue al navegador o a lo que elija cada usuario, cada petición su `Accept-Language`, y cada empresa elige el idioma de sus documentos. `make demo LOCALE=es` carga los datos de ejemplo en español ([LanguageTest](backend/tests/Integration/Security/LanguageTest.php), [la prueba en el navegador en español](e2e/tests/spanish.spec.ts)).
 - **Revisada de punta a punta.** 707 pruebas, PHPStan en el nivel 10 sin línea base, auditorías de cada dependencia y del historial de git, y una prueba en el navegador bajo la Content-Security-Policy del borde. cdk-nag y cfn-lint revisan las dos etapas ([calidad](#calidad)).
 
 ## Galería
@@ -62,7 +62,7 @@ El primer `make demo` construye las imágenes, instala las dependencias, migra l
 | --- | --- |
 | Aplicación web | http://localhost:8601 |
 | API | http://localhost:8600/api/v1/health |
-| Referencia de la API | http://localhost:8600/docs/api |
+| Referencia de la API | http://localhost:8600/docs/api/es |
 | Simulador de la DIAN y receptor de webhooks | http://localhost:8602/health |
 | Buzón local, adonde llega cada correo | http://localhost:8603 |
 
@@ -131,7 +131,7 @@ Imprime el estado de la primera emisión y la cabecera de la repetición:
 Idempotent-Replayed: true
 ```
 
-Para recibir los mensajes de la API en español, agrega `-H 'Accept-Language: es-CO'` a cualquier petición. Cada respuesta lleva un `X-Correlation-Id`, que comparte cada línea de registro del recorrido, y cada respuesta a una petición con llave lleva el límite de peticiones de la llave, entre ellas `X-RateLimit-Remaining`. La [guía de la API](docs/es/api-guide.md) va más allá: llaves, errores, paginación y webhooks firmados, con cada ejemplo ejecutado por `make docs-examples`. La [referencia de la API](http://localhost:8600/docs/api) documenta cada operación.
+Para recibir los mensajes de la API en español, agrega `-H 'Accept-Language: es-CO'` a cualquier petición. Cada respuesta lleva un `X-Correlation-Id`, que comparte cada línea de registro del recorrido, y cada respuesta a una petición con llave lleva el límite de peticiones de la llave, entre ellas `X-RateLimit-Remaining`. La [guía de la API](docs/es/api-guide.md) va más allá: llaves, errores, paginación y webhooks firmados, con cada ejemplo ejecutado por `make docs-examples`. La [referencia de la API](http://localhost:8600/docs/api/es) documenta cada operación, también [en inglés](http://localhost:8600/docs/api).
 
 **5. Recibe un webhook firmado.** La empresa de la demo está suscrita al receptor local de webhooks, que corre dentro del simulador. En **Configuración → Desarrolladores**, la suscripción muestra su última entrega, y su menú las lista todas, incluidas las de la factura que acabas de emitir (`invoice.issued`, `invoice.accepted`, `invoice.delivered`). Más abajo, la tarjeta del receptor muestra cada webhook con la revisión de su firma (Standard Webhooks, HMAC-SHA256), y **Enviar evento de prueba** envía uno más.
 

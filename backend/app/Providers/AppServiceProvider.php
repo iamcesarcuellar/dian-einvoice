@@ -113,7 +113,8 @@ class AppServiceProvider extends ServiceProvider
         // Outside production, fail on lazy loading, unknown attributes and silently discarded fills.
         Model::shouldBeStrict(! $this->app->isProduction());
 
-        // The public API reference at /docs/api, and openapi.json through make openapi.
+        // The public API reference at /docs/api and in Spanish at /docs/api/es, and openapi.json and openapi.es.json
+        // through make openapi.
         ApiDocumentation::configure();
 
         // Behind the edge (config/edge.php) the application sees the host of API Gateway, which refuses whoever does

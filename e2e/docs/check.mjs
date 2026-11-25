@@ -4,7 +4,8 @@
 // the files not committed yet included) resolves, its anchor included; every image they show exists and keeps to its
 // size (a screenshot of docs/assets 400 KB, a GIF 5 MB); every Mermaid diagram can be drawn, by Mermaid itself in the
 // browser of the container; and every document has its Spanish translation, which follows it and keeps its code,
-// links, figures and structure (translations.mjs). It writes nothing.
+// links, figures and structure (translations.mjs); and the API reference in Spanish, openapi.es.json, describes the
+// contract of openapi.json with every text translated (reference.mjs). It writes nothing.
 //
 //   node docs/check.mjs <root of the repository>
 import { execFileSync } from 'node:child_process'
@@ -12,13 +13,14 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { chromium } from 'playwright'
+import { checkReference } from './reference.mjs'
 import { checkTranslations } from './translations.mjs'
 
 const root = resolve(process.argv[2] ?? '/repo')
 const LIMITS = { '.png': 400 * 1024, '.gif': 5 * 1024 * 1024 }
 // The directories and files at the root a path of the docs may start with.
 const ROOTS = /^(backend|frontend|simulator|infra|scripts|docs|e2e|\.github)\//
-const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'NOTICE', 'NOTICE.es.txt', 'README.md', 'README.es.md', 'CHANGELOG.md', 'CHANGELOG.es.md', 'SECURITY.md', 'SECURITY.es.md', 'CONTRIBUTING.md', 'CONTRIBUTING.es.md', 'openapi.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
+const ROOT_FILES = new Set(['Makefile', 'compose.yaml', 'LICENSE', 'NOTICE', 'NOTICE.es.txt', 'README.md', 'README.es.md', 'CHANGELOG.md', 'CHANGELOG.es.md', 'SECURITY.md', 'SECURITY.es.md', 'CONTRIBUTING.md', 'CONTRIBUTING.es.md', 'openapi.json', 'openapi.es.json', '.gitleaks.toml', '.gitleaksignore', '.editorconfig'])
 // Files the docs name that make creates, never in git: they exist once the target that writes them has run.
 const GENERATED = new Map([['backend/.env', 'make env']])
 // The documents whose make targets and files are checked, and the folder their short paths start from: the
@@ -250,7 +252,16 @@ console.log(
   `translations: ${t.pairs} pairs, ${t.generated} of them generated; ${t.stamped} of the ${t.pairs - t.generated} translated by hand follow their original. ${t.code} code blocks, ${t.inline} inline code spans, ${t.links} links and ${t.figures} figures compared; ${t.english} paragraphs left in English and ${t.terms} replaced terms found.`,
 )
 
+// The API reference in Spanish: the contract of the English one, with every text translated.
+const reference = checkReference(root)
+const r = reference.counts
+problems.push(...reference.problems)
+console.log(
+  `reference: ${r.texts ?? 0} texts of openapi.json in ${r.blocks ?? 0} blocks, ${r.translated ?? 0} of them translated and ${r.same ?? 0} the same in both languages; ${r.inline ?? 0} inline code spans, ${r.links ?? 0} links and ${r.figures ?? 0} figures compared; ${reference.problems.length} problems in openapi.es.json and its catalog.`,
+)
+
+// exitCode, not exit(): Node writes all of a long list to the pipe before it ends.
 if (problems.length > 0) {
   console.error(problems.map((problem) => `  ${problem}`).join('\n'))
-  process.exit(1)
+  process.exitCode = 1
 }

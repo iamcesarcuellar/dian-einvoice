@@ -8,7 +8,8 @@
 //
 // A translation keeps everything of its original that is not prose, section by section: the code blocks (except for
 // the comments of shell blocks and the labels of Mermaid diagrams, which are translated), the inline code, the links
-// (to the same destination, or to the Spanish pair of a document that has one), the figures (the notation changes,
+// (to the same destination, or to the Spanish pair of a document that has one; a link to the API reference, served or
+// exported, goes to the reference in the other language), the figures (the notation changes,
 // not the value) and the structure (the headings by level and in order, the rows of each table, the items of each
 // list). In Spanish, a paragraph left in English fails, and so does a term the glossary of docs/es/README.md replaces
 // (its column "En vez de"). Both language lines are checked: right under the title, each file names its pair. Every
@@ -37,6 +38,38 @@ export const NOTICE_LINES = {
 }
 
 const ROOT_TRANSLATIONS = new Map([...ROOT_PAIRS].map(([original, translation]) => [translation, original]))
+
+/**
+ * The API reference comes in both languages, as the documents do: where a document links one, its translation links the
+ * other, the page the stack serves (/docs/api and /docs/api/es, each with its JSON document beside it) or the file
+ * make openapi exports (openapi.json and openapi.es.json). Each names the other, so a document that links both keeps
+ * both in its translation.
+ */
+export const REFERENCE_PATHS = new Map([
+  ['/docs/api', '/docs/api/es'],
+  ['/docs/api/es', '/docs/api'],
+  ['/docs/api.json', '/docs/api/es.json'],
+  ['/docs/api/es.json', '/docs/api.json'],
+])
+export const REFERENCE_FILES = new Map([
+  ['openapi.json', 'openapi.es.json'],
+  ['openapi.es.json', 'openapi.json'],
+])
+
+/** The URL of the API reference in the other language, for a URL of one of its pages; any other URL as it is. */
+export function referencePair(url) {
+  let parsed
+
+  try {
+    parsed = new URL(url)
+  } catch {
+    return url
+  }
+
+  const pair = REFERENCE_PATHS.get(parsed.pathname)
+
+  return pair === undefined || parsed.search !== '' ? url : `${parsed.origin}${pair}${parsed.hash}`
+}
 
 /** The Spanish pair of a document in English, or null when it has none. */
 export function translationOf(path) {
@@ -655,10 +688,10 @@ export function compareMarkdown({ original, translation, originalText, translati
     const resolved = resolve(original, target)
 
     if (resolved.external) {
-      return resolved
+      return { ...resolved, url: referencePair(resolved.url) }
     }
 
-    const pair = pairOf(resolved.path)
+    const pair = pairOf(resolved.path) ?? REFERENCE_FILES.get(resolved.path) ?? null
     const image = /^docs\/assets\/[^/]+\.(png|gif|jpg|svg)$/.exec(resolved.path) !== null ? resolved.path.replace(/^docs\/assets\//, 'docs/assets/es/') : null
 
     if (image !== null && exists(image)) {

@@ -12,6 +12,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route as Router;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\IntegrationTestCase;
 
@@ -19,7 +20,7 @@ use Tests\IntegrationTestCase;
  * The application behind the edge: every route of the application is one the edge sends
  * to the API, never to the bucket of the web app (resources/http/paths.json); the address of the client is the entry
  * the edge appended to X-Forwarded-For, whether API Gateway appended the address of its peer after it or not, and
- * whatever headers the client sent; the URLs the application generates take the public origin; the page of the API reference pins its renderer and allows its inline scripts by hash; and CORS is not
+ * whatever headers the client sent; the URLs the application generates take the public origin; each page of the API reference, in English and in Spanish, pins its renderer and allows its inline scripts by hash; and CORS is not
  * offered where the web app, on the same origin, needs none.
  */
 final class EdgeTest extends IntegrationTestCase
@@ -137,9 +138,19 @@ final class EdgeTest extends IntegrationTestCase
         $this->assertSame('https://app.dian-einvoice.example/docs/api.json', route('scramble.docs.document'));
     }
 
-    public function test_the_page_of_the_api_reference_pins_its_renderer_and_allows_its_inline_scripts_by_hash(): void
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function referencePages(): iterable
     {
-        $response = $this->get('/docs/api')->assertOk();
+        yield 'English' => ['/docs/api', '/docs/api.json'];
+        yield 'Spanish' => ['/docs/api/es', '/docs/api/es.json'];
+    }
+
+    #[DataProvider('referencePages')]
+    public function test_the_page_of_the_api_reference_pins_its_renderer_and_allows_its_inline_scripts_by_hash(string $page, string $document): void
+    {
+        $response = $this->get($page)->assertOk();
         $html = (string) $response->getContent();
         $policy = (string) $response->headers->get('Content-Security-Policy');
         /** @var array<string, string> $integrity */
@@ -168,7 +179,7 @@ final class EdgeTest extends IntegrationTestCase
         $response->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('X-Frame-Options', 'DENY')->assertHeader('X-Content-Type-Options', 'nosniff');
 
         // The document of the API itself is JSON and keeps the policy that allows nothing.
-        $this->getJson('/docs/api.json')->assertOk()->assertHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+        $this->getJson($document)->assertOk()->assertHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
     }
 
     public function test_cors_is_offered_to_api_keys_only_never_with_credentials(): void

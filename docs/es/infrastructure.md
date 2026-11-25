@@ -2,7 +2,7 @@
 
 [English](../infrastructure.md) · **Español**
 
-<!-- Traducción de docs/infrastructure.md con SHA-256 0b231c39c916777d437283299b12d5d160310907abe70fefaff10d9bc7336d00. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de docs/infrastructure.md con SHA-256 21f019f816b52a2b4b39cf88a6cf4188a4a0db608d7de8efb66362b34d07af72. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Esta página describe la arquitectura de nube de producción de la plataforma, escrita como código y probada en local. No hay nada desplegado en una cuenta real de AWS. Los servicios de AWS corren en un emulador local, [Floci](https://github.com/floci-io/floci) (de código abierto, MIT, sin cuenta ni token).
 
@@ -618,7 +618,7 @@ Lo que la política deja por fuera:
 - **Sin `require-trusted-types-for`.** Vue inserta partes estáticas de sus plantillas como marcado, y Unovis inserta sus tarjetas emergentes de la misma forma.
 - **Sin endpoint de reportes.** `make cloud-e2e` falla con la primera violación que reporta el navegador. Una violación en producción no llega a ningún registro ([limitations.md](limitations.md)).
 
-**La referencia de la API** (`/docs/api`, la página de Scramble con Stoplight Elements) comparte el origen de la sesión detrás del borde. Por eso tiene su propia política, que pone la aplicación (`App\Support\ApiDocs\SecureApiReference`):
+**La referencia de la API** (`/docs/api`, y `/docs/api/es` en español: las páginas de Scramble con Stoplight Elements) comparte el origen de la sesión detrás del borde. Por eso tiene su propia política, que la aplicación pone en las dos páginas (`App\Support\ApiDocs\SecureApiReference`):
 
 - `script-src` nombra el archivo exacto de Stoplight Elements 8.4.2 en unpkg.com. Los dos archivos de Stoplight Elements llevan Subresource Integrity (`sha384`, fijado en el mismo archivo de cabeceras de seguridad), así que el navegador ejecuta esos bytes exactos o nada.
 - El JavaScript en línea de la página se permite por los hashes que el middleware calcula en cada respuesta, nunca con `'unsafe-inline'` ni `'unsafe-eval'`. Ese JavaScript es el interceptor de Scramble, que envía el token CSRF, y el documento de la API, que cambia con la API.
@@ -723,7 +723,7 @@ En la función de consola, también comprueba:
 - enlaces de listas que nombran el origen público;
 - que los límites no cuenten una dirección que escribe el cliente.
 
-`make cloud-e2e` corre en Chromium contra 8601, sobre la compilación de producción y bajo su política. Cubre el recorrido de `make e2e`, su revisión de la disposición (`e2e/tests/layout.spec.ts`), la referencia de la API y una visita a toda la aplicación web (`e2e/tests/tour.spec.ts`). La visita lee de la aplicación en marcha cada ruta que declara el router, y carga cada una como enlace profundo con los datos de ejemplo. Abre los diálogos, menús y listas principales de cada ruta, la paleta de comandos, cada tema y la tarjeta emergente de un gráfico. La prueba falla con la primera violación de la política que reporte el navegador, en cualquier marco.
+`make cloud-e2e` corre en Chromium contra 8601, sobre la compilación de producción y bajo su política. Cubre el recorrido de `make e2e`, su revisión de la disposición (`e2e/tests/layout.spec.ts`), la referencia de la API en los dos idiomas y una visita a toda la aplicación web (`e2e/tests/tour.spec.ts`). La visita lee de la aplicación en marcha cada ruta que declara el router, y carga cada una como enlace profundo con los datos de ejemplo. Abre los diálogos, menús y listas principales de cada ruta, la paleta de comandos, cada tema y la tarjeta emergente de un gráfico. La prueba falla con la primera violación de la política que reporte el navegador, en cualquier marco.
 
 ### Decisiones de diseño del borde
 

@@ -82,7 +82,7 @@ up: ## Get started | Build what changed and start the local stack: API, web app,
 	$(COMPOSE) up -d api web simulator
 	$(COMPOSE) exec api php artisan migrate --force --no-interaction
 	$(COMPOSE) up -d --force-recreate worker relay
-	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8600/docs/api  DIAN simulator and webhook receiver: http://localhost:8602/health  Local mailbox: http://localhost:8603"
+	@echo "Web app: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8600/docs/api (in Spanish: /docs/api/es)  DIAN simulator and webhook receiver: http://localhost:8602/health  Local mailbox: http://localhost:8603"
 
 # Stop and remove this project's containers, those of the emulated cloud and those its emulator started for
 # the functions too; every volume is kept.
@@ -278,11 +278,12 @@ test: test-backend test-frontend test-simulator test-infra test-tools ## Quality
 # Unit tests of the backend, then its integration tests against the real MySQL (database dian_einvoice_test, created
 # here and recreated by the tests), Redis (databases 3 and 4, not those of the stack) and the local DIAN simulator.
 # They run in api-test, the image of api with a memory budget of its own (compose.yaml says why), and end by printing
-# the container's memory peak and limit (backend/tests/run.sh).
+# the container's memory peak and limit (backend/tests/run.sh). The repository is mounted read-only for the tests that
+# read it: the runbooks (RUNBOOKS_DIR) and the exported API references, openapi.json and openapi.es.json (OPENAPI_DIR).
 test-backend: ## Quality | Run the backend's unit and integration tests, against MySQL, Redis and the simulator
 	$(COMPOSE) up -d $(BUILD) --wait db redis simulator
 	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < backend/tests/database.sql
-	$(COMPOSE) --profile tools run --rm $(BUILD) --no-deps -T -v $(CURDIR)/docs:/docs:ro -e RUNBOOKS_DIR=/docs/runbooks api-test sh tests/run.sh
+	$(COMPOSE) --profile tools run --rm $(BUILD) --no-deps -T -v $(CURDIR):/repository:ro -e RUNBOOKS_DIR=/repository/docs/runbooks -e OPENAPI_DIR=/repository api-test sh tests/run.sh
 
 # Unit tests of the web app (Vitest).
 test-frontend: ## Quality | Run the web app's unit tests (Vitest)
@@ -294,10 +295,10 @@ test-simulator: ## Quality | Run the DIAN simulator's tests (node:test)
 
 # Tests of the repository's tooling (node:test), which need nothing but Node.js; they run in the container of the
 # browser tooling. The image encoder of make screenshots (e2e/screenshots/encode.mjs): its PNG, LZW, palette and GIF,
-# read back by decoders written apart from it. The check of the translations (e2e/docs/translations.mjs): what it
-# compares, and the cases it must fail on.
-test-tools: ## Quality | Run the repository tooling's tests (node:test): the screenshots' image encoder and the translations check
-	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e node --test screenshots/encode.test.mjs docs/translations.test.mjs
+# read back by decoders written apart from it. The checks of the translations (e2e/docs/translations.mjs) and of the API
+# reference in Spanish (e2e/docs/reference.mjs): what they compare, and the cases they must fail on.
+test-tools: ## Quality | Run the repository tooling's tests (node:test): the screenshots' image encoder and the translation checks
+	$(COMPOSE) --profile e2e run --rm --no-deps -T e2e node --test screenshots/encode.test.mjs docs/translations.test.mjs docs/reference.test.mjs
 
 # Tests of the infrastructure as code (node:test), without a network: the origin verifier of the edge, then the CDK
 # app: assertions on the synthesized templates of both stages, on the templates osls packages for the functions
@@ -341,10 +342,12 @@ checks: ## Checks on the running stack | Run ui-check, dian-check, delivery-chec
 	@$(MAKE) --no-print-directory stress
 	@$(MAKE) --no-print-directory chaos
 
-# Export the public API reference (Scramble) to openapi.json at the root of the repository.
-openapi: ## Local stack | Export the public API reference to openapi.json
+# Export the public API reference (Scramble) to openapi.json at the root of the repository, and the same reference in
+# Spanish to openapi.es.json. make test-backend fails while either is not what the code generates (ApiReferenceTest).
+openapi: ## Local stack | Export the public API reference to openapi.json, and its Spanish version to openapi.es.json
 	$(COMPOSE) exec -T api sh -c 'php artisan scramble:export --path=/tmp/openapi.json >/dev/null && cat /tmp/openapi.json' > openapi.json
-	@echo "openapi.json written; the reference is also served at http://localhost:8600/docs/api"
+	$(COMPOSE) exec -T api sh -c 'php artisan scramble:export --api=es --path=/tmp/openapi.es.json >/dev/null && cat /tmp/openapi.es.json' > openapi.es.json
+	@echo "openapi.json and openapi.es.json written; the references are also served at http://localhost:8600/docs/api and http://localhost:8600/docs/api/es"
 
 # The emulated cloud, one environment at a time with the local one (the same ports), where the application runs as
 # Lambda functions behind the edge: stop the processes of the application and the development server of the web app
@@ -371,7 +374,7 @@ cloud-up: ## Emulated cloud | Deploy the AWS architecture's local stage to the l
 	$(DEPLOY) panel
 	$(DEPLOY) gateway
 	$(DEPLOY) smoke
-	@echo "Emulated cloud, behind the edge. Web app and API on one origin: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8601/docs/api  DIAN simulator, with the cloud's records: http://localhost:8602/cloud/health  AWS emulator: http://localhost:8604/_floci/health  Its web console: http://localhost:8604/_floci/ui  Emails SES took: http://localhost:8604/_aws/ses"
+	@echo "Emulated cloud, behind the edge. Web app and API on one origin: http://localhost:8601  API: http://localhost:8600/api/v1/health  API reference: http://localhost:8601/docs/api (in Spanish: /docs/api/es)  DIAN simulator, with the cloud's records: http://localhost:8602/cloud/health  AWS emulator: http://localhost:8604/_floci/health  Its web console: http://localhost:8604/_floci/ui  Emails SES took: http://localhost:8604/_aws/ses"
 
 # One step of scripts/deploy.sh against the local stage, as make cloud-up runs it: make cloud-deploy STEP=functions
 # IMAGE=<image> (the last one pushed by default), STEP=versions, STEP=rollback-image IMAGE=<earlier image>,

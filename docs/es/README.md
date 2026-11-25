@@ -2,7 +2,7 @@
 
 [English](../README.md) · **Español**
 
-<!-- Traducción de docs/README.md con SHA-256 5925d9640ac260b781e1e8aa96cd1222f619282d1a99511bbe2a2a2c1273bfd0. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de docs/README.md con SHA-256 44d1af38df77e21a326459e68fc00a5e23f3bff6eaa4a63beff66a4d52b7801e. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Todos los documentos del repositorio, uno por línea, y un glosario de los términos que comparten con la aplicación web. Empieza por el [README](../../README.es.md): qué es el proyecto, cómo correrlo con `make demo` y un recorrido de cinco minutos.
 
@@ -14,6 +14,8 @@ Cada documento está en inglés y en español, con el mismo nombre: los de docs/
 - [README.md](../../README.md): el mismo README en inglés, con las capturas y los GIF en inglés.
 - [architecture.md](architecture.md): la arquitectura de la aplicación: su contexto, sus módulos y cómo se hablan, el modelo de datos, el ciclo de vida de un documento, las decisiones de diseño y las garantías que las pruebas sostienen.
 - [api-guide.md](api-guide.md): una guía práctica de la API pública: primeros pasos con curl, idempotencia, errores, paginación, límites de peticiones, versiones y webhooks firmados. `make docs-examples` corre cada ejemplo.
+- [openapi.es.json](../../openapi.es.json): la referencia de la API pública en OpenAPI 3.1, en español, que `make openapi` exporta desde el código. El stack en marcha la sirve en http://localhost:8600/docs/api/es.
+- [openapi.json](../../openapi.json): la misma referencia en inglés, servida en http://localhost:8600/docs/api. Sus rutas, nombres, valores y ejemplos son los de la española.
 - [dian-conformance.md](dian-conformance.md): qué partes del anexo técnico 1.9 de la DIAN implementa el proyecto, cómo revisar cada una, qué no está implementado y las fuentes oficiales.
 - [cost.md](cost.md): lo que costaría al mes la etapa de producción en us-east-1. `make cost` genera esta estimación a partir de los precios y los supuestos de `scripts/cost`.
 - [limitations.md](limitations.md): lo que el proyecto no hace, o hace solo en parte: la DIAN, la firma, el XML, la entrega, la API, la nube emulada, el borde, la observabilidad y las pruebas.

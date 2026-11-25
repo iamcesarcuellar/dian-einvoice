@@ -59,7 +59,7 @@
       "reasons": {}
     },
     "apiReference": {
-      "description": "The page of the API reference at /docs/api (Scramble with Stoplight Elements), served by the API. Its inline scripts are allowed by the hashes of each answer, which App\\Support\\ApiDocs\\SecureApiReference computes and adds to script-src; the two files of Stoplight Elements are pinned by their path and by Subresource Integrity.",
+      "description": "The pages of the API reference at /docs/api and, in Spanish, /docs/api/es (Scramble with Stoplight Elements), served by the API. Its inline scripts are allowed by the hashes of each answer, which App\\Support\\ApiDocs\\SecureApiReference computes and adds to script-src; the two files of Stoplight Elements are pinned by their path and by Subresource Integrity.",
       "headers": {
         "Referrer-Policy": "no-referrer"
       },

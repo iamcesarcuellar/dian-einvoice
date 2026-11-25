@@ -70,9 +70,9 @@ This page lists what the project does not do, or does only in part, as it stands
 - Rotating a webhook secret replaces it at once. There is no period in which both secrets sign.
 - Webhooks are delivered at least once, in no particular order. Their bodies are built when the event is published. An endpoint's response is read up to 64 KB, and the rest is discarded.
 - An Idempotency-Key is kept for 24 hours. A request with one runs in a single database transaction with its key, so a deadlock inside it is not retried in place. The request returns 5xx, and the same key can be used again.
-- The API reference (Scramble) is public, and loads Stoplight Elements 8.4.2 (two files) from unpkg.com.
+- The API reference (Scramble), in English and in Spanish, is public, and loads Stoplight Elements 8.4.2 (two files) from unpkg.com.
   - Behind the edge, it shares the origin of the web app's session. The browser runs those two files only with the bytes their Subresource Integrity pins.
-  - The page has its own Content-Security-Policy, which allows its inline scripts by hash (docs/infrastructure.md). Its styles may be inline.
+  - Each page has its own Content-Security-Policy, which allows its inline scripts by hash (docs/infrastructure.md). Its styles may be inline.
   - A middleware adds the integrity to Scramble's page by finding its two tags. A Scramble version that changes those tags makes the reference fail (500), and its test too, until security-headers.json is updated.
 - Actions done with an API key have no user in created_by. Their timelines name the key.
 
@@ -371,10 +371,12 @@ The network and database stacks exist in the prod stage only, and are never depl
   - The target stops at once and says to run make cloud-demo. It does not repair this by itself, since that means loading the demo data again.
 - make test-tools tests the make screenshots image encoder (e2e/screenshots/encode.mjs). The tests read its output back with PNG, LZW and GIF decoders written apart from the encoder, in the test file itself. No image library checks the images.
 - PHPStan runs with one worker in the api-analyse container (2 GB), because the AWS SDK's type shapes take about 1.4 GB.
-- PHPUnit runs in a container of its own, api-test (1.5 GB). The concurrency tests fork it into up to 8 processes, and each process copies every page it writes. The container peaks at about 470 MiB, and make test-backend prints the peak and the limit at the end of every run.
+- PHPUnit runs in a container of its own, api-test (1.5 GB). The concurrency tests fork it into up to 8 processes, and each process copies every page it writes. The container peaks at about 380 MiB, and make test-backend prints the peak and the limit at the end of every run.
 - vue-tsc's checkUnknownProps and checkUnknownEvents stay off: 390 attributes and listeners pass through to the shadcn-vue and reka-ui wrappers.
 - The ESLint rules turned off carry their reason in eslint.config.ts.
 - Scramble shows the create rules for the PATCH bodies of taxes and withholdings.
+- Scramble lists processing as the only value of the electronic_status filter of the document lists. Their description names the other values.
+- Scramble keeps state between two documents it builds in one process, and the second one loses parameters. Each request builds one, and so does each export of make openapi. ApiReferenceTest exports the references in a process of its own.
 - TypeScript is pinned to 6.x, and pnpm runs with a build-script allow list.
 
 ## Documentation in two languages
@@ -391,7 +393,9 @@ The network and database stacks exist in the prod stage only, and are never depl
   - the alarms' descriptions, the operations dashboard and the notifier's messages;
   - the names of the CI jobs;
   - the legal text of LICENSE.
-- The API reference (http://localhost:8600/docs/api and openapi.json) is in English.
+- The API reference comes in both languages: http://localhost:8600/docs/api and openapi.json in English, http://localhost:8600/docs/api/es and openapi.es.json in Spanish. make docs-check holds the Spanish one to the English one (e2e/docs/reference.mjs).
+  - Its keys, names and values stay in English, as a technical standard: the paths, the operationId, the names of parameters, fields and schemas, the enum values, the examples, the status codes, the header names and the media types.
+  - The labels of its viewer stay in English too: Stoplight Elements, a third party's, has no Spanish.
 - Each alarm names its runbook in English (docs/runbooks/<name>.md). The runbook's language line leads to its Spanish translation.
 - NOTICE.es.txt translates NOTICE for reference only. NOTICE is the file that counts, and the Spanish one quotes the notices of others in their own words.
 

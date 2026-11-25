@@ -2,9 +2,9 @@
 
 [English](../api-guide.md) · **Español**
 
-<!-- Traducción de docs/api-guide.md con SHA-256 ebd03f3c47521f40d262dccae993b3ed8732009a9811121a199955a5af008392. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de docs/api-guide.md con SHA-256 f1096faf25476960f40cd7dc2eafc1ec485cf1899e105edc09a059d4acb798a7. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
-Una guía práctica de la API pública bajo `/api/v1`: los primeros pasos con curl contra la demo y luego la idempotencia, los errores, la paginación, los límites de peticiones, las versiones y los webhooks. La [referencia de la API](http://localhost:8600/docs/api) del stack en marcha lista cada operación, cada campo y cada respuesta; Scramble la genera a partir del código, y `make openapi` la exporta a [`openapi.json`](../../openapi.json).
+Una guía práctica de la API pública bajo `/api/v1`: los primeros pasos con curl contra la demo y luego la idempotencia, los errores, la paginación, los límites de peticiones, las versiones y los webhooks. La [referencia de la API](http://localhost:8600/docs/api/es) del stack en marcha lista cada operación, cada campo y cada respuesta; Scramble la genera a partir del código, y `make openapi` la exporta a [`openapi.es.json`](../../openapi.es.json). Su [versión en inglés](http://localhost:8600/docs/api), exportada a [`openapi.json`](../../openapi.json), describe el mismo contrato.
 
 Cada bloque de comandos de esta página corre en `make docs-examples` contra la demo, en orden y en una sola shell, e imprime lo que muestra el bloque que le sigue; la revisión falla cuando un ejemplo deja de funcionar. Lo mismo pasa con los dos ejemplos de verificación de firmas de webhooks, que corren contra el ejemplo de referencia de Standard Webhooks y contra un webhook real de la demo. Cada ejecución agrega un contacto, un ítem y una factura sintéticos a Demo Comercial SAS; `make seed` vuelve a cargar la demo desde cero.
 

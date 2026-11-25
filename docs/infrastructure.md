@@ -616,7 +616,7 @@ What the policy leaves out:
 - **No `require-trusted-types-for`.** Vue inserts static parts of its templates as markup, and Unovis inserts its hover cards the same way.
 - **No reporting endpoint.** `make cloud-e2e` fails on the first violation the browser reports. A violation in production reaches no log ([limitations.md](limitations.md)).
 
-**The API reference** (`/docs/api`, Scramble's page with Stoplight Elements) shares the session's origin behind the edge. So it has its own policy, which the application sets (`App\Support\ApiDocs\SecureApiReference`):
+**The API reference** (`/docs/api`, and `/docs/api/es` in Spanish: Scramble's pages with Stoplight Elements) shares the session's origin behind the edge. So it has its own policy, which the application sets on both pages (`App\Support\ApiDocs\SecureApiReference`):
 
 - `script-src` names the exact Stoplight Elements 8.4.2 file on unpkg.com. Both Stoplight Elements files get Subresource Integrity (`sha384`, pinned in the same security headers file), so the browser runs those exact bytes or nothing.
 - The page's inline scripts are allowed by the hashes the middleware computes for each response, never by `'unsafe-inline'` or `'unsafe-eval'`. They are Scramble's interceptor, which sends the CSRF token, and the API document, which changes with the API.
@@ -721,7 +721,7 @@ In the console function, it also checks:
 - list links that name the public origin;
 - that the limits do not count an address the client writes.
 
-`make cloud-e2e` runs in Chromium against 8601, on the production build under its policy. It covers the journey of `make e2e`, its layout check (`e2e/tests/layout.spec.ts`), the API reference, and a tour of the whole web app (`e2e/tests/tour.spec.ts`). The tour reads every route the router declares from the running app, and loads each one as a deep link with the demo data. It opens each route's main dialogs, menus and lists, the command palette, every theme and a chart's hover card. The test fails on the first policy violation the browser reports, in any frame.
+`make cloud-e2e` runs in Chromium against 8601, on the production build under its policy. It covers the journey of `make e2e`, its layout check (`e2e/tests/layout.spec.ts`), the API reference in both languages, and a tour of the whole web app (`e2e/tests/tour.spec.ts`). The tour reads every route the router declares from the running app, and loads each one as a deep link with the demo data. It opens each route's main dialogs, menus and lists, the command palette, every theme and a chart's hover card. The test fails on the first policy violation the browser reports, in any frame.
 
 ### Edge design decisions
 

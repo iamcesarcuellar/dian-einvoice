@@ -2,7 +2,7 @@
 
 [English](CONTRIBUTING.md) · **Español**
 
-<!-- Traducción de CONTRIBUTING.md con SHA-256 2836408d7fef0a65f89a5aacc3470a7e287f6b1ed7c008afb0cc1fcaee24ca63. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de CONTRIBUTING.md con SHA-256 39b6d270c5133a1d9260fc5cc1d6bfe85f1b92c88215b8e95a5200354f0b3f52. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Gracias por tomarte el tiempo. dian-einvoice es un proyecto personal de referencia que mantiene una sola persona. Por eso, a un cambio se le pide que cada afirmación del README siga siendo cierta y cada revisión siga en verde.
 
@@ -22,6 +22,7 @@ Gracias por tomarte el tiempo. dian-einvoice es un proyecto personal de referenc
 - **Inglés en el código, en los comentarios y en los mensajes de commit.**
 - **La documentación, en inglés y en español.** El inglés se escribe primero, y es la fuente. Cada documento tiene su traducción al español con el mismo nombre: en docs/es, en docs/es/runbooks y, en la raíz, como los archivos .es. Las traducciones usan los términos del glosario de [docs/es/README.md](docs/es/README.md#la-documentación-en-español). Un cambio en un documento lleva su traducción en el mismo commit: `make docs-check` falla cuando una traducción se desactualiza frente a su original, deja por fuera su código, sus enlaces, sus cifras o su estructura, o conserva un párrafo en inglés.
 - **Sellar una traducción.** Cada traducción escrita a mano lleva el SHA-256 de su original, en un comentario bajo su línea de cambio de idioma (NOTICE.es.txt, en su última línea). Cuando la traducción ya dice lo que dice el original, `make docs-stamp` escribe el nuevo SHA-256 en cada traducción cuyo código, enlaces, cifras y estructura coinciden con los de su original, y en ninguna otra.
+- **La referencia de la API en español.** Un cambio en el código de la API o en su PHPDoc cambia la referencia: `make openapi` vuelve a escribir openapi.json y openapi.es.json, y `make test-backend` falla hasta que los dos coincidan con el código. Un texto en inglés de la referencia que sea nuevo o que cambie necesita su español en `backend/resources/api-reference/es.json`, una entrada por cada párrafo, elemento de lista, fila de tabla o encabezado. `make docs-check` nombra cada bloque que se quede sin la suya.
 - **Playwright se actualiza en bloque.** `@playwright/test` en `e2e/package.json` y la imagen de Playwright en `compose.yaml` deben tener la misma versión, así que Dependabot no propone ninguno de los dos: sube los dos a mano, en un solo cambio.
 
 ## Revisiones

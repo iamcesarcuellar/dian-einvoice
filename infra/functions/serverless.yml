@@ -257,7 +257,7 @@ custom:
 # Every function has a role of its own from the CDK app (stack compute) and a concurrency limit; together
 # the functions of the application hold at most 60 connections to the database (one per execution environment).
 functions:
-  # The whole HTTP API (/api/v1, the CSRF cookie of the web app, the reference at /docs/api) behind
+  # The whole HTTP API (/api/v1, the CSRF cookie of the web app, the references at /docs/api and /docs/api/es) behind
   # API Gateway, in PHP-FPM, reached only through the edge. Below the 30 s API Gateway waits for an integration.
   api:
     name: dian-einvoice-${sls:stage}-api

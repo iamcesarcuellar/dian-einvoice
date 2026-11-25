@@ -7,6 +7,7 @@ import { contactsApi, itemsApi } from '@/api/resources'
 import FormSection from '@/components/FormSection.vue'
 import { Button } from '@/components/ui/button'
 import { product } from '@/config/product'
+import { currentLanguage } from '@/i18n'
 import { tenantKey } from '@/lib/query'
 import { useSessionStore } from '@/stores/session'
 import CodeBlock from './CodeBlock.vue'
@@ -150,7 +151,7 @@ const language = ref<'node' | 'php'>('node')
 
       <div class="flex flex-wrap items-center gap-3">
         <Button as-child variant="outline" size="sm">
-          <a :href="product.apiReferenceUrl" target="_blank" rel="noopener noreferrer">
+          <a :href="product.apiReferenceUrl(currentLanguage())" target="_blank" rel="noopener noreferrer">
             <ExternalLinkIcon />
             {{ t('developers.quickStart.reference') }}
           </a>

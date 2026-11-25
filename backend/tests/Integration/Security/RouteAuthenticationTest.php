@@ -24,6 +24,8 @@ final class RouteAuthenticationTest extends IntegrationTestCase
         'sanctum.csrf-cookie' => 'the CSRF cookie the web app asks for before signing in',
         'scramble.docs.ui' => 'the public API reference',
         'scramble.docs.document' => 'the OpenAPI document of the reference',
+        'scramble.docs.es.ui' => 'the public API reference, in Spanish',
+        'scramble.docs.es.document' => 'the OpenAPI document of the reference in Spanish',
         'scramble.dev-tools.asset' => 'a script of the reference page',
     ];
 
