@@ -20,7 +20,7 @@ const APPLICATIONS = [
   ['web-app', 'Web app', 'Aplicación web', 'frontend/pnpm-lock.yaml', 'pnpm licenses list --prod', 'bundled into the files the browser loads', 'empaquetados en los archivos que carga el navegador'],
   ['simulator', 'DIAN simulator', 'Simulador de la DIAN', 'simulator/package-lock.json', 'npm ls --omit=dev', 'the local stand-in for the DIAN', 'el reemplazo local de la DIAN'],
   ['cdk-app', 'CDK app', 'App de CDK', 'infra/cdk/package-lock.json', 'npm ls --omit=dev', 'the infrastructure as code of the stacks', 'la infraestructura como código de los stacks'],
-  ['functions', 'Serverless service', 'Servicio serverless', 'infra/functions/package-lock.json', 'npm ls --omit=dev', 'the functions in TypeScript, their deployment and the scripts of the emulated cloud', 'las funciones en TypeScript, su despliegue y los guiones de la nube emulada'],
+  ['functions', 'Serverless service', 'Servicio serverless', 'infra/functions/package-lock.json', 'npm ls --omit=dev', 'the functions in TypeScript, their deployment and the scripts of the emulated cloud', 'las funciones en TypeScript, su despliegue y los scripts de la nube emulada'],
 ]
 const titleOf = (application) => (es ? application[2] : application[1])
 const KINDS_ES = { permissive: 'permisiva', 'weak copyleft, as a library': 'copyleft débil, como biblioteca', font: 'fuente tipográfica' }

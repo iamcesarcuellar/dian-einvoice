@@ -2,7 +2,7 @@
 
 [English](../README.md) · **Español**
 
-<!-- Traducción de docs/README.md con SHA-256 b834a1d0e8a7b55f90b6cc2771019f60e79e25b37bd62043d8388401cc3bd078. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de docs/README.md con SHA-256 5925d9640ac260b781e1e8aa96cd1222f619282d1a99511bbe2a2a2c1273bfd0. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Todos los documentos del repositorio, uno por línea, y un glosario de los términos que comparten con la aplicación web. Empieza por el [README](../../README.es.md): qué es el proyecto, cómo correrlo con `make demo` y un recorrido de cinco minutos.
 
@@ -29,7 +29,7 @@ Cada documento está en inglés y en español, con el mismo nombre: los de docs/
 
 - [infrastructure.md](infrastructure.md): la arquitectura de producción en AWS, la app de CDK y el servicio serverless, la red y la base de datos de la etapa de producción, el borde, y qué se usa para cada pieza en local y en AWS.
 - [observability.md](observability.md): la línea de registro y su esquema, el id de correlación, las métricas, las alarmas y sus objetivos de servicio, el notificador, y cómo seguir una factura.
-- [deployment.md](deployment.md): un solo guion de despliegue para todas las etapas, lo que necesita una cuenta real, el primer despliegue, cómo revertir y cómo desmontar. Nunca se ha corrido contra una cuenta.
+- [deployment.md](deployment.md): un solo script de despliegue para todas las etapas, lo que necesita una cuenta real, el primer despliegue, cómo revertir y cómo desmontar. Nunca se ha corrido contra una cuenta.
 
 ## Operación
 
@@ -212,7 +212,7 @@ La aplicación web, los mensajes de la API, el PDF y los correos salen en inglé
 
 ### La documentación en español
 
-Los términos técnicos de los documentos, con el único término en español que lleva cada uno en docs/es. Algunos se quedan en inglés, como los dicen los ingenieros colombianos: webhook, outbox, relay, workers, stack, serverless, runbook, redrive, throttling, failover, payload, endpoint, bucket, commit, push y pull request. Los nombres de campos, eventos, alarmas, funciones, stacks, servicios y cabeceras HTTP quedan como los escribe el código.
+Los términos técnicos de los documentos, con el único término en español que lleva cada uno en docs/es. Algunos se quedan en inglés, como los dicen los ingenieros colombianos: webhook, outbox, relay, workers, stack, serverless, runbook, redrive, throttling, failover, payload, endpoint, bucket, commit, push, issue y pull request. Los nombres de campos, eventos, alarmas, funciones, stacks, servicios y cabeceras HTTP quedan como los escribe el código.
 
 | Inglés | Español | En vez de |
 | --- | --- | --- |
@@ -243,7 +243,7 @@ Los términos técnicos de los documentos, con el único término en español qu
 | Stage: local stage, prod stage | Etapa: etapa local, etapa de producción | stage |
 | Real account | Cuenta real | |
 | Deployment, deploy | Despliegue, desplegar | |
-| Script, deployment script | Guion, guion de despliegue | script |
+| Script, deployment script | Script, script de despliegue | |
 | Step | Paso | |
 | Smoke test | Prueba de humo | |
 | Roll back, rollback | Revertir, reversión | rollback |

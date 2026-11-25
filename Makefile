@@ -277,10 +277,12 @@ test: test-backend test-frontend test-simulator test-infra test-tools ## Quality
 
 # Unit tests of the backend, then its integration tests against the real MySQL (database dian_einvoice_test, created
 # here and recreated by the tests), Redis (databases 3 and 4, not those of the stack) and the local DIAN simulator.
+# They run in api-test, the image of api with a memory budget of its own (compose.yaml says why), and end by printing
+# the container's memory peak and limit (backend/tests/run.sh).
 test-backend: ## Quality | Run the backend's unit and integration tests, against MySQL, Redis and the simulator
 	$(COMPOSE) up -d $(BUILD) --wait db redis simulator
 	$(COMPOSE) exec -T db sh -c 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot' < backend/tests/database.sql
-	$(COMPOSE) run --rm $(BUILD) --no-deps -T -v $(CURDIR)/docs:/docs:ro -e RUNBOOKS_DIR=/docs/runbooks api vendor/bin/phpunit
+	$(COMPOSE) --profile tools run --rm $(BUILD) --no-deps -T -v $(CURDIR)/docs:/docs:ro -e RUNBOOKS_DIR=/docs/runbooks api-test sh tests/run.sh
 
 # Unit tests of the web app (Vitest).
 test-frontend: ## Quality | Run the web app's unit tests (Vitest)

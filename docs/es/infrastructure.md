@@ -22,7 +22,7 @@ El código define cada recurso una sola vez:
 - La app de CDK (`infra/cdk`) tiene los recursos compartidos y los que guardan estado, y todos los roles de IAM.
 - El servicio serverless (`infra/functions`) tiene las funciones y sus disparadores. Lee los nombres que la app de CDK publica en SSM.
 
-Un solo guion despliega una etapa (`scripts/deploy.sh`). `make cloud-up` lo corre contra el emulador local, y el flujo de despliegue lo correría contra una cuenta.
+Un solo script despliega una etapa (`scripts/deploy.sh`). `make cloud-up` lo corre contra el emulador local, y el flujo de despliegue lo correría contra una cuenta.
 
 La aplicación llega a AWS solo a través de sus adaptadores, y la configuración decide cuáles usa. Escribe una línea JSON por evento. Las métricas y las alarmas salen de esas líneas, y cada alarma nombra el runbook que la atiende.
 
@@ -43,7 +43,7 @@ La aplicación llega a AWS solo a través de sus adaptadores, y la configuració
 | Arrancar | `make up`, `make demo` | `make cloud-up`, `make cloud-demo` |
 | Detener | `make down` | `make cloud-down`; `make cloud-clean` también borra su estado |
 | Revisar | `make test`, `make checks`, `make e2e` | `make cloud-check`, `make cloud-e2e`, `make cloud-alarm-check` (la evaluación real de una alarma, [observability.md](observability.md)), `make cloud-drill` (un simulacro de incidente, [runbooks](runbooks/README.md)) |
-| Desplegar | `make up` | `make cloud-up`, a través de `scripts/deploy.sh`, el guion de todas las etapas ([deployment.md](deployment.md)); `make cloud-deploy STEP=<step>` corre un solo paso |
+| Desplegar | `make up` | `make cloud-up`, a través de `scripts/deploy.sh`, el script de todas las etapas ([deployment.md](deployment.md)); `make cloud-deploy STEP=<step>` corre un solo paso |
 | Registros | el formato de línea de Laravel, en la salida de cada contenedor | un objeto JSON por línea con el esquema de registros de la plataforma, en un grupo de registros por función; `make cloud-follow ID=<correlation-id>` imprime un recorrido |
 | La aplicación | contenedores que corren todo el tiempo: `api`, `worker` ×2, `relay` | funciones Lambda en el emulador, que arrancan con cada entorno de ejecución; ninguna parte de la aplicación corre todo el tiempo |
 | La aplicación web | el servidor de desarrollo de Vite (`web`), que reenvía `/api` y `/sanctum` a la API | la compilación de producción, en el bucket del borde, servida por la distribución de CloudFront del emulador, con la API en el mismo origen |
@@ -564,9 +564,9 @@ sequenceDiagram
 
 - **La aplicación web.** Cada etapa tiene un bucket (`dian-einvoice-<stage>-panel-<account>-<region>`). Es privado (todo acceso público bloqueado, los objetos son del dueño del bucket), cifrado y solo TLS. Sus registros de acceso del servidor van al bucket de registros del borde. Está versionado: una subida conserva la versión que reemplazó durante 7 días en local y 90 en producción.
   - Solo la distribución lo lee, con control de acceso de origen. Una política del bucket admite a CloudFront solo para esta distribución (`AWS:SourceArn`), para leer y para listar, así que un archivo que no existe devuelve 404 y no 403.
-  - `infra/functions/scripts/panel.mjs` sube la compilación de Vite, con el tipo y la configuración de caché de cada archivo. Los archivos de `assets/` llevan en el nombre un hash de su contenido (el guion rechaza uno que no lo lleve), y quedan en caché un año, inmutables. `index.html` y todos los demás archivos reciben `no-cache`, así que una compilación nueva se ve de inmediato.
+  - `infra/functions/scripts/panel.mjs` sube la compilación de Vite, con el tipo y la configuración de caché de cada archivo. Los archivos de `assets/` llevan en el nombre un hash de su contenido (el script rechaza uno que no lo lleve), y quedan en caché un año, inmutables. `index.html` y todos los demás archivos reciben `no-cache`, así que una compilación nueva se ve de inmediato.
   - Los archivos con huella van primero e `index.html` de último, así que ninguna página nombra un archivo que aún no se haya subido. Los archivos de compilaciones anteriores se borran, salvo los que tienen huella y son de la última semana, que puede cargar una pestaña que siga abierta.
-  - En producción, el guion invalida luego los archivos que no tienen huella. `panel.mjs rollback` restaura la versión anterior de cada uno de ellos, `index.html` incluido; los archivos con huella que nombra esa versión siguen en el bucket.
+  - En producción, el script invalida luego los archivos que no tienen huella. `panel.mjs rollback` restaura la versión anterior de cada uno de ellos, `index.html` incluido; los archivos con huella que nombra esa versión siguen en el bucket.
 - **La API.** Las rutas de la aplicación (`backend/resources/http/paths.json`) tienen comportamientos propios, así que ninguna petición a la API llega al bucket. Una prueba del backend exige que cada ruta de la aplicación caiga en uno de ellos (`tests/Integration/Security/EdgeTest.php`), salvo las herramientas de desarrollo de Scramble, que las funciones apagan. API Gateway responde con su propio nombre, así que el Host del visitante se queda en el borde.
 - **Las rutas de la aplicación web.** La CloudFront Function `panel-routes` (`infra/cdk/edge/panel-routes.js`, runtime cloudfront-js-2.0) solo corre en la petición del visitante del comportamiento por defecto. Reescribe a `/index.html` una ruta cuyo último segmento no tiene extensión, y luego el router de la aplicación muestra la ruta. Un archivo conserva su ruta. Los casos de la función (`infra/cdk/edge/panel-routes.cases.json`) se prueban sobre la función (`infra/cdk/test/edge.test.ts`). En la nube emulada, también se prueban sobre el proxy que la reemplaza (`make cloud-check`).
 - **Transporte.** Solo HTTPS: la aplicación web redirige el HTTP plano, y la API lo rechaza (una redirección convertiría un POST en un GET). HTTP/2 y HTTP/3, IPv4 e IPv6. Con su propio dominio (producción), el borde usa el certificado de ACM y la política de seguridad `TLSv1.2_2021`, solo SNI. Sin dominio propio, usa el certificado por defecto de CloudFront. La aplicación web va comprimida (gzip y Brotli); la API no, porque sus respuestas no se guardan en caché.
@@ -701,7 +701,7 @@ El emulador no puede probar nada de eso. La cabecera secreta da la misma garant�
 3. el stack edge, con el valor del secreto como parámetro;
 4. el stack observability, solo (sus filtros de métricas leen los grupos de registros de las funciones).
 
-Luego compila la aplicación web para producción (`pnpm build`), y la sube con `panel.mjs`, el guion que usan todas las etapas.
+Luego compila la aplicación web para producción (`pnpm build`), y la sube con `panel.mjs`, el script que usan todas las etapas.
 
 Desde ahí, cada petición pasa por la distribución del emulador: sus comportamientos, la política de cabeceras de respuesta de la aplicación web, el secreto del borde, API Gateway con el verificador de origen, y el bucket. La primera llamada al verificador de origen en el emulador descarga la imagen del runtime de Node.js de Lambda. Dos cosas que el emulador no hace se hacen a su lado:
 

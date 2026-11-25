@@ -371,6 +371,7 @@ The network and database stacks exist in the prod stage only, and are never depl
   - The target stops at once and says to run make cloud-demo. It does not repair this by itself, since that means loading the demo data again.
 - make test-tools tests the make screenshots image encoder (e2e/screenshots/encode.mjs). The tests read its output back with PNG, LZW and GIF decoders written apart from the encoder, in the test file itself. No image library checks the images.
 - PHPStan runs with one worker in the api-analyse container (2 GB), because the AWS SDK's type shapes take about 1.4 GB.
+- PHPUnit runs in a container of its own, api-test (1.5 GB). The concurrency tests fork it into up to 8 processes, and each process copies every page it writes. The container peaks at about 470 MiB, and make test-backend prints the peak and the limit at the end of every run.
 - vue-tsc's checkUnknownProps and checkUnknownEvents stay off: 390 attributes and listeners pass through to the shadcn-vue and reka-ui wrappers.
 - The ESLint rules turned off carry their reason in eslint.config.ts.
 - Scramble shows the create rules for the PATCH bodies of taxes and withholdings.

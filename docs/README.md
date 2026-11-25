@@ -210,7 +210,7 @@ The web app, the API's messages, the PDF and the emails come in English or in Co
 
 ### The documentation in Spanish
 
-The technical terms of the documents, with the one Spanish term each takes in docs/es. Some stay in English, as Colombian engineers say them: webhook, outbox, relay, workers, stack, serverless, runbook, redrive, throttling, failover, payload, endpoint, bucket, commit, push and pull request. The names of fields, events, alarms, functions, stacks, services and HTTP headers stay as the code writes them.
+The technical terms of the documents, with the one Spanish term each takes in docs/es. Some stay in English, as Colombian engineers say them: webhook, outbox, relay, workers, stack, serverless, runbook, redrive, throttling, failover, payload, endpoint, bucket, commit, push, issue and pull request. The names of fields, events, alarms, functions, stacks, services and HTTP headers stay as the code writes them.
 
 | English | Spanish | Instead of |
 | --- | --- | --- |
@@ -241,7 +241,7 @@ The technical terms of the documents, with the one Spanish term each takes in do
 | Stage: local stage, prod stage | Etapa: etapa local, etapa de producción | stage |
 | Real account | Cuenta real | |
 | Deployment, deploy | Despliegue, desplegar | |
-| Script, deployment script | Guion, guion de despliegue | script |
+| Script, deployment script | Script, script de despliegue | |
 | Step | Paso | |
 | Smoke test | Prueba de humo | |
 | Roll back, rollback | Revertir, reversión | rollback |

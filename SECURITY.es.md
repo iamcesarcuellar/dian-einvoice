@@ -44,7 +44,7 @@ La última versión, la 1.0.1, y el último commit de `main`. Una corrección ll
   - la verificación de origen del borde y las cabeceras de seguridad;
   - los secretos y su rotación;
   - el flujo de despliegue (`.github/workflows/deploy.yml`) y su confianza en el OpenID Connect de GitHub.
-- Los guiones y la configuración de Docker: un paso que expondría un secreto, publicaría un puerto más allá de `127.0.0.1` o tocaría lo que pertenece a otro proyecto de la misma máquina.
+- Los scripts y la configuración de Docker: un paso que expondría un secreto, publicaría un puerto más allá de `127.0.0.1` o tocaría lo que pertenece a otro proyecto de la misma máquina.
 
 ## Fuera del alcance
 

@@ -76,6 +76,20 @@ services:
     profiles: ["tools"]
     mem_limit: 2g
 
+  # Optional (profile tools), only through make test-backend: PHPUnit over the mounted backend, in the image of api
+  # and with a memory budget of its own. The concurrency tests fork the test runner into up to 8 processes
+  # (tests/Support/Parallel.php), and each child gets its own copy of every page it writes. The container peaks at
+  # 464 to 468 MiB (cgroup memory.peak). Before the runner handed back its free memory before forking, the peak was
+  # 524 to 568 MiB: more than the 512 MiB of api, where the kernel reclaimed memory about 300 times a run and could
+  # end PHPUnit (exit code 137). 1536 MiB is more than twice the highest peak measured. make test-backend prints the
+  # peak and the limit at the end of every run.
+  api-test:
+    <<: *backend
+    image: dian-einvoice-api:latest
+    profiles: ["tools"]
+    mem_limit: 1536m
+    init: true
+
   web:
     build:
       context: ./frontend

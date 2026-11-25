@@ -2,7 +2,7 @@
 
 [English](../limitations.md) · **Español**
 
-<!-- Traducción de docs/limitations.md con SHA-256 61d08488bc732f2976000e6f85a7f035ec187f4270a51402d99e5711368935ea. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de docs/limitations.md con SHA-256 901496dbc709579195529c93ed556eae7a0b36708597dc4bf075c24e72e28572. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estado actual. El proyecto es una implementación de referencia que corre contra un simulador local de la DIAN, con datos sintéticos. No se usa en producción.
 
@@ -53,7 +53,7 @@ Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estad
 - El AttachedDocument se arma a partir de la tabla del anexo, porque la caja de herramientas no trae ningún ejemplo. Su ID se repite cada año. En las notas, sus literales siguen siendo los de una factura. ValidatorID nombra al simulador. El PDF lleva el nombre del XML.
 - dompdf dibuja el PDF. Sus advertencias se silencian mientras dibuja, y se revisa que el resultado sea un PDF de al menos una página. El PDF se dibuja dentro del bloqueo de su documento. Los límites de dompdf:
   - sin disposición tipográfica OpenType
-  - los números de página y la marca de agua, dibujados por un guion de página
+  - los números de página y la marca de agua, dibujados por un script de página
   - SVG simplificado
   - márgenes y saltos de página fijos
   - sin PDF/UA ni PDF/A
@@ -74,7 +74,7 @@ Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estad
 - Una Idempotency-Key se guarda durante 24 horas. Una petición con llave de idempotencia corre en una sola transacción de base de datos junto con su llave, así que un deadlock dentro de ella no se reintenta ahí mismo. La petición devuelve 5xx, y la misma llave se puede volver a usar.
 - La referencia de la API (Scramble) es pública, y carga Stoplight Elements 8.4.2 (dos archivos) desde unpkg.com.
   - Detrás del borde, comparte el origen de la sesión de la aplicación web. El navegador solo corre esos dos archivos con los bytes que fija su Subresource Integrity.
-  - La página tiene su propia Content-Security-Policy, que permite sus guiones en línea por su hash (docs/es/infrastructure.md). Sus estilos pueden ir en línea.
+  - La página tiene su propia Content-Security-Policy, que permite sus scripts en línea por su hash (docs/es/infrastructure.md). Sus estilos pueden ir en línea.
   - Un middleware agrega la integridad a la página de Scramble buscando sus dos etiquetas. Una versión de Scramble que cambie esas etiquetas hace fallar la referencia (500), y también su prueba, hasta que se actualice security-headers.json.
 - Las acciones hechas con una llave de API no tienen usuario en created_by. Sus líneas de tiempo nombran la llave.
 
@@ -114,7 +114,7 @@ Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estad
   - PROCESS, como el usuario maestro de Aurora, para que php artisan db:connections vea todas las conexiones. En el servidor MySQL compartido de Compose, eso incluye las conexiones del stack local y las de las pruebas.
 - La identidad de migraciones de las pruebas (tests/database.sql) tiene los mismos privilegios, por la misma razón.
 - Las cabeceras de seguridad de la aplicación web vienen del borde (docs/es/infrastructure.md). El servidor de desarrollo del stack local no manda ninguna, así que make e2e corre sin política y make cloud-e2e corre bajo ella.
-- La política de la aplicación web permite, por sus hashes, unos pocos elementos de estilo fijos de librerías (Reka UI, VueUse) y el guion en línea de index.html. Una actualización que cambie uno de ellos aparece como una violación en make cloud-e2e, y su hash va a security-headers.json.
+- La política de la aplicación web permite, por sus hashes, unos pocos elementos de estilo fijos de librerías (Reka UI, VueUse) y el script en línea de index.html. Una actualización que cambie uno de ellos aparece como una violación en make cloud-e2e, y su hash va a security-headers.json.
 - La cabecera Server de FrankenPHP queda a cargo del proxy que va delante.
 - Bajo /api/v1, CORS acepta cualquier origen sin credenciales, para las llaves de API. No se ofrece para la cookie de CSRF. Una sesión solo funciona desde los orígenes con estado que están configurados: el origen del borde.
 - Las auditorías de dependencias fallan con los avisos de severidad alta y crítica. Los de severidad moderada en herramientas de desarrollo esperan las correcciones de sus proyectos de origen, que Dependabot propone. Al momento de escribir esto, eran glob y minimatch, que llegan a las herramientas de prueba de la aplicación web a través de @vue/test-utils (js-beautify).
@@ -213,7 +213,7 @@ El borde es la distribución de CloudFront que está delante de la aplicación w
 
 - Sin AWS WAF. El firewall solo existe en la etapa de producción, y se revisa sobre la plantilla sintetizada: las reglas, las anulaciones que solo cuentan, los límites y la asociación. Solo una cuenta real mostraría que sus reglas bloquean lo que deben y dejan pasar a la API (cuerpos de varias líneas, el certificado, clientes sin User-Agent).
 - Sin caché y sin compresión: cada petición llega al bucket o a API Gateway. Por eso el Cache-Control de los archivos, los TTL de la política de caché, gzip y Brotli, y una invalidación se revisan sobre la plantilla y sobre las cabeceras de los archivos, no sobre una caché. panel.mjs se salta la invalidación en la etapa local.
-- Sin CloudFront Functions, aunque estén asociadas a la distribución. En su lugar, el proxy que tiene delante (cloud-gateway) reescribe las rutas de la aplicación web, con los mismos casos que la función. El código de la función corre en las pruebas de la app de CDK como lo corre CloudFront (un guion simple con un handler), no en el runtime de CloudFront.
+- Sin CloudFront Functions, aunque estén asociadas a la distribución. En su lugar, el proxy que tiene delante (cloud-gateway) reescribe las rutas de la aplicación web, con los mismos casos que la función. El código de la función corre en las pruebas de la app de CDK como lo corre CloudFront (un script simple con un handler), no en el runtime de CloudFront.
 - El CloudFormation del emulador (Floci 2.5.0) conserva solo una parte de cada comportamiento: su ruta, su origen, su política de protocolo del visitante, su política de cabeceras de respuesta y su compresión. Descarta los métodos que el comportamiento permite y guarda en caché, sus políticas de caché y de peticiones al origen, y sus funciones. A través de él, la API solo recibiría GET y HEAD, sin parámetros de consulta ni cookies.
 - make cloud-up le da a la distribución esos ajustes como los declara su plantilla desplegada, a través de la API de CloudFront del emulador (infra/functions/scripts/edge.mjs reconcile). Este arreglo para el emulador:
   - no crea nada, y no cambia nada que la plantilla no declare
@@ -373,10 +373,11 @@ Los stacks network y database solo existen en la etapa de producción, y nunca s
   - El objetivo de make se detiene de inmediato y dice que hay que correr make cloud-demo. No lo repara por su cuenta, porque eso implica volver a cargar los datos de ejemplo.
 - make test-tools prueba el codificador de imágenes de make screenshots (e2e/screenshots/encode.mjs). Las pruebas leen de vuelta su salida con decodificadores de PNG, LZW y GIF escritos aparte del codificador, en el mismo archivo de prueba. Ninguna librería de imágenes la revisa.
 - PHPStan corre con un solo worker en el contenedor api-analyse (2 GB), porque las formas de tipos del AWS SDK ocupan alrededor de 1,4 GB.
+- PHPUnit corre en un contenedor propio, api-test (1,5 GB). Las pruebas de concurrencia lo bifurcan en hasta 8 procesos, y cada proceso copia cada página que escribe. El pico del contenedor ronda los 470 MiB, y make test-backend imprime el pico y el límite al final de cada ejecución.
 - checkUnknownProps y checkUnknownEvents de vue-tsc siguen apagados: 390 atributos y listeners pasan directo a los wrappers de shadcn-vue y reka-ui.
 - Las reglas de ESLint que están apagadas llevan su razón en eslint.config.ts.
 - Scramble muestra las reglas de creación para los cuerpos PATCH de los impuestos y las retenciones.
-- TypeScript está fijado en 6.x, y pnpm corre con una lista de permitidos para los guiones de construcción.
+- TypeScript está fijado en 6.x, y pnpm corre con una lista de permitidos para los scripts de construcción.
 
 ## La documentación en dos idiomas
 
@@ -401,10 +402,10 @@ Los stacks network y database solo existen en la etapa de producción, y nunca s
 - Cada persona, empresa, documento y pago de la demo es sintético. Los municipios vienen de la DIVIPOLA (datos.gov.co), con la mayúscula inicial de sus nombres puesta de forma automática. Las direcciones de la demo parecen reales.
 - La historia de la demo cuenta hacia atrás desde el día en que se corre, con el tiempo de prueba de Carbon, mientras que el simulador pone fechas reales.
 - Las capturas y los GIF del README (make screenshots) muestran el día en que transcurre la historia de la demo, el jueves 19 de noviembre de 2026.
-  - Mientras corre el guion, el backend y el simulador corren con un reloj movido a esa tarde (scripts/screenshots/compose.yaml), y el navegador también. Así, los datos de ejemplo, las fechas en pantalla y las respuestas del simulador coinciden, sea cual sea el día en que corra el guion.
-  - Mailpit y MySQL conservan el reloj de la máquina. El guion vuelve a cargar los datos de ejemplo, como hace make seed.
+  - Mientras corre el script, el backend y el simulador corren con un reloj movido a esa tarde (scripts/screenshots/compose.yaml), y el navegador también. Así, los datos de ejemplo, las fechas en pantalla y las respuestas del simulador coinciden, sea cual sea el día en que corra el script.
+  - Mailpit y MySQL conservan el reloj de la máquina. El script vuelve a cargar los datos de ejemplo, como hace make seed.
   - Dos ejecuciones seguidas dan las mismas imágenes, salvo lo que cada carga de los datos de ejemplo saca al azar. Esos valores son el número de serie del certificado de prueba, los identificadores de las llaves de API de la demo, el id de la empresa en la dirección del receptor de webhooks y el jitter de los reintentos de la caída. Las diferencias tocan unas pocas décimas del uno por ciento de los píxeles, en cuatro capturas.
-- Cada captura se corta donde el guion encuentra el final de una tarjeta o de una fila de tabla, así que sus alturas varían.
+- Cada captura se corta donde el script encuentra el final de una tarjeta o de una fila de tabla, así que sus alturas varían.
 - La captura de la factura recuperada empieza con una entrada completa de la línea de tiempo, y no con la parte de arriba de la tarjeta. Una línea de tiempo con seis intentos fallidos, el reintento y la entrega es más alta que una pantalla.
 - En los GIF, el fondo de un diálogo es un tono plano en lugar del desenfoque de la aplicación, que sale a manchas con los 256 colores de un GIF. La aplicación y las capturas PNG conservan el desenfoque.
 - make screenshots corre su navegador en inglés británico para docs/assets y en español de Colombia para docs/assets/es, así que el campo de fecha nativo muestra día, mes y año en los dos.

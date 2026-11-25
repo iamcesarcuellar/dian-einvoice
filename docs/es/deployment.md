@@ -6,11 +6,11 @@
 
 Esta guía explica cómo desplegar la plataforma en una cuenta real de AWS. El despliegue está escrito como código y se valida sin conexión, pero nunca ha corrido: nada de este repositorio se ha desplegado en una cuenta (docs/es/limitations.md).
 
-La nube emulada corre el mismo guion, con los mismos pasos, contra el emulador local (`make cloud-up`). `make cdk-check` sintetiza, empaqueta y revisa la etapa de producción.
+La nube emulada corre el mismo script, con los mismos pasos, contra el emulador local (`make cloud-up`). `make cdk-check` sintetiza, empaqueta y revisa la etapa de producción.
 
 Las secciones de abajo cubren lo que necesita una cuenta, el orden de un primer despliegue, un despliegue de rutina, cómo volver atrás, cómo desmontarlo y lo que nunca se ha verificado.
 
-## Un guion para todas las etapas
+## Un script para todas las etapas
 
 `scripts/deploy.sh <local|prod> <step>` despliega una etapa. `make cloud-up` corre sus pasos contra el emulador, y el flujo de despliegue `.github/workflows/deploy.yml` corre esos mismos pasos contra una cuenta.
 
@@ -34,7 +34,7 @@ Cada herramienta corre en un contenedor de `compose.yaml`:
 
 En las dos etapas, el paso `image` imprime la imagen como `<registry>/dian-einvoice-<stage>-functions@sha256:<digest>`, y cada función se despliega por ese resumen.
 
-Los pasos que difieren existen solo porque el emulador no es AWS. El guion marca cada uno con `EMULATOR ONLY` y dice qué hace AWS en su lugar.
+Los pasos que difieren existen solo porque el emulador no es AWS. El script marca cada uno con `EMULATOR ONLY` y dice qué hace AWS en su lugar.
 
 ## Lo que necesita una cuenta
 
@@ -181,7 +181,7 @@ Algunos recursos sobreviven a su stack a propósito (`RemovalPolicy.RETAIN` en p
 
 ## Lo que nunca se verificó en una cuenta real
 
-Nada de este repositorio ha corrido contra AWS. El emulador corre el guion, las funciones, las colas, el borde y las alarmas sobre una sola métrica. La síntesis, cdk-nag, cfn-lint y actionlint revisan el resto sin conexión. Nunca se verificó:
+Nada de este repositorio ha corrido contra AWS. El emulador corre el script, las funciones, las colas, el borde y las alarmas sobre una sola métrica. La síntesis, cdk-nag, cfn-lint y actionlint revisan el resto sin conexión. Nunca se verificó:
 
 - El flujo de despliegue en sí: OpenID Connect, la confianza del rol de despliegue con un token real, los revisores del entorno y cada paso con credenciales reales.
 - Que los permisos del rol de despliegue y del rol de despliegue de las funciones alcancen, y que no sobren. Están escritos a partir de las llamadas que hacen la CLI de CDK y osls, y nunca se pusieron a prueba.

@@ -27,6 +27,7 @@ final class Parallel
         DB::disconnect();
         Redis::purge();
         Redis::purge('cache');
+        self::releaseFreeMemory();
 
         $pid = pcntl_fork();
 
@@ -71,6 +72,7 @@ final class Parallel
         DB::disconnect();
         Redis::purge();
         Redis::purge('cache');
+        self::releaseFreeMemory();
 
         $directory = sys_get_temp_dir().'/parallel-'.bin2hex(random_bytes(6));
         mkdir($directory);
@@ -118,5 +120,17 @@ final class Parallel
 
         /** @var list<array{ok: bool, value: T|null, error: string|null, exception: class-string<Throwable>|null}> $outcomes */
         return $outcomes;
+    }
+
+    /**
+     * Hands back to the system the memory that PHP's memory manager keeps free for reuse, before
+     * the test runner forks. A child shares the parent's pages until it writes to one, and then
+     * gets a copy of its own: free memory the parent keeps counts against the container's memory
+     * limit once in the parent and again in every child that reuses it. Collecting cycles first
+     * does not help: the slots it frees spread each child's allocations over more shared pages.
+     */
+    private static function releaseFreeMemory(): void
+    {
+        gc_mem_caches();
     }
 }

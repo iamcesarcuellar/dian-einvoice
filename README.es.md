@@ -137,7 +137,7 @@ Para recibir los mensajes de la API en español, agrega `-H 'Accept-Language: es
 
 ## La nube de AWS en tu máquina
 
-`make cloud-demo` detiene la aplicación del stack local y despliega la etapa local de la arquitectura de AWS en [Floci](https://github.com/floci-io/floci), un emulador de AWS de código abierto que no pide cuenta. Usa la misma app de CDK, el mismo servicio serverless y el mismo guion de despliegue (`scripts/deploy.sh`) que usaría una cuenta real, y luego carga los datos de ejemplo a través de las funciones; `make cloud-demo LOCALE=es` los carga en español. La aplicación web y la API responden en las mismas direcciones, ahora a través del CloudFront emulado; `make up` vuelve al stack local. El simulador de la DIAN guarda aparte los documentos de cada uno, así que ir y volver no obliga a recargar los datos de ejemplo.
+`make cloud-demo` detiene la aplicación del stack local y despliega la etapa local de la arquitectura de AWS en [Floci](https://github.com/floci-io/floci), un emulador de AWS de código abierto que no pide cuenta. Usa la misma app de CDK, el mismo servicio serverless y el mismo script de despliegue (`scripts/deploy.sh`) que usaría una cuenta real, y luego carga los datos de ejemplo a través de las funciones; `make cloud-demo LOCALE=es` los carga en español. La aplicación web y la API responden en las mismas direcciones, ahora a través del CloudFront emulado; `make up` vuelve al stack local. El simulador de la DIAN guarda aparte los documentos de cada uno, así que ir y volver no obliga a recargar los datos de ejemplo.
 
 | Servicio de AWS | Qué corre en el emulador | Qué hace aquí |
 | --- | --- | --- |
@@ -222,9 +222,9 @@ Más detalles: [docs/es/architecture.md](docs/es/architecture.md) para los módu
 | [frontend/](frontend/) | La aplicación web en Vue 3 y TypeScript, que habla con el backend solo por `/api/v1`; sus mensajes en inglés y en español están en `frontend/src/i18n` |
 | [simulator/](simulator/) | Un simulador local del servicio web SOAP de la DIAN, con sus modos de falla y el receptor de webhooks |
 | [infra/cdk/](infra/cdk/) | La app de CDK: los stacks de las etapas local y de producción, sus pruebas y cdk-nag |
-| [infra/functions/](infra/functions/) | El servicio serverless: las funciones y sus disparadores, el verificador de origen, el notificador y los guiones de la nube emulada |
+| [infra/functions/](infra/functions/) | El servicio serverless: las funciones y sus disparadores, el verificador de origen, el notificador y los scripts de la nube emulada |
 | [e2e/](e2e/) | Las herramientas del navegador: la prueba de punta a punta, las capturas que toma `make screenshots`, la revisión de la documentación y el ejecutor de sus ejemplos |
-| [scripts/](scripts/) | El guion de despliegue, la revisión de la nube y el simulacro, las revisiones de seguridad, de licencias y de avisos, la estimación de costos y los ayudantes del Makefile |
+| [scripts/](scripts/) | El script de despliegue, la revisión de la nube y el simulacro, las revisiones de seguridad, de licencias y de avisos, la estimación de costos y los ayudantes del Makefile |
 | [docs/](docs/es/README.md) | La documentación, en inglés en docs/ y en español en docs/es, con su índice en docs/es/README.md, y las imágenes de esta página |
 
 ## Calidad

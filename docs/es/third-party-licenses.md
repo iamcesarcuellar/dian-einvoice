@@ -425,7 +425,7 @@ Estos archivos son obra de otros, y el repositorio los guarda bajo sus propios t
 
 ## Servicio serverless
 
-145 paquetes de `infra/functions/package-lock.json` (`npm ls --omit=dev`): las funciones en TypeScript, su despliegue y los guiones de la nube emulada.
+145 paquetes de `infra/functions/package-lock.json` (`npm ls --omit=dev`): las funciones en TypeScript, su despliegue y los scripts de la nube emulada.
 
 | Paquete | Licencia |
 | --- | --- |

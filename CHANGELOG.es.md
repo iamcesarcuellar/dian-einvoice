@@ -136,7 +136,7 @@ La primera versión: facturación electrónica para pequeñas y medianas empresa
 - Un servicio serverless (osls) cuyas funciones corren en Lambda detrás de API Gateway y CloudFront: la API, la cadena, los webhooks, el relay, el programador, la consola, el verificador de origen y el notificador.
 - SNS y SQS con colas de mensajes fallidos, S3, DynamoDB, KMS, Secrets Manager, SES y EventBridge Scheduler, cada uno detrás de uno de los puertos de la aplicación.
 - En la etapa de producción, una VPC en dos zonas, Aurora MySQL Serverless v2 con identidades de la base de datos que se rotan, y AWS WAF.
-- Un solo guion de despliegue para todas las etapas (`scripts/deploy.sh`), y un flujo de despliegue que nunca ha corrido.
+- Un solo script de despliegue para todas las etapas (`scripts/deploy.sh`), y un flujo de despliegue que nunca ha corrido.
 
 ### Operación y observabilidad
 
@@ -147,7 +147,7 @@ La primera versión: facturación electrónica para pequeñas y medianas empresa
 ### Primeros pasos y documentación
 
 - Un solo comando arranca todo en Docker Compose (`make demo`), y `make help` lista todos los objetivos.
-- Un README en inglés y en español, la arquitectura, una guía de la API cuyos ejemplos corren, la conformidad con la DIAN, una estimación de costos, y capturas y GIF que genera un guion.
+- Un README en inglés y en español, la arquitectura, una guía de la API cuyos ejemplos corren, la conformidad con la DIAN, una estimación de costos, y capturas y GIF que genera un script.
 
 [Sin publicar]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.1...HEAD
 [1.0.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.0...v1.0.1

@@ -8,7 +8,7 @@ Lo que costaría al mes la arquitectura de producción si se desplegara en AWS e
 
 > **Una estimación, no una factura.** La etapa de producción nunca se desplegó: se sintetiza y se valida sin conexión ([infrastructure.md](infrastructure.md)), y nada de esto se le cobró nunca a una cuenta de AWS. Los volúmenes por factura salen de ejecuciones de la nube emulada, las duraciones y el tráfico son supuestos, y cada uno se declara [más abajo](#supuestos). No incluye los impuestos, los planes de soporte ni la cuenta de AWS en sí.
 
-Cómo se hace: `scripts/cost/estimate.mjs`, un guion sin dependencias, calcula cada tabla de esta página a partir de dos archivos: [`scripts/cost/prices.json`](../../scripts/cost/prices.json) (cada precio unitario con su página oficial, el archivo de la AWS Price List API de donde se leyó y la fecha) y [`scripts/cost/usage.json`](../../scripts/cost/usage.json) (cada supuesto con su base y su fuente). `make cost` vuelve a escribir esta página y su versión en inglés, y `make docs-check`, parte de `make lint`, falla cuando alguna de las dos no coincide con los dos archivos.
+Cómo se hace: `scripts/cost/estimate.mjs`, un script sin dependencias, calcula cada tabla de esta página a partir de dos archivos: [`scripts/cost/prices.json`](../../scripts/cost/prices.json) (cada precio unitario con su página oficial, el archivo de la AWS Price List API de donde se leyó y la fecha) y [`scripts/cost/usage.json`](../../scripts/cost/usage.json) (cada supuesto con su base y su fuente). `make cost` vuelve a escribir esta página y su versión en inglés, y `make docs-check`, parte de `make lint`, falla cuando alguna de las dos no coincide con los dos archivos.
 
 ## Resumen
 
@@ -229,7 +229,7 @@ Una decisión de esta estimación, no una medición: un despliegue real la reemp
 
 ## Precios
 
-Precios bajo demanda para us-east-1, en dólares estadounidenses, consultados el 22 de noviembre de 2026 en las páginas oficiales de precios y en la AWS Price List API (`https://pricing.us-east-1.amazonaws.com`), cuyo archivo, versión y tipo de uso nombra cada fila. El primer tramo de cada precio se aplica en todos los escenarios: el guion falla si una cantidad lo supera. Todos los precios se confirmaron.
+Precios bajo demanda para us-east-1, en dólares estadounidenses, consultados el 22 de noviembre de 2026 en las páginas oficiales de precios y en la AWS Price List API (`https://pricing.us-east-1.amazonaws.com`), cuyo archivo, versión y tipo de uso nombra cada fila. El primer tramo de cada precio se aplica en todos los escenarios: el script falla si una cantidad lo supera. Todos los precios se confirmaron.
 
 | Precio | Qué | USD | Unidad | Siempre gratis al mes | Fuente |
 | --- | --- | ---: | --- | ---: | --- |
