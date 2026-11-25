@@ -115,7 +115,7 @@ This page lists what the project does not do, or does only in part, as it stands
 - The web app's policy allows a few fixed style elements from libraries (Reka UI, VueUse) and the inline script of index.html, by their hashes. An upgrade that changes one of them shows as a violation in make cloud-e2e, and its hash goes into security-headers.json.
 - FrankenPHP's Server header is left to the proxy in front.
 - Under /api/v1, CORS accepts any origin without credentials, for API keys. It is not offered for the CSRF cookie. A session works only from the configured stateful origins: the edge's origin.
-- Dependency audits fail on high and critical advisories. Moderate ones in development tools wait for their upstream fixes, which Dependabot proposes. At the time of writing, these were glob and minimatch, which reach the web app's test tools through @vue/test-utils (js-beautify).
+- Dependency audits fail on high and critical advisories. Moderate ones in development tools wait for their upstream fixes, which Dependabot proposes. When no upstream release takes the fix, an override of the package manager does, as frontend/pnpm-workspace.yaml does for glob and minimatch, which reach the web app's test tools through @vue/test-utils (js-beautify).
 
 ## Operation and scale
 
@@ -356,7 +356,6 @@ The network and database stacks exist in the prod stage only, and are never depl
 - Keyboard use, screen readers and contrast have not been reviewed.
 - The theme is kept in localStorage, and the sidebar state in a cookie. The demo account button exists only on the development server.
 - Ctrl+K is taken everywhere. Search requests are not canceled as the user types. The guard against leaving unsaved changes has gaps.
-- An invoice issued before the editor has loaded the numbering ranges and the taxes takes their defaults when they arrive. The guard reads those as unsaved changes and asks before the page leaves for the issued invoice. On a cold emulated cloud, make cloud-e2e failed this way once.
 
 ## Tests and tooling
 

@@ -72,17 +72,17 @@ const companyId = computed(() => session.currentCompanyId)
 const today = todayInColombia()
 
 // Options of the selects.
-const { data: templates } = useQuery({
+const { data: templates, error: templatesError } = useQuery({
   queryKey: computed(() => tenantKey(companyId.value, 'number-templates', 'options')),
   queryFn: () => numberTemplatesApi.list({ per_page: 100 }),
 })
 
-const { data: taxes } = useQuery({
+const { data: taxes, error: taxesError } = useQuery({
   queryKey: computed(() => tenantKey(companyId.value, 'taxes', 'options')),
   queryFn: () => taxesApi.list({ per_page: 100 }),
 })
 
-const { data: withholdingPage } = useQuery({
+const { data: withholdingPage, error: withholdingsError } = useQuery({
   queryKey: computed(() => tenantKey(companyId.value, 'withholdings', 'options')),
   queryFn: () => withholdingsApi.list({ per_page: 100 }),
 })
@@ -127,31 +127,6 @@ const taxOptions = computed<Option[]>(() => {
 
 const withholdingOptions = computed(() =>
   (withholdingPage.value?.data ?? []).filter((withholding) => withholding.is_active || form.value.withholding_ids.includes(withholding.id)),
-)
-
-// A new document takes the default numbering of its type.
-watch(
-  templates,
-  (page) => {
-    if (form.value.number_template_id === null && page) {
-      form.value.number_template_id =
-        page.data.find((template) => template.document_type === type.value && template.is_default && template.is_active)?.id ?? null
-    }
-  },
-  { immediate: true },
-)
-
-// Lines added before the taxes loaded take the default tax once it is known.
-watch(
-  defaultTaxId,
-  (taxId) => {
-    for (const line of form.value.lines) {
-      if (line.tax_id === null) {
-        line.tax_id = taxId
-      }
-    }
-  },
-  { immediate: true },
 )
 
 // A credit invoice needs a due date: suggest 30 days from today.
@@ -214,21 +189,44 @@ function identificationOf(contact: Contact): string {
 const savedId = ref<string | null>(props.invoice?.id ?? null)
 const submittedKeys = ref<string[]>([])
 
-// Leaving with changes asks first. The defaults a new draft takes (numbering, tax) are not changes:
-// the baseline is taken once they are in.
+// Leaving with changes asks first.
 const unsaved = useUnsavedChanges(form)
-let baselineTaken = false
+
+/**
+ * The editor is ready once its options are in (numbering, taxes and withholdings) and the document
+ * has taken its defaults from them: a new one takes the default numbering of its type, and every
+ * line written meanwhile takes the default tax. Until then it saves and issues nothing, since what
+ * it sent would not be what the screen shows a moment later. The defaults are not changes: the
+ * baseline of the unsaved changes is taken with them in. From then on, only the user changes the form.
+ */
+const ready = ref(false)
 
 watch(
-  [templates, taxes],
-  ([loadedTemplates, loadedTaxes]) => {
-    if (!baselineTaken && loadedTemplates && loadedTaxes) {
-      baselineTaken = true
-      void nextTick(() => unsaved.reset())
+  [templates, taxes, withholdingPage],
+  ([loadedTemplates, loadedTaxes, loadedWithholdings]) => {
+    if (ready.value || !loadedTemplates || !loadedTaxes || !loadedWithholdings) {
+      return
     }
+
+    if (form.value.number_template_id === null) {
+      form.value.number_template_id =
+        loadedTemplates.data.find((template) => template.document_type === type.value && template.is_default && template.is_active)?.id ?? null
+    }
+
+    for (const line of form.value.lines) {
+      if (line.tax_id === null) {
+        line.tax_id = defaultTaxId.value
+      }
+    }
+
+    unsaved.reset()
+    ready.value = true
   },
   { immediate: true },
 )
+
+/** An option list that did not load: the editor cannot be ready without it. */
+const optionsError = computed(() => (ready.value ? null : (templatesError.value ?? taxesError.value ?? withholdingsError.value)))
 
 async function persist(): Promise<Invoice> {
   const { input, keys } = toInvoiceInput(form.value, type.value)
@@ -244,12 +242,19 @@ async function persist(): Promise<Invoice> {
 const saving = useMutation({
   mutationFn: persist,
   onSuccess: async (invoice) => {
-    unsaved.reset()
+    // A new draft gets its own address and opens there again: this editor is done with it.
+    const moves = props.invoice === null
+
+    if (moves) {
+      unsaved.release()
+    } else {
+      unsaved.reset()
+    }
+
     await invalidateTenant(...ALL_DOCUMENT_RESOURCES)
     notify.success(t('invoices.editor.draftSaved'))
 
-    // A new draft gets its own address.
-    if (props.invoice === null) {
+    if (moves) {
       await router.replace({ name: routes.value.detail, params: { id: invoice.id } })
     }
   },
@@ -261,7 +266,8 @@ const issuing = useMutation({
   // The draft is saved first, so the API issues exactly what is on screen.
   mutationFn: async () => api.value.issue((await persist()).id),
   onSuccess: async (invoice) => {
-    unsaved.reset()
+    // An issued document is final: nothing left on this form can be saved.
+    unsaved.release()
     await invalidateTenant(...ALL_DOCUMENT_RESOURCES, 'number-templates', 'dashboard')
     issueOpen.value = false
     notify.success(t('invoices.editor.issued', { number: invoice.full_number ?? '' }), t('invoices.editor.issuedHint'))
@@ -274,7 +280,8 @@ const deleteOpen = ref(false)
 const removing = useMutation({
   mutationFn: () => api.value.remove(savedId.value as string),
   onSuccess: async () => {
-    unsaved.reset()
+    // A deleted draft is gone: nothing left on this form can be saved.
+    unsaved.release()
     await invalidateTenant(...ALL_DOCUMENT_RESOURCES)
     notify.success(t('invoices.editor.draftDeleted'))
     await router.replace(related.value ? { name: 'invoice', params: { id: related.value.id } } : { name: routes.value.list })
@@ -330,9 +337,9 @@ function openIssue(): void {
   issueOpen.value = true
 }
 
-const blocked = computed(() => exceeds.value || voidMismatch.value)
+const blocked = computed(() => !ready.value || exceeds.value || voidMismatch.value)
 
-const error = computed(() => issuing.error.value ?? saving.error.value)
+const error = computed(() => issuing.error.value ?? saving.error.value ?? optionsError.value)
 const errors = computed(() => fieldErrors(error.value))
 
 /** Validation message of a line field; the API numbers lines in the order they were sent. */
@@ -398,7 +405,7 @@ const crumbs = computed(() => documentCrumbs(type.value, props.invoice?.full_num
         <Trash2Icon />
         {{ t('invoices.editor.deleteDraft') }}
       </Button>
-      <Button variant="outline" :disabled="saving.isPending.value || issuing.isPending.value" @click="save">
+      <Button variant="outline" :disabled="!ready || saving.isPending.value || issuing.isPending.value" @click="save">
         {{ saving.isPending.value ? t('invoices.editor.savingDraft') : t('invoices.editor.saveDraft') }}
       </Button>
       <Button :disabled="saving.isPending.value || issuing.isPending.value || blocked" @click="openIssue">

@@ -2,7 +2,7 @@
 
 [English](../limitations.md) · **Español**
 
-<!-- Traducción de docs/limitations.md con SHA-256 4b482878c6dc37ef6b80e6107fce4180d4893635a19d4b9f024c1251b530af17. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de docs/limitations.md con SHA-256 50efe9275d7266c58fda633c6666db5e5e270a2cba2a801d972b22d12c1c7a56. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estado actual. El proyecto es una implementación de referencia que corre contra un simulador local de la DIAN, con datos sintéticos. No se usa en producción.
 
@@ -117,7 +117,7 @@ Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estad
 - La política de la aplicación web permite, por sus hashes, unos pocos elementos de estilo fijos de librerías (Reka UI, VueUse) y el script en línea de index.html. Una actualización que cambie uno de ellos aparece como una violación en make cloud-e2e, y su hash va a security-headers.json.
 - La cabecera Server de FrankenPHP queda a cargo del proxy que va delante.
 - Bajo /api/v1, CORS acepta cualquier origen sin credenciales, para las llaves de API. No se ofrece para la cookie de CSRF. Una sesión solo funciona desde los orígenes con estado que están configurados: el origen del borde.
-- Las auditorías de dependencias fallan con los avisos de severidad alta y crítica. Los de severidad moderada en herramientas de desarrollo esperan las correcciones de sus proyectos de origen, que Dependabot propone. Al momento de escribir esto, eran glob y minimatch, que llegan a las herramientas de prueba de la aplicación web a través de @vue/test-utils (js-beautify).
+- Las auditorías de dependencias fallan con los avisos de severidad alta y crítica. Los de severidad moderada en herramientas de desarrollo esperan las correcciones de sus proyectos de origen, que Dependabot propone. Cuando ninguna versión de origen trae la corrección, la trae un override del gestor de paquetes, como hace frontend/pnpm-workspace.yaml con glob y minimatch, que llegan a las herramientas de prueba de la aplicación web a través de @vue/test-utils (js-beautify).
 
 ## Operación y escala
 
@@ -358,7 +358,6 @@ Los stacks network y database solo existen en la etapa de producción, y nunca s
 - No se han revisado el uso con teclado, los lectores de pantalla ni el contraste.
 - El tema se guarda en localStorage, y el estado de la barra lateral en una cookie. El botón de la cuenta de ejemplo solo existe en el servidor de desarrollo.
 - Ctrl+K se captura en todas partes. Las peticiones de búsqueda no se cancelan mientras el usuario escribe. La protección contra salir con cambios sin guardar tiene huecos.
-- Una factura emitida antes de que el editor cargue los rangos de numeración y los impuestos toma sus valores por defecto cuando llegan. La protección los lee como cambios sin guardar y pregunta antes de que la página pase a la factura emitida. Con la nube emulada en frío, make cloud-e2e falló así una vez.
 
 ## Pruebas y herramientas
 

@@ -1,2 +1,12 @@
 allowBuilds:
   vue-demi: true
+
+# Two moderate advisories of development dependencies: GHSA-3g3m-2fjr-6pw4 in glob, fixed in 14.0.2,
+# and GHSA-g3hv-75wg-m249 in minimatch, fixed in 11.0.1. Both come from js-beautify, which
+# @vue/test-utils declares. Both of those are at their latest versions. js-beautify asks for glob ^13
+# and editorconfig ^3, which ask for minimatch ^10, so no update reaches the fixes. Only the
+# js-beautify command line loads glob and editorconfig, and the tests never run it: @vue/test-utils
+# bundles the code it takes from js-beautify. So these two paths take the fixed versions.
+overrides:
+  js-beautify>glob: ^14.0.2
+  editorconfig>minimatch: ^11.0.1

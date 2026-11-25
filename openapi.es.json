@@ -12,7 +12,7 @@
     ],
     "tags": [
         {
-            "name": "Salud",
+            "name": "Estado",
             "description": "Si la API y su base de datos responden."
         },
         {
@@ -12305,7 +12305,7 @@
                 "description": "200 con las revisiones cuando responden los servicios que la API necesita, o 503 como un problema que nombra el que fall\u00f3.",
                 "summary": "Revisar la salud de la API",
                 "tags": [
-                    "Salud"
+                    "Estado"
                 ],
                 "parameters": [
                     {
