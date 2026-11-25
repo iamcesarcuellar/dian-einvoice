@@ -2,9 +2,31 @@
 
 [English](CHANGELOG.md) · **Español**
 
-<!-- Traducción de CHANGELOG.md con SHA-256 08cdd01a64e52fa861ba13bfb3eab708bc96107a59cd7ada9a99009ca13985ab. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de CHANGELOG.md con SHA-256 7c44a48dbfae14ca0f0b0a057d913d592e36a8b85fb44479dc987a5a545d566f. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Aquí se registran todos los cambios notables de dian-einvoice. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), y las versiones siguen el [Versionado Semántico](https://semver.org/lang/es/spec/v2.0.0.html).
+
+## [1.1.1] - 2026-11-25
+
+Una corrección en el editor de facturas, los dos avisos moderados de la aplicación web y una palabra de la referencia de la API en español. Ninguna funcionalidad nueva: la API y su referencia son las mismas.
+
+### Interfaz
+
+- Una factura guardada o emitida antes de que el editor cargara sus impuestos salía sin impuesto. Cada línea escrita sin un ítem quedaba sin impuesto, aunque un instante después el editor mostraba el IVA. Ahora el editor espera sus rangos de numeración, sus impuestos y sus retenciones. Mientras no llegan, "Guardar borrador" y "Emitir factura" quedan desactivados, y si una de esas listas no carga, el editor muestra el error.
+- Una factura emitida mientras esas listas todavía cargaban podía quedarse en "¿Salir sin guardar?" en vez de abrirse. Un documento recién emitido o eliminado, o un borrador nuevo que se guarda y pasa a su propia página, no tiene cambios sin guardar: nada de lo que llegue después impide que la página salga. `make cloud-e2e` falló así una vez, con las funciones en frío.
+
+### Revisiones
+
+- Las pruebas del editor retienen su numeración y sus impuestos, y luego guardan o emiten apenas el editor lo permite. En la 1.1.0 encuentran los dos problemas de arriba.
+
+### Seguridad y dependencias
+
+- `pnpm audit` ya no reporta glob (GHSA-3g3m-2fjr-6pw4) ni minimatch (GHSA-g3hv-75wg-m249) en la aplicación web. Los dos avisos son moderados, y los dos paquetes llegan a través de js-beautify, que declara @vue/test-utils. js-beautify y @vue/test-utils están en sus últimas versiones, y sus rangos no alcanzan las correcciones. Por eso frontend/pnpm-workspace.yaml fija esas dos rutas con un override, en glob 14.0.6 y minimatch 11.0.9. Solo la línea de comandos de js-beautify los carga, y las pruebas nunca la corren.
+
+### Documentación
+
+- La referencia de la API en español llama "Estado" al grupo Health, en vez de "Salud".
+- docs/es/limitations.md ya no lista la carrera del editor de facturas, y dice que un override cierra un aviso moderado que ninguna versión de origen corrige.
 
 ## [1.1.0] - 2026-11-24
 
@@ -165,6 +187,7 @@ La primera versión: facturación electrónica para pequeñas y medianas empresa
 - Un solo comando arranca todo en Docker Compose (`make demo`), y `make help` lista todos los objetivos.
 - Un README en inglés y en español, la arquitectura, una guía de la API cuyos ejemplos corren, la conformidad con la DIAN, una estimación de costos, y capturas y GIF que genera un script.
 
+[1.1.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/iamcesarcuellar/dian-einvoice/releases/tag/v1.0.0

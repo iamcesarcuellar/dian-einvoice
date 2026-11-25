@@ -4,6 +4,28 @@
 
 All notable changes to dian-einvoice are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-11-25
+
+A fix in the invoice editor, the web app's two moderate advisories, and one word of the Spanish API reference. No new features: the API and its reference are the same.
+
+### Interface
+
+- An invoice saved or issued before the editor had loaded its taxes came out without tax. Each line written without an item had no tax, though the editor showed the IVA a moment later. The editor now waits for its numbering ranges, taxes and withholdings. Until they are in, "Save draft" and "Issue invoice" stay disabled, and if one of those lists fails to load, the editor shows the error.
+- An invoice issued while those lists were still loading could stop on "Leave without saving?" instead of opening. A document just issued or deleted, or a new draft saved on its way to its own page, has no unsaved changes: nothing that arrives afterwards stops the page from leaving. `make cloud-e2e` failed this way once, on cold functions.
+
+### Checks
+
+- The editor's tests hold back its numbering and its taxes, then save or issue as soon as the editor allows it. On 1.1.0 they find both problems above.
+
+### Security and dependencies
+
+- `pnpm audit` no longer reports glob (GHSA-3g3m-2fjr-6pw4) or minimatch (GHSA-g3hv-75wg-m249) in the web app. Both advisories are moderate, and both packages come through js-beautify, which @vue/test-utils declares. js-beautify and @vue/test-utils are at their latest versions, and their ranges stop short of the fixes. So frontend/pnpm-workspace.yaml overrides those two paths, with glob 14.0.6 and minimatch 11.0.9. Only js-beautify's command line loads them, and the tests never run it.
+
+### Documentation
+
+- The Spanish API reference calls the Health group "Estado" instead of "Salud".
+- docs/limitations.md no longer lists the race of the invoice editor, and says that an override closes a moderate advisory that no upstream release fixes.
+
 ## [1.1.0] - 2026-11-24
 
 The documentation and the API reference in Spanish, a memory budget of their own for the backend tests, and the upkeep after 1.0.1. The API is the same, and its reference still names it 1.0.0.
@@ -163,6 +185,7 @@ The first release: electronic invoicing for Colombian small and medium businesse
 - One command starts everything in Docker Compose (`make demo`), and `make help` lists every target.
 - A README in English and in Spanish, the architecture, an API guide whose examples run, the DIAN conformance, a cost estimate, and screenshots and GIFs made by script.
 
+[1.1.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/iamcesarcuellar/dian-einvoice/releases/tag/v1.0.0

@@ -2,7 +2,7 @@
 
 [English](SECURITY.md) · **Español**
 
-<!-- Traducción de SECURITY.md con SHA-256 fc957f16c46a85dd0dc843868eb73fc273da0aa840c839e0ef6bd0421423eb10. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de SECURITY.md con SHA-256 b73c79965363d1b98cc765d7fff924004f0dc30feeab9ccce1071382160e033b. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 dian-einvoice es una implementación de referencia que corre en tu máquina. Un simulador local hace las veces de la DIAN, un emulador local hace las veces de los servicios de AWS, y todas las personas y empresas de los datos de ejemplo son sintéticas. Nunca se desplegó nada en una cuenta real de AWS.
 
@@ -28,7 +28,7 @@ No hay programa de recompensas (bug bounty). Este es un proyecto personal que ma
 
 ## Versiones con soporte
 
-La última versión, la 1.1.0, y el último commit de `main`. Una corrección llega primero a `main` y luego a la siguiente versión ([CHANGELOG.es.md](CHANGELOG.es.md)).
+La última versión, la 1.1.1, y el último commit de `main`. Una corrección llega primero a `main` y luego a la siguiente versión ([CHANGELOG.es.md](CHANGELOG.es.md)).
 
 ## Dentro del alcance
 
