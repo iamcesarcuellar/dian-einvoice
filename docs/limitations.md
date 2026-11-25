@@ -356,6 +356,7 @@ The network and database stacks exist in the prod stage only, and are never depl
 - Keyboard use, screen readers and contrast have not been reviewed.
 - The theme is kept in localStorage, and the sidebar state in a cookie. The demo account button exists only on the development server.
 - Ctrl+K is taken everywhere. Search requests are not canceled as the user types. The guard against leaving unsaved changes has gaps.
+- An invoice issued before the editor has loaded the numbering ranges and the taxes takes their defaults when they arrive. The guard reads those as unsaved changes and asks before the page leaves for the issued invoice. On a cold emulated cloud, make cloud-e2e failed this way once.
 
 ## Tests and tooling
 

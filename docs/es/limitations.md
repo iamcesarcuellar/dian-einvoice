@@ -2,7 +2,7 @@
 
 [English](../limitations.md) · **Español**
 
-<!-- Traducción de docs/limitations.md con SHA-256 04074541b2c204c161a7d7c459687f3ac81db75b4ec9937cebc1467445dc068a. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de docs/limitations.md con SHA-256 4b482878c6dc37ef6b80e6107fce4180d4893635a19d4b9f024c1251b530af17. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Esta página lista lo que el proyecto no hace, o solo hace en parte, en su estado actual. El proyecto es una implementación de referencia que corre contra un simulador local de la DIAN, con datos sintéticos. No se usa en producción.
 
@@ -358,6 +358,7 @@ Los stacks network y database solo existen en la etapa de producción, y nunca s
 - No se han revisado el uso con teclado, los lectores de pantalla ni el contraste.
 - El tema se guarda en localStorage, y el estado de la barra lateral en una cookie. El botón de la cuenta de ejemplo solo existe en el servidor de desarrollo.
 - Ctrl+K se captura en todas partes. Las peticiones de búsqueda no se cancelan mientras el usuario escribe. La protección contra salir con cambios sin guardar tiene huecos.
+- Una factura emitida antes de que el editor cargue los rangos de numeración y los impuestos toma sus valores por defecto cuando llegan. La protección los lee como cambios sin guardar y pregunta antes de que la página pase a la factura emitida. Con la nube emulada en frío, make cloud-e2e falló así una vez.
 
 ## Pruebas y herramientas
 

@@ -4,7 +4,14 @@
 
 All notable changes to dian-einvoice are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-11-24
+
+The documentation and the API reference in Spanish, a memory budget of their own for the backend tests, and the upkeep after 1.0.1. The API is the same, and its reference still names it 1.0.0.
+
+### API reference
+
+- The API reference also comes in Spanish: the page at /docs/api/es, its document at /docs/api/es.json, and openapi.es.json at the root, which `make openapi` writes next to openapi.json. It describes the same contract. Only the texts a person reads are translated: the summaries, the descriptions and the names of the groups, 322 blocks in one catalog keyed by the English text (backend/resources/api-reference/es.json). The paths, names, values, examples, status codes, header names and media types stay in English, and so do the labels of Stoplight Elements, its viewer.
+- Each reference links to the other on the first line of its description, and the Spanish page declares its language. The About dialog and the Quick start of Settings → Developers open the reference in the language of the interface.
 
 ### Observability
 
@@ -21,9 +28,12 @@ All notable changes to dian-einvoice are recorded here. The format follows [Keep
 - Every document also comes in Spanish. The documents of docs/ and docs/runbooks have their translation under docs/es, with the same names, and SECURITY, CONTRIBUTING, CHANGELOG and NOTICE have theirs at the root. NOTICE.es.txt is for reference only: NOTICE is the file that counts. A line under each title leads to the other language, and README.es.md links the Spanish documents.
 - The glossary in docs/README.md gives one Spanish term for each term of the interface and the documents, with the variants the Spanish texts do not use.
 - `make cost` and `make licenses` write their pages in both languages from the same data. The Spanish pages write their figures in Colombian notation (US$ 1.234,56).
-- docs/limitations.md says what the translation is and what it is not. English is the source, and the checks keep each translation in step and check what is not prose, not the prose itself. The API reference stays in English.
+- docs/limitations.md says what the translation is and what it is not. English is the source, and the checks keep each translation in step and check what is not prose, not the prose itself.
 - README.md now says what only README.es.md said: `make seed LOCALE=es` and `make cloud-demo LOCALE=es` load the demo data in Spanish, an `Accept-Language` header gets the API's messages in Spanish, and the web app keeps its messages in `frontend/src/i18n`.
 - docs/infrastructure.md names actionlint 1.7.12, the version compose.yaml runs.
+- The Spanish documents say "script", the word Colombian engineers use, instead of "guion". The glossary takes it as the term, and adds "issue" to the words that stay in English.
+- docs/limitations.md says what the Spanish reference translates and what it does not, two limits of Scramble (it lists processing as the only value of the electronic_status filter, and a second document it builds in the same process loses parameters), and a race of the invoice editor: an invoice issued before the numbering ranges and the taxes load asks before the page leaves, as if it had unsaved changes.
+- CONTRIBUTING.md says how a change keeps the Spanish reference in step.
 
 ### Fixes
 
@@ -35,6 +45,7 @@ All notable changes to dian-einvoice are recorded here. The format follows [Keep
   - docs/threat-model.md: the sessions kept in DynamoDB, how an unreadable message reaches the dead-letter queue, and a risk listed as a mitigation.
   - The runbooks: how often the origin verifier reads its secret, the notifier's fallback topic, a widget's full title, the event types that fail a message, and the secrets the PHP functions read.
 - The description of the `origin-verifier-errors` alarm (infra/cdk/lib/observability-stack.ts) says what happens: a warm verifier keeps using the values it holds, and a new one has none.
+- The backend tests run in a container of their own, api-test, with a memory budget of 1.5 GB. They shared the 512 MiB of the development API, and their peak passed it, at 524 to 568 MiB. Under that limit the kernel reclaimed memory about 300 times a run, and in CI it once ended PHPUnit (exit code 137). The test runner now hands back its free memory before it forks, and the tests that build the API reference run in processes of their own, so the peak is 368 to 381 MiB. `make test-backend` prints the container's peak and limit at the end of every run.
 
 ### Checks
 
@@ -43,6 +54,11 @@ All notable changes to dian-einvoice are recorded here. The format follows [Keep
 - `make docs-examples` also runs the examples of the Spanish API guide, its webhook signature examples in Node.js and PHP included.
 - The runbook tests read the Spanish runbooks and deployment guide too. Their commands exist, every page has its translation, the Spanish index lists every alarm with its runbook, and each runbook of an alarm has its six parts.
 - `make security` checks that NOTICE.es.txt names every third-party file that NOTICE names.
+- `make docs-check` checks the Spanish reference (e2e/docs/reference.mjs). Without the texts a person reads, it is the English contract. Every block of an English text has its translation, or is declared the same in both languages with its reason, and no entry of the catalog is left over. Each translation keeps its original's inline code, links and figures, and passes the glossary and the check for English left. openapi.es.json holds the catalog's translation of every text. `make test-tools` tests the check, the cases it must fail on included.
+- `make test-backend` checks that openapi.json and openapi.es.json are what the code generates, by exporting them in a process of their own; nothing checked openapi.json before. Both references are analyzed with no warning, and building the Spanish one leaves no Spanish in the English one.
+- `make cloud-check` and `make cloud-e2e` open the Spanish reference too, through the edge and under its policy.
+- The translations check takes a link to the API reference, served or exported, as a link to the reference in the other language.
+- `make docs-check` prints every problem it finds. It used to exit before a long list reached its pipe.
 
 ## [1.0.1] - 2026-11-24
 
@@ -147,6 +163,6 @@ The first release: electronic invoicing for Colombian small and medium businesse
 - One command starts everything in Docker Compose (`make demo`), and `make help` lists every target.
 - A README in English and in Spanish, the architecture, an API guide whose examples run, the DIAN conformance, a cost estimate, and screenshots and GIFs made by script.
 
-[Unreleased]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.1...HEAD
+[1.1.0]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/iamcesarcuellar/dian-einvoice/releases/tag/v1.0.0

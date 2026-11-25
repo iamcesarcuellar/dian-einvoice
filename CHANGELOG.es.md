@@ -2,11 +2,18 @@
 
 [English](CHANGELOG.md) · **Español**
 
-<!-- Traducción de CHANGELOG.md con SHA-256 c48dcf5e6966d9ee4b6c69a8ee8ec85d16e6e13345b3e34ea7b4be6e59d61870. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
+<!-- Traducción de CHANGELOG.md con SHA-256 08cdd01a64e52fa861ba13bfb3eab708bc96107a59cd7ada9a99009ca13985ab. make docs-stamp actualiza esta línea cuando la traducción ya sigue al original. -->
 
 Aquí se registran todos los cambios notables de dian-einvoice. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), y las versiones siguen el [Versionado Semántico](https://semver.org/lang/es/spec/v2.0.0.html).
 
-## [Sin publicar]
+## [1.1.0] - 2026-11-24
+
+La documentación y la referencia de la API en español, un presupuesto de memoria propio para las pruebas del backend, y el mantenimiento después de la 1.0.1. La API es la misma, y su referencia la sigue llamando 1.0.0.
+
+### Referencia de la API
+
+- La referencia de la API también está en español: la página en /docs/api/es, su documento en /docs/api/es.json, y openapi.es.json en la raíz, que `make openapi` escribe junto a openapi.json. Describe el mismo contrato. Solo se traducen los textos que lee una persona: los resúmenes, las descripciones y los nombres de los grupos, 322 bloques en un solo catálogo cuya clave es el texto en inglés (backend/resources/api-reference/es.json). Las rutas, los nombres, los valores, los ejemplos, los códigos de estado, los nombres de las cabeceras y los tipos de medio siguen en inglés, igual que los rótulos de Stoplight Elements, su visor.
+- Cada referencia enlaza a la otra en la primera línea de su descripción, y la página en español declara su idioma. El diálogo Acerca de y el Inicio rápido de Configuración → Desarrolladores abren la referencia en el idioma de la interfaz.
 
 ### Observabilidad
 
@@ -23,9 +30,12 @@ Aquí se registran todos los cambios notables de dian-einvoice. El formato sigue
 - Cada documento viene también en español. Los documentos de docs/ y de docs/runbooks tienen su traducción en docs/es, con los mismos nombres, y SECURITY, CONTRIBUTING, CHANGELOG y NOTICE tienen la suya en la raíz. NOTICE.es.txt es solo de referencia: el archivo que vale es NOTICE. Una línea bajo cada título lleva al otro idioma, y README.es.md enlaza los documentos en español.
 - El glosario de docs/es/README.md da un solo término en español para cada término de la interfaz y de los documentos, con las variantes que los textos en español no usan.
 - `make cost` y `make licenses` escriben sus páginas en los dos idiomas a partir de los mismos datos. Las páginas en español escriben sus cifras en notación colombiana (US$ 1.234,56).
-- docs/es/limitations.md dice qué es la traducción y qué no es. El inglés es la fuente, y las revisiones mantienen cada traducción al día con su original y revisan lo que no es prosa, no la prosa misma. La referencia de la API se queda en inglés.
+- docs/es/limitations.md dice qué es la traducción y qué no es. El inglés es la fuente, y las revisiones mantienen cada traducción al día con su original y revisan lo que no es prosa, no la prosa misma.
 - README.md ahora dice lo que solo decía README.es.md: `make seed LOCALE=es` y `make cloud-demo LOCALE=es` cargan los datos de ejemplo en español, una cabecera `Accept-Language` trae los mensajes de la API en español, y la aplicación web guarda sus mensajes en `frontend/src/i18n`.
 - docs/es/infrastructure.md nombra actionlint 1.7.12, la versión que usa compose.yaml.
+- Los documentos en español dicen "script", la palabra que usan los ingenieros colombianos, en vez de "guion". El glosario lo toma como el término, y agrega "issue" a las palabras que se quedan en inglés.
+- docs/es/limitations.md dice qué traduce la referencia en español y qué no, dos límites de Scramble (da processing como el único valor del filtro electronic_status, y un segundo documento que arma en el mismo proceso pierde parámetros) y una carrera del editor de facturas: una factura emitida antes de que carguen los rangos de numeración y los impuestos pregunta antes de que la página salga, como si tuviera cambios sin guardar.
+- CONTRIBUTING.es.md dice cómo un cambio mantiene al día la referencia en español.
 
 ### Correcciones
 
@@ -37,6 +47,7 @@ Aquí se registran todos los cambios notables de dian-einvoice. El formato sigue
   - docs/es/threat-model.md: las sesiones que se guardan en DynamoDB, cómo llega a la cola de mensajes fallidos un mensaje ilegible, y un riesgo que aparecía como mitigación.
   - Los runbooks: cada cuánto lee su secreto el verificador de origen, el tema de respaldo del notificador, el título completo de un widget, los tipos de evento que hacen fallar un mensaje y los secretos que leen las funciones en PHP.
 - La descripción de la alarma `origin-verifier-errors` (infra/cdk/lib/observability-stack.ts) dice lo que pasa: un verificador en caliente sigue usando los valores que guarda, y uno nuevo no tiene ninguno.
+- Las pruebas del backend corren en un contenedor propio, api-test, con un presupuesto de memoria de 1,5 GB. Compartían los 512 MiB de la API de desarrollo, y su pico los pasaba, entre 524 y 568 MiB. Con ese límite, el núcleo recuperaba memoria unas 300 veces por ejecución, y en la integración continua mató una vez el proceso de PHPUnit (código de salida 137). El proceso de las pruebas ahora devuelve su memoria libre antes de bifurcarse, y las pruebas que arman la referencia de la API corren en procesos aparte, así que el pico queda entre 368 y 381 MiB. `make test-backend` imprime el pico y el límite del contenedor al final de cada ejecución.
 
 ### Revisiones
 
@@ -45,6 +56,11 @@ Aquí se registran todos los cambios notables de dian-einvoice. El formato sigue
 - `make docs-examples` también corre los ejemplos de la guía de la API en español, incluidos sus ejemplos de firmas de webhooks en Node.js y PHP.
 - Las pruebas de los runbooks también leen los runbooks y la guía de despliegue en español. Sus comandos existen, cada página tiene su traducción, el índice en español lista cada alarma con su runbook, y cada runbook de una alarma tiene sus seis partes.
 - `make security` revisa que NOTICE.es.txt nombre cada archivo de terceros que nombra NOTICE.
+- `make docs-check` revisa la referencia en español (e2e/docs/reference.mjs). Sin los textos que lee una persona, es el contrato en inglés. Cada bloque de un texto en inglés tiene su traducción, o está declarado igual en los dos idiomas con su razón, y no sobra ninguna entrada del catálogo. Cada traducción conserva el código en línea, los enlaces y las cifras de su original, y pasa el glosario y la revisión del inglés que quedó sin traducir. openapi.es.json tiene la traducción del catálogo de cada texto. `make test-tools` prueba la revisión, incluidos los casos en los que debe fallar.
+- `make test-backend` revisa que openapi.json y openapi.es.json sean lo que genera el código, exportándolos en un proceso aparte; antes, nada revisaba openapi.json. Las dos referencias se analizan sin ninguna advertencia, y armar la española no deja nada en español en la inglesa.
+- `make cloud-check` y `make cloud-e2e` también abren la referencia en español, a través del borde y bajo su política.
+- La revisión de las traducciones toma un enlace a la referencia de la API, servida o exportada, como un enlace a la referencia en el otro idioma.
+- `make docs-check` imprime cada problema que encuentra. Antes terminaba antes de que una lista larga llegara a su salida.
 
 ## [1.0.1] - 2026-11-24
 
@@ -149,6 +165,6 @@ La primera versión: facturación electrónica para pequeñas y medianas empresa
 - Un solo comando arranca todo en Docker Compose (`make demo`), y `make help` lista todos los objetivos.
 - Un README en inglés y en español, la arquitectura, una guía de la API cuyos ejemplos corren, la conformidad con la DIAN, una estimación de costos, y capturas y GIF que genera un script.
 
-[Sin publicar]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.1...HEAD
+[1.1.0]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/iamcesarcuellar/dian-einvoice/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/iamcesarcuellar/dian-einvoice/releases/tag/v1.0.0
